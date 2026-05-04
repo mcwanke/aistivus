@@ -1,6 +1,6 @@
 # AIstivus — Project Specification
 > AI-Powered Job Search Management Platform
-> Version 0.5 — Final Pre-Implementation Specification
+> Version 0.6 — Phase 0 Complete, Phase 0.1 In Progress
 
 ---
 
@@ -887,30 +887,38 @@ aistivus/
 
 ## 15. Phased Delivery Plan
 
-### Phase 0 — Survival Mode (Target: 1-2 days)
+### Phase 0 — Survival Mode ✅ COMPLETE
 **Goal: Replace manual Claude copy-paste with something that works locally today.**
 
-A win is: paste a JD, get a structured evaluation, have it stored in a database.
+Delivered:
+- `requirements.txt`, `database.py`, `llm_client.py`, `evaluator.py`, `main.py`
+- `index.html` — landing page with stats and navigation
+- `evaluate.html` — JD paste and evaluation UI
+- `evaluations.html` — evaluation history with detail panel and report viewer
+- Full SQLite schema (all tables initialized at startup)
+- Ollama startup validation
+- CORS, delimiter injection mitigation, path sanitization
+- Markdown evaluation reports with date-first naming
+- ATS keyword extraction (25-35 keywords per evaluation)
+- `templates/` folder with CONFIG_TEMPLATE.yaml, JOBSEARCH_TEMPLATE.md, INBOX_TEMPLATE.md
+- `FEATURES.md` backlog, `README.md`
+
+### Phase 0.1 — Foundation Completion 🔄 IN PROGRESS
+**Goal: Close remaining gaps before React frontend begins. Clean handoff to Phase 1.**
 
 Deliverables:
-- `requirements.txt` (fastapi, uvicorn, httpx, python-dotenv)
-- `database.py` — full schema initialized; Phase 0 writes 4 tables
-- `config.yaml` — Ollama URL and model only
-- `llm_client.py` — Ollama only
-- `evaluator.py` — reads `jobsearch.md`, calls Ollama, parses response, writes to DB and `/reports/`
-- `main.py` — FastAPI with `POST /evaluate`; CORS configured
-- `index.html` — paste box, optional fields, results display
-- `/inbox/` processing with `/done/` and `/failed/` paths and error sidecars
-- Startup validation: ping Ollama, confirm model available, clear error if not
+- `evaluate.py` — CLI script for `/inbox/` file drop batch processing
+- `jobs.html` — Jobs/Opportunities page showing all jobs with evaluation scores, fit types, and multi-evaluation grouping
+- Re-evaluate functionality with model picker — select any available Ollama model or configured cloud provider; run additional evaluations against same job; results grouped by job with model labels
+- Multi-evaluation display — jobs and evaluations pages group by job, show all evaluations with model/score/date, cross-model comparison caveat displayed
+- `GET /api/models` route — returns available Ollama models for model picker UI
+- `LEGAL_DISCLAIMER.md` — scraping ToS and AI output accuracy disclaimer
 
 **Definition of done:**
-- `python main.py` starts without errors
-- Open `localhost:8080`, paste a JD, get evaluation on screen
-- Evaluation in database; markdown in `/reports/`
-- Older JDs processable via `/inbox/` file drop
-
-**Deliberately excluded from Phase 0:**
-Scraper, resume library, document generation, tests, React, TypeScript, auth, structured logging, audit logs, LLM cost tracking. All future work.
+- User can drop a JD file in `/inbox/`, run `evaluate.py`, see result in browser
+- User can view all jobs with their best evaluation score on `jobs.html`
+- User can re-evaluate any job with any available model from the UI
+- Multiple evaluations per job are clearly displayed with model attribution
 
 ### Phase 1 — Minimum Useful Web UI
 **Goal: Manage your pipeline in a browser.**
@@ -1148,4 +1156,5 @@ Context management:
 - **v0.2** — First review: naming, TypeScript, tiered ingestion, security section, logging, stubs, llm_call_log, async, jobspy risk raised
 - **v0.3** — Second review: DNS rebinding, config path injection, tiktoken, chat stub, role_keyword+dedup, taxonomy, repost detection, re-ingestion, pay band failure, export versioning, file integrity, jobsearch_versions, orphan cleanup, Windows removed, Playwright risk added
 - **v0.4** — Phase rebuild: Phase 0 added; all tables at init; application_notes.created_at; prompt_hash; chunks_used as JSON array; enums documented; description_merged algorithm; pay band failure specified; jobsearch.md conflict policy; trimmed fallback; export format; CORS; XSS; inbox failure handling; state machine policy; source_resume hash; llm_call_log retention; projects migration note; max_task_age_hours placement; stub export contract; jobspy contingency removed
-- **v0.5** — Final pre-implementation: delimiter injection mitigation specified with code example (Section 10.4); MD5 → SHA-256 for prompt_hash; inbound rate limiting via slowapi noted (Section 10.7 + Phase 1 deliverables); WeasyPrint sanitization library named as nh3 + external resource blocking specified (Section 10.12); /inbox/ failure path added (/inbox/failed/ + error sidecar files, Section 7); application_status documented as intentionally unenforced with audit trail as source of truth (Section 6); source_resume changed to SHA-256 content hash + source_resume_name display column (Section 6); llm_call_log retention policy added (90 days default, configurable, Section 6 + config); jobsearch.md trimmed fallback fully specified as warning + manual (Section 18); resume_info never-hard-delete constraint documented with rationale (Section 6); Ollama startup validation added to Phase 0 deliverables (Section 8.1); description_merged algorithm tightened (exact string match after whitespace strip, Section 9.3); project_id NULL migration policy clarified — default project created in Phase 4, all existing records migrated (Section 6); max_task_age_hours moved to separate tasks config section (Section 13, 19); stub table export contract specified — empty arrays included (Section 6); Phase 1 timeline removed; jobspy long-term fallback removed — manual always works, library replacement at module boundary (Section 15 Phase 3 note)
+- **v0.5** — Final pre-implementation: delimiter injection mitigation; SHA-256 for prompt_hash; slowapi noted; nh3 named for WeasyPrint; /inbox/failed/ + error sidecars; application_status intentionally unenforced; source_resume as content hash; llm_call_log retention; trimmed fallback as warning+manual; resume_info never-hard-delete; Ollama startup validation; description_merged algorithm tightened; project_id NULL migration policy; max_task_age_hours to tasks section; stub table export; Phase 1 timeline removed; jobspy fallback removed
+- **v0.6** — Phase 0 complete. Phase 0.1 added formally to phased delivery plan. Template files moved to `templates/` folder. `FEATURES.md` backlog created. `README.md` added. `CLAUDE.md` updated with current state and Phase 0.1 checklist. `evaluations.keywords` column added to schema (ATS keyword extraction, 25-35 keywords). `evaluations.log_entry` retained as one-line summary. Phase 0 structure updated to reflect actual delivered files (index.html as landing page, evaluate.html, evaluations.html). Phase 0.1 deliverables: evaluate.py CLI, jobs.html, re-evaluate with model picker, multi-evaluation grouping, GET /api/models route, LEGAL_DISCLAIMER.md.
