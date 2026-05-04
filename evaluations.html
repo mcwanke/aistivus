@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evaluations — AIstivus</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+  <style>
+    :root {
+      --bg:           #0f0f0f;
+      --surface:      #181818;
+      --surface-2:    #222222;
+      --border:       #2a2a2a;
+      --border-focus: #4a4a4a;
+      --text:         #e8e6e0;
+      --text-muted:   #7a7872;
+      --text-dim:     #4a4844;
+      --accent:       #c8a96e;
+      --accent-dim:   #8a7248;
+      --green:        #6a9c6a;
+      --red:          #9c6a6a;
+      --amber:        #c8a96e;
+      --radius:       6px;
+      --radius-lg:    12px;
+      --mono:         'DM Mono', monospace;
+      --serif:        'DM Serif Display', serif;
+      --sans:         'DM Sans', sans-serif;
+      --transition:   200ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 15px; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ───────────────────────────────────────────── */
+    .header {
+      border-bottom: 1px solid var(--border);
+      padding: 18px 32px;
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 10;
+    }
+
+    .header-back {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      text-decoration: none;
+      transition: color var(--transition);
+    }
+    .header-back:hover { color: var(--text-muted); }
+
+    .header-wordmark {
+      font-family: var(--serif);
+      font-size: 1.5rem;
+      color: var(--accent);
+      letter-spacing: -0.02em;
+      text-decoration: none;
+    }
+
+    .header-page {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 300;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .header-status {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: var(--mono);
+    }
+
+    .status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      transition: background var(--transition);
+    }
+    .status-dot.ok   { background: var(--green); }
+    .status-dot.fail { background: var(--red); }
+
+    /* ── Layout ───────────────────────────────────────────── */
+    .content {
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      height: calc(100vh - 61px);
+    }
+
+    /* ── Left — list ──────────────────────────────────────── */
+    .list-panel {
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+    }
+
+    .list-toolbar {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 5;
+    }
+
+    .list-count {
+      font-size: 0.7rem;
+      font-family: var(--mono);
+      color: var(--text-dim);
+      flex: 1;
+    }
+
+    .filter-select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      padding: 6px 10px;
+      outline: none;
+      cursor: pointer;
+      appearance: none;
+    }
+
+    .filter-select:focus { border-color: var(--border-focus); }
+
+    .eval-row {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background var(--transition);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: start;
+    }
+
+    .eval-row:hover { background: var(--surface); }
+    .eval-row.active { background: var(--surface); border-left: 2px solid var(--accent); }
+
+    .eval-row-company {
+      font-size: 0.65rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      margin-bottom: 3px;
+    }
+
+    .eval-row-title {
+      font-size: 0.9rem;
+      color: var(--text);
+      margin-bottom: 6px;
+      line-height: 1.3;
+    }
+
+    .eval-row-meta {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .eval-row-date {
+      font-size: 0.65rem;
+      font-family: var(--mono);
+      color: var(--text-dim);
+    }
+
+    .mini-tag {
+      font-size: 0.62rem;
+      font-family: var(--mono);
+      padding: 2px 7px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+    }
+
+    .mini-tag.fit-core     { border-color: var(--green); color: var(--green); }
+    .mini-tag.fit-stretch  { border-color: var(--amber); color: var(--amber); }
+    .mini-tag.fit-mismatch { border-color: var(--red);   color: var(--red); }
+    .mini-tag.rec-apply    { background: var(--green); color: #0f0f0f; border-color: var(--green); }
+    .mini-tag.rec-modify   { background: var(--amber); color: #0f0f0f; border-color: var(--amber); }
+    .mini-tag.rec-skip     { background: var(--red);   color: #f0f0f0; border-color: var(--red); }
+
+    .eval-row-score {
+      font-family: var(--serif);
+      font-size: 1.6rem;
+      color: var(--accent);
+      line-height: 1;
+      text-align: right;
+    }
+
+    .eval-row-score-denom {
+      font-size: 0.6rem;
+      font-family: var(--mono);
+      color: var(--text-dim);
+      text-align: right;
+    }
+
+    .eval-row-score.failed {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--red);
+    }
+
+    /* ── Empty / loading ─────────────────────────────────── */
+    .list-empty {
+      padding: 64px 24px;
+      text-align: center;
+      color: var(--text-dim);
+    }
+
+    .list-empty-glyph {
+      font-family: var(--serif);
+      font-size: 2.5rem;
+      opacity: 0.3;
+      font-style: italic;
+      margin-bottom: 12px;
+    }
+
+    .list-empty p {
+      font-size: 0.8rem;
+      line-height: 1.6;
+    }
+
+    .list-empty a {
+      color: var(--accent);
+      text-decoration: none;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+    }
+
+    /* ── Right — detail ──────────────────────────────────── */
+    .detail-panel {
+      overflow-y: auto;
+      background: var(--surface);
+    }
+
+    .detail-empty {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--text-dim);
+      text-align: center;
+      padding: 32px;
+    }
+
+    .detail-empty-glyph {
+      font-family: var(--serif);
+      font-size: 2rem;
+      opacity: 0.3;
+      font-style: italic;
+    }
+
+    .detail-empty p {
+      font-size: 0.78rem;
+      max-width: 200px;
+      line-height: 1.5;
+    }
+
+    .detail-content { padding: 28px; display: none; }
+    .detail-content.visible { display: block; }
+
+    .detail-header {
+      margin-bottom: 24px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .detail-company {
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-family: var(--mono);
+      margin-bottom: 6px;
+    }
+
+    .detail-title {
+      font-family: var(--serif);
+      font-size: 1.4rem;
+      color: var(--text);
+      line-height: 1.2;
+      margin-bottom: 12px;
+    }
+
+    .detail-score-row {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .detail-score {
+      font-family: var(--serif);
+      font-size: 2.2rem;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .detail-score-denom {
+      font-size: 0.7rem;
+      font-family: var(--mono);
+      color: var(--text-dim);
+    }
+
+    .detail-tags {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .tag {
+      font-size: 0.7rem;
+      font-family: var(--mono);
+      padding: 3px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+
+    .tag.fit-core     { border-color: var(--green); color: var(--green); }
+    .tag.fit-stretch  { border-color: var(--amber); color: var(--amber); }
+    .tag.fit-mismatch { border-color: var(--red);   color: var(--red); }
+    .tag.rec-apply    { background: var(--green); color: #0f0f0f; border-color: var(--green); }
+    .tag.rec-modify   { background: var(--amber); color: #0f0f0f; border-color: var(--amber); }
+    .tag.rec-skip     { background: var(--red);   color: #f0f0f0; border-color: var(--red); }
+
+    .sub-scores {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .sub-score {
+      background: var(--surface-2);
+      border-radius: var(--radius);
+      padding: 8px 6px;
+      text-align: center;
+    }
+
+    .sub-score-label {
+      font-size: 0.58rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      margin-bottom: 3px;
+    }
+
+    .sub-score-value {
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      color: var(--text);
+    }
+
+    .detail-section { margin-bottom: 18px; }
+
+    .detail-section-label {
+      font-size: 0.62rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      margin-bottom: 8px;
+    }
+
+    .detail-section-content {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.65;
+      white-space: pre-wrap;
+    }
+
+    .keywords-wrap { display: flex; flex-wrap: wrap; gap: 5px; }
+
+    .keyword-chip {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.68rem;
+      font-family: var(--mono);
+      padding: 3px 8px;
+      color: var(--text-muted);
+      cursor: default;
+      transition: border-color var(--transition), color var(--transition);
+    }
+
+    .keyword-chip:hover { border-color: var(--accent-dim); color: var(--accent); }
+
+    .detail-meta {
+      font-size: 0.65rem;
+      font-family: var(--mono);
+      color: var(--text-dim);
+      margin-bottom: 16px;
+    }
+
+    /* ── Report view ──────────────────────────────────────── */
+    .report-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    .btn-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.72rem;
+      font-family: var(--mono);
+      color: var(--text-dim);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 5px 10px;
+      cursor: pointer;
+      background: transparent;
+      transition: border-color var(--transition), color var(--transition);
+    }
+
+    .btn-link:hover { border-color: var(--border-focus); color: var(--text); }
+
+    /* ── Report modal ─────────────────────────────────────── */
+    .report-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+    }
+
+    .report-modal.open { display: flex; }
+
+    .report-modal-inner {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 780px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .report-modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .report-modal-title {
+      font-size: 0.75rem;
+      font-family: var(--mono);
+      color: var(--text-muted);
+      flex: 1;
+    }
+
+    .report-modal-close {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      transition: border-color var(--transition), color var(--transition);
+    }
+
+    .report-modal-close:hover { border-color: var(--border-focus); color: var(--text); }
+
+    .report-modal-body {
+      padding: 28px 32px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    /* Markdown rendering styles */
+    .report-modal-body h1 {
+      font-family: var(--serif);
+      font-size: 1.6rem;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .report-modal-body h2 {
+      font-family: var(--serif);
+      font-size: 1.15rem;
+      color: var(--text);
+      margin: 24px 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .report-modal-body h3 {
+      font-size: 0.85rem;
+      font-family: var(--mono);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin: 16px 0 8px;
+    }
+
+    .report-modal-body p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+      margin-bottom: 12px;
+    }
+
+    .report-modal-body table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 16px;
+      font-size: 0.82rem;
+    }
+
+    .report-modal-body th {
+      text-align: left;
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    .report-modal-body td {
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+
+    .report-modal-body code {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      padding: 2px 5px;
+      color: var(--accent);
+    }
+
+    .report-modal-body pre {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      overflow-x: auto;
+      margin-bottom: 16px;
+    }
+
+    .report-modal-body pre code {
+      background: transparent;
+      border: none;
+      padding: 0;
+      color: var(--text-muted);
+    }
+
+    .report-modal-body hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 20px 0;
+    }
+
+    .report-modal-body strong { color: var(--text); }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    @media (max-width: 700px) {
+      .content { grid-template-columns: 1fr; }
+      .detail-panel { display: none; }
+      .sub-scores { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="header">
+    <a href="/" class="header-back">← Home</a>
+    <a href="/" class="header-wordmark">AIstivus</a>
+    <span class="header-page">Evaluations</span>
+    <div class="header-status">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">checking...</span>
+    </div>
+  </header>
+
+  <div class="content">
+
+    <!-- List panel -->
+    <div class="list-panel">
+      <div class="list-toolbar">
+        <span class="list-count" id="listCount">Loading...</span>
+        <select class="filter-select" id="filterFit" onchange="applyFilter()">
+          <option value="">All fit types</option>
+          <option value="Core Fit">Core Fit</option>
+          <option value="Stretch">Stretch</option>
+          <option value="Mismatch">Mismatch</option>
+        </select>
+        <select class="filter-select" id="filterRec" onchange="applyFilter()">
+          <option value="">All recommendations</option>
+          <option value="Apply">Apply</option>
+          <option value="Apply with modifications">Apply with modifications</option>
+          <option value="Skip">Skip</option>
+        </select>
+      </div>
+      <div id="evalList"></div>
+    </div>
+
+    <!-- Detail panel -->
+    <div class="detail-panel" id="detailPanel">
+      <div class="detail-empty" id="detailEmpty">
+        <div class="detail-empty-glyph">←</div>
+        <p>Select an evaluation to view details.</p>
+      </div>
+      <div class="detail-content" id="detailContent"></div>
+    </div>
+  </div>
+
+  <!-- Report modal -->
+  <div class="report-modal" id="reportModal">
+    <div class="report-modal-inner">
+      <div class="report-modal-header">
+        <span class="report-modal-title" id="reportModalTitle">Report</span>
+        <button class="report-modal-close" onclick="closeReport()">✕ Close</button>
+      </div>
+      <div class="report-modal-body" id="reportModalBody"></div>
+    </div>
+  </div>
+
+  <script>
+    let allEvaluations = [];
+    let selectedId     = null;
+
+    // ── Helpers ────────────────────────────────────────────
+    function fitClass(v) {
+      if (!v) return '';
+      const f = v.toLowerCase();
+      if (f.includes('core'))     return 'fit-core';
+      if (f.includes('stretch'))  return 'fit-stretch';
+      if (f.includes('mismatch')) return 'fit-mismatch';
+      return '';
+    }
+
+    function recClass(v) {
+      if (!v) return '';
+      const r = v.toLowerCase();
+      if (r.startsWith('apply with')) return 'rec-modify';
+      if (r.startsWith('apply'))      return 'rec-apply';
+      if (r.startsWith('skip'))       return 'rec-skip';
+      return '';
+    }
+
+    function formatDate(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    // ── Load evaluations ───────────────────────────────────
+    async function loadEvaluations() {
+      try {
+        const res  = await fetch('/api/evaluations');
+        const data = await res.json();
+        allEvaluations = data;
+        renderList(allEvaluations);
+      } catch (err) {
+        document.getElementById('evalList').innerHTML =
+          `<div class="list-empty"><p>Failed to load evaluations.<br>${err.message}</p></div>`;
+      }
+    }
+
+    // ── Filter ─────────────────────────────────────────────
+    function applyFilter() {
+      const fitFilter = document.getElementById('filterFit').value.toLowerCase();
+      const recFilter = document.getElementById('filterRec').value.toLowerCase();
+
+      const filtered = allEvaluations.filter(e => {
+        const fitMatch = !fitFilter ||
+          (e.fit_type || '').toLowerCase().includes(fitFilter);
+        const recMatch = !recFilter ||
+          (e.recommendation || '').toLowerCase().includes(recFilter);
+        return fitMatch && recMatch;
+      });
+
+      renderList(filtered);
+    }
+
+    // ── Render list ────────────────────────────────────────
+    function renderList(evals) {
+      const container = document.getElementById('evalList');
+      const count     = document.getElementById('listCount');
+
+      count.textContent = `${evals.length} evaluation${evals.length !== 1 ? 's' : ''}`;
+
+      if (evals.length === 0) {
+        container.innerHTML = `
+          <div class="list-empty">
+            <div class="list-empty-glyph">∅</div>
+            <p>No evaluations yet.<br><a href="/evaluate">Evaluate a role →</a></p>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = evals.map(e => {
+        const score   = e.score_overall != null ? e.score_overall.toFixed(1) : null;
+        const failed  = e.score_overall == null;
+        const isActive = e.id === selectedId ? ' active' : '';
+
+        return `
+          <div class="eval-row${isActive}" onclick="selectEval(${e.id})">
+            <div>
+              <div class="eval-row-company">${e.company_name || 'Unknown Company'}</div>
+              <div class="eval-row-title">${e.title || 'Unknown Role'}</div>
+              <div class="eval-row-meta">
+                <span class="eval-row-date">${formatDate(e.evaluated_at)}</span>
+                ${e.fit_type
+                  ? `<span class="mini-tag ${fitClass(e.fit_type)}">${e.fit_type}</span>`
+                  : ''}
+                ${e.recommendation
+                  ? `<span class="mini-tag ${recClass(e.recommendation)}">${e.recommendation}</span>`
+                  : ''}
+                ${failed ? `<span class="mini-tag" style="color:var(--red);border-color:var(--red)">Failed</span>` : ''}
+              </div>
+            </div>
+            <div>
+              <div class="eval-row-score ${failed ? 'failed' : ''}">
+                ${failed ? 'ERR' : score}
+              </div>
+              ${!failed ? '<div class="eval-row-score-denom">/ 10</div>' : ''}
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    // ── Select evaluation ──────────────────────────────────
+    async function selectEval(id) {
+      selectedId = id;
+
+      // Highlight selected row
+      document.querySelectorAll('.eval-row').forEach(r => r.classList.remove('active'));
+      const rows = document.querySelectorAll('.eval-row');
+      rows.forEach(r => {
+        if (r.getAttribute('onclick') === `selectEval(${id})`) {
+          r.classList.add('active');
+        }
+      });
+
+      try {
+        const res  = await fetch(`/api/evaluations/${id}`);
+        const data = await res.json();
+        renderDetail(data);
+      } catch (err) {
+        renderDetailError(err.message);
+      }
+    }
+
+    // ── Render detail ──────────────────────────────────────
+    function renderDetail(e) {
+      document.getElementById('detailEmpty').style.display   = 'none';
+      const content = document.getElementById('detailContent');
+      content.classList.add('visible');
+
+      const score  = e.score_overall != null ? e.score_overall.toFixed(1) : null;
+      const failed = e.score_overall == null;
+
+      const keywords = (e.keywords || '')
+        .split(',')
+        .map(k => k.trim())
+        .filter(Boolean)
+        .map(k => `<span class="keyword-chip">${k}</span>`)
+        .join('');
+
+      content.innerHTML = `
+        <div class="detail-header">
+          <div class="detail-company">${e.company_name || 'Unknown Company'}</div>
+          <div class="detail-title">${e.title || 'Unknown Role'}</div>
+
+          <div class="detail-score-row">
+            <div class="detail-score">${failed ? '—' : score}</div>
+            ${!failed ? '<div class="detail-score-denom">/ 10</div>' : ''}
+          </div>
+
+          <div class="detail-tags">
+            ${e.fit_type
+              ? `<span class="tag ${fitClass(e.fit_type)}">${e.fit_type}</span>`
+              : ''}
+            ${e.archetype
+              ? `<span class="tag">${e.archetype}</span>`
+              : ''}
+            ${e.recommendation
+              ? `<span class="tag ${recClass(e.recommendation)}">${e.recommendation}</span>`
+              : ''}
+          </div>
+
+          <div class="sub-scores">
+            <div class="sub-score">
+              <div class="sub-score-label">Role Fit</div>
+              <div class="sub-score-value">${e.score_role_fit != null ? `${e.score_role_fit}/5` : '—'}</div>
+            </div>
+            <div class="sub-score">
+              <div class="sub-score-label">Scope</div>
+              <div class="sub-score-value">${e.score_scope_fit != null ? `${e.score_scope_fit}/5` : '—'}</div>
+            </div>
+            <div class="sub-score">
+              <div class="sub-score-label">Culture</div>
+              <div class="sub-score-value">${e.score_culture != null ? `${e.score_culture}/5` : '—'}</div>
+            </div>
+            <div class="sub-score">
+              <div class="sub-score-label">Comp</div>
+              <div class="sub-score-value">${e.score_comp != null ? `${e.score_comp}/5` : '—'}</div>
+            </div>
+          </div>
+
+          <div class="detail-meta">
+            Model: ${e.model_used || '—'} · Evaluated: ${formatDate(e.evaluated_at)}
+          </div>
+
+          <div class="report-actions">
+            ${e.report_path
+              ? `<button class="btn-link" onclick="openReport('${encodeURIComponent(e.report_path)}', '${(e.company_name || '') + ' — ' + (e.title || '')}')">
+                   ↗ View report
+                 </button>`
+              : ''}
+            <a class="btn-link" href="/evaluate">+ New evaluation</a>
+          </div>
+        </div>
+
+        ${e.strengths ? `
+        <div class="detail-section">
+          <div class="detail-section-label">Strengths</div>
+          <div class="detail-section-content">${e.strengths}</div>
+        </div>` : ''}
+
+        ${e.gaps ? `
+        <div class="detail-section">
+          <div class="detail-section-label">Gaps &amp; Concerns</div>
+          <div class="detail-section-content">${e.gaps}</div>
+        </div>` : ''}
+
+        ${keywords ? `
+        <div class="detail-section">
+          <div class="detail-section-label">Keywords for Resume Tailoring</div>
+          <div class="keywords-wrap">${keywords}</div>
+        </div>` : ''}
+
+        ${failed ? `
+        <div class="detail-section">
+          <div class="detail-section-label" style="color:var(--red)">Evaluation Failed</div>
+          <div class="detail-section-content" style="color:var(--text-dim); font-family:var(--mono); font-size:0.75rem;">
+Raw response preserved below. You can re-run the evaluation from the Evaluate page.
+
+${e.raw_response || 'No response captured.'}
+          </div>
+        </div>` : ''}
+      `;
+    }
+
+    function renderDetailError(msg) {
+      document.getElementById('detailEmpty').style.display   = 'none';
+      const content = document.getElementById('detailContent');
+      content.classList.add('visible');
+      content.innerHTML = `
+        <div style="padding:24px; color:var(--red); font-family:var(--mono); font-size:0.8rem;">
+          Failed to load evaluation: ${msg}
+        </div>`;
+    }
+
+    // ── Report modal ───────────────────────────────────────
+    async function openReport(encodedPath, title) {
+      document.getElementById('reportModalTitle').textContent = title || 'Report';
+      document.getElementById('reportModalBody').innerHTML =
+        '<p style="color:var(--text-dim);font-family:var(--mono);font-size:0.8rem;">Loading...</p>';
+      document.getElementById('reportModal').classList.add('open');
+
+      try {
+        const res  = await fetch(`/report?path=${encodedPath}`);
+        const html = await res.text();
+        document.getElementById('reportModalBody').innerHTML = html;
+      } catch (err) {
+        document.getElementById('reportModalBody').innerHTML =
+          `<p style="color:var(--red)">Failed to load report: ${err.message}</p>`;
+      }
+    }
+
+    function closeReport() {
+      document.getElementById('reportModal').classList.remove('open');
+    }
+
+    // Close modal on backdrop click
+    document.getElementById('reportModal').addEventListener('click', function(e) {
+      if (e.target === this) closeReport();
+    });
+
+    // Close modal on Escape
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeReport();
+    });
+
+    // ── Health check ───────────────────────────────────────
+    async function checkHealth() {
+      const dot  = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+      try {
+        const res  = await fetch('/health');
+        const data = await res.json();
+        if (data.status === 'ok') {
+          dot.className    = 'status-dot ok';
+          text.textContent = data.ollama.model;
+        } else {
+          dot.className    = 'status-dot fail';
+          text.textContent = 'degraded';
+        }
+      } catch {
+        dot.className    = 'status-dot fail';
+        text.textContent = 'offline';
+      }
+    }
+
+    checkHealth();
+    loadEvaluations();
+  </script>
+</body>
+</html>

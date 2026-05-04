@@ -1,25 +1,30 @@
 """
 main.py
 ───────
-FastAPI server for AIstivus Phase 0.
+FastAPI server for AIstivus.
 
 Phase 0 routes:
-  GET  /         → serves index.html
-  POST /evaluate → evaluate a JD and return results
-  GET  /health   → health check (Ollama + DB status)
-
-Phase 1+: full route structure via backend/routes/
+  GET  /            → landing page (index.html)
+  GET  /evaluate    → evaluate page (evaluate.html)
+  GET  /evaluations → evaluations history page (evaluations.html)
+  POST /evaluate    → run evaluation, return JSON result
+  GET  /health      → health check (Ollama + DB status)
+  GET  /report      → render a markdown report as HTML
+  GET  /stats       → summary counts for landing page
+  GET  /jobs        → all jobs with latest scores
+  GET  /jobs/{id}   → single job with evaluations and postings
+  GET  /api/evaluations      → all evaluations with job+company data
+  GET  /api/evaluations/{id} → single evaluation detail
 """
 
-import asyncio
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import yaml
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 import database
@@ -54,9 +59,8 @@ def _get_ollama_config() -> tuple[str, str]:
 
 async def _validate_startup() -> None:
     """
-    Validate that Ollama is running and the configured model is available.
-    Called on server startup — fails fast with a clear error message.
-    Per CLAUDE.md: do not start the server if Ollama or model is unavailable.
+    Validate Ollama is running and the configured model is available.
+    Fails fast with a clear error message if not.
     """
     base_url, model = _get_ollama_config()
 
@@ -83,25 +87,21 @@ async def lifespan(app: FastAPI):
     print("\nAIstivus — starting up...")
     print("─" * 40)
 
-    # Initialize database
     database.init_db()
-
-    # Validate Ollama
     await _validate_startup()
 
-    # Check for jobsearch.md
     jobsearch_path = Path("jobsearch.md")
     if not jobsearch_path.exists():
         print(
             "\n⚠️  jobsearch.md not found. "
-            "Copy JOBSEARCH_TEMPLATE.md to jobsearch.md and fill it in "
-            "before running evaluations."
+            "Copy JOBSEARCH_TEMPLATE.md to jobsearch.md and fill it in."
         )
     else:
         print("  ✓ jobsearch.md found")
 
     print("─" * 40)
-    print("✓ AIstivus ready\n")
+    print("✓ AIstivus ready")
+    print(f"  Open http://127.0.0.1:8080 in your browser\n")
 
     yield
 
@@ -120,12 +120,11 @@ app = FastAPI(
 )
 
 # CORS — localhost only. Never wildcard.
-# Per CLAUDE.md: allowed origins are localhost dev and prod ports only.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",   # Phase 1+ React dev server
-        "http://localhost:8080",   # Phase 0 production build
+        "http://localhost:3000",
+        "http://localhost:8080",
         "http://127.0.0.1:8080",
         "http://127.0.0.1:3000",
     ],
@@ -140,48 +139,106 @@ app.add_middleware(
 # ─────────────────────────────────────────────────────────────
 
 class EvaluateRequest(BaseModel):
-    jd_text: str
-    company_name: str = "Unknown Company"
-    job_title: str = "Unknown Role"
-    location: str | None = None
-    remote_type: str | None = None
-    source_url: str | None = None
-    model: str | None = None
+    jd_text:      str
+    company_name: str        = "Unknown Company"
+    job_title:    str        = "Unknown Role"
+    location:     str | None = None
+    remote_type:  str | None = None
+    source_url:   str | None = None
+    model:        str | None = None
 
 
 class EvaluateResponse(BaseModel):
-    success: bool
+    success:       bool
     evaluation_id: int | None
-    job_id: int | None
-    report_path: str | None
-    evaluation: dict | None
-    error: str | None
+    job_id:        int | None
+    report_path:   str | None
+    evaluation:    dict | None
+    error:         str | None
 
 
 # ─────────────────────────────────────────────────────────────
-# Routes
+# Page routes — serve HTML files
 # ─────────────────────────────────────────────────────────────
 
-@app.get("/")
+@app.get("/", response_class=FileResponse)
 async def serve_index():
-    """Serve the Phase 0 HTML paste interface."""
-    index_path = Path("index.html")
-    if not index_path.exists():
+    """Landing page."""
+    path = Path("index.html")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="index.html not found.")
+    return FileResponse(path)
+
+
+@app.get("/evaluate", response_class=FileResponse)
+async def serve_evaluate():
+    """Evaluation input page."""
+    path = Path("evaluate.html")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="evaluate.html not found.")
+    return FileResponse(path)
+
+
+@app.get("/evaluations", response_class=FileResponse)
+async def serve_evaluations():
+    """Evaluations history page."""
+    path = Path("evaluations.html")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="evaluations.html not found.")
+    return FileResponse(path)
+
+
+# ─────────────────────────────────────────────────────────────
+# Report viewer
+# ─────────────────────────────────────────────────────────────
+
+@app.get("/report", response_class=HTMLResponse)
+async def view_report(path: str = Query(..., description="Path to the markdown report file")):
+    """
+    Read a markdown report file and return it rendered as HTML.
+    Uses marked.js on the client side (evaluations.html).
+    This endpoint returns the raw markdown — the browser renders it.
+
+    Security: path is validated to be within the /reports/ directory.
+    """
+    report_path = Path(path).resolve()
+    reports_dir = Path("reports").resolve()
+
+    # Validate path is within /reports/ — prevent path traversal
+    try:
+        report_path.relative_to(reports_dir)
+    except ValueError:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied — report path must be within the reports directory."
+        )
+
+    if not report_path.exists():
         raise HTTPException(
             status_code=404,
-            detail="index.html not found. Make sure it's in the project root."
+            detail=f"Report not found: {path}"
         )
-    return FileResponse(index_path)
 
+    if not report_path.suffix == ".md":
+        raise HTTPException(
+            status_code=400,
+            detail="Only .md report files are served."
+        )
+
+    # Return raw markdown — client uses marked.js to render
+    content = report_path.read_text()
+    return HTMLResponse(content=content, media_type="text/plain")
+
+
+# ─────────────────────────────────────────────────────────────
+# API routes
+# ─────────────────────────────────────────────────────────────
 
 @app.get("/health")
 async def health_check():
-    """
-    Health check endpoint.
-    Returns Ollama status, model availability, and DB schema version.
-    """
+    """Health check — Ollama status, model availability, DB version."""
     base_url, model = _get_ollama_config()
-    ollama_health = await llm_client.check_ollama_health(base_url)
+    ollama_health   = await llm_client.check_ollama_health(base_url)
 
     model_available = (
         llm_client.model_is_available(model, ollama_health.get("models", []))
@@ -196,17 +253,30 @@ async def health_check():
         pass
 
     return JSONResponse({
-        "status": "ok" if ollama_health["reachable"] and model_available else "degraded",
-        "ollama": {
-            "reachable": ollama_health["reachable"],
-            "model": model,
+        "status":   "ok" if ollama_health["reachable"] and model_available else "degraded",
+        "ollama":   {
+            "reachable":       ollama_health["reachable"],
+            "model":           model,
             "model_available": model_available,
-            "error": ollama_health.get("error"),
+            "error":           ollama_health.get("error"),
         },
-        "database": {
-            "schema_version": db_version,
-        },
-        "version": "0.1.0",
+        "database": {"schema_version": db_version},
+        "version":  "0.1.0",
+    })
+
+
+@app.get("/stats")
+async def stats():
+    """Summary counts for the landing page dashboard."""
+    with database.get_connection() as conn:
+        jobs        = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+        evals       = conn.execute("SELECT COUNT(*) FROM evaluations").fetchone()[0]
+        companies   = conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
+
+    return JSONResponse({
+        "jobs":        jobs,
+        "evaluations": evals,
+        "companies":   companies,
     })
 
 
@@ -214,10 +284,6 @@ async def health_check():
 async def evaluate_endpoint(request: EvaluateRequest):
     """
     Evaluate a job description against jobsearch.md.
-
-    Accepts JD text plus optional metadata (company, title, location, URL).
-    Returns structured evaluation with scores, fit type, keywords, and
-    the path to the generated markdown report.
 
     Note: Phase 0 is synchronous — this request blocks until evaluation
     completes. This is intentional for single-user local use.
@@ -241,29 +307,117 @@ async def evaluate_endpoint(request: EvaluateRequest):
 
 @app.get("/jobs")
 async def list_jobs():
-    """
-    Return all jobs with their latest evaluation scores.
-    Phase 0 basic endpoint — full filtering and pagination in Phase 1.
-    """
+    """All jobs with latest evaluation scores."""
     jobs = database.get_all_jobs()
     return JSONResponse([dict(row) for row in jobs])
 
 
 @app.get("/jobs/{job_id}")
 async def get_job(job_id: int):
-    """Return a single job with all its evaluations."""
+    """Single job with all evaluations and postings."""
     job = database.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found.")
 
     evaluations = database.get_evaluations_for_job(job_id)
-    postings = database.get_postings_for_job(job_id)
+    postings    = database.get_postings_for_job(job_id)
 
     return JSONResponse({
-        "job": dict(job),
+        "job":         dict(job),
         "evaluations": [dict(e) for e in evaluations],
-        "postings": [dict(p) for p in postings],
+        "postings":    [dict(p) for p in postings],
     })
+
+
+@app.get("/api/evaluations")
+async def list_evaluations():
+    """
+    All evaluations joined with job and company data.
+    Sorted by evaluated_at descending (newest first).
+    """
+    with database.get_connection() as conn:
+        rows = conn.execute(
+            """SELECT e.*,
+                      j.title,
+                      j.location,
+                      j.remote_type,
+                      c.name AS company_name
+               FROM evaluations e
+               JOIN jobs j      ON j.id = e.job_id
+               JOIN companies c ON c.id = j.company_id
+               ORDER BY e.evaluated_at DESC"""
+        ).fetchall()
+
+    return JSONResponse([dict(row) for row in rows])
+
+
+@app.get("/api/evaluations/{evaluation_id}")
+async def get_evaluation(evaluation_id: int):
+    """
+    Single evaluation with full detail including job and company data.
+    Also includes report_path derived from the reports directory.
+    """
+    with database.get_connection() as conn:
+        row = conn.execute(
+            """SELECT e.*,
+                      j.title,
+                      j.location,
+                      j.remote_type,
+                      j.pay_band,
+                      c.name AS company_name
+               FROM evaluations e
+               JOIN jobs j      ON j.id = e.job_id
+               JOIN companies c ON c.id = j.company_id
+               WHERE e.id = ?""",
+            (evaluation_id,)
+        ).fetchone()
+
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Evaluation {evaluation_id} not found."
+        )
+
+    data = dict(row)
+
+    # Find the report file for this evaluation if it exists
+    # Report files are named: YYYYMMDD_Company_Role.md
+    # We look for the most recent matching file in /reports/
+    report_path = _find_report(
+        company_name=data.get("company_name", ""),
+        job_title=data.get("title", ""),
+        evaluated_at=data.get("evaluated_at", ""),
+    )
+    data["report_path"] = report_path
+
+    return JSONResponse(data)
+
+
+def _find_report(company_name: str, job_title: str, evaluated_at: str) -> str | None:
+    """
+    Find the most likely report file for a given evaluation.
+    Matches on date prefix from evaluated_at timestamp.
+    """
+    reports_dir = Path("reports")
+    if not reports_dir.exists():
+        return None
+
+    # Extract date from evaluated_at (format: YYYY-MM-DD HH:MM:SS or ISO)
+    date_prefix = ""
+    if evaluated_at:
+        date_prefix = evaluated_at[:10].replace("-", "")  # YYYYMMDD
+
+    # Look for files starting with the date prefix
+    candidates = list(reports_dir.glob(f"{date_prefix}_*.md")) if date_prefix else []
+
+    if not candidates:
+        # Fall back: return most recent report file
+        all_reports = sorted(reports_dir.glob("*.md"), reverse=True)
+        return str(all_reports[0]) if all_reports else None
+
+    # Return most recent matching file
+    candidates.sort(reverse=True)
+    return str(candidates[0])
 
 
 # ─────────────────────────────────────────────────────────────
@@ -273,16 +427,10 @@ async def get_job(job_id: int):
 if __name__ == "__main__":
     import uvicorn
 
-    config = _load_config()
+    config     = _load_config()
     app_config = config.get("app", {})
-
-    host = app_config.get("host", "127.0.0.1")
-    port = app_config.get("port", 8080)
+    host       = app_config.get("host", "127.0.0.1")
+    port       = app_config.get("port", 8080)
 
     print(f"Starting AIstivus on http://{host}:{port}")
-    uvicorn.run(
-        "main:app",
-        host=host,
-        port=port,
-        reload=False,
-    )
+    uvicorn.run("main:app", host=host, port=port, reload=False)

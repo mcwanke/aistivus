@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evaluate — AIstivus</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:           #0f0f0f;
+      --surface:      #181818;
+      --surface-2:    #222222;
+      --border:       #2a2a2a;
+      --border-focus: #4a4a4a;
+      --text:         #e8e6e0;
+      --text-muted:   #7a7872;
+      --text-dim:     #4a4844;
+      --accent:       #c8a96e;
+      --accent-dim:   #8a7248;
+      --green:        #6a9c6a;
+      --red:          #9c6a6a;
+      --amber:        #c8a96e;
+      --radius:       6px;
+      --radius-lg:    12px;
+      --mono:         'DM Mono', monospace;
+      --serif:        'DM Serif Display', serif;
+      --sans:         'DM Sans', sans-serif;
+      --transition:   200ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 15px; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 100vh;
+    }
+
+    /* ── Header ───────────────────────────────────────────── */
+    .header {
+      border-bottom: 1px solid var(--border);
+      padding: 18px 32px;
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+    }
+
+    .header-back {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      text-decoration: none;
+      transition: color var(--transition);
+      margin-right: 4px;
+    }
+    .header-back:hover { color: var(--text-muted); }
+
+    .header-wordmark {
+      font-family: var(--serif);
+      font-size: 1.5rem;
+      color: var(--accent);
+      letter-spacing: -0.02em;
+      text-decoration: none;
+    }
+
+    .header-page {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 300;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .header-status {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: var(--mono);
+    }
+
+    .status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      transition: background var(--transition);
+    }
+    .status-dot.ok   { background: var(--green); }
+    .status-dot.fail { background: var(--red); }
+
+    /* ── Main layout ──────────────────────────────────────── */
+    .main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      height: calc(100vh - 61px);
+    }
+
+    /* ── Left panel ───────────────────────────────────────── */
+    .panel-input {
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 28px 32px;
+      gap: 20px;
+      overflow-y: auto;
+    }
+
+    .panel-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-weight: 500;
+    }
+
+    .fields-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+
+    .field label {
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-family: var(--mono);
+    }
+
+    .field input,
+    .field select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 0.875rem;
+      padding: 8px 12px;
+      outline: none;
+      transition: border-color var(--transition);
+      width: 100%;
+    }
+
+    .field input::placeholder { color: var(--text-dim); }
+    .field input:focus,
+    .field select:focus { border-color: var(--border-focus); }
+
+    .field select {
+      appearance: none;
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%234a4844'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+
+    .field select option { background: var(--surface); }
+
+    .jd-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+    }
+
+    .jd-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .char-count {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      font-family: var(--mono);
+    }
+
+    textarea {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 0.85rem;
+      line-height: 1.6;
+      outline: none;
+      padding: 14px 16px;
+      resize: none;
+      transition: border-color var(--transition);
+      width: 100%;
+      flex: 1;
+      min-height: 320px;
+    }
+
+    textarea::placeholder { color: var(--text-dim); }
+    textarea:focus { border-color: var(--border-focus); }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .btn-evaluate {
+      background: var(--accent);
+      border: none;
+      border-radius: var(--radius);
+      color: #0f0f0f;
+      cursor: pointer;
+      font-family: var(--sans);
+      font-size: 0.875rem;
+      font-weight: 500;
+      padding: 10px 24px;
+      transition: opacity var(--transition), transform var(--transition);
+    }
+
+    .btn-evaluate:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+    .btn-evaluate:active:not(:disabled) { transform: translateY(0); }
+    .btn-evaluate:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-clear {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: var(--sans);
+      font-size: 0.875rem;
+      padding: 10px 16px;
+      transition: border-color var(--transition), color var(--transition);
+    }
+
+    .btn-clear:hover { border-color: var(--border-focus); color: var(--text); }
+
+    .btn-evaluate.loading { position: relative; color: transparent; }
+    .btn-evaluate.loading::after {
+      content: '';
+      position: absolute;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(15,15,15,0.3);
+      border-top-color: #0f0f0f;
+      border-radius: 50%;
+      left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+    .elapsed {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      min-width: 48px;
+    }
+
+    /* ── Right panel ──────────────────────────────────────── */
+    .panel-results {
+      display: flex;
+      flex-direction: column;
+      padding: 28px 32px;
+      gap: 24px;
+      overflow-y: auto;
+    }
+
+    .results-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--text-dim);
+      text-align: center;
+    }
+
+    .results-empty-glyph {
+      font-family: var(--serif);
+      font-size: 3rem;
+      opacity: 0.4;
+      font-style: italic;
+    }
+
+    .results-empty p {
+      font-size: 0.8rem;
+      max-width: 220px;
+      line-height: 1.5;
+    }
+
+    /* ── Score card ───────────────────────────────────────── */
+    .score-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      display: none;
+    }
+
+    .score-card.visible { display: block; }
+
+    .score-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+      gap: 12px;
+    }
+
+    .score-company {
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-family: var(--mono);
+      margin-bottom: 4px;
+    }
+
+    .score-title {
+      font-family: var(--serif);
+      font-size: 1.25rem;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .score-badge { flex-shrink: 0; text-align: center; }
+
+    .score-number {
+      font-family: var(--serif);
+      font-size: 2.5rem;
+      line-height: 1;
+      color: var(--accent);
+    }
+
+    .score-denom {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      font-family: var(--mono);
+    }
+
+    .score-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .score-cell {
+      background: var(--surface-2);
+      border-radius: var(--radius);
+      padding: 10px 8px;
+      text-align: center;
+    }
+
+    .score-cell-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      margin-bottom: 4px;
+    }
+
+    .score-cell-value {
+      font-family: var(--mono);
+      font-size: 0.95rem;
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .tags-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .tag {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-family: var(--mono);
+      padding: 3px 10px;
+      color: var(--text-muted);
+    }
+
+    .tag.fit-core     { border-color: var(--green); color: var(--green); }
+    .tag.fit-stretch  { border-color: var(--amber); color: var(--amber); }
+    .tag.fit-mismatch { border-color: var(--red);   color: var(--red); }
+    .tag.rec-apply    { background: var(--green); color: #0f0f0f; border-color: var(--green); }
+    .tag.rec-modify   { background: var(--amber); color: #0f0f0f; border-color: var(--amber); }
+    .tag.rec-skip     { background: var(--red);   color: #f0f0f0; border-color: var(--red); }
+
+    .result-section { margin-bottom: 16px; }
+
+    .result-section-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      margin-bottom: 8px;
+    }
+
+    .result-section-content {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.65;
+      white-space: pre-wrap;
+    }
+
+    .keywords-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    .keyword-chip {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.7rem;
+      font-family: var(--mono);
+      padding: 4px 10px;
+      color: var(--text-muted);
+      transition: border-color var(--transition), color var(--transition);
+      cursor: default;
+    }
+
+    .keyword-chip:hover { border-color: var(--accent-dim); color: var(--accent); }
+
+    .report-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      font-family: var(--mono);
+      color: var(--text-dim);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 6px 12px;
+      transition: border-color var(--transition), color var(--transition);
+    }
+
+    .report-link:hover { border-color: var(--border-focus); color: var(--text); }
+
+    .error-card {
+      background: rgba(156, 106, 106, 0.08);
+      border: 1px solid rgba(156, 106, 106, 0.3);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      display: none;
+    }
+
+    .error-card.visible { display: block; }
+
+    .error-card-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--red);
+      font-family: var(--mono);
+      margin-bottom: 8px;
+    }
+
+    .error-card-message {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    @media (max-width: 800px) {
+      .main { grid-template-columns: 1fr; height: auto; }
+      .panel-input { border-right: none; border-bottom: 1px solid var(--border); }
+      .fields-row { grid-template-columns: 1fr; }
+      .score-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <header class="header">
+    <a href="/" class="header-back">← Home</a>
+    <a href="/" class="header-wordmark">AIstivus</a>
+    <span class="header-page">Evaluate</span>
+    <div class="header-status">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">checking...</span>
+    </div>
+  </header>
+
+  <div class="main">
+    <!-- Left panel -->
+    <div class="panel-input">
+      <div class="panel-label">New Evaluation</div>
+
+      <div class="fields-row">
+        <div class="field">
+          <label for="companyName">Company</label>
+          <input type="text" id="companyName" placeholder="Acme Corp" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="jobTitle">Job Title</label>
+          <input type="text" id="jobTitle" placeholder="Engineering Manager" autocomplete="off" />
+        </div>
+      </div>
+
+      <div class="fields-row">
+        <div class="field">
+          <label for="location">Location</label>
+          <input type="text" id="location" placeholder="Remote" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="remoteType">Work Type</label>
+          <select id="remoteType">
+            <option value="">— select —</option>
+            <option value="Remote">Remote</option>
+            <option value="Hybrid">Hybrid</option>
+            <option value="On-site">On-site</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="sourceUrl">Source URL</label>
+        <input type="url" id="sourceUrl" placeholder="https://..." autocomplete="off" />
+      </div>
+
+      <div class="jd-wrap">
+        <div class="jd-header">
+          <label class="panel-label" for="jdText">Job Description</label>
+          <span class="char-count" id="charCount">0 chars</span>
+        </div>
+        <textarea id="jdText" placeholder="Paste the full job description here..." spellcheck="false"></textarea>
+      </div>
+
+      <div class="actions">
+        <button class="btn-evaluate" id="evaluateBtn" onclick="runEvaluation()">Evaluate</button>
+        <button class="btn-clear" onclick="clearAll()">Clear</button>
+        <span class="elapsed" id="elapsed"></span>
+      </div>
+    </div>
+
+    <!-- Right panel -->
+    <div class="panel-results">
+      <div class="results-empty" id="emptyState">
+        <div class="results-empty-glyph">&#x2668;</div>
+        <p>Paste a job description and hit Evaluate to get a structured fit assessment.</p>
+        <p style="margin-top:8px; font-size:0.7rem; color: var(--text-dim); font-family: var(--mono);">Cmd+Enter to evaluate</p>
+      </div>
+
+      <div class="score-card" id="scoreCard">
+        <div class="score-header">
+          <div>
+            <div class="score-company" id="resultCompany"></div>
+            <div class="score-title" id="resultTitle"></div>
+          </div>
+          <div class="score-badge">
+            <div class="score-number" id="resultScore">—</div>
+            <div class="score-denom">/ 10</div>
+          </div>
+        </div>
+
+        <div class="score-grid">
+          <div class="score-cell">
+            <div class="score-cell-label">Role Fit</div>
+            <div class="score-cell-value" id="scoreRoleFit">—</div>
+          </div>
+          <div class="score-cell">
+            <div class="score-cell-label">Scope Fit</div>
+            <div class="score-cell-value" id="scoreScopeFit">—</div>
+          </div>
+          <div class="score-cell">
+            <div class="score-cell-label">Culture</div>
+            <div class="score-cell-value" id="scoreCulture">—</div>
+          </div>
+          <div class="score-cell">
+            <div class="score-cell-label">Comp</div>
+            <div class="score-cell-value" id="scoreComp">—</div>
+          </div>
+        </div>
+
+        <div class="tags-row">
+          <span class="tag" id="tagFitType"></span>
+          <span class="tag" id="tagArchetype"></span>
+          <span class="tag" id="tagRecommendation"></span>
+        </div>
+
+        <div class="result-section">
+          <div class="result-section-label">Strengths</div>
+          <div class="result-section-content" id="resultStrengths"></div>
+        </div>
+
+        <div class="result-section">
+          <div class="result-section-label">Gaps &amp; Concerns</div>
+          <div class="result-section-content" id="resultGaps"></div>
+        </div>
+
+        <div class="result-section">
+          <div class="result-section-label">Keywords for Resume Tailoring</div>
+          <div class="keywords-wrap" id="resultKeywords"></div>
+        </div>
+
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <a class="report-link" id="reportLink" href="#" target="_blank">↗ View full report</a>
+          <a class="report-link" href="/evaluations">← All evaluations</a>
+        </div>
+      </div>
+
+      <div class="error-card" id="errorCard">
+        <div class="error-card-label">Evaluation Failed</div>
+        <div class="error-card-message" id="errorMessage"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  async function checkHealth() {
+    const dot  = document.getElementById('statusDot');
+    const text = document.getElementById('statusText');
+    try {
+      const res  = await fetch('/health');
+      const data = await res.json();
+      if (data.status === 'ok') {
+        dot.className    = 'status-dot ok';
+        text.textContent = data.ollama.model;
+      } else {
+        dot.className    = 'status-dot fail';
+        text.textContent = 'degraded';
+      }
+    } catch {
+      dot.className    = 'status-dot fail';
+      text.textContent = 'offline';
+    }
+  }
+
+  document.getElementById('jdText').addEventListener('input', function () {
+    const n = this.value.length;
+    document.getElementById('charCount').textContent =
+      n > 0 ? `${n.toLocaleString()} chars` : '0 chars';
+  });
+
+  let timerInterval = null;
+
+  function startTimer() {
+    const start = Date.now();
+    const el = document.getElementById('elapsed');
+    el.textContent = '0s';
+    timerInterval = setInterval(() => {
+      el.textContent = `${((Date.now() - start) / 1000).toFixed(0)}s`;
+    }, 500);
+  }
+
+  function stopTimer() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  }
+
+  function fitClass(fitType) {
+    if (!fitType) return '';
+    const f = fitType.toLowerCase();
+    if (f.includes('core'))     return 'fit-core';
+    if (f.includes('stretch'))  return 'fit-stretch';
+    if (f.includes('mismatch')) return 'fit-mismatch';
+    return '';
+  }
+
+  function recClass(rec) {
+    if (!rec) return '';
+    const r = rec.toLowerCase();
+    if (r.startsWith('apply with')) return 'rec-modify';
+    if (r.startsWith('apply'))      return 'rec-apply';
+    if (r.startsWith('skip'))       return 'rec-skip';
+    return '';
+  }
+
+  function showResults(data, companyName, jobTitle) {
+    const ev = data.evaluation || {};
+    document.getElementById('emptyState').style.display  = 'none';
+    document.getElementById('errorCard').classList.remove('visible');
+    document.getElementById('scoreCard').classList.add('visible');
+
+    document.getElementById('resultCompany').textContent = companyName || 'Unknown Company';
+    document.getElementById('resultTitle').textContent   = jobTitle    || 'Unknown Role';
+
+    const score = ev.score_overall;
+    document.getElementById('resultScore').textContent =
+      score != null ? score.toFixed(1) : '—';
+
+    document.getElementById('scoreRoleFit').textContent  =
+      ev.score_role_fit  != null ? `${ev.score_role_fit}/5`  : '—';
+    document.getElementById('scoreScopeFit').textContent =
+      ev.score_scope_fit != null ? `${ev.score_scope_fit}/5` : '—';
+    document.getElementById('scoreCulture').textContent  =
+      ev.score_culture   != null ? `${ev.score_culture}/5`   : '—';
+    document.getElementById('scoreComp').textContent     =
+      ev.score_comp      != null ? `${ev.score_comp}/5`      : '—';
+
+    const tagFit = document.getElementById('tagFitType');
+    tagFit.textContent = ev.fit_type || '—';
+    tagFit.className   = `tag ${fitClass(ev.fit_type)}`;
+
+    const tagArch = document.getElementById('tagArchetype');
+    tagArch.textContent = ev.archetype || '—';
+    tagArch.className   = 'tag';
+
+    const tagRec = document.getElementById('tagRecommendation');
+    tagRec.textContent = ev.recommendation || '—';
+    tagRec.className   = `tag ${recClass(ev.recommendation)}`;
+
+    document.getElementById('resultStrengths').textContent =
+      ev.strengths || 'None identified.';
+    document.getElementById('resultGaps').textContent =
+      ev.gaps || 'None identified.';
+
+    const kwWrap = document.getElementById('resultKeywords');
+    kwWrap.innerHTML = '';
+    if (ev.keywords) {
+      ev.keywords.split(',').map(k => k.trim()).filter(Boolean).forEach(kw => {
+        const chip = document.createElement('span');
+        chip.className   = 'keyword-chip';
+        chip.textContent = kw;
+        kwWrap.appendChild(chip);
+      });
+    } else {
+      kwWrap.textContent = 'No keywords extracted.';
+    }
+
+    const reportLink = document.getElementById('reportLink');
+    if (data.report_path) {
+      reportLink.href         = `/report?path=${encodeURIComponent(data.report_path)}`;
+      reportLink.style.display = 'inline-flex';
+    } else {
+      reportLink.style.display = 'none';
+    }
+  }
+
+  function showError(message) {
+    document.getElementById('emptyState').style.display  = 'none';
+    document.getElementById('scoreCard').classList.remove('visible');
+    document.getElementById('errorCard').classList.add('visible');
+    document.getElementById('errorMessage').textContent = message;
+  }
+
+  async function runEvaluation() {
+    const jdText     = document.getElementById('jdText').value.trim();
+    const company    = document.getElementById('companyName').value.trim();
+    const title      = document.getElementById('jobTitle').value.trim();
+    const location   = document.getElementById('location').value.trim();
+    const remoteType = document.getElementById('remoteType').value;
+    const sourceUrl  = document.getElementById('sourceUrl').value.trim();
+
+    if (!jdText) {
+      showError('Please paste a job description before evaluating.');
+      return;
+    }
+
+    const btn = document.getElementById('evaluateBtn');
+    btn.disabled = true;
+    btn.classList.add('loading');
+    startTimer();
+
+    try {
+      const res = await fetch('/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jd_text:      jdText,
+          company_name: company    || 'Unknown Company',
+          job_title:    title      || 'Unknown Role',
+          location:     location   || null,
+          remote_type:  remoteType || null,
+          source_url:   sourceUrl  || null,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        showResults(data, company, title);
+      } else {
+        showError(data.error || 'Evaluation failed. Check the server logs.');
+      }
+    } catch (err) {
+      showError(`Could not reach the server: ${err.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove('loading');
+      stopTimer();
+    }
+  }
+
+  function clearAll() {
+    ['companyName','jobTitle','location','sourceUrl','jdText'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('remoteType').value      = '';
+    document.getElementById('charCount').textContent = '0 chars';
+    document.getElementById('elapsed').textContent   = '';
+    document.getElementById('scoreCard').classList.remove('visible');
+    document.getElementById('errorCard').classList.remove('visible');
+    document.getElementById('emptyState').style.display = 'flex';
+    document.getElementById('jdText').focus();
+  }
+
+  document.getElementById('jdText').addEventListener('keydown', function(e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') runEvaluation();
+  });
+
+  checkHealth();
+</script>
+</body>
+</html>

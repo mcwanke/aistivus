@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AIstivus</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:           #0f0f0f;
+      --surface:      #181818;
+      --surface-2:    #222222;
+      --border:       #2a2a2a;
+      --border-focus: #4a4a4a;
+      --text:         #e8e6e0;
+      --text-muted:   #7a7872;
+      --text-dim:     #4a4844;
+      --accent:       #c8a96e;
+      --accent-dim:   #8a7248;
+      --green:        #6a9c6a;
+      --red:          #9c6a6a;
+      --radius:       6px;
+      --radius-lg:    12px;
+      --mono:         'DM Mono', monospace;
+      --serif:        'DM Serif Display', serif;
+      --sans:         'DM Sans', sans-serif;
+      --transition:   200ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 15px; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ───────────────────────────────────────────── */
+    .header {
+      border-bottom: 1px solid var(--border);
+      padding: 18px 48px;
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+    }
+
+    .header-wordmark {
+      font-family: var(--serif);
+      font-size: 1.5rem;
+      color: var(--accent);
+      letter-spacing: -0.02em;
+    }
+
+    .header-tagline {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 300;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .header-status {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: var(--mono);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      transition: background var(--transition);
+    }
+    .status-dot.ok   { background: var(--green); }
+    .status-dot.fail { background: var(--red); }
+
+    /* ── Hero ────────────────────────────────────────────── */
+    .hero {
+      padding: 72px 48px 48px;
+      max-width: 760px;
+    }
+
+    .hero-eyebrow {
+      font-size: 0.65rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent-dim);
+      font-family: var(--mono);
+      margin-bottom: 16px;
+    }
+
+    .hero-title {
+      font-family: var(--serif);
+      font-size: 3rem;
+      line-height: 1.1;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+    }
+
+    .hero-title em {
+      color: var(--accent);
+      font-style: italic;
+    }
+
+    .hero-sub {
+      font-size: 1rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+      font-weight: 300;
+      max-width: 520px;
+    }
+
+    /* ── Nav grid ────────────────────────────────────────── */
+    .nav-section {
+      padding: 0 48px 72px;
+    }
+
+    .nav-section-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      margin-bottom: 20px;
+    }
+
+    .nav-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+      max-width: 1000px;
+    }
+
+    .nav-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color var(--transition), background var(--transition), transform var(--transition);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .nav-card:not(.disabled):hover {
+      border-color: var(--border-focus);
+      background: var(--surface-2);
+      transform: translateY(-2px);
+    }
+
+    .nav-card.disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .nav-card-icon {
+      font-size: 1.5rem;
+      line-height: 1;
+    }
+
+    .nav-card-title {
+      font-family: var(--serif);
+      font-size: 1.2rem;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    .nav-card-desc {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    .nav-card-phase {
+      font-size: 0.62rem;
+      font-family: var(--mono);
+      color: var(--text-dim);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-top: auto;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+
+    .nav-card-phase.active {
+      color: var(--green);
+      border-top-color: rgba(106, 156, 106, 0.2);
+    }
+
+    /* ── Stats bar ───────────────────────────────────────── */
+    .stats-bar {
+      display: flex;
+      gap: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      max-width: 600px;
+      margin: 0 48px 48px;
+    }
+
+    .stat {
+      flex: 1;
+      padding: 16px 20px;
+      border-right: 1px solid var(--border);
+    }
+
+    .stat:last-child { border-right: none; }
+
+    .stat-value {
+      font-family: var(--serif);
+      font-size: 1.8rem;
+      color: var(--accent);
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      font-family: var(--mono);
+    }
+  </style>
+</head>
+<body>
+
+  <header class="header">
+    <span class="header-wordmark">AIstivus</span>
+    <span class="header-tagline">AI Job Search Helper for the Rest of Us</span>
+    <div class="header-status">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">checking...</span>
+    </div>
+  </header>
+
+  <div class="hero">
+    <div class="hero-eyebrow">Phase 0 — Survival Mode</div>
+    <h1 class="hero-title">Because companies use AI<br>to filter <em>you.</em></h1>
+    <p class="hero-sub">
+      A local, private job search command center. Evaluate roles against your background,
+      track applications, and build tailored resumes — powered by models running on your own machine.
+    </p>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-bar" id="statsBar">
+    <div class="stat">
+      <div class="stat-value" id="statJobs">—</div>
+      <div class="stat-label">Jobs</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="statEvals">—</div>
+      <div class="stat-label">Evaluations</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="statCompanies">—</div>
+      <div class="stat-label">Companies</div>
+    </div>
+  </div>
+
+  <!-- Navigation -->
+  <div class="nav-section">
+    <div class="nav-section-label">Tools</div>
+    <div class="nav-grid">
+
+      <a href="/evaluate" class="nav-card">
+        <div class="nav-card-icon">⚡</div>
+        <div class="nav-card-title">Evaluate</div>
+        <div class="nav-card-desc">
+          Paste a job description and get a structured fit assessment against your background.
+        </div>
+        <div class="nav-card-phase active">● Active — Phase 0</div>
+      </a>
+
+      <a href="/evaluations" class="nav-card">
+        <div class="nav-card-icon">📋</div>
+        <div class="nav-card-title">Evaluations</div>
+        <div class="nav-card-desc">
+          Review all past evaluations, scores, and reports. Track which roles scored highest.
+        </div>
+        <div class="nav-card-phase active">● Active — Phase 0</div>
+      </a>
+
+      <a class="nav-card disabled">
+        <div class="nav-card-icon">📁</div>
+        <div class="nav-card-title">Applications</div>
+        <div class="nav-card-desc">
+          Track application status, add notes, and log recruiter conversations.
+        </div>
+        <div class="nav-card-phase">Phase 1</div>
+      </a>
+
+      <a class="nav-card disabled">
+        <div class="nav-card-icon">📄</div>
+        <div class="nav-card-title">Resume Library</div>
+        <div class="nav-card-desc">
+          Manage your resume content chunks. Build tailored resumes from your library.
+        </div>
+        <div class="nav-card-phase">Phase 2</div>
+      </a>
+
+      <a class="nav-card disabled">
+        <div class="nav-card-icon">🔍</div>
+        <div class="nav-card-title">Job Discovery</div>
+        <div class="nav-card-desc">
+          Automated scraping across LinkedIn, Indeed, Glassdoor, and more.
+        </div>
+        <div class="nav-card-phase">Phase 3</div>
+      </a>
+
+      <a class="nav-card disabled">
+        <div class="nav-card-icon">⚙️</div>
+        <div class="nav-card-title">Settings</div>
+        <div class="nav-card-desc">
+          Configure models, manage your jobsearch.md context, and adjust thresholds.
+        </div>
+        <div class="nav-card-phase">Phase 1</div>
+      </a>
+
+    </div>
+  </div>
+
+  <script>
+    async function checkHealth() {
+      const dot  = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+      try {
+        const res  = await fetch('/health');
+        const data = await res.json();
+        if (data.status === 'ok') {
+          dot.className    = 'status-dot ok';
+          text.textContent = data.ollama.model;
+        } else {
+          dot.className    = 'status-dot fail';
+          text.textContent = 'degraded';
+        }
+      } catch {
+        dot.className    = 'status-dot fail';
+        text.textContent = 'offline';
+      }
+    }
+
+    async function loadStats() {
+      try {
+        const res  = await fetch('/stats');
+        const data = await res.json();
+        document.getElementById('statJobs').textContent      = data.jobs ?? '—';
+        document.getElementById('statEvals').textContent     = data.evaluations ?? '—';
+        document.getElementById('statCompanies').textContent = data.companies ?? '—';
+      } catch {
+        // stats failing silently is fine — non-critical
+      }
+    }
+
+    checkHealth();
+    loadStats();
+  </script>
+</body>
+</html>
