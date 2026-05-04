@@ -922,6 +922,33 @@
           </div>
         </div>
 
+        ${data.postings && data.postings.length > 0 && data.postings[0].description_raw ? `
+        <div class="jd-section" style="margin-top:20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;
+                      margin-bottom:8px;">
+            <span style="font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;
+                         color:var(--text-dim);font-family:var(--mono);">
+              Job Description
+            </span>
+            <button class="btn-link" onclick="toggleJD(this)" data-open="false">
+              ▼ Show JD
+            </button>
+          </div>
+          <div class="jd-body" style="display:none;
+               background:var(--bg);
+               border:1px solid var(--border);
+               border-radius:var(--radius);
+               padding:16px;
+               font-size:0.8rem;
+               color:var(--text-muted);
+               line-height:1.7;
+               white-space:pre-wrap;
+               max-height:400px;
+               overflow-y:auto;">
+${data.postings[0].description_raw}
+          </div>
+        </div>` : ''}
+
         <div class="evals-section">
           <div class="evals-section-header">
             <span class="evals-section-label">
@@ -1044,6 +1071,20 @@
     function closeRerun() {
       document.getElementById('rerunModal').classList.remove('open');
       rerunJobId = null;
+    }
+
+    function toggleJD(btn) {
+        const body = btn.closest('.jd-section').querySelector('.jd-body');
+        const open  = btn.dataset.open === 'true';
+        if (open) {
+            body.style.display  = 'none';
+            btn.textContent     = '▼ Show JD';
+            btn.dataset.open    = 'false';
+        } else {
+            body.style.display  = 'block';
+            btn.textContent     = '▲ Hide JD';
+            btn.dataset.open    = 'true';
+        }
     }
 
     async function submitRerun() {
