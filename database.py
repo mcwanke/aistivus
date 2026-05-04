@@ -137,6 +137,7 @@ CREATE TABLE IF NOT EXISTS evaluations (
     log_entry       TEXT,
     prompt_hash     TEXT,
     raw_response    TEXT,
+    keywords        TEXT,
     evaluated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -610,7 +611,7 @@ def insert_evaluation(job_id: int, **kwargs) -> int:
         "model_used", "score_overall", "score_role_fit", "score_scope_fit",
         "score_culture", "score_comp", "fit_type", "archetype",
         "strengths", "gaps", "recommendation", "log_entry",
-        "prompt_hash", "raw_response"
+        "prompt_hash", "raw_response", "keywords"
     ]
     with get_connection() as conn:
         conn.execute(

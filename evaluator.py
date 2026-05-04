@@ -105,7 +105,8 @@ Return ONLY this JSON structure with no additional text:
   "strengths": "<bullet-point list of match strengths>",
   "gaps": "<bullet-point list of gaps or concerns>",
   "recommendation": "<Apply | Apply with modifications | Skip>",
-  "log_entry": "| {today} | <Company> | <Role Title> | | | <one-line evaluation summary> |"
+  "log_entry": "<one-line summary: Company | Role | Score | Fit Type | Recommendation>",
+  "keywords": "<comma-separated list of 25-35 important keywords, skills, technologies, and phrases from this JD that an ATS would scan for — include exact phrases where possible>"
 }}"""
 
 
@@ -252,13 +253,17 @@ def _generate_report(
 
 ---
 
-## Application Log Entry
+## Keywords for Resume Tailoring
 
 Copy this line into your jobsearch.md Application Log:
 
 ```
-{evaluation.get('log_entry', '')}
+{evaluation.get('keywords', 'No keywords extracted.')}
 ```
+
+## Evaluation Summary
+
+{evaluation.get('log_entry', '')}
 
 ---
 
@@ -286,7 +291,7 @@ def _write_report(
         return clean[:64]
 
     date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
-    filename = f"{sanitize(company_name)}_{sanitize(job_title)}_{date_str}.md"
+    filename = f"{date_str}_{sanitize(company_name)}_{sanitize(job_title)}.md"
     report_path = reports_dir / filename
 
     report_path.write_text(report_content)
@@ -514,6 +519,7 @@ async def evaluate_jd(
             "gaps":            _to_str(parsed.get("gaps")),
             "recommendation":  _to_str(parsed.get("recommendation")),
             "log_entry":       _to_str(parsed.get("log_entry")),
+            "keywords":        _to_str(parsed.get("keywords")),
         })
 
     evaluation_id = database.insert_evaluation(

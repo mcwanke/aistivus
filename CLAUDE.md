@@ -144,7 +144,7 @@ evaluations (
     score_overall, score_role_fit, score_scope_fit,
     score_culture, score_comp, fit_type, archetype,
     strengths, gaps, recommendation, log_entry,
-    prompt_hash, raw_response, evaluated_at
+    prompt_hash, raw_response, keywords, evaluated_at
 )
 NOTE: search_run_id omitted from Phase 0 — added via migration in Phase 3
 
