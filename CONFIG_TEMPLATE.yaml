@@ -1,0 +1,178 @@
+# AIstivus — Configuration Template
+# ─────────────────────────────────────────────────────────────
+# This is the canonical configuration template. It ships with
+# the repo and is never modified by users.
+#
+# SETUP: Copy this file to config.yaml and edit your working copy.
+#   cp CONFIG_TEMPLATE.yaml config.yaml
+#
+# config.yaml is gitignored — your settings never enter version control.
+# ─────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────
+# Ollama (Phase 0+)
+# Local LLM server configuration.
+# Run: ollama serve
+# Pull a model: ollama pull qwen2.5-coder:14b
+# ─────────────────────────────────────
+ollama:
+  base_url: http://localhost:11434
+  default_model: qwen2.5-coder:14b
+  # Other good options:
+  # default_model: qwen2.5-coder:7b     # faster, fits in 8GB VRAM
+  # default_model: llama3.1:8b          # good general purpose model
+
+# ─────────────────────────────────────
+# Cloud LLM Providers (Phase 1+)
+# API keys are loaded from .env — never put key values here.
+# Reference the env var name only.
+# ─────────────────────────────────────
+providers:
+  anthropic:
+    api_key_env_var: ANTHROPIC_API_KEY
+    default_model: claude-sonnet-4-20250514
+  openai:
+    api_key_env_var: OPENAI_API_KEY
+    default_model: gpt-4o
+
+# ─────────────────────────────────────
+# Output paths
+# All paths are relative to the project root.
+# ─────────────────────────────────────
+output:
+  reports_dir: ./reports       # markdown evaluation reports
+  generated_dir: ./generated   # generated resumes and cover letters (Phase 2+)
+
+# ─────────────────────────────────────
+# Database
+# ─────────────────────────────────────
+database:
+  db_path: ./data/jobs.db
+  backup_dir: ./data/backups
+  auto_backup_on_migration: true     # always backup before running migrations
+  llm_call_log_retention_days: 90   # 0 = keep forever
+
+# ─────────────────────────────────────
+# Evaluation settings
+# ─────────────────────────────────────
+evaluation:
+  min_score_threshold: 6.0     # evaluations below this flagged in reports and UI
+  jobsearch_md_path: ./jobsearch.md
+  # Token warning threshold — warn user when prompt approaches model context limit
+  # Expressed as a fraction of the model's context window (0.0 - 1.0)
+  context_warning_threshold: 0.80
+
+# ─────────────────────────────────────
+# Inbox processing (Phase 0+)
+# Drop JD files here for batch processing via evaluate.py
+# ─────────────────────────────────────
+inbox:
+  path: ./inbox
+  done_path: ./inbox/done
+  failed_path: ./inbox/failed
+
+# ─────────────────────────────────────
+# Job search scraping (Phase 3+)
+# jobspy configuration for automated job discovery.
+# Note: jobspy is a convenience layer — the tool works without it.
+# Manual JD ingestion is always available as the primary path.
+# ─────────────────────────────────────
+searches:
+  - terms:
+      - "Director of Engineering"
+      - "Engineering Manager"
+      - "Senior Engineering Manager"
+    locations:
+      - "Remote"
+    sites:
+      - linkedin
+      - indeed
+      - glassdoor
+      - zip_recruiter
+      - google
+    results_per_site: 20
+    days_old: 7
+
+# ─────────────────────────────────────
+# Scraping filters (Phase 3+)
+# ─────────────────────────────────────
+filters:
+  # Keywords that disqualify a role before evaluation
+  exclude_keywords:
+    - "hands-on coding required"
+    - "blockchain"
+    - "crypto"
+  min_score_threshold: 6.0   # mirror of evaluation threshold — used for reporting
+
+  # Repost detection
+  repost_detection:
+    enabled: true
+    min_days_gap: 14           # postings < N days apart not flagged (prevents ATS refresh noise)
+    alert_on_applied: true     # dashboard alert when a role you applied to is reposted
+    alert_on_evaluated: true   # dashboard alert when an evaluated role is reposted
+
+# ─────────────────────────────────────
+# Scraping rate limits (Phase 3+)
+# Be respectful. Aggressive scraping violates ToS.
+# ─────────────────────────────────────
+rate_limits:
+  requests_per_minute: 10
+  delay_between_requests_seconds: 3
+
+# ─────────────────────────────────────
+# URL ingestion (Phase 2+)
+# Tiered strategy: Playwright → Requests-HTML → BS4 → manual paste
+# ─────────────────────────────────────
+ingestion:
+  playwright_enabled: true           # requires: playwright install chromium
+  request_timeout_seconds: 15
+  max_concurrent_playwright: 2       # limit Chromium instances
+
+# ─────────────────────────────────────
+# Role keyword taxonomy (Phase 3+)
+# Used by scraper_review.py for deterministic keyword assignment.
+# Zero LLM calls — pure string matching.
+# Scoring: highest signal word match count wins.
+# Ties broken by order listed here (first listed wins).
+# Add signal words to tune classification for your search.
+# ─────────────────────────────────────
+role_keyword_taxonomy:
+  platform:       ["platform", "systems", "scalability", "reliability", "core infrastructure"]
+  growth:         ["growth", "acquisition", "activation", "retention", "funnel", "conversion", "MAU", "DAU"]
+  mobile:         ["iOS", "Android", "React Native", "Swift", "Kotlin", "mobile"]
+  data:           ["data engineering", "pipeline", "ETL", "warehouse", "Spark", "Airflow", "dbt"]
+  infrastructure: ["DevOps", "SRE", "Kubernetes", "Terraform", "cloud", "AWS", "GCP", "Azure"]
+  security:       ["security", "compliance", "vulnerability", "penetration", "SOC2", "SAST"]
+  frontend:       ["frontend", "React", "Vue", "CSS", "UI", "web client"]
+  backend:        ["backend", "API", "microservices", "REST", "GraphQL", "server-side"]
+  ML:             ["machine learning", "ML", "model training", "PyTorch", "TensorFlow", "MLOps"]
+  AI:             ["AI", "LLM", "GPT", "Claude", "generative", "RAG", "embeddings", "agents"]
+  embedded:       ["embedded", "firmware", "RTOS", "bare metal", "FPGA", "C++"]
+  hardware:       ["hardware", "PCB", "electrical", "mechanical", "manufacturing", "DFM"]
+  QA:             ["QA", "quality assurance", "SDET", "automation testing"]
+  devex:          ["developer experience", "DevEx", "developer productivity", "internal tools"]
+  fullstack:      ["full stack", "fullstack", "full-stack", "end-to-end"]
+  general:        []  # fallback — assigned when no signals match
+
+# ─────────────────────────────────────
+# Logging (Phase 1+)
+# Phase 0 uses stdout only.
+# ─────────────────────────────────────
+logging:
+  level: INFO                  # DEBUG | INFO | WARNING | ERROR
+  max_file_size_mb: 10
+  keep_rotations: 5
+  retention_days: 30
+
+# ─────────────────────────────────────
+# Background tasks (Phase 1+)
+# ─────────────────────────────────────
+tasks:
+  max_task_age_hours: 2        # running tasks older than this are marked aborted on startup
+
+# ─────────────────────────────────────
+# Application server
+# ─────────────────────────────────────
+app:
+  host: 127.0.0.1              # never change to 0.0.0.0 without a reverse proxy + auth
+  port: 8080
