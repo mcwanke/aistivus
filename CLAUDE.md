@@ -24,7 +24,7 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 **Phase 0 is complete.** Core evaluation pipeline is working end-to-end.
 
-**Phase 0.1 active work** — completing these before Phase 1 begins:
+**Phase 0.1 is Complete ✅**
 
 ### Completed ✅
 - [x] GitHub repo initialized
@@ -45,11 +45,9 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 - [x] templates/ folder
 - [x] evaluate.py — CLI script for /inbox/ file drop processing
 - [x] jobs.html — jobs/opportunities page showing all jobs with evaluation scores
-
-### In Progress / Todo for Phase 0.1 🔄
-- [ ] Re-evaluate functionality with model picker (on evaluations and jobs pages)
-- [ ] Multi-evaluation display — group by job, show all evaluations with model labels
-- [ ] Update main.py with any additional routes for above features
+- [x] Re-evaluate functionality with model picker (on evaluations and jobs pages)
+- [x] Multi-evaluation display — group by job, show all evaluations with model labels
+- [x] Update main.py with any additional routes for above features
 
 ### Phase 0.1 File Structure
 ```
@@ -68,7 +66,7 @@ aistivus/
 ├── main.py                 (FastAPI server — all routes)
 ├── database.py             (full schema + all DB helpers)
 ├── evaluator.py            (evaluation pipeline)
-├── evaluate.py             (CLI inbox processor) ← TODO
+├── evaluate.py             (CLI inbox processor)
 ├── llm_client.py           (Ollama in Phase 0; multi-provider Phase 1+)
 ├── index.html              (landing page — Phase 0 temporary, replaced by React in Phase 1)
 ├── evaluate.html           (evaluation UI — Phase 0 temporary, replaced by React in Phase 1)
