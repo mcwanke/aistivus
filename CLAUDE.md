@@ -39,15 +39,17 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 - [x] index.html — landing page with stats and navigation
 - [x] evaluate.html — JD paste and evaluation UI
 - [x] evaluations.html — evaluation history with detail panel and report viewer
+- [x] LEGAL_DISCLAIMER.md
+- [x] FEATURES.md
+- [x] README.md
+- [x] templates/ folder
+- [x] evaluate.py — CLI script for /inbox/ file drop processing
+- [x] jobs.html — jobs/opportunities page showing all jobs with evaluation scores
 
 ### In Progress / Todo for Phase 0.1 🔄
-- [ ] evaluate.py — CLI script for /inbox/ file drop processing
-- [ ] jobs.html — jobs/opportunities page showing all jobs with evaluation scores
 - [ ] Re-evaluate functionality with model picker (on evaluations and jobs pages)
 - [ ] Multi-evaluation display — group by job, show all evaluations with model labels
 - [ ] Update main.py with any additional routes for above features
-- [ ] CONFIG_TEMPLATE.yaml moved to templates/ folder
-- [ ] Update LEGAL_DISCLAIMER.md stub
 
 ### Phase 0.1 File Structure
 ```
@@ -68,10 +70,10 @@ aistivus/
 ├── evaluator.py            (evaluation pipeline)
 ├── evaluate.py             (CLI inbox processor) ← TODO
 ├── llm_client.py           (Ollama in Phase 0; multi-provider Phase 1+)
-├── index.html              (landing page)
-├── evaluate.html           (evaluation UI)
-├── evaluations.html        (evaluation history)
-├── jobs.html               (jobs/opportunities view) ← TODO
+├── index.html              (landing page — Phase 0 temporary, replaced by React in Phase 1)
+├── evaluate.html           (evaluation UI — Phase 0 temporary, replaced by React in Phase 1)
+├── evaluations.html        (evaluation history — Phase 0 temporary, replaced by React in Phase 1)
+├── jobs.html               (jobs/opportunities — Phase 0 temporary, replaced by React in Phase 1)
 ├── templates/
 │   ├── CONFIG_TEMPLATE.yaml
 │   ├── JOBSEARCH_TEMPLATE.md
@@ -308,6 +310,7 @@ Stop and ask for explicit confirmation before:
 - No auto-submit of applications
 - No hard-deletion of `resume_info` records
 - No automatic schema changes on startup
+- Do not refactor or "improve" the vanilla HTML files (index.html, evaluate.html, evaluations.html, jobs.html) — they are Phase 0 temporary artifacts that will be entirely replaced by the React/Vite frontend in Phase 1
 
 ---
 

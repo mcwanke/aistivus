@@ -186,14 +186,44 @@ def _parse_evaluation_response(raw: str) -> dict | None:
 
 def _validate_parsed_response(parsed: dict) -> bool:
     """
-    Validate that the parsed response has the required fields.
-    Returns True if the response is usable, False if it needs a retry.
+    Validate that the parsed response has required fields and sane values.
+    Returns True if usable, False if retry needed.
     """
     required = [
         "score_overall", "fit_type", "archetype",
         "strengths", "gaps", "recommendation"
     ]
-    return all(k in parsed for k in required)
+    if not all(k in parsed for k in required):
+        return False
+
+    # Clamp and validate score_overall — must be 1-10
+    score = parsed.get("score_overall")
+    if score is not None:
+        try:
+            score = float(score)
+            if score < 1 or score > 10:
+                return False  # out of range — trigger retry
+            parsed["score_overall"] = round(score, 1)
+        except (TypeError, ValueError):
+            return False
+
+    # Validate sub-scores — must be 1-5 if present
+    for field in ["score_role_fit", "score_scope_fit", "score_culture", "score_comp"]:
+        val = parsed.get(field)
+        if val is not None:
+            try:
+                val = float(val)
+                # Clamp to 1-5 rather than failing — sub-scores are less critical
+                parsed[field] = round(max(1.0, min(5.0, val)), 1)
+            except (TypeError, ValueError):
+                parsed[field] = None
+
+    # Reject placeholder text — model returned template instead of real values
+    fit_type = str(parsed.get("fit_type", ""))
+    if "<" in fit_type and ">" in fit_type:
+        return False
+
+    return True
 
 
 # ─────────────────────────────────────────────────────────────

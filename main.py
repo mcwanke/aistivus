@@ -157,6 +157,11 @@ class EvaluateResponse(BaseModel):
     error:         str | None
 
 
+class RerunRequest(BaseModel):
+    job_id: int
+    model:  str
+    
+
 # ─────────────────────────────────────────────────────────────
 # Page routes — serve HTML files
 # ─────────────────────────────────────────────────────────────
@@ -185,6 +190,15 @@ async def serve_evaluations():
     path = Path("evaluations.html")
     if not path.exists():
         raise HTTPException(status_code=404, detail="evaluations.html not found.")
+    return FileResponse(path)
+
+
+@app.get("/jobs", response_class=FileResponse)
+async def serve_jobs():
+    """Jobs and opportunities page."""
+    path = Path("jobs.html")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="jobs.html not found.")
     return FileResponse(path)
 
 
@@ -329,6 +343,58 @@ async def get_job(job_id: int):
     })
 
 
+@app.get("/api/models")
+async def list_models():
+    """Return available Ollama models for the model picker UI."""
+    base_url, _ = _get_ollama_config()
+    health = await llm_client.check_ollama_health(base_url)
+    if not health["reachable"]:
+        raise HTTPException(status_code=503, detail="Ollama not reachable.")
+    return JSONResponse({"models": health["models"]})
+
+
+@app.get("/api/jobs-with-evaluations")
+async def list_jobs_with_evaluations():
+    """
+    Return all jobs with their best evaluation score and total evaluation count.
+    Used by jobs.html for the jobs list with scoring summary.
+    """
+    with database.get_connection() as conn:
+        rows = conn.execute(
+            """SELECT j.*,
+                      c.name AS company_name,
+                      COUNT(e.id) AS evaluation_count,
+                      MAX(e.score_overall) AS best_score,
+                      (SELECT fit_type FROM evaluations
+                       WHERE job_id = j.id
+                       ORDER BY score_overall DESC NULLS LAST, evaluated_at DESC
+                       LIMIT 1) AS best_fit_type,
+                      (SELECT model_used FROM evaluations
+                       WHERE job_id = j.id
+                       ORDER BY score_overall DESC NULLS LAST, evaluated_at DESC
+                       LIMIT 1) AS best_model
+               FROM jobs j
+               JOIN companies c ON c.id = j.company_id
+               LEFT JOIN evaluations e ON e.job_id = j.id
+               GROUP BY j.id
+               ORDER BY best_score DESC NULLS LAST, j.last_seen_date DESC"""
+        ).fetchall()
+
+    result = []
+    for row in rows:
+        d = dict(row)
+        # Attach best_evaluation as a nested object for the frontend
+        d["best_evaluation"] = {
+            "score_overall": d.pop("best_score"),
+            "fit_type":      d.pop("best_fit_type"),
+            "model_used":    d.pop("best_model"),
+        } if d.get("evaluation_count", 0) > 0 else None
+        if "best_score" in d: d.pop("best_score", None)
+        result.append(d)
+
+    return JSONResponse(result)
+
+
 @app.get("/api/evaluations")
 async def list_evaluations():
     """
@@ -391,6 +457,53 @@ async def get_evaluation(evaluation_id: int):
     data["report_path"] = report_path
 
     return JSONResponse(data)
+
+
+class RerunRequest(BaseModel):
+    job_id: int
+    model:  str
+
+
+@app.post("/api/evaluations/rerun")
+async def rerun_evaluation(request: RerunRequest):
+    """
+    Re-evaluate an existing job with a specified model.
+    Creates a new evaluation record — does not overwrite existing ones.
+    Multiple evaluations per job are expected and supported.
+    """
+    job = database.get_job(request.job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {request.job_id} not found.")
+
+    # Get the best available description for this job
+    postings = database.get_postings_for_job(request.job_id)
+    jd_text  = dict(job).get("description_merged") or ""
+    if not jd_text and postings:
+        jd_text = dict(postings[0]).get("description_raw") or ""
+
+    if not jd_text.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="No job description available for this job. "
+                   "The JD text may not have been stored."
+        )
+
+    # Determine provider from model name
+    # Phase 0: Ollama only. Phase 1+ adds anthropic/openai routing here.
+    base_url, _ = _get_ollama_config()
+    provider     = llm_client.PROVIDER_OLLAMA
+
+    result = await evaluator.evaluate_jd(
+        jd_text=jd_text,
+        company_name=dict(job).get("company_name", "Unknown Company"),
+        job_title=dict(job).get("title", "Unknown Role"),
+        location=dict(job).get("location"),
+        remote_type=dict(job).get("remote_type"),
+        model=request.model,
+        provider=provider,
+    )
+
+    return JSONResponse(result)
 
 
 def _find_report(company_name: str, job_title: str, evaluated_at: str) -> str | None:

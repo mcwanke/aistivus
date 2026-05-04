@@ -96,6 +96,8 @@
 - [ ] **Config validation on startup** `[P1]` — validate config.yaml structure and warn on unknown keys
 - [ ] **Docker compose for local dev** `[P4]` — per PROJECT_SPEC.md Phase 4
 - [ ] **Auto-backup on startup** `[P2]` — optional daily backup of jobs.db on first run of the day
+- [ ] **Auto-cleanup /inbox/done/ folder** `[P1]` — configurable retention period
+  (default 30 days) for processed inbox files; action available in Settings UI
 
 ---
 
@@ -105,6 +107,15 @@
 - [ ] **Multi-project support** `[P4]` — isolate multiple job searches per PROJECT_SPEC.md
 - [ ] **Community prompt library** `[P4]` — share and import evaluation prompt templates
 - [ ] **Contributor documentation** `[P4]` — detailed CONTRIBUTING.md with PR process
+
+---
+
+## Far Future / SaaS Concepts
+
+- [ ] **JD Generator for companies** `[Future]` — function to generate consistently
+  formatted job descriptions for a given role. Positions AIstivus as a B2B SaaS tool
+  for companies wanting consistent, high-quality JD formatting at scale.
+  Pivot/addition from the candidate-facing tool to a hiring-side tool.
 
 ---
 
