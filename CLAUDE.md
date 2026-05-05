@@ -113,25 +113,31 @@ aistivus/
 
 ## Tech Stack
 
-### Current (Phase 0.1)
+### Current (Phase 1)
 | Layer | Technology |
 |---|---|
 | Backend | Python 3.11+ / FastAPI |
 | Web server | Uvicorn |
-| Frontend | Vanilla HTML/CSS/JS — no framework |
+| Frontend | React 18 / Vite / TypeScript / Tailwind CSS |
 | Database | SQLite via Python `sqlite3` stdlib — no ORM |
 | LLM | Ollama REST API |
 | Config | `config.yaml` + `.env` via python-dotenv |
 
-### Phase 1+ Additions (do not implement until Phase 1)
+### Phase 1 Active Additions
 | Layer | Technology |
 |---|---|
-| Frontend | React 18 / Vite / TypeScript / Tailwind CSS |
 | LLM (cloud) | Anthropic + OpenAI APIs |
-| Token estimation | tiktoken (Phase 1); Anthropic native counting (Phase 4) |
+| Token estimation | tiktoken |
 | Rate limiting | slowapi |
 | Logging | Python stdlib logging (structured JSON) |
 | Testing | pytest + Vitest |
+
+### Phase 2+ (do not implement until Phase 2)
+| Layer | Technology |
+|---|---|
+| PDF generation | WeasyPrint + nh3 sanitization |
+| DOCX generation | python-docx |
+| URL ingestion | Playwright / Requests-HTML / BS4 |
 
 **Do not introduce new dependencies without explicit instruction.**
 
@@ -148,7 +154,7 @@ aistivus/
 - **`resume_info` records are never hard-deleted.** Deactivation (`is_active = 0`) only.
 - **`data/` directory created automatically** by `database.py` on first run.
 
-### Active Schema (Phase 0.1 — all tables created at init)
+### Active Schema (v0.1 — all tables created at init)
 
 ```
 -- ACTIVE PHASE 0
@@ -286,7 +292,7 @@ Phase 1+ adds `anthropic` and `openai` providers to the same interface.
 
 ---
 
-## Available Models (Phase 0.1)
+## Available Models (Phase 1)
 
 For the re-evaluate model picker, these are the available options:
 - **Ollama models:** dynamically fetched from `GET /api/models` which calls `llm_client.check_ollama_health()`
@@ -298,11 +304,6 @@ The model picker UI should show:
 
 ---
 
-**Change 4 — Add React/TypeScript rules section**
-
-Find the `## Code Style` section. Add this new section immediately before it:
-
-```markdown
 ## React / TypeScript Rules (Phase 1+)
 
 ### Structure
@@ -330,14 +331,13 @@ Find the `## Code Style` section. Add this new section immediately before it:
 - Vite dev proxy forwards to `http://localhost:8080`
 - No localStorage or sessionStorage
 - Confirmation required for destructive actions
-```
 
 ---
 
 ## Code Style
 
 - **Python:** PEP 8, type hints on all function signatures, docstrings on all public functions
-- **JavaScript:** `const` and arrow functions, no `var`, no framework in Phase 0
+- **TypeScript/React:** explicit types preferred, no `any`, functional components only
 - **Naming:** `snake_case` Python, `camelCase` JS, `PascalCase` React components (Phase 1+)
 - **Comments:** explain *why*, not *what*
 - **No dead code** in commits
@@ -361,7 +361,7 @@ Stop and ask for explicit confirmation before:
 ## What NOT to Do
 
 - No ORM
-- No frontend framework in Phase 0 (React comes in Phase 1)
+- No additional frontend frameworks beyond React/Vite/TypeScript/Tailwind
 - No authentication (Phase 0-3)
 - No telemetry or analytics
 - No aggressive scraping — respect rate limits and ToS
@@ -370,7 +370,10 @@ Stop and ask for explicit confirmation before:
 - No auto-submit of applications
 - No hard-deletion of `resume_info` records
 - No automatic schema changes on startup
-- Do not refactor or "improve" the vanilla HTML files (index.html, evaluate.html, evaluations.html, jobs.html) — they are Phase 0 temporary artifacts that will be entirely replaced by the React/Vite frontend in Phase 1
+- Do not refactor or "improve" the vanilla HTML files (index.html, evaluate.html, evaluations.html, jobs.html) — they remain operational during Phase 1 transition and are retired page by page as React replacements are completed
+- Do not build React pages without first defining TypeScript interfaces in `frontend/src/types/`
+- Do not use `any` type in TypeScript
+- Do not add frontend dependencies without explicit instruction
 
 ---
 
