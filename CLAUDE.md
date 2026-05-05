@@ -20,36 +20,54 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 ---
 
-## Current Phase: PHASE 0.1 — Completing the Foundation
+## Current Phase: PHASE 1 — Minimum Useful Web UI
 
-**Phase 0 is complete.** Core evaluation pipeline is working end-to-end.
+**Phase 0 and Phase 0.1 are complete.** Core evaluation pipeline working end-to-end.
+Vanilla HTML frontend operational. Ready for React/TypeScript rebuild.
 
-**Phase 0.1 is Complete ✅**
+### Phase 0 + 0.1 Complete ✅
+All items shipped. See git history for details.
 
-### Completed ✅
-- [x] GitHub repo initialized
-- [x] PROJECT_SPEC.md, CLAUDE.md, FEATURES.md, README.md
-- [x] .gitignore, .env.example
-- [x] templates/ folder with CONFIG_TEMPLATE.yaml, JOBSEARCH_TEMPLATE.md, INBOX_TEMPLATE.md
-- [x] requirements.txt
-- [x] database.py — full schema, all tables initialized at startup
-- [x] llm_client.py — Ollama provider
-- [x] evaluator.py — full evaluation pipeline with retry, parse failure handling, keywords
-- [x] main.py — FastAPI server, startup validation, all routes
-- [x] index.html — landing page with stats and navigation
-- [x] evaluate.html — JD paste and evaluation UI
-- [x] evaluations.html — evaluation history with detail panel and report viewer
-- [x] LEGAL_DISCLAIMER.md
-- [x] FEATURES.md
-- [x] README.md
-- [x] templates/ folder
-- [x] evaluate.py — CLI script for /inbox/ file drop processing
-- [x] jobs.html — jobs/opportunities page showing all jobs with evaluation scores
-- [x] Re-evaluate functionality with model picker (on evaluations and jobs pages)
-- [x] Multi-evaluation display — group by job, show all evaluations with model labels
-- [x] Update main.py with any additional routes for above features
+### Phase 1 Checklist 🔄
+**Frontend Foundation:**
+- [ ] Scaffold React 18 / Vite / TypeScript in `frontend/`
+- [ ] Configure Tailwind CSS with custom design tokens
+- [ ] Define TypeScript interfaces for all API responses in `frontend/src/types/`
+- [ ] Vite proxy to FastAPI in dev; FastAPI serves `frontend/dist/` in prod
 
-### Phase 0.1 File Structure
+**Pages:**
+- [ ] `Dashboard.tsx` — stats, health indicators, recent activity
+- [ ] `Jobs.tsx` — jobs list with scores, search, filters
+- [ ] `JobDetail.tsx` — evaluations, re-evaluate, View JD
+- [ ] `Evaluations.tsx` — history, detail panel, report viewer
+- [ ] `Settings.tsx` — model config, jobsearch.md editor + version history
+
+**Application Tracking:**
+- [ ] `Applications.tsx` — create, status tracking, notes
+- [ ] Activate applications tables in database
+
+**LLM Enhancements:**
+- [ ] Anthropic provider in `llm_client.py`
+- [ ] OpenAI provider in `llm_client.py`
+- [ ] tiktoken pre-call token estimation
+- [ ] Cloud evaluation confirmation dialog
+- [ ] Activate `llm_call_log` table
+- [ ] `LLMUsage.tsx` page
+
+**Backend:**
+- [ ] `logger.py` structured JSON logging
+- [ ] `slowapi` rate limiting
+- [ ] Async polling pattern (202 + status endpoint)
+- [ ] Application routes, settings routes, LLM usage routes
+
+**Testing:**
+- [ ] pytest setup + fixtures
+- [ ] Unit tests for database.py and evaluator.py
+- [ ] Integration tests for FastAPI routes
+- [ ] 80% backend coverage
+- [ ] GitHub Actions CI
+
+### Phase 1 File Structure (target)
 ```
 aistivus/
 ├── CLAUDE.md
@@ -60,27 +78,35 @@ aistivus/
 ├── README.md
 ├── .env.example
 ├── .gitignore
-├── config.yaml             (gitignored — working copy)
-├── jobsearch.md            (gitignored — user's context doc)
+├── config.yaml             (gitignored)
+├── jobsearch.md            (gitignored)
 ├── requirements.txt
-├── main.py                 (FastAPI server — all routes)
-├── database.py             (full schema + all DB helpers)
-├── evaluator.py            (evaluation pipeline)
-├── evaluate.py             (CLI inbox processor)
-├── llm_client.py           (Ollama in Phase 0; multi-provider Phase 1+)
-├── index.html              (landing page — Phase 0 temporary, replaced by React in Phase 1)
-├── evaluate.html           (evaluation UI — Phase 0 temporary, replaced by React in Phase 1)
-├── evaluations.html        (evaluation history — Phase 0 temporary, replaced by React in Phase 1)
-├── jobs.html               (jobs/opportunities — Phase 0 temporary, replaced by React in Phase 1)
+├── main.py
+├── database.py
+├── evaluator.py
+├── evaluate.py
+├── llm_client.py
+├── logger.py               (Phase 1 — new)
 ├── templates/
-│   ├── CONFIG_TEMPLATE.yaml
-│   ├── JOBSEARCH_TEMPLATE.md
-│   └── INBOX_TEMPLATE.md
+├── frontend/               (Phase 1 — new)
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vite.config.ts
+│   └── src/
+│       ├── types/
+│       ├── components/
+│       └── pages/
+│           ├── Dashboard.tsx
+│           ├── Jobs.tsx
+│           ├── JobDetail.tsx
+│           ├── Evaluations.tsx
+│           ├── Applications.tsx
+│           ├── LLMUsage.tsx
+│           └── Settings.tsx
 ├── inbox/                  (gitignored)
-│   ├── done/
-│   └── failed/
-├── data/                   (gitignored — jobs.db)
-└── reports/                (gitignored — markdown evaluations)
+├── data/                   (gitignored)
+├── reports/                (gitignored)
+└── logs/                   (gitignored — Phase 1+)
 ```
 
 ---
@@ -269,6 +295,42 @@ For the re-evaluate model picker, these are the available options:
 The model picker UI should show:
 - Ollama models pulled and available (from Ollama API)
 - "Claude (not configured)" if ANTHROPIC_API_KEY not set (Phase 1+)
+
+---
+
+**Change 4 — Add React/TypeScript rules section**
+
+Find the `## Code Style` section. Add this new section immediately before it:
+
+```markdown
+## React / TypeScript Rules (Phase 1+)
+
+### Structure
+- All frontend code in `frontend/`
+- Pages: `frontend/src/pages/` — one file per route
+- Components: `frontend/src/components/` — reusable UI
+- Types: `frontend/src/types/` — all API response interfaces defined here first
+
+### Components
+- Functional components only — no class components
+- Every data-fetching component handles: loading state, error state, empty state
+- No `any` type — use `unknown` and narrow it
+- Explicit type annotations preferred over inferred (teaching mode)
+- Brief inline comments on non-obvious TypeScript syntax
+
+### Styling
+- Tailwind CSS only — no inline styles, no CSS modules
+- Custom design tokens (configure in tailwind.config):
+  - bg: #0f0f0f, surface: #181818, surface2: #222222
+  - accent: #c8a96e, green: #6a9c6a, red: #9c6a6a
+  - Fonts: DM Serif Display, DM Mono, DM Sans
+
+### API
+- All calls use `fetch` with typed responses — no Axios
+- Vite dev proxy forwards to `http://localhost:8080`
+- No localStorage or sessionStorage
+- Confirmation required for destructive actions
+```
 
 ---
 
