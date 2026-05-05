@@ -272,6 +272,10 @@
       <div class="stat-value" id="statCompanies">—</div>
       <div class="stat-label">Companies</div>
     </div>
+    <div class="stat">
+      <div class="stat-value" id="statApplications">—</div>
+      <div class="stat-label">Applications</div>
+    </div>
   </div>
 
   <!-- Navigation -->
@@ -306,13 +310,13 @@
         <div class="nav-card-phase active">● Active — Phase 0</div>
       </a>
 
-      <a class="nav-card disabled">
+      <a href="/applications" class="nav-card">
         <div class="nav-card-icon">📁</div>
         <div class="nav-card-title">Applications</div>
         <div class="nav-card-desc">
           Track application status, add notes, and log recruiter conversations.
         </div>
-        <div class="nav-card-phase">Phase 1</div>
+        <div class="nav-card-phase active">● Active — Phase 0.1</div>
       </a>
 
       <a class="nav-card disabled">
@@ -372,6 +376,7 @@
         document.getElementById('statJobs').textContent      = data.jobs ?? '—';
         document.getElementById('statEvals').textContent     = data.evaluations ?? '—';
         document.getElementById('statCompanies').textContent = data.companies ?? '—';
+        document.getElementById('statApplications').textContent = data.applications ?? '—';
       } catch {
         // stats failing silently is fine — non-critical
       }

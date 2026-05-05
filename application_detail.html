@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Application — AIstivus</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:           #0f0f0f;
+      --surface:      #181818;
+      --surface-2:    #222222;
+      --border:       #2a2a2a;
+      --border-focus: #4a4a4a;
+      --text:         #e8e6e0;
+      --text-muted:   #7a7872;
+      --text-dim:     #4a4844;
+      --accent:       #c8a96e;
+      --accent-dim:   #8a7248;
+      --green:        #6a9c6a;
+      --red:          #9c6a6a;
+      --amber:        #c8a96e;
+      --blue:         #6a8a9c;
+      --purple:       #8a6a9c;
+      --radius:       6px;
+      --radius-lg:    12px;
+      --mono:         'DM Mono', monospace;
+      --serif:        'DM Serif Display', serif;
+      --sans:         'DM Sans', sans-serif;
+      --transition:   200ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 15px; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ───────────────────────────────────────────── */
+    .header {
+      border-bottom: 1px solid var(--border);
+      padding: 18px 32px;
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 10;
+    }
+
+    .header-back {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      text-decoration: none;
+      transition: color var(--transition);
+    }
+    .header-back:hover { color: var(--text-muted); }
+
+    .header-wordmark {
+      font-family: var(--serif);
+      font-size: 1.5rem;
+      color: var(--accent);
+      letter-spacing: -0.02em;
+      text-decoration: none;
+    }
+
+    .header-page {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 300;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .header-status {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: var(--mono);
+    }
+
+    .status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      transition: background var(--transition);
+    }
+    .status-dot.ok   { background: var(--green); }
+    .status-dot.fail { background: var(--red); }
+
+    /* ── Layout ───────────────────────────────────────────── */
+    .page {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 32px;
+    }
+
+    /* ── Section ──────────────────────────────────────────── */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+
+    .section-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .section-header:hover { background: var(--surface-2); }
+
+    .section-title {
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      font-family: var(--mono);
+    }
+
+    .section-toggle {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      transition: transform var(--transition);
+    }
+
+    .section-body { padding: 20px; }
+    .section-body.collapsed { display: none; }
+
+    /* ── Hero header ──────────────────────────────────────── */
+    .hero {
+      margin-bottom: 24px;
+    }
+
+    .hero-company {
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-family: var(--mono);
+      margin-bottom: 6px;
+    }
+
+    .hero-title {
+      font-family: var(--serif);
+      font-size: 2rem;
+      color: var(--text);
+      line-height: 1.15;
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+    }
+
+    .hero-meta {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 0.72rem;
+      font-family: var(--mono);
+      color: var(--text-dim);
+    }
+
+    /* ── Status + excitement row ──────────────────────────── */
+    .control-row {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .control-label {
+      font-size: 0.62rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      font-family: var(--mono);
+    }
+
+    .status-select {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      padding: 8px 12px;
+      outline: none;
+      cursor: pointer;
+      appearance: none;
+      min-width: 160px;
+      transition: border-color var(--transition);
+    }
+
+    .status-select:focus { border-color: var(--border-focus); }
+    .status-select option { background: var(--surface); }
+
+    /* ── Star selector ────────────────────────────────────── */
+    .star-selector {
+      display: flex;
+      gap: 4px;
+    }
+
+    .star-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1.3rem;
+      color: var(--text-dim);
+      transition: color var(--transition), transform var(--transition);
+      padding: 0 2px;
+      line-height: 1;
+    }
+
+    .star-btn:hover,
+    .star-btn.filled { color: var(--accent); }
+
+    .star-btn:hover { transform: scale(1.15); }
+
+    /* ── Link fields ──────────────────────────────────────── */
+    .link-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .link-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .link-field label {
+      font-size: 0.62rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      font-family: var(--mono);
+    }
+
+    .link-input-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .link-input {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      padding: 7px 10px;
+      outline: none;
+      flex: 1;
+      min-width: 0;
+      transition: border-color var(--transition);
+    }
+
+    .link-input:focus { border-color: var(--border-focus); }
+    .link-input::placeholder { color: var(--text-dim); }
+
+    .btn-link-save {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      padding: 7px 10px;
+      transition: border-color var(--transition), color var(--transition);
+      white-space: nowrap;
+    }
+
+    .btn-link-save:hover { border-color: var(--border-focus); color: var(--text); }
+
+    .link-display {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+      text-decoration: none;
+      word-break: break-all;
+    }
+
+    .link-display:hover { text-decoration: underline; }
+
+    /* ── Notes ────────────────────────────────────────────── */
+    .note-form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .note-form-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .note-type-select {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      padding: 8px 10px;
+      outline: none;
+      cursor: pointer;
+      appearance: none;
+      min-width: 180px;
+      flex-shrink: 0;
+    }
+
+    .note-type-select:focus { border-color: var(--border-focus); }
+    .note-type-select option { background: var(--surface); }
+
+    .note-textarea {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 0.85rem;
+      line-height: 1.6;
+      outline: none;
+      padding: 10px 12px;
+      resize: vertical;
+      min-height: 80px;
+      flex: 1;
+      transition: border-color var(--transition);
+    }
+
+    .note-textarea:focus { border-color: var(--border-focus); }
+    .note-textarea::placeholder { color: var(--text-dim); }
+
+    .btn-add-note {
+      background: var(--accent);
+      border: none;
+      border-radius: var(--radius);
+      color: #0f0f0f;
+      cursor: pointer;
+      font-family: var(--sans);
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 8px 18px;
+      transition: opacity var(--transition);
+      align-self: flex-end;
+      flex-shrink: 0;
+    }
+
+    .btn-add-note:hover:not(:disabled) { opacity: 0.85; }
+    .btn-add-note:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Note list ────────────────────────────────────────── */
+    .note-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .note-item {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+    }
+
+    .note-item-header {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .note-type-badge {
+      font-size: 0.62rem;
+      font-family: var(--mono);
+      padding: 2px 8px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .note-type-badge.recruiter_call       { border-color: var(--blue);   color: var(--blue); }
+    .note-type-badge.interview_feedback   { border-color: var(--purple); color: var(--purple); }
+    .note-type-badge.compensation         { border-color: var(--green);  color: var(--green); }
+    .note-type-badge.application_question { border-color: var(--amber);  color: var(--amber); }
+    .note-type-badge.repost_alert         { border-color: var(--red);    color: var(--red); }
+
+    .note-date {
+      font-size: 0.65rem;
+      font-family: var(--mono);
+      color: var(--text-dim);
+      margin-left: auto;
+    }
+
+    .note-text {
+      font-size: 0.83rem;
+      color: var(--text-muted);
+      line-height: 1.65;
+      white-space: pre-wrap;
+    }
+
+    .notes-empty {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      font-style: italic;
+      text-align: center;
+      padding: 16px;
+    }
+
+    /* ── Evaluations ──────────────────────────────────────── */
+    .eval-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-bottom: 10px;
+    }
+
+    .eval-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .eval-model {
+      font-size: 0.68rem;
+      font-family: var(--mono);
+      color: var(--text-muted);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 3px 8px;
+    }
+
+    .eval-score {
+      font-family: var(--serif);
+      font-size: 1.6rem;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .eval-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .tag {
+      font-size: 0.68rem;
+      font-family: var(--mono);
+      padding: 2px 8px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+
+    .tag.fit-core     { border-color: var(--green); color: var(--green); }
+    .tag.fit-stretch  { border-color: var(--amber); color: var(--amber); }
+    .tag.fit-mismatch { border-color: var(--red);   color: var(--red); }
+    .tag.rec-apply    { background: var(--green); color: #0f0f0f; border-color: var(--green); }
+    .tag.rec-modify   { background: var(--amber); color: #0f0f0f; border-color: var(--amber); }
+    .tag.rec-skip     { background: var(--red);   color: #f0f0f0; border-color: var(--red); }
+
+    .eval-body {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+
+    .eval-keywords {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 8px;
+    }
+
+    .kw-chip {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.65rem;
+      font-family: var(--mono);
+      padding: 2px 7px;
+      color: var(--text-dim);
+    }
+
+    /* ── JD section ───────────────────────────────────────── */
+    .jd-text {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+      white-space: pre-wrap;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    /* ── Audit trail ──────────────────────────────────────── */
+    .audit-item {
+      display: flex;
+      gap: 12px;
+      align-items: baseline;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.78rem;
+    }
+
+    .audit-item:last-child { border-bottom: none; }
+
+    .audit-time {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .audit-event { color: var(--text-muted); }
+
+    /* ── Toast ────────────────────────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 16px;
+      font-size: 0.78rem;
+      font-family: var(--mono);
+      color: var(--text-muted);
+      z-index: 100;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 200ms, transform 200ms;
+      pointer-events: none;
+    }
+
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.success { border-color: var(--green); color: var(--green); }
+    .toast.error   { border-color: var(--red);   color: var(--red); }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    @media (max-width: 600px) {
+      .page { padding: 16px; }
+      .link-row { grid-template-columns: 1fr; }
+      .note-form-row { flex-direction: column; }
+      .note-type-select { min-width: unset; width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="header">
+    <a href="/applications" class="header-back">← Applications</a>
+    <a href="/" class="header-wordmark">AIstivus</a>
+    <span class="header-page" id="headerPage">Application</span>
+    <div class="header-status">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">checking...</span>
+    </div>
+  </header>
+
+  <div class="page" id="pageContent">
+    <div style="text-align:center;padding:80px;color:var(--text-dim);font-family:var(--mono);font-size:0.8rem;">
+      Loading...
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ── Get application ID from URL ────────────────────────
+    const appId = parseInt(window.location.pathname.split('/').pop());
+    let appData = null;
+
+    // ── Toast ──────────────────────────────────────────────
+    function showToast(msg, type = 'success') {
+      const t = document.getElementById('toast');
+      t.textContent  = msg;
+      t.className    = `toast show ${type}`;
+      setTimeout(() => { t.className = 'toast'; }, 2500);
+    }
+
+    // ── Helpers ────────────────────────────────────────────
+    function formatDate(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleDateString('en-US',
+        { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function formatDateTime(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleString('en-US',
+        { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
+
+    function statusClass(s) {
+      return (s || 'draft').toLowerCase();
+    }
+
+    function fitClass(v) {
+      if (!v) return '';
+      const f = v.toLowerCase();
+      if (f.includes('core'))     return 'fit-core';
+      if (f.includes('stretch'))  return 'fit-stretch';
+      if (f.includes('mismatch')) return 'fit-mismatch';
+      return '';
+    }
+
+    function recClass(v) {
+      if (!v) return '';
+      const r = v.toLowerCase();
+      if (r.startsWith('apply with')) return 'rec-modify';
+      if (r.startsWith('apply'))      return 'rec-apply';
+      if (r.startsWith('skip'))       return 'rec-skip';
+      return '';
+    }
+
+    function renderStars(current, interactive = false, field = '') {
+      if (!interactive) {
+        const n = current || 0;
+        return '★'.repeat(n) + '<span style="color:var(--text-dim)">☆</span>'.repeat(5 - n);
+      }
+      return [1,2,3,4,5].map(i => `
+        <button class="star-btn ${i <= (current || 0) ? 'filled' : ''}"
+                onclick="setExcitement(${i})"
+                data-val="${i}">★</button>
+      `).join('');
+    }
+
+    // ── Toggle section collapse ────────────────────────────
+    function toggleSection(id) {
+      const body   = document.getElementById(id);
+      const toggle = document.getElementById(id + '-toggle');
+      const collapsed = body.classList.toggle('collapsed');
+      if (toggle) toggle.textContent = collapsed ? '▶' : '▼';
+    }
+
+    // ── Load application ───────────────────────────────────
+    async function loadApplication() {
+      try {
+        const res = await fetch(`/api/applications/${appId}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        appData = await res.json();
+        render();
+      } catch (err) {
+        document.getElementById('pageContent').innerHTML =
+          `<div style="text-align:center;padding:80px;color:var(--red);
+                       font-family:var(--mono);font-size:0.8rem;">
+             Failed to load application: ${err.message}
+           </div>`;
+      }
+    }
+
+    // ── Render full page ───────────────────────────────────
+    function render() {
+      const a    = appData.application;
+      const notes = appData.notes || [];
+      const audit = appData.audit || [];
+      const evals = appData.evaluations || [];
+      const postings = appData.postings || [];
+
+      document.getElementById('headerPage').textContent =
+        `${a.company_name || '—'} — ${a.title || '—'}`;
+
+      const jdText = a.description_merged ||
+        (postings[0] ? postings[0].description_raw : null);
+
+      document.getElementById('pageContent').innerHTML = `
+
+        <!-- Hero -->
+        <div class="hero">
+          <div class="hero-company">${a.company_name || '—'}</div>
+          <div class="hero-title">${a.title || '—'}</div>
+          <div class="hero-meta">
+            ${a.location ? `<span>📍 ${a.location}</span>` : ''}
+            ${a.remote_type ? `<span>🏠 ${a.remote_type}</span>` : ''}
+            ${a.pay_band ? `<span>💰 ${a.pay_band}</span>` : ''}
+            <span>Applied: ${formatDate(a.apply_date)}</span>
+            ${a.end_date ? `<span>Closed: ${formatDate(a.end_date)}</span>` : ''}
+          </div>
+        </div>
+
+        <!-- Status & Excitement -->
+        <div class="section">
+          <div class="section-header" onclick="toggleSection('status-body')">
+            <span class="section-title">Status & Details</span>
+            <span class="section-toggle" id="status-body-toggle">▼</span>
+          </div>
+          <div class="section-body" id="status-body">
+            <div class="control-row">
+              <div class="control-group">
+                <span class="control-label">Application Status</span>
+                <select class="status-select" id="statusSelect"
+                        onchange="updateStatus(this.value)">
+                  ${['draft','applied','screening','interview','offer',
+                     'rejected','ghosted','withdrawn'].map(s => `
+                    <option value="${s}" ${a.application_status === s ? 'selected' : ''}>
+                      ${s.charAt(0).toUpperCase() + s.slice(1)}
+                    </option>`).join('')}
+                </select>
+              </div>
+              <div class="control-group">
+                <span class="control-label">Excitement Level</span>
+                <div class="star-selector" id="starSelector">
+                  ${renderStars(a.excitement_level, true)}
+                </div>
+              </div>
+            </div>
+
+            <div class="link-row">
+              <div class="link-field">
+                <label>CV / Resume Link</label>
+                <div class="link-input-row">
+                  <input class="link-input" id="cvLink"
+                         placeholder="https://drive.google.com/..."
+                         value="${a.cv_link || ''}" />
+                  <button class="btn-link-save" onclick="saveLink('cv_link', 'cvLink')">
+                    Save
+                  </button>
+                </div>
+                ${a.cv_link
+                  ? `<a href="${a.cv_link}" target="_blank" class="link-display">
+                       ↗ Open CV
+                     </a>`
+                  : ''}
+              </div>
+              <div class="link-field">
+                <label>Cover Letter Link</label>
+                <div class="link-input-row">
+                  <input class="link-input" id="coverLink"
+                         placeholder="https://drive.google.com/..."
+                         value="${a.cover_link || ''}" />
+                  <button class="btn-link-save" onclick="saveLink('cover_link', 'coverLink')">
+                    Save
+                  </button>
+                </div>
+                ${a.cover_link
+                  ? `<a href="${a.cover_link}" target="_blank" class="link-display">
+                       ↗ Open Cover Letter
+                     </a>`
+                  : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="section">
+          <div class="section-header" onclick="toggleSection('notes-body')">
+            <span class="section-title">Notes (${notes.length})</span>
+            <span class="section-toggle" id="notes-body-toggle">▼</span>
+          </div>
+          <div class="section-body" id="notes-body">
+            <div class="note-form">
+              <div class="note-form-row">
+                <select class="note-type-select" id="noteType">
+                  <option value="general">General</option>
+                  <option value="recruiter_call">Recruiter Call</option>
+                  <option value="interview_feedback">Interview Feedback</option>
+                  <option value="compensation">Compensation</option>
+                  <option value="application_question">Application Question</option>
+                  <option value="repost_alert">Repost Alert</option>
+                </select>
+                <textarea class="note-textarea" id="noteText"
+                          placeholder="Add a note..."></textarea>
+              </div>
+              <button class="btn-add-note" id="addNoteBtn" onclick="addNote()">
+                Add Note
+              </button>
+            </div>
+            <div class="note-list" id="noteList">
+              ${notes.length === 0
+                ? '<div class="notes-empty">No notes yet.</div>'
+                : notes.map(n => renderNote(n)).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Evaluations -->
+        <div class="section">
+          <div class="section-header" onclick="toggleSection('evals-body')">
+            <span class="section-title">Evaluations (${evals.length})</span>
+            <span class="section-toggle" id="evals-body-toggle">▼</span>
+          </div>
+          <div class="section-body" id="evals-body">
+            ${evals.length === 0
+              ? `<div class="notes-empty">No evaluations yet.
+                   <a href="/jobs" style="color:var(--accent);text-decoration:none;">
+                     Run one from Jobs →
+                   </a>
+                 </div>`
+              : evals.map(e => renderEval(e)).join('')}
+          </div>
+        </div>
+
+        <!-- Job Description -->
+        ${jdText ? `
+        <div class="section">
+          <div class="section-header" onclick="toggleSection('jd-body')">
+            <span class="section-title">Job Description</span>
+            <span class="section-toggle" id="jd-body-toggle">▶</span>
+          </div>
+          <div class="section-body collapsed" id="jd-body">
+            <div class="jd-text">${escapeHtml(jdText)}</div>
+          </div>
+        </div>` : ''}
+
+        <!-- Audit Trail -->
+        <div class="section">
+          <div class="section-header" onclick="toggleSection('audit-body')">
+            <span class="section-title">Audit Trail (${audit.length})</span>
+            <span class="section-toggle" id="audit-body-toggle">▶</span>
+          </div>
+          <div class="section-body collapsed" id="audit-body">
+            ${audit.length === 0
+              ? '<div class="notes-empty">No audit events yet.</div>'
+              : audit.map(ev => `
+                <div class="audit-item">
+                  <span class="audit-time">${formatDateTime(ev.timestamp)}</span>
+                  <span class="audit-event">${escapeHtml(ev.event)}</span>
+                </div>`).join('')}
+          </div>
+        </div>
+
+      `;
+    }
+
+    function renderNote(n) {
+      return `
+        <div class="note-item">
+          <div class="note-item-header">
+            <span class="note-type-badge ${n.note_type}">
+              ${(n.note_type || 'general').replace(/_/g, ' ')}
+            </span>
+            <span class="note-date">${formatDateTime(n.created_at)}</span>
+          </div>
+          <div class="note-text">${escapeHtml(n.note || '')}</div>
+        </div>`;
+    }
+
+    function renderEval(e) {
+      const score = e.score_overall != null
+        ? parseFloat(e.score_overall).toFixed(1)
+        : null;
+      const keywords = (e.keywords || '').split(',')
+        .map(k => k.trim()).filter(Boolean).slice(0, 10);
+
+      return `
+        <div class="eval-card">
+          <div class="eval-card-header">
+            <span class="eval-model">${e.model_used || '—'}</span>
+            ${score
+              ? `<span class="eval-score">${score}<span style="font-family:var(--mono);font-size:0.65rem;color:var(--text-dim)">/10</span></span>`
+              : '<span style="color:var(--red);font-family:var(--mono);font-size:0.75rem">Failed</span>'}
+          </div>
+          <div class="eval-tags">
+            ${e.fit_type
+              ? `<span class="tag ${fitClass(e.fit_type)}">${e.fit_type}</span>`
+              : ''}
+            ${e.archetype ? `<span class="tag">${e.archetype}</span>` : ''}
+            ${e.recommendation
+              ? `<span class="tag ${recClass(e.recommendation)}">${e.recommendation}</span>`
+              : ''}
+          </div>
+          ${e.strengths ? `<div class="eval-body">${escapeHtml(e.strengths)}</div>` : ''}
+          ${keywords.length > 0
+            ? `<div class="eval-keywords">
+                 ${keywords.map(k => `<span class="kw-chip">${k}</span>`).join('')}
+               </div>`
+            : ''}
+        </div>`;
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── Update status ──────────────────────────────────────
+    async function updateStatus(newStatus) {
+      try {
+        const res = await fetch(`/api/applications/${appId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ application_status: newStatus }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        showToast(`Status updated to: ${newStatus}`);
+        // Refresh audit trail
+        await loadApplication();
+      } catch (err) {
+        showToast(`Failed to update status: ${err.message}`, 'error');
+      }
+    }
+
+    // ── Update excitement ──────────────────────────────────
+    async function setExcitement(val) {
+      try {
+        const res = await fetch(`/api/applications/${appId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ excitement_level: val }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        // Update stars visually
+        document.querySelectorAll('.star-btn').forEach(btn => {
+          btn.classList.toggle('filled', parseInt(btn.dataset.val) <= val);
+        });
+        showToast(`Excitement set to ${val} star${val !== 1 ? 's' : ''}`);
+      } catch (err) {
+        showToast(`Failed to update: ${err.message}`, 'error');
+      }
+    }
+
+    // ── Save link ──────────────────────────────────────────
+    async function saveLink(field, inputId) {
+      const value = document.getElementById(inputId).value.trim() || null;
+      try {
+        const res = await fetch(`/api/applications/${appId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [field]: value }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        showToast('Link saved');
+        await loadApplication();
+      } catch (err) {
+        showToast(`Failed to save: ${err.message}`, 'error');
+      }
+    }
+
+    // ── Add note ───────────────────────────────────────────
+    async function addNote() {
+      const noteType = document.getElementById('noteType').value;
+      const noteText = document.getElementById('noteText').value.trim();
+
+      if (!noteText) {
+        showToast('Note text cannot be empty', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('addNoteBtn');
+      btn.disabled = true;
+
+      try {
+        const res = await fetch(`/api/applications/${appId}/notes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ note_type: noteType, note: noteText }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        document.getElementById('noteText').value = '';
+        showToast('Note added');
+        await loadApplication();
+      } catch (err) {
+        showToast(`Failed to add note: ${err.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // ── Health check ───────────────────────────────────────
+    async function checkHealth() {
+      const dot  = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+      try {
+        const res  = await fetch('/health');
+        const data = await res.json();
+        if (data.status === 'ok') {
+          dot.className    = 'status-dot ok';
+          text.textContent = data.ollama.model;
+        } else {
+          dot.className    = 'status-dot fail';
+          text.textContent = 'degraded';
+        }
+      } catch {
+        dot.className    = 'status-dot fail';
+        text.textContent = 'offline';
+      }
+    }
+
+    checkHealth();
+    loadApplication();
+  </script>
+</body>
+</html>

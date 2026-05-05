@@ -15,6 +15,14 @@ Phase 0 routes:
   GET  /jobs/{id}   → single job with evaluations and postings
   GET  /api/evaluations      → all evaluations with job+company data
   GET  /api/evaluations/{id} → single evaluation detail
+  GET  /applications            → applications list page
+  GET  /applications/{id}       → application detail page
+  POST /api/applications        → create application from job
+  GET  /api/applications        → all applications with job+company data
+  GET  /api/applications/{id}   → single application with all related data
+  PATCH /api/applications/{id}  → update application fields
+  POST /api/applications/{id}/notes → add note to application
+  GET  /api/jobs/{id}/application   → check if job has application
 """
 
 import sys
@@ -129,7 +137,7 @@ app.add_middleware(
         "http://127.0.0.1:3000",
     ],
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["Content-Type"],
 )
 
@@ -286,11 +294,13 @@ async def stats():
         jobs        = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
         evals       = conn.execute("SELECT COUNT(*) FROM evaluations").fetchone()[0]
         companies   = conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
+        apps        = conn.execute("SELECT COUNT(*) FROM applications").fetchone()[0]
 
     return JSONResponse({
         "jobs":        jobs,
         "evaluations": evals,
         "companies":   companies,
+        "applications": apps,
     })
 
 
@@ -459,9 +469,21 @@ async def get_evaluation(evaluation_id: int):
     return JSONResponse(data)
 
 
-class RerunRequest(BaseModel):
+class CreateApplicationRequest(BaseModel):
     job_id: int
-    model:  str
+    excitement_level: int | None = None
+
+class UpdateApplicationRequest(BaseModel):
+    excitement_level: int | None = None
+    application_status: str | None = None
+    cv_link: str | None = None
+    cover_link: str | None = None
+    apply_date: str | None = None
+    end_date: str | None = None
+
+class AddNoteRequest(BaseModel):
+    note_type: str
+    note: str
 
 
 @app.post("/api/evaluations/rerun")
@@ -531,6 +553,228 @@ def _find_report(company_name: str, job_title: str, evaluated_at: str) -> str | 
     # Return most recent matching file
     candidates.sort(reverse=True)
     return str(candidates[0])
+
+
+@app.get("/applications", response_class=FileResponse)
+async def serve_applications():
+    """Applications list page."""
+    path = Path("applications.html")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="applications.html not found.")
+    return FileResponse(path)
+
+
+@app.get("/applications/{application_id}", response_class=FileResponse)
+async def serve_application_detail(application_id: int):
+    """Application detail page."""
+    path = Path("application_detail.html")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="application_detail.html not found.")
+    return FileResponse(path)
+
+
+@app.post("/api/applications")
+async def create_application(request: CreateApplicationRequest):
+    """
+    Create a new application from a job.
+    Returns 409 if an application already exists for this job.
+    """
+    # Check for existing application
+    with database.get_connection() as conn:
+        existing = conn.execute(
+            "SELECT id FROM applications WHERE job_id = ?",
+            (request.job_id,)
+        ).fetchone()
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Application already exists for job {request.job_id}. "
+                       f"Application ID: {existing['id']}"
+            )
+
+    from datetime import datetime, timezone
+    app_id = database.insert_application(
+        job_id=request.job_id,
+        application_status="draft",
+        excitement_level=request.excitement_level,
+        apply_date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+    )
+    return JSONResponse({"success": True, "application_id": app_id})
+
+
+@app.get("/api/applications")
+async def list_applications():
+    """
+    All applications joined with job, company, and latest evaluation data.
+    Sorted by apply_date descending.
+    """
+    with database.get_connection() as conn:
+        rows = conn.execute(
+            """SELECT a.*,
+                      j.title, j.location, j.remote_type, j.pay_band,
+                      c.name AS company_name,
+                      e.score_overall, e.fit_type, e.recommendation
+               FROM applications a
+               JOIN jobs j      ON j.id = a.job_id
+               JOIN companies c ON c.id = j.company_id
+               LEFT JOIN evaluations e ON e.id = (
+                   SELECT id FROM evaluations
+                   WHERE job_id = a.job_id
+                   ORDER BY score_overall DESC NULLS LAST, evaluated_at DESC
+                   LIMIT 1
+               )
+               ORDER BY a.apply_date DESC"""
+        ).fetchall()
+    return JSONResponse([dict(row) for row in rows])
+
+
+@app.get("/api/applications/{application_id}")
+async def get_application(application_id: int):
+    """
+    Single application with all related data:
+    job, company, all evaluations, notes, audit trail.
+    """
+    with database.get_connection() as conn:
+        app_row = conn.execute(
+            """SELECT a.*,
+                      j.title, j.location, j.remote_type, j.pay_band,
+                      j.description_merged, j.role_keyword,
+                      c.name AS company_name
+               FROM applications a
+               JOIN jobs j      ON j.id = a.job_id
+               JOIN companies c ON c.id = j.company_id
+               WHERE a.id = ?""",
+            (application_id,)
+        ).fetchone()
+
+        if not app_row:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Application {application_id} not found."
+            )
+
+        notes = conn.execute(
+            """SELECT * FROM application_notes
+               WHERE application_id = ?
+               ORDER BY created_at DESC""",
+            (application_id,)
+        ).fetchall()
+
+        audit = conn.execute(
+            """SELECT * FROM application_audit
+               WHERE application_id = ?
+               ORDER BY timestamp DESC""",
+            (application_id,)
+        ).fetchall()
+
+        evaluations = conn.execute(
+            """SELECT * FROM evaluations
+               WHERE job_id = ?
+               ORDER BY score_overall DESC NULLS LAST, evaluated_at DESC""",
+            (dict(app_row)["job_id"],)
+        ).fetchall()
+
+        postings = conn.execute(
+            """SELECT * FROM job_postings
+               WHERE job_id = ?
+               ORDER BY date_scraped DESC""",
+            (dict(app_row)["job_id"],)
+        ).fetchall()
+
+    return JSONResponse({
+        "application": dict(app_row),
+        "notes":       [dict(n) for n in notes],
+        "audit":       [dict(a) for a in audit],
+        "evaluations": [dict(e) for e in evaluations],
+        "postings":    [dict(p) for p in postings],
+    })
+
+
+@app.patch("/api/applications/{application_id}")
+async def update_application(application_id: int, request: UpdateApplicationRequest):
+    """Update application fields. Writes audit event on status change."""
+    with database.get_connection() as conn:
+        existing = conn.execute(
+            "SELECT * FROM applications WHERE id = ?",
+            (application_id,)
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Application not found.")
+
+        updates = {
+            k: v for k, v in request.model_dump().items()
+            if v is not None
+        }
+        if not updates:
+            return JSONResponse({"success": True, "message": "Nothing to update."})
+
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        conn.execute(
+            f"UPDATE applications SET {set_clause} WHERE id = ?",
+            (*updates.values(), application_id)
+        )
+
+        # Write audit event for status changes
+        if "application_status" in updates:
+            old_status = dict(existing)["application_status"]
+            new_status = updates["application_status"]
+            if old_status != new_status:
+                database._audit_application(
+                    application_id,
+                    f"Status changed: {old_status} → {new_status}",
+                    conn=conn
+                )
+
+    return JSONResponse({"success": True})
+
+
+@app.post("/api/applications/{application_id}/notes")
+async def add_note(application_id: int, request: AddNoteRequest):
+    """
+    Add a timestamped note to an application.
+    Notes are append-only — no editing after creation.
+    Valid note_type values: recruiter_call, interview_feedback,
+    compensation, general, repost_alert, application_question
+    """
+    valid_types = {
+        "recruiter_call", "interview_feedback", "compensation",
+        "general", "repost_alert", "application_question"
+    }
+    if request.note_type not in valid_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid note_type. Valid values: {', '.join(sorted(valid_types))}"
+        )
+
+    note_id = database.add_application_note(
+        application_id=application_id,
+        note_type=request.note_type,
+        note=request.note,
+    )
+    return JSONResponse({"success": True, "note_id": note_id})
+
+
+@app.get("/api/jobs/{job_id}/application")
+async def get_job_application(job_id: int):
+    """
+    Check if a job has an existing application.
+    Returns application id and status if found, null if not.
+    Used by jobs.html to determine whether to show
+    'Create Application' or 'View Application' button.
+    """
+    with database.get_connection() as conn:
+        row = conn.execute(
+            """SELECT a.id, a.application_status, a.excitement_level,
+                      a.apply_date
+               FROM applications a
+               WHERE a.job_id = ?
+               LIMIT 1""",
+            (job_id,)
+        ).fetchone()
+
+    if row:
+        return JSONResponse({"exists": True, "application": dict(row)})
+    return JSONResponse({"exists": False, "application": None})
 
 
 # ─────────────────────────────────────────────────────────────
