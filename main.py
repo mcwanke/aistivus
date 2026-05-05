@@ -300,7 +300,7 @@ async def stats():
         "jobs":        jobs,
         "evaluations": evals,
         "companies":   companies,
-        "applications": apps,
+        "applications": apps
     })
 
 
