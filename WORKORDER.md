@@ -245,7 +245,7 @@ This file defines what to build and in what order.
   - Update fetch call to send `url` and `timestamp` fields
   - Update `AddNoteRequest` references to `AddLogRequest`
 
-- [ ] **21. Combine logs + audit into single timeline**
+- [x] **21. Combine logs + audit into single timeline**
   - File: `application_detail.html`
   - Remove separate Notes section and separate Audit Trail section
   - Add single "Timeline" section
@@ -256,7 +256,7 @@ This file defines what to build and in what order.
   - Audit entries are NOT editable
   - Log entries show type badge, optional URL as clickable link, Copy button if type is `prompt`
 
-- [ ] **22. UI polish on `applications.html`**
+- [x] **22. UI polish on `applications.html`**
   - File: `applications.html`
   - Make company name larger and more prominent in table rows
   - Add "best of N" label next to eval score when multiple evaluations exist
@@ -266,7 +266,7 @@ This file defines what to build and in what order.
 
 ## Priority 6 — Evaluate Page
 
-- [ ] **23. Add `apply_url` field to `evaluate.html`**
+- [x] **23. Add `apply_url` field to `evaluate.html`**
   - File: `evaluate.html`
   - Add URL input field in the metadata fields section
   - Label: "Apply URL" or "Job Posting URL"
