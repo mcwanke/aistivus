@@ -51,14 +51,14 @@ This file defines what to build and in what order.
   - Rename all references within `database.py` (function names, docstrings, queries)
   - Do NOT update routes or UI yet
 
-- [ ] **4. Remove `cv_link` and `cover_link` from `applications` table**
+- [x] **4. Remove `cv_link` and `cover_link` from `applications` table**
   - File: `database.py` only
   - Remove columns from CREATE TABLE statement
   - Remove from `insert_application()` fields list
   - Remove from any helper functions that reference them
   - Do NOT update routes or UI yet
 
-- [ ] **5. Add `url` (nullable) to `application_logs` table**
+- [x] **5. Add `url` (nullable) to `application_logs` table**
   - File: `database.py` only
   - Add `url TEXT` column to the renamed `application_logs` CREATE TABLE statement
   - Add `url` to `add_application_note()` / `add_application_log()` function signature
