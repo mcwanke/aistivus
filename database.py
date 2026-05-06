@@ -147,8 +147,6 @@ CREATE TABLE IF NOT EXISTS applications (
     job_id              INTEGER NOT NULL REFERENCES jobs(id),
     apply_date          TEXT,
     end_date            TEXT,
-    cv_link             TEXT,
-    cover_link          TEXT,
     application_status  TEXT NOT NULL DEFAULT 'draft',
     excitement_level    INTEGER CHECK(excitement_level BETWEEN 1 AND 5),
     project_id          INTEGER REFERENCES projects(id)
@@ -679,7 +677,7 @@ def insert_application(job_id: int, **kwargs) -> int:
         application id (int)
     """
     fields = [
-        "apply_date", "end_date", "cv_link", "cover_link",
+        "apply_date", "end_date",
         "application_status", "excitement_level"
     ]
     with get_connection() as conn:
@@ -1014,18 +1012,6 @@ def check_file_integrity() -> list[dict]:
                     "path": row["file_link"]
                 })
 
-        rows = conn.execute(
-            "SELECT id, cv_link, cover_link FROM applications"
-        ).fetchall()
-        for row in rows:
-            for field in ["cv_link", "cover_link"]:
-                if row[field] and not Path(row[field]).exists():
-                    broken.append({
-                        "table": "applications",
-                        "record_id": row["id"],
-                        "field": field,
-                        "path": row[field]
-                    })
 
     return broken
 
