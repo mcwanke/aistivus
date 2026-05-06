@@ -152,7 +152,7 @@ class EvaluateRequest(BaseModel):
     job_title:    str        = "Unknown Role"
     location:     str | None = None
     remote_type:  str | None = None
-    source_url:   str | None = None
+    apply_url:    str | None = None
     model:        str | None = None
 
 
@@ -322,7 +322,7 @@ async def evaluate_endpoint(request: EvaluateRequest):
         job_title=request.job_title,
         location=request.location,
         remote_type=request.remote_type,
-        source_url=request.source_url,
+        apply_url=request.apply_url,
         model=request.model,
     )
 

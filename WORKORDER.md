@@ -71,7 +71,7 @@ This file defines what to build and in what order.
   - `timestamp` = when the event occurred (user can adjust for backfilling)
   - Update add/get functions accordingly
 
-- [ ] **7. Add `requested_salary` (nullable) to `jobs` table**
+- [x] **7. Add `requested_salary` (nullable) to `jobs` table**
   - File: `database.py` only
   - Add `requested_salary TEXT` column to `jobs` CREATE TABLE statement
   - Add to `upsert_job()` fields list
@@ -79,7 +79,7 @@ This file defines what to build and in what order.
   - `pay_band` = company's listed range from JD
   - `requested_salary` = what you entered in "what is your requested salary?" application fields
 
-- [ ] **⚠️ WIPE DATABASE after all Priority 2 items are complete**
+- [x] **⚠️ WIPE DATABASE after all Priority 2 items are complete**
   - Run: `rm data/jobs.db`
   - Run: `python3 main.py` to verify clean startup with new schema
   - Confirm all tables created correctly before proceeding to Priority 3
@@ -89,7 +89,7 @@ This file defines what to build and in what order.
 ## Priority 3 — Backend Route Updates
 *Update all routes to match schema changes from Priority 2.*
 
-- [ ] **8. Update all `source_url` → `apply_url` references in routes**
+- [x] **8. Update all `source_url` → `apply_url` references in routes**
   - Files: `main.py`, `evaluator.py`, `evaluate.py`
   - Find every reference to `source_url` and rename to `apply_url`
   - Update Pydantic models if needed

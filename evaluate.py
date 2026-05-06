@@ -191,7 +191,7 @@ async def process_file(
     title      = frontmatter.get("title")      or "Unknown Role"
     location   = frontmatter.get("location")
     remote_type = frontmatter.get("remote_type")
-    source_url = frontmatter.get("url")
+    apply_url = frontmatter.get("url")
 
     print(f"  Company:  {company}")
     print(f"  Title:    {title}")
@@ -210,7 +210,8 @@ async def process_file(
             job_title=title,
             location=location,
             remote_type=remote_type,
-            source_url=source_url,
+            apply_url=apply_url,
+
         )
     except Exception as e:
         error = f"Evaluation raised an exception: {type(e).__name__}: {e}"

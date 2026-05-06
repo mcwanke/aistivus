@@ -435,7 +435,7 @@ async def evaluate_jd(
     job_title: str,
     location: str | None = None,
     remote_type: str | None = None,
-    source_url: str | None = None,
+    apply_url: str | None = None,
     model: str | None = None,
     provider: str = llm_client.PROVIDER_OLLAMA,
 ) -> dict:
@@ -459,7 +459,7 @@ async def evaluate_jd(
         job_title:    Job title
         location:     Optional location string
         remote_type:  Optional remote type (Remote / Hybrid / On-site)
-        source_url:   Optional source URL
+        apply_url:    Optional apply URL
         model:        Model name (defaults to config default_model)
         provider:     LLM provider (ollama in Phase 0)
 
@@ -510,7 +510,7 @@ async def evaluate_jd(
     database.insert_job_posting(
         job_id=job_id,
         source_board="manual",
-        source_url=source_url,
+        source_url=apply_url,
         description_raw=jd_text,
         date_posted=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
     )
