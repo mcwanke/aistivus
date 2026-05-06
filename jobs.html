@@ -240,6 +240,33 @@
       font-style: italic;
     }
 
+        .job-row-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 6px 0 4px;
+    }
+
+    .job-row-action-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.63rem;
+      font-family: var(--mono);
+      color: var(--text-dim);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 3px 8px;
+      cursor: pointer;
+      background: transparent;
+      transition: border-color var(--transition), color var(--transition);
+    }
+
+    .job-row-action-btn:hover { border-color: var(--border-focus); color: var(--text); }
+    .job-row-action-btn.apply-link { border-color: var(--accent-dim); color: var(--accent); }
+    .job-row-action-btn.apply-link:hover { border-color: var(--accent); }
+
     .job-score-col { text-align: right; }
 
     .job-score {
@@ -992,6 +1019,25 @@
             <div>
               <div class="job-row-company">${j.company_name || 'Unknown Company'}</div>
               <div class="job-row-title">${j.title || 'Unknown Role'}</div>
+              <div class="job-row-actions" onclick="event.stopPropagation()">
+                ${j.application_id
+                  ? `<a class="job-row-action-btn"
+                        href="/applications/${j.application_id}">
+                        📋 View Application →
+                     </a>`
+                  : `<button class="job-row-action-btn"
+                       onclick="createApplication(${j.id})">
+                       + Start Application
+                     </button>`}
+                ${j.apply_url
+                  ? `<a class="job-row-action-btn apply-link"
+                        href="${j.apply_url}" target="_blank" rel="noopener">Apply →</a>`
+                  : ''}
+                <button class="job-row-action-btn"
+                  onclick="createApplication(${j.id})">
+                  + Start Application
+                </button>
+              </div>
               <div class="job-row-meta">
                 ${j.location
                   ? `<span class="job-row-location">📍 ${j.location}</span>`
@@ -1064,10 +1110,6 @@
              </button>
            </div>`;
 
-      // Check for existing application
-      const appRes  = await fetch(`/api/jobs/${job.id}/application`);
-      const appData = await appRes.json();
-
       content.innerHTML = `
         <div class="detail-header">
           <div class="detail-company">${job.company_name || 'Unknown Company'}</div>
@@ -1081,21 +1123,16 @@
             <span>First seen: ${formatDate(job.first_seen_date)}</span>
           </div>
 
-          <div class="detail-actions">
-            <button class="btn-primary"
-              onclick="openRerun(${job.id}, '${(job.company_name || '').replace(/'/g,"\\'")} — ${(job.title || '').replace(/'/g,"\\'")}')">
-              ⚡ Re-evaluate
-            </button>
-            ${appData.exists
-            ? `<a class="btn-link" href="/applications/${appData.application.id}">
-                📋 View Application →
-              </a>`
-            : `<button class="btn-primary" onclick="createApplication(${job.id})">
-                + Create Application
-              </button>`}
-            <a class="btn-link" href="/evaluate">+ New JD</a>
-            <a class="btn-link" href="/evaluations">All evaluations →</a>
-          </div>
+          ${data.postings && data.postings.length > 0 && data.postings[0].source_url
+            ? `<div class="detail-actions">
+                 <a class="btn-primary"
+                    href="${data.postings[0].source_url}"
+                    target="_blank" rel="noopener"
+                    style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
+                   Apply → <span style="font-size:0.7em;opacity:0.75;">(external link)</span>
+                 </a>
+               </div>`
+            : ''}
         </div>
 
         ${data.postings && data.postings.length > 0 && data.postings[0].description_raw ? `
