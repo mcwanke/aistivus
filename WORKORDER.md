@@ -224,13 +224,13 @@ This file defines what to build and in what order.
 
 ## Priority 5 — Application Pages Rebuild
 
-- [ ] **18. Update `application_detail.html` — remove CV/Cover link fields**
+- [x] **18. Update `application_detail.html` — remove CV/Cover link fields**
   - File: `application_detail.html`
   - Remove CV Link and Cover Letter Link input fields and their save buttons
   - Remove associated `saveLink()` JS function
   - Remove associated display links
 
-- [ ] **19. Add "Generate Prompt" button to `application_detail.html`**
+- [x] **19. Add "Generate Prompt" button to `application_detail.html`**
   - File: `application_detail.html`
   - Add button in the Status & Details section where CV/Cover links were
   - On click: calls `POST /api/applications/{id}/generate-prompt`
@@ -238,11 +238,10 @@ This file defines what to build and in what order.
   - Show loading state during generation ("Generating prompt...")
   - The prompt log entry in the timeline should have a "Copy" button
 
-- [ ] **20. Update log entry form in `application_detail.html`**
+- [x] **20. Update log entry form in `application_detail.html`**
   - File: `application_detail.html`
   - Add `url` input field (optional, placeholder "https://...")
   - Add `timestamp` datetime-local input field (defaults to now, user-editable)
-  - Remove `compensation` from log type dropdown
   - Update fetch call to send `url` and `timestamp` fields
   - Update `AddNoteRequest` references to `AddLogRequest`
 
