@@ -169,9 +169,9 @@
       cursor: pointer;
       transition: background var(--transition);
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: 1fr auto auto;
       gap: 12px;
-      align-items: start;
+      align-items: center;
     }
 
     .job-row:hover { background: var(--surface); }
@@ -240,11 +240,21 @@
       font-style: italic;
     }
 
-        .job-row-actions {
+    .app-status-badge {
+      font-size: 0.6rem;
+      font-family: var(--mono);
+      color: var(--accent);
+      background: var(--surface-2);
+      border: 1px solid var(--accent);
+      border-radius: 20px;
+      padding: 2px 7px;
+    }
+
+    .job-row-actions {
       display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      margin: 6px 0 4px;
+      flex-direction: column;
+      gap: 5px;
+      align-items: stretch;
     }
 
     .job-row-action-btn {
@@ -1019,28 +1029,12 @@
             <div>
               <div class="job-row-company">${j.company_name || 'Unknown Company'}</div>
               <div class="job-row-title">${j.title || 'Unknown Role'}</div>
-              <div class="job-row-actions" onclick="event.stopPropagation()">
-                ${j.application_id
-                  ? `<a class="job-row-action-btn"
-                        href="/applications/${j.application_id}">
-                        📋 View Application →
-                     </a>`
-                  : `<button class="job-row-action-btn"
-                       onclick="createApplication(${j.id})">
-                       + Start Application
-                     </button>`}
-                ${j.apply_url
-                  ? `<a class="job-row-action-btn apply-link"
-                        href="${j.apply_url}" target="_blank" rel="noopener">Apply →</a>`
-                  : ''}
-                <button class="job-row-action-btn"
-                  onclick="createApplication(${j.id})">
-                  + Start Application
-                </button>
-              </div>
               <div class="job-row-meta">
                 ${j.location
                   ? `<span class="job-row-location">📍 ${j.location}</span>`
+                  : ''}
+                ${j.application_status
+                  ? `<span class="app-status-badge">● ${j.application_status.charAt(0).toUpperCase() + j.application_status.slice(1)}</span>`
                   : ''}
                 ${best?.fit_type
                   ? `<span class="mini-tag ${fitClass(best.fit_type)}">${best.fit_type}</span>`
@@ -1049,6 +1043,21 @@
                   ? `<span class="eval-count-badge">${evalCount} eval${evalCount !== 1 ? 's' : ''}</span>`
                   : `<span class="no-eval-badge">not evaluated</span>`}
               </div>
+            </div>
+            <div class="job-row-actions" onclick="event.stopPropagation()">
+              <button class="job-row-action-btn"
+                onclick="openRerun(${j.id}, '${(j.company_name || '').replace(/'/g,"\\'")} — ${(j.title || '').replace(/'/g,"\\'")}')">
+                Re-Evaluate
+              </button>
+              ${j.apply_url
+                ? `<a class="job-row-action-btn apply-link"
+                      href="${j.apply_url}" target="_blank" rel="noopener">Apply →</a>`
+                : ''}
+              ${j.application_id
+                ? `<a class="job-row-action-btn"
+                      href="/applications/${j.application_id}">View Application →</a>`
+                : `<button class="job-row-action-btn"
+                     onclick="createApplication(${j.id})">+ Start Application</button>`}
             </div>
             <div class="job-score-col">
               ${score

@@ -877,7 +877,7 @@
       const score = e.score_overall != null
         ? parseFloat(e.score_overall).toFixed(1)
         : null;
-      const keywords = (typeof ev.keywords === 'string' ? ev.keywords : '').split(',')
+      const keywords = (typeof e.keywords === 'string' ? e.keywords : '').split(',')
         .map(k => k.trim()).filter(Boolean).slice(0, 10);
 
       return `

@@ -391,7 +391,11 @@ async def list_jobs_with_evaluations():
                       (SELECT id FROM applications
                        WHERE job_id = j.id
                          AND application_status NOT IN ('rejected', 'withdrawn', 'ghosted')
-                       LIMIT 1) AS application_id
+                       LIMIT 1) AS application_id,
+                      (SELECT application_status FROM applications
+                       WHERE job_id = j.id
+                         AND application_status NOT IN ('rejected', 'withdrawn', 'ghosted')
+                       LIMIT 1) AS application_status
                FROM jobs j
                JOIN companies c ON c.id = j.company_id
                LEFT JOIN evaluations e ON e.job_id = j.id

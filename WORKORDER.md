@@ -204,7 +204,7 @@ This file defines what to build and in what order.
   - Remove Evaluations nav card from `index.html`
   - No redirect needed — just remove
 
-- [ ] **16. Restructure `jobs.html` right panel layout**
+- [x] **16. Restructure `jobs.html` right panel layout**
   - File: `jobs.html`
   - Move action buttons (Re-evaluate, Create/View Application) from bottom of detail panel
     to inline section directly below the job title — between title and evaluation scores
