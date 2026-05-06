@@ -21,7 +21,7 @@ Phase 0 routes:
   GET  /api/applications        → all applications with job+company data
   GET  /api/applications/{id}   → single application with all related data
   PATCH /api/applications/{id}  → update application fields
-  POST /api/applications/{id}/notes → add note to application
+  POST /api/applications/{id}/logs → add log entry to application
   GET  /api/jobs/{id}/application   → check if job has application
 """
 
@@ -481,9 +481,11 @@ class UpdateApplicationRequest(BaseModel):
     apply_date: str | None = None
     end_date: str | None = None
 
-class AddNoteRequest(BaseModel):
+class AddLogRequest(BaseModel):
     note_type: str
     note: str
+    url: str | None = None
+    timestamp: str | None = None
 
 
 @app.post("/api/evaluations/rerun")
@@ -632,7 +634,7 @@ async def list_applications():
 async def get_application(application_id: int):
     """
     Single application with all related data:
-    job, company, all evaluations, notes, audit trail.
+    job, company, all evaluations, logs, audit trail.
     """
     with database.get_connection() as conn:
         app_row = conn.execute(
@@ -653,8 +655,8 @@ async def get_application(application_id: int):
                 detail=f"Application {application_id} not found."
             )
 
-        notes = conn.execute(
-            """SELECT * FROM application_notes
+        logs = conn.execute(
+            """SELECT * FROM application_logs
                WHERE application_id = ?
                ORDER BY created_at DESC""",
             (application_id,)
@@ -683,7 +685,7 @@ async def get_application(application_id: int):
 
     return JSONResponse({
         "application": dict(app_row),
-        "notes":       [dict(n) for n in notes],
+        "logs":        [dict(n) for n in logs],
         "audit":       [dict(a) for a in audit],
         "evaluations": [dict(e) for e in evaluations],
         "postings":    [dict(p) for p in postings],
@@ -728,11 +730,11 @@ async def update_application(application_id: int, request: UpdateApplicationRequ
     return JSONResponse({"success": True})
 
 
-@app.post("/api/applications/{application_id}/notes")
-async def add_note(application_id: int, request: AddNoteRequest):
+@app.post("/api/applications/{application_id}/logs")
+async def add_log(application_id: int, request: AddLogRequest):
     """
-    Add a timestamped note to an application.
-    Notes are append-only — no editing after creation.
+    Add a timestamped log entry to an application.
+    Log entries are append-only — no editing after creation.
     Valid note_type values: recruiter_call, interview_feedback,
     compensation, general, repost_alert, application_question
     """
@@ -746,12 +748,14 @@ async def add_note(application_id: int, request: AddNoteRequest):
             detail=f"Invalid note_type. Valid values: {', '.join(sorted(valid_types))}"
         )
 
-    note_id = database.add_application_note(
+    log_id = database.add_application_log(
         application_id=application_id,
         note_type=request.note_type,
         note=request.note,
+        url=request.url,
+        timestamp=request.timestamp,
     )
-    return JSONResponse({"success": True, "note_id": note_id})
+    return JSONResponse({"success": True, "log_id": log_id})
 
 
 @app.get("/api/jobs/{job_id}/application")
