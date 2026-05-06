@@ -40,7 +40,7 @@ This file defines what to build and in what order.
 *All schema changes done together. DB will be wiped after this group is complete.*
 *No migrations needed — DB is in active development, wipe and restart is acceptable until v1.0.*
 
-- [ ] **2. Rename `source_url` → `apply_url` in `job_postings` schema**
+- [x] **2. Rename `source_url` → `apply_url` in `job_postings` schema**
   - File: `database.py` only
   - Change the column name in the `job_postings` CREATE TABLE statement
   - Do NOT update any other files yet — routes and UI come later in items 8-9

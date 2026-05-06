@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS job_postings (
     id                          INTEGER PRIMARY KEY AUTOINCREMENT,
     job_id                      INTEGER NOT NULL REFERENCES jobs(id),
     source_board                TEXT NOT NULL,
-    source_url                  TEXT,
+    apply_url                   TEXT,
     description_raw             TEXT,
     date_posted                 TEXT,
     date_scraped                TEXT NOT NULL DEFAULT (datetime('now')),
@@ -542,16 +542,16 @@ def insert_job_posting(job_id: int, source_board: str, **kwargs) -> int:
         job_posting id (int)
     """
     fields = [
-        "source_url", "description_raw", "date_posted",
+        "apply_url", "description_raw", "date_posted",
         "is_repost", "days_since_prior_posting", "repost_url_changed"
     ]
     with get_connection() as conn:
         conn.execute(
             """INSERT INTO job_postings
-               (job_id, source_board, source_url, description_raw, date_posted,
+               (job_id, source_board, apply_url, description_raw, date_posted,
                 is_repost, days_since_prior_posting, repost_url_changed)
                VALUES
-               (:job_id, :source_board, :source_url, :description_raw, :date_posted,
+               (:job_id, :source_board, :apply_url, :description_raw, :date_posted,
                 :is_repost, :days_since_prior_posting, :repost_url_changed)""",
             {
                 "job_id": job_id,
