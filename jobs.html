@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
   <style>
     :root {
       --bg:           #0f0f0f;
@@ -650,6 +651,157 @@
       display: none;
     }
 
+    /* ── Report modal ─────────────────────────────────── */
+    .report-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+    }
+
+    .report-modal.open { display: flex; }
+
+    .report-modal-inner {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 780px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .report-modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .report-modal-title {
+      font-size: 0.75rem;
+      font-family: var(--mono);
+      color: var(--text-muted);
+      flex: 1;
+    }
+
+    .report-modal-close {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      transition: border-color var(--transition), color var(--transition);
+    }
+
+    .report-modal-close:hover { border-color: var(--border-focus); color: var(--text); }
+
+    .report-modal-body {
+      padding: 28px 32px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .report-modal-body h1 {
+      font-family: var(--serif);
+      font-size: 1.6rem;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .report-modal-body h2 {
+      font-family: var(--serif);
+      font-size: 1.15rem;
+      color: var(--text);
+      margin: 24px 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .report-modal-body h3 {
+      font-size: 0.85rem;
+      font-family: var(--mono);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin: 16px 0 8px;
+    }
+
+    .report-modal-body p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+      margin-bottom: 12px;
+    }
+
+    .report-modal-body table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 16px;
+      font-size: 0.82rem;
+    }
+
+    .report-modal-body th {
+      text-align: left;
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    .report-modal-body td {
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+
+    .report-modal-body code {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      padding: 2px 5px;
+      color: var(--accent);
+    }
+
+    .report-modal-body pre {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      overflow-x: auto;
+      margin-bottom: 16px;
+    }
+
+    .report-modal-body pre code {
+      background: transparent;
+      border: none;
+      padding: 0;
+      color: var(--text-muted);
+    }
+
+    .report-modal-body hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 20px 0;
+    }
+
+    .report-modal-body strong { color: var(--text); }
+
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -702,8 +854,20 @@
     </div>
   </div>
 
+  <!-- Report modal -->
+  <div class="report-modal" id="reportModal">
+    <div class="report-modal-inner">
+      <div class="report-modal-header">
+        <span class="report-modal-title" id="reportModalTitle">Report</span>
+        <button class="report-modal-close" onclick="closeReport()">✕ Close</button>
+      </div>
+      <div class="report-modal-body" id="reportModalBody"></div>
+    </div>
+  </div>
+
   <!-- Re-evaluate modal -->
   <div class="modal-overlay" id="rerunModal">
+
     <div class="modal">
       <div class="modal-title">Re-evaluate</div>
       <div class="modal-subtitle" id="rerunSubtitle">Select a model to run a new evaluation.</div>
@@ -891,7 +1055,8 @@
       });
 
       const evalCards = sorted.length > 0
-        ? sorted.map((e, i) => renderEvalCard(e, i === 0, job.id)).join('')
+        ? sorted.map((e, i) => renderEvalCard(e, i === 0, job.id,
+            `${(job.company_name || '').replace(/'/g, "\\'")} — ${(job.title || '').replace(/'/g, "\\'")}`)).join('')
         : `<div class="no-evals">
              No evaluations yet.<br>
              <button class="btn-link" style="margin-top:10px" onclick="openRerun(${job.id}, '${(job.company_name || '').replace(/'/g,"\\'")} — ${(job.title || '').replace(/'/g,"\\'")}')">
@@ -976,7 +1141,7 @@ ${data.postings[0].description_raw}
       `;
     }
 
-    function renderEvalCard(e, isBest, jobId) {
+    function renderEvalCard(e, isBest, jobId, jobLabel) {
       const score  = e.score_overall != null ? e.score_overall.toFixed(1) : null;
       const failed = e.score_overall == null;
 
@@ -1035,6 +1200,12 @@ ${data.postings[0].description_raw}
               onclick="openRerun(${jobId}, ''); event.stopPropagation()">
               ↻ Re-evaluate
             </button>
+            ${e.report_path
+              ? `<button class="btn-link"
+                   onclick="openReport('${encodeURIComponent(e.report_path)}', '${jobLabel || ''}'); event.stopPropagation()">
+                   ↗ View report
+                 </button>`
+              : ''}
             ${e.id
               ? `<a class="btn-link" href="/evaluations" onclick="sessionStorage.setItem('selectEval','${e.id}')">
                    View full detail →
@@ -1043,6 +1214,31 @@ ${data.postings[0].description_raw}
           </div>
         </div>`;
     }
+
+    // ── Report modal ───────────────────────────────────────
+    async function openReport(encodedPath, title) {
+      document.getElementById('reportModalTitle').textContent = title || 'Report';
+      document.getElementById('reportModalBody').innerHTML =
+        '<p style="color:var(--text-dim);font-family:var(--mono);font-size:0.8rem;">Loading...</p>';
+      document.getElementById('reportModal').classList.add('open');
+
+      try {
+        const res  = await fetch(`/report?path=${encodedPath}`);
+        const html = await res.text();
+        document.getElementById('reportModalBody').innerHTML = html;
+      } catch (err) {
+        document.getElementById('reportModalBody').innerHTML =
+          `<p style="color:var(--red)">Failed to load report: ${err.message}</p>`;
+      }
+    }
+
+    function closeReport() {
+      document.getElementById('reportModal').classList.remove('open');
+    }
+
+    document.getElementById('reportModal').addEventListener('click', function(e) {
+      if (e.target === this) closeReport();
+    });
 
     // ── Re-evaluate modal ──────────────────────────────────
     async function openRerun(jobId, label) {
@@ -1155,7 +1351,7 @@ ${data.postings[0].description_raw}
       if (e.target === this) closeRerun();
     });
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') closeRerun();
+      if (e.key === 'Escape') { closeRerun(); closeReport(); }
     });
 
     // ── Health check ───────────────────────────────────────

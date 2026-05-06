@@ -346,9 +346,20 @@ async def get_job(job_id: int):
     evaluations = database.get_evaluations_for_job(job_id)
     postings    = database.get_postings_for_job(job_id)
 
+    job_dict = dict(job)
+    evals_out = []
+    for e in evaluations:
+        d = dict(e)
+        d["report_path"] = _find_report(
+            company_name=job_dict.get("company_name", ""),
+            job_title=job_dict.get("title", ""),
+            evaluated_at=d.get("evaluated_at", ""),
+        )
+        evals_out.append(d)
+
     return JSONResponse({
-        "job":         dict(job),
-        "evaluations": [dict(e) for e in evaluations],
+        "job":         job_dict,
+        "evaluations": evals_out,
         "postings":    [dict(p) for p in postings],
     })
 
