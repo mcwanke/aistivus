@@ -81,6 +81,20 @@ A score of 10 should be extremely rare — reserved for roles that are an almost
 {jobsearch_context}
 === END CONTEXT ===
 
+Scoring guidance — apply this strictly:
+1-3: Poor fit — significant gaps, wrong level, wrong domain, or dealbreakers present
+4-5: Below average — some alignment but notable mismatches that would be hard to overcome
+6:   Average — basic fit, nothing exceptional, would be a stretch in some areas
+7:   Good fit — solid match with minor gaps that are bridgeable
+8:   Strong fit — well aligned, gaps are minor or easily addressed
+9:   Excellent fit — near-perfect match, very few concerns
+10:  Exceptional — reserved for roles that seem written for this person, extremely rare
+
+Be critical and honest. Most roles should score between 5-7.
+A score above 8 must be genuinely exceptional — not merely good.
+Do not inflate scores to be encouraging. Variance across roles is expected and healthy.
+If two roles have meaningfully different fit, their scores must reflect that difference.
+
 When evaluating a job description, you must respond with valid JSON only.
 No preamble. No explanation outside the JSON structure.
 The job description will be provided between [JD_START] and [JD_END] markers.
@@ -95,18 +109,19 @@ EVALUATION_USER_PROMPT = """Evaluate this job description and return a JSON obje
 Return ONLY this JSON structure with no additional text:
 
 {{
-  "score_overall": <float 1-10>,
+  "score_overall": <float 1-10, be critical — most roles should score 5-7>,
   "score_role_fit": <float 1-5>,
   "score_scope_fit": <float 1-5>,
   "score_culture": <float 1-5>,
   "score_comp": <float 1-5>,
   "fit_type": "<Core Fit | Stretch | Mismatch>",
   "archetype": "<People Leader | Hybrid | Technical Specialist | Functional Leader>",
-  "strengths": "<bullet-point list of match strengths>",
-  "gaps": "<bullet-point list of gaps or concerns>",
+  "strengths": "<bullet-point list of genuine match strengths>",
+  "gaps": "<bullet-point list of real gaps or concerns — be specific and honest>",
   "recommendation": "<Apply | Apply with modifications | Skip>",
   "log_entry": "<one-line summary: Company | Role | Score | Fit Type | Recommendation>",
-  "keywords": "<comma-separated list of 25-35 important keywords, skills, technologies, and phrases from this JD that an ATS would scan for — include exact phrases where possible>"
+  "keywords": "<comma-separated list of 25-35 important ATS keywords from this JD>",
+  "keyword_gaps": "<comma-separated list of JD keywords unlikely to appear in a typical resume for this background — the tailoring targets>"
 }}"""
 
 
