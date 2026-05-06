@@ -74,11 +74,10 @@
     }
 
     .header-page {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      font-weight: 300;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
+      font-size: 0.92rem;
+      color: var(--text);
+      font-weight: 400;
+      letter-spacing: 0.01em;
     }
 
     .header-status {
@@ -509,6 +508,74 @@
 
     .audit-event { color: var(--text-muted); }
 
+    /* ── Timeline ─────────────────────────────────────────── */
+    .timeline-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .timeline-audit {
+      display: flex;
+      gap: 10px;
+      align-items: baseline;
+      padding: 8px 12px;
+      background: var(--bg);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      font-size: 0.76rem;
+    }
+
+    .timeline-audit-label {
+      font-family: var(--mono);
+      font-size: 0.58rem;
+      color: var(--text-dim);
+      white-space: nowrap;
+      flex-shrink: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1px 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .timeline-audit-time {
+      font-family: var(--mono);
+      font-size: 0.63rem;
+      color: var(--text-dim);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .timeline-audit-event { color: var(--text-dim); font-size: 0.76rem; }
+
+    .note-url-link {
+      font-size: 0.72rem;
+      font-family: var(--mono);
+      color: var(--accent-dim);
+      text-decoration: none;
+      display: inline-block;
+      margin-top: 4px;
+      word-break: break-all;
+    }
+    .note-url-link:hover { color: var(--accent); }
+
+    .note-text-wrap {
+      overflow: hidden;
+      transition: max-height 250ms ease;
+    }
+    .note-text-wrap.clamped { max-height: 4.2rem; }
+
+    .note-expand-btn {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-size: 0.63rem;
+      cursor: pointer;
+      padding: 4px 0 0;
+      text-align: left;
+    }
+    .note-expand-btn.visible { display: block; }
+    .note-expand-btn:hover { color: var(--accent); }
+
     /* ── Toast ────────────────────────────────────────────── */
     .toast {
       position: fixed;
@@ -650,13 +717,17 @@
     // ── Render full page ───────────────────────────────────
     function render() {
       const a    = appData.application;
-      const notes = appData.notes || [];
+      const notes = appData.logs || [];
       const audit = appData.audit || [];
+      const timeline = [
+        ...notes.map(n => ({ ...n, _kind: 'log',   _ts: n.created_at })),
+        ...audit.map(a => ({ ...a, _kind: 'audit',  _ts: a.timestamp  })),
+      ].sort((a, b) => new Date(b._ts) - new Date(a._ts));
       const evals = appData.evaluations || [];
       const postings = appData.postings || [];
 
       document.getElementById('headerPage').textContent =
-        `${a.company_name || '—'} — ${a.title || '—'}`;
+        `Application for ${a.title || '—'} @ ${a.company_name || '—'}`;
 
       const jdText = a.description_merged ||
         (postings[0] ? postings[0].description_raw : null);
@@ -715,13 +786,13 @@
           </div>
         </div>
 
-        <!-- Notes -->
+        <!-- Timeline -->
         <div class="section">
-          <div class="section-header" onclick="toggleSection('notes-body')">
-            <span class="section-title">Notes (${notes.length})</span>
-            <span class="section-toggle" id="notes-body-toggle">▼</span>
+          <div class="section-header" onclick="toggleSection('timeline-body')">
+            <span class="section-title">Timeline (${timeline.length})</span>
+            <span class="section-toggle" id="timeline-body-toggle">▼</span>
           </div>
-          <div class="section-body" id="notes-body">
+          <div class="section-body" id="timeline-body">
             <div class="note-form">
               <div class="note-form-row">
                 <select class="note-type-select" id="noteType">
@@ -733,7 +804,7 @@
                   <option value="repost_alert">Repost Alert</option>
                 </select>
                 <textarea class="note-textarea" id="noteText"
-                          placeholder="Add a note..."></textarea>
+                          placeholder="Add a log entry..."></textarea>
               </div>
               <div class="note-form-row">
                 <input type="text" id="noteUrl"
@@ -749,10 +820,12 @@
                 Add Log Entry
               </button>
             </div>
-            <div class="note-list" id="noteList">
-              ${notes.length === 0
-                ? '<div class="notes-empty">No notes yet.</div>'
-                : notes.map(n => renderNote(n)).join('')}
+            <div class="timeline-list" id="noteList">
+              ${timeline.length === 0
+                ? '<div class="notes-empty">No entries yet.</div>'
+                : timeline.map(item =>
+                    item._kind === 'audit' ? renderTimelineAudit(item) : renderNote(item)
+                  ).join('')}
             </div>
           </div>
         </div>
@@ -786,27 +859,12 @@
           </div>
         </div>` : ''}
 
-        <!-- Audit Trail -->
-        <div class="section">
-          <div class="section-header" onclick="toggleSection('audit-body')">
-            <span class="section-title">Audit Trail (${audit.length})</span>
-            <span class="section-toggle" id="audit-body-toggle">▶</span>
-          </div>
-          <div class="section-body collapsed" id="audit-body">
-            ${audit.length === 0
-              ? '<div class="notes-empty">No audit events yet.</div>'
-              : audit.map(ev => `
-                <div class="audit-item">
-                  <span class="audit-time">${formatDateTime(ev.timestamp)}</span>
-                  <span class="audit-event">${escapeHtml(ev.event)}</span>
-                </div>`).join('')}
-          </div>
-        </div>
-
       `;
+      initNoteExpand();
     }
 
     function renderNote(n) {
+      const wrapId = `note-wrap-${n.id}`;
       return `
         <div class="note-item">
           <div class="note-item-header">
@@ -814,11 +872,47 @@
               ${(n.note_type || 'general').replace(/_/g, ' ')}
             </span>
             <span class="note-date">${formatDateTime(n.created_at)}</span>
-            ${n.note_type === 'generated_prompt'
+            ${n.note_type === 'prompt'
               ? `<button class="btn-copy" data-text="${escapeHtml(n.note || '')}" onclick="copyBtnText(this)">Copy</button>`
               : ''}
           </div>
-          <div class="note-text">${escapeHtml(n.note || '')}</div>
+          <div class="note-text-wrap clamped" id="${wrapId}">
+            <div class="note-text">${escapeHtml(n.note || '')}</div>
+          </div>
+          <button class="note-expand-btn" id="${wrapId}-btn"
+                  onclick="toggleNoteExpand('${wrapId}')">show more</button>
+          ${n.url ? `<a class="note-url-link" href="${escapeHtml(n.url)}" target="_blank" rel="noopener">${escapeHtml(n.url)}</a>` : ''}
+        </div>`;
+    }
+
+    function toggleNoteExpand(wrapId) {
+      const wrap = document.getElementById(wrapId);
+      const btn  = document.getElementById(wrapId + '-btn');
+      if (wrap.classList.toggle('clamped')) {
+        btn.textContent = 'show more';
+      } else {
+        btn.textContent = 'show less';
+      }
+    }
+
+    function initNoteExpand() {
+      document.querySelectorAll('.note-text-wrap.clamped').forEach(wrap => {
+        const btn = document.getElementById(wrap.id + '-btn');
+        if (!btn) return;
+        if (wrap.scrollHeight > wrap.clientHeight + 2) {
+          btn.classList.add('visible');
+        } else {
+          wrap.classList.remove('clamped');
+        }
+      });
+    }
+
+    function renderTimelineAudit(ev) {
+      return `
+        <div class="timeline-audit">
+          <span class="timeline-audit-label">system</span>
+          <span class="timeline-audit-time">${formatDateTime(ev.timestamp)}</span>
+          <span class="timeline-audit-event">${escapeHtml(ev.event)}</span>
         </div>`;
     }
 
@@ -912,7 +1006,7 @@
       btn.disabled = true;
 
       try {
-        const res = await fetch(`/api/applications/${appId}/notes`, {
+        const res = await fetch(`/api/applications/${appId}/logs`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -922,6 +1016,14 @@
             timestamp: noteTimestamp || null,
           }),
         });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        showToast('Log entry added');
+        await loadApplication();
+      } catch (err) {
+        showToast(`Failed to add note: ${err.message}`, 'error');
+        btn.disabled = false;
+      }
+    }
 
     // ── Generate prompt ────────────────────────────────────
     async function generatePrompt() {
