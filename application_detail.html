@@ -241,75 +241,6 @@
 
     .star-btn:hover { transform: scale(1.15); }
 
-    /* ── Link fields ──────────────────────────────────────── */
-    .link-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-top: 16px;
-    }
-
-    .link-field {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .link-field label {
-      font-size: 0.62rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--text-dim);
-      font-family: var(--mono);
-    }
-
-    .link-input-row {
-      display: flex;
-      gap: 6px;
-    }
-
-    .link-input {
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      color: var(--text);
-      font-family: var(--mono);
-      font-size: 0.78rem;
-      padding: 7px 10px;
-      outline: none;
-      flex: 1;
-      min-width: 0;
-      transition: border-color var(--transition);
-    }
-
-    .link-input:focus { border-color: var(--border-focus); }
-    .link-input::placeholder { color: var(--text-dim); }
-
-    .btn-link-save {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      color: var(--text-muted);
-      cursor: pointer;
-      font-family: var(--mono);
-      font-size: 0.7rem;
-      padding: 7px 10px;
-      transition: border-color var(--transition), color var(--transition);
-      white-space: nowrap;
-    }
-
-    .btn-link-save:hover { border-color: var(--border-focus); color: var(--text); }
-
-    .link-display {
-      font-family: var(--mono);
-      font-size: 0.75rem;
-      color: var(--accent);
-      text-decoration: none;
-      word-break: break-all;
-    }
-
-    .link-display:hover { text-decoration: underline; }
-
     /* ── Notes ────────────────────────────────────────────── */
     .note-form {
       display: flex;
@@ -576,7 +507,6 @@
 
     @media (max-width: 600px) {
       .page { padding: 16px; }
-      .link-row { grid-template-columns: 1fr; }
       .note-form-row { flex-direction: column; }
       .note-type-select { min-width: unset; width: 100%; }
     }
@@ -739,41 +669,6 @@
                 <div class="star-selector" id="starSelector">
                   ${renderStars(a.excitement_level, true)}
                 </div>
-              </div>
-            </div>
-
-            <div class="link-row">
-              <div class="link-field">
-                <label>CV / Resume Link</label>
-                <div class="link-input-row">
-                  <input class="link-input" id="cvLink"
-                         placeholder="https://drive.google.com/..."
-                         value="${a.cv_link || ''}" />
-                  <button class="btn-link-save" onclick="saveLink('cv_link', 'cvLink')">
-                    Save
-                  </button>
-                </div>
-                ${a.cv_link
-                  ? `<a href="${a.cv_link}" target="_blank" class="link-display">
-                       ↗ Open CV
-                     </a>`
-                  : ''}
-              </div>
-              <div class="link-field">
-                <label>Cover Letter Link</label>
-                <div class="link-input-row">
-                  <input class="link-input" id="coverLink"
-                         placeholder="https://drive.google.com/..."
-                         value="${a.cover_link || ''}" />
-                  <button class="btn-link-save" onclick="saveLink('cover_link', 'coverLink')">
-                    Save
-                  </button>
-                </div>
-                ${a.cover_link
-                  ? `<a href="${a.cover_link}" target="_blank" class="link-display">
-                       ↗ Open Cover Letter
-                     </a>`
-                  : ''}
               </div>
             </div>
           </div>
@@ -944,23 +839,6 @@
         showToast(`Excitement set to ${val} star${val !== 1 ? 's' : ''}`);
       } catch (err) {
         showToast(`Failed to update: ${err.message}`, 'error');
-      }
-    }
-
-    // ── Save link ──────────────────────────────────────────
-    async function saveLink(field, inputId) {
-      const value = document.getElementById(inputId).value.trim() || null;
-      try {
-        const res = await fetch(`/api/applications/${appId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ [field]: value }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        showToast('Link saved');
-        await loadApplication();
-      } catch (err) {
-        showToast(`Failed to save: ${err.message}`, 'error');
       }
     }
 
