@@ -95,7 +95,7 @@ This file defines what to build and in what order.
   - Update Pydantic models if needed
   - Update docstrings
 
-- [ ] **9. Update all `application_notes` → `application_logs` references in routes**
+- x] **9. Update all `application_notes` → `application_logs` references in routes**
   - Files: `main.py`
   - Rename routes: `/api/applications/{id}/notes` → `/api/applications/{id}/logs`
   - Update all function names, variable names, docstrings
@@ -104,13 +104,13 @@ This file defines what to build and in what order.
     - `url`: optional string, default None
     - `timestamp`: optional string (ISO datetime), default None (backend fills with now())
 
-- [ ] **10. Remove `cv_link` and `cover_link` from application routes**
+- [x] **10. Remove `cv_link` and `cover_link` from application routes**
   - File: `main.py`
   - Remove from `CreateApplicationRequest` model
   - Remove from `UpdateApplicationRequest` model
   - Remove from create and update route handlers
 
-- [ ] **11. Apply date behavior — confirm default to today**
+- [x] **11. Apply date behavior — confirm default to today**
   - File: `main.py`
   - `apply_date` defaults to today's date on application creation
   - Should NOT be nullable — always has a value

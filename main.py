@@ -476,8 +476,6 @@ class CreateApplicationRequest(BaseModel):
 class UpdateApplicationRequest(BaseModel):
     excitement_level: int | None = None
     application_status: str | None = None
-    cv_link: str | None = None
-    cover_link: str | None = None
     apply_date: str | None = None
     end_date: str | None = None
 
