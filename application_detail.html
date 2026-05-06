@@ -310,6 +310,37 @@
     .btn-add-note:hover:not(:disabled) { opacity: 0.85; }
     .btn-add-note:disabled { opacity: 0.4; cursor: not-allowed; }
 
+    .btn-generate {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: var(--sans);
+      font-size: 0.78rem;
+      font-weight: 500;
+      padding: 8px 14px;
+      transition: border-color var(--transition), color var(--transition);
+      white-space: nowrap;
+    }
+
+    .btn-generate:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .btn-generate:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-copy {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-dim);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      padding: 2px 8px;
+      transition: border-color var(--transition), color var(--transition);
+    }
+
+    .btn-copy:hover { border-color: var(--accent); color: var(--accent); }
+
     /* ── Note list ────────────────────────────────────────── */
     .note-list { display: flex; flex-direction: column; gap: 10px; }
 
@@ -670,6 +701,13 @@
                   ${renderStars(a.excitement_level, true)}
                 </div>
               </div>
+              <div class="control-group" style="justify-content:flex-end;margin-left:auto">
+                <span class="control-label">Actions</span>
+                <button class="btn-generate" id="generatePromptBtn"
+                        onclick="generatePrompt()">
+                  Generate Prompt
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -763,6 +801,9 @@
               ${(n.note_type || 'general').replace(/_/g, ' ')}
             </span>
             <span class="note-date">${formatDateTime(n.created_at)}</span>
+            ${n.note_type === 'generated_prompt'
+              ? `<button class="btn-copy" data-text="${escapeHtml(n.note || '')}" onclick="copyBtnText(this)">Copy</button>`
+              : ''}
           </div>
           <div class="note-text">${escapeHtml(n.note || '')}</div>
         </div>`;
@@ -870,6 +911,38 @@
         showToast(`Failed to add note: ${err.message}`, 'error');
       } finally {
         btn.disabled = false;
+      }
+    }
+
+    // ── Generate prompt ────────────────────────────────────
+    async function generatePrompt() {
+      const btn = document.getElementById('generatePromptBtn');
+      btn.disabled = true;
+      btn.textContent = 'Generating prompt...';
+      try {
+        const res = await fetch(`/api/applications/${appId}/generate-prompt`, {
+          method: 'POST',
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        showToast('Prompt generated');
+        await loadApplication();
+      } catch (err) {
+        showToast(`Failed to generate prompt: ${err.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Generate Prompt';
+      }
+    }
+
+    // ── Copy note text to clipboard ────────────────────────
+    async function copyBtnText(btn) {
+      try {
+        await navigator.clipboard.writeText(btn.dataset.text);
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      } catch {
+        showToast('Failed to copy', 'error');
       }
     }
 
