@@ -116,7 +116,7 @@ This file defines what to build and in what order.
   - Should NOT be nullable — always has a value
   - Confirm this is already working correctly, no change needed if so
 
-- [ ] **12. Add `POST /api/applications/{id}/generate-prompt` route**
+- [x] **12. Add `POST /api/applications/{id}/generate-prompt` route**
   - File: `main.py`
   - Fetches: job details, full JD text, latest evaluation results, keywords, keyword_gaps
   - Builds prompt using this structure:
@@ -180,7 +180,7 @@ This file defines what to build and in what order.
     - `timestamp`: now
   - Returns: `{ success: true, log_id: int, prompt: string }`
 
-- [ ] **13. Add `requested_salary` to job-related routes**
+- [x] **13. Add `requested_salary` to job-related routes**
   - File: `main.py`
   - Add to `RerunRequest` or wherever job fields are updated
   - Surface in `/api/jobs-with-evaluations` and `/jobs/{id}` responses

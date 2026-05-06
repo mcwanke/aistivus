@@ -756,6 +756,117 @@ async def add_log(application_id: int, request: AddLogRequest):
     return JSONResponse({"success": True, "log_id": log_id})
 
 
+@app.post("/api/applications/{application_id}/generate-prompt")
+async def generate_prompt(application_id: int):
+    """
+    Build a structured AI prompt for this application and store it as a log entry.
+    Fetches job details, full JD text, and the latest evaluation.
+    Returns the generated prompt and its log id.
+    """
+    with database.get_connection() as conn:
+        app_row = conn.execute(
+            "SELECT * FROM applications WHERE id = ?",
+            (application_id,)
+        ).fetchone()
+
+    if not app_row:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Application {application_id} not found."
+        )
+
+    job = database.get_job(app_row["job_id"])
+    if not job:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Job {app_row['job_id']} not found."
+        )
+
+    eval_row = database.get_latest_evaluation(app_row["job_id"])
+
+    company_name   = job["company_name"] or "N/A"
+    title          = job["title"] or "N/A"
+    location       = job["location"] or "N/A"
+    pay_band       = job["pay_band"] or "Not listed"
+    jd_text        = job["description_merged"] or ""
+
+    if eval_row:
+        score        = eval_row["score_overall"]
+        fit_type     = eval_row["fit_type"] or "N/A"
+        archetype    = eval_row["archetype"] or "N/A"
+        recommendation = eval_row["recommendation"] or "N/A"
+        model_used   = eval_row["model_used"] or "N/A"
+        strengths    = eval_row["strengths"] or "N/A"
+        gaps         = eval_row["gaps"] or "N/A"
+        keywords     = eval_row["keywords"] or "N/A"
+        score_display = f"{score}/10" if score is not None else "N/A"
+    else:
+        score_display = "N/A"
+        fit_type = archetype = recommendation = model_used = "N/A"
+        strengths = gaps = keywords = "N/A"
+
+    prompt = f"""I am going to share my background context (jobsearch.md) after this message. Please wait for that before completing tasks 3 and 4.
+You can complete tasks 1 and 2 immediately.
+
+JOB DETAILS:
+Company: {company_name}
+Title: {title}
+Location: {location}
+Pay Band: {pay_band}
+
+JOB DESCRIPTION:
+{jd_text}
+
+LOCAL AI EVALUATION RESULTS:
+Overall Score: {score_display}
+Fit Type: {fit_type}
+Role Archetype: {archetype}
+Recommendation: {recommendation}
+Model Used: {model_used}
+
+Strengths identified:
+{strengths}
+
+Gaps identified:
+{gaps}
+
+ATS Keywords extracted:
+{keywords}
+
+Keyword gaps (keywords from JD unlikely to appear in resume — tailoring targets):
+(Not separately stored — review the ATS keywords above against your resume)
+
+TASKS:
+1. Review and validate the evaluation scoring above. Do you agree
+   with the overall assessment? What would you change and why?
+
+2. Assess overall fit for this role. What is your honest assessment
+   of the candidate's likelihood of success in this role?
+
+3. Based on the keywords, keyword gaps, and JD requirements, what
+   specific changes should be made to a resume? Be prescriptive —
+   give exact language where possible. Ensure as many ATS keywords
+   as possible are represented while remaining accurate to the
+   candidate's actual experience.
+
+4. What are the 3-5 most important things to highlight for this
+   specific role? What should be front and center?
+
+Note: I will provide my full background context (jobsearch.md)
+separately in this conversation."""
+
+    log_id = database.add_application_log(
+        application_id=application_id,
+        note_type="prompt",
+        note=prompt,
+        url=None,
+    )
+    return JSONResponse({"success": True, "log_id": log_id, "prompt": prompt})
+
+
+
+
+
 @app.get("/api/jobs/{job_id}/application")
 async def get_job_application(job_id: int):
     """
