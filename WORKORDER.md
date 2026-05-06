@@ -212,7 +212,7 @@ This file defines what to build and in what order.
   - Right panel sidebar should show: evaluation info only (scores, fit type, strengths, gaps, keywords)
   - Buttons shown inline: Re-evaluate | Apply → (apply_url link) | Start Application or View Application
 
-- [ ] **17. Add application status badge to job list rows**
+- [x] **17. Add application status badge to job list rows**
   - File: `jobs.html`
   - Update `/api/jobs-with-evaluations` endpoint in `main.py` to include application
     status and id via subquery (one SQL addition, not a per-row call)
