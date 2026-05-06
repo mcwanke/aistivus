@@ -279,7 +279,7 @@ This file defines what to build and in what order.
 
 ## Priority 7 — Cleanup
 
-- [ ] **24. Update `CLAUDE.md` schema section**
+- [x] **24. Update `CLAUDE.md` schema section**
   - File: `CLAUDE.md`
   - Update `job_postings` table — `source_url` → `apply_url`
   - Update `application_notes` → `application_logs` with new columns
@@ -287,11 +287,11 @@ This file defines what to build and in what order.
   - Update `jobs` table — add `requested_salary`
   - Update valid `log_type` values — remove `compensation`, add `prompt`, `url`
 
-- [ ] **25. Update landing page hero text**
+- [x] **25. Update landing page hero text**
   - File: `index.html`
   - Change "Phase 0 — Survival Mode" to "Phase 0.2 — Working Basic Job Tracker"
 
-- [ ] **26. Final commit**
+- [x] **26. Final commit**
   - Commit message: "Phase 0.2 complete — application tracking, scoring fix, schema cleanup"
   - Wipe DB one final time: `rm data/jobs.db`
   - Restart: `python3 main.py`
