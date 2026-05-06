@@ -154,7 +154,7 @@ CREATE TABLE IF NOT EXISTS applications (
     project_id          INTEGER REFERENCES projects(id)
 );
 
-CREATE TABLE IF NOT EXISTS application_notes (
+CREATE TABLE IF NOT EXISTS application_logs (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     application_id  INTEGER NOT NULL REFERENCES applications(id),
     note_type       TEXT,
@@ -713,29 +713,29 @@ def update_application_status(application_id: int, status: str) -> None:
         )
 
 
-def add_application_note(application_id: int, note_type: str, note: str) -> int:
+def add_application_log(application_id: int, note_type: str, note: str) -> int:
     """
-    Add a timestamped note to an application.
+    Add a timestamped log entry to an application.
     note_type valid values: recruiter_call | interview_feedback |
-                            compensation | general | repost_alert
+                            general | repost_alert | prompt
 
     Returns:
-        note id (int)
+        log id (int)
     """
     with get_connection() as conn:
         conn.execute(
-            """INSERT INTO application_notes (application_id, note_type, note)
+            """INSERT INTO application_logs (application_id, note_type, note)
                VALUES (?, ?, ?)""",
             (application_id, note_type, note)
         )
         return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
 
-def get_application_notes(application_id: int) -> list[sqlite3.Row]:
-    """Return all notes for an application, oldest first."""
+def get_application_logs(application_id: int) -> list[sqlite3.Row]:
+    """Return all log entries for an application, oldest first."""
     with get_connection() as conn:
         return conn.execute(
-            """SELECT * FROM application_notes
+            """SELECT * FROM application_logs
                WHERE application_id = ?
                ORDER BY created_at""",
             (application_id,)
@@ -907,7 +907,7 @@ EXPORT_FORMAT_VERSION = "0.1"
 # All tables in export order — includes stub tables as empty arrays
 _ALL_TABLES = [
     "projects", "companies", "jobs", "job_postings",
-    "evaluations", "applications", "application_notes",
+    "evaluations", "applications", "application_logs",
     "application_audit", "job_posting_audit",
     "llm_call_log", "jobsearch_versions",
     "resume_info", "generated_docs",

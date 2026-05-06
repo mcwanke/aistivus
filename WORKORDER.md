@@ -45,7 +45,7 @@ This file defines what to build and in what order.
   - Change the column name in the `job_postings` CREATE TABLE statement
   - Do NOT update any other files yet — routes and UI come later in items 8-9
 
-- [ ] **3. Rename `application_notes` → `application_logs` in schema**
+- [x] **3. Rename `application_notes` → `application_logs` in schema**
   - File: `database.py` only
   - Rename the table in the CREATE TABLE statement
   - Rename all references within `database.py` (function names, docstrings, queries)
