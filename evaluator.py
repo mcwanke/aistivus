@@ -130,10 +130,10 @@ Return ONLY this JSON structure with no additional text:
   "archetype": "<People Leader | Hybrid | Technical Specialist | Functional Leader>",
   "strengths": "<bullet-point list of genuine match strengths>",
   "gaps": "<bullet-point list of real gaps or concerns — be specific and honest>",
-  "domain_match": "<Same domain | Adjacent domain | Different domain | Wrong domain entirely>",
   "recommendation": "<Apply | Apply with modifications | Skip>",
   "log_entry": "<one-line summary: Company | Role | Score | Fit Type | Recommendation>",
   "keywords": "<comma-separated list of 25-35 important ATS keywords from this JD>",
+  "domain_match": "<Same domain | Adjacent domain | Different domain | Wrong domain entirely>",
   "keyword_gaps": "<comma-separated list of JD keywords unlikely to appear in a typical resume for this background — the tailoring targets>"
 }}"""
 
@@ -317,6 +317,18 @@ Copy this line into your jobsearch.md Application Log:
 
 ```
 {evaluation.get('keywords', 'No keywords extracted.')}
+```
+
+## Evaluation Summary
+
+{evaluation.get('log_entry', '')}
+
+---
+
+## Domain Match for Scoring
+
+```
+{evaluation.get('domain_match', 'No domain extracted.')}
 ```
 
 ## Evaluation Summary
@@ -575,10 +587,10 @@ async def evaluate_jd(
             "archetype":       _to_str(parsed.get("archetype")),
             "strengths":       _to_str(parsed.get("strengths")),
             "gaps":            _to_str(parsed.get("gaps")),
-            "domain_match":    _to_str(parsed.get("domain_match")),
             "recommendation":  _to_str(parsed.get("recommendation")),
             "log_entry":       _to_str(parsed.get("log_entry")),
             "keywords":        _to_str(parsed.get("keywords")),
+            "domain_match":    _to_str(parsed.get("domain_match")),
         })
 
     evaluation_id = database.insert_evaluation(

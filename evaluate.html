@@ -735,7 +735,7 @@
     const kwWrap = document.getElementById('resultKeywords');
     kwWrap.innerHTML = '';
     if (ev.keywords) {
-      ev.keywords.split(',').map(k => k.trim()).filter(Boolean).forEach(kw => {
+      (typeof ev.keywords === 'string' ? ev.keywords : '').split(',').map(k => k.trim()).filter(Boolean).forEach(kw => {
         const chip = document.createElement('span');
         chip.className   = 'keyword-chip';
         chip.textContent = kw;
