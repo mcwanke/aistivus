@@ -158,6 +158,7 @@ CREATE TABLE IF NOT EXISTS application_logs (
     note_type       TEXT,
     note            TEXT,
     url             TEXT,
+    timestamp       TEXT NOT NULL DEFAULT (datetime('now')),
     created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -712,7 +713,7 @@ def update_application_status(application_id: int, status: str) -> None:
         )
 
 
-def add_application_log(application_id: int, note_type: str, note: str, url: str) -> int:
+def add_application_log(application_id: int, note_type: str, note: str, url: str, timestamp: str | None = None) -> int:
     """
     Add a timestamped log entry to an application.
     note_type valid values: recruiter_call | interview_feedback |
@@ -723,9 +724,9 @@ def add_application_log(application_id: int, note_type: str, note: str, url: str
     """
     with get_connection() as conn:
         conn.execute(
-            """INSERT INTO application_logs (application_id, note_type, note, url)
-               VALUES (?, ?, ?, ?)""",
-            (application_id, note_type, note, url)
+            """INSERT INTO application_logs (application_id, note_type, note, url, timestamp)
+               VALUES (?, ?, ?, ?, COALESCE(?, datetime('now')))""",
+            (application_id, note_type, note, url, timestamp)
         )
         return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 

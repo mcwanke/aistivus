@@ -63,7 +63,7 @@ This file defines what to build and in what order.
   - Add `url TEXT` column to the renamed `application_logs` CREATE TABLE statement
   - Add `url` to `add_application_note()` / `add_application_log()` function signature
 
-- [ ] **6. Add `timestamp` (user-adjustable) to `application_logs` table**
+- [x] **6. Add `timestamp` (user-adjustable) to `application_logs` table**
   - File: `database.py` only
   - Add `timestamp TEXT` column — defaults to `datetime('now')` but user-editable
   - Distinct from `created_at` which is system-set and immutable
