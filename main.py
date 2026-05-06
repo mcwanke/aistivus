@@ -6,7 +6,6 @@ FastAPI server for AIstivus.
 Phase 0 routes:
   GET  /            → landing page (index.html)
   GET  /evaluate    → evaluate page (evaluate.html)
-  GET  /evaluations → evaluations history page (evaluations.html)
   POST /evaluate    → run evaluation, return JSON result
   GET  /health      → health check (Ollama + DB status)
   GET  /report      → render a markdown report as HTML
@@ -189,15 +188,6 @@ async def serve_evaluate():
     path = Path("evaluate.html")
     if not path.exists():
         raise HTTPException(status_code=404, detail="evaluate.html not found.")
-    return FileResponse(path)
-
-
-@app.get("/evaluations", response_class=FileResponse)
-async def serve_evaluations():
-    """Evaluations history page."""
-    path = Path("evaluations.html")
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="evaluations.html not found.")
     return FileResponse(path)
 
 

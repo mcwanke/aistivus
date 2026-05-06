@@ -190,14 +190,14 @@ This file defines what to build and in what order.
 ## Priority 4 — Jobs Page Restructure
 *Biggest UI change. Port report viewer first before removing evaluations page.*
 
-- [ ] **14. Port report viewer modal from `evaluations.html` to `jobs.html`**
+- [x] **14. Port report viewer modal from `evaluations.html` to `jobs.html`**
   - File: `jobs.html`
   - Copy the report modal HTML, CSS, and JS from `evaluations.html`
   - Add "View report" button to eval cards in the jobs detail panel
   - Test that markdown reports render correctly in the modal
   - Do NOT delete `evaluations.html` yet
 
-- [ ] **15. Remove `evaluations.html` and its route**
+- [x] **15. Remove `evaluations.html` and its route**
   - Files: `main.py`, `evaluations.html`, `index.html`
   - Delete `evaluations.html` from the repo
   - Remove `GET /evaluations` route from `main.py`
