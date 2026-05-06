@@ -133,6 +133,7 @@ CREATE TABLE IF NOT EXISTS evaluations (
     archetype       TEXT,
     strengths       TEXT,
     gaps            TEXT,
+    domain_match    TEXT,
     recommendation  TEXT,
     log_entry       TEXT,
     prompt_hash     TEXT,

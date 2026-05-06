@@ -81,19 +81,31 @@ A score of 10 should be extremely rare — reserved for roles that are an almost
 {jobsearch_context}
 === END CONTEXT ===
 
-Scoring guidance — apply this strictly:
-1-3: Poor fit — significant gaps, wrong level, wrong domain, or dealbreakers present
-4-5: Below average — some alignment but notable mismatches that would be hard to overcome
-6:   Average — basic fit, nothing exceptional, would be a stretch in some areas
-7:   Good fit — solid match with minor gaps that are bridgeable
-8:   Strong fit — well aligned, gaps are minor or easily addressed
+Scoring guidance — apply this strictly and critically:
+1-2: Wrong role entirely — wrong domain, wrong industry, or wrong function.
+     Leadership skills do not transfer across fundamentally different domains.
+3-4: Significant mismatch — major gaps in required experience, wrong level,
+     or domain knowledge gap that would be disqualifying for most hiring managers
+5:   Below average — some transferable skills but notable gaps that make
+     this a long-shot application
+6:   Average — basic fit, generic leadership might qualify but not competitive
+7:   Good fit — solid match, minor gaps only
+8:   Strong fit — well aligned, would be a competitive candidate
 9:   Excellent fit — near-perfect match, very few concerns
-10:  Exceptional — reserved for roles that seem written for this person, extremely rare
+10:  Exceptional — role seems written for this person, extremely rare
 
-Be critical and honest. Most roles should score between 5-7.
-A score above 8 must be genuinely exceptional — not merely good.
-Do not inflate scores to be encouraging. Variance across roles is expected and healthy.
-If two roles have meaningfully different fit, their scores must reflect that difference.
+CRITICAL RULES:
+- Domain mismatch is a hard penalty. A software engineering leader applying
+  for a construction role, a finance role, or any non-tech role should score
+  no higher than 4 regardless of leadership experience.
+- Transferable soft skills (leadership, management, communication) do NOT
+  compensate for missing domain expertise at the Director level and above.
+- Be honest about dealbreakers. If the role requires specific credentials,
+  licenses, or domain experience the candidate clearly lacks, score accordingly.
+- A score of 6 means "this person could plausibly do this job." If that is
+  not true, do not score 6.
+- Most roles should score 5-7. Roles outside the candidate's domain should
+  score 2-5.
 
 When evaluating a job description, you must respond with valid JSON only.
 No preamble. No explanation outside the JSON structure.
@@ -118,6 +130,7 @@ Return ONLY this JSON structure with no additional text:
   "archetype": "<People Leader | Hybrid | Technical Specialist | Functional Leader>",
   "strengths": "<bullet-point list of genuine match strengths>",
   "gaps": "<bullet-point list of real gaps or concerns — be specific and honest>",
+  "domain_match": "<Same domain | Adjacent domain | Different domain | Wrong domain entirely>",
   "recommendation": "<Apply | Apply with modifications | Skip>",
   "log_entry": "<one-line summary: Company | Role | Score | Fit Type | Recommendation>",
   "keywords": "<comma-separated list of 25-35 important ATS keywords from this JD>",
@@ -562,6 +575,7 @@ async def evaluate_jd(
             "archetype":       _to_str(parsed.get("archetype")),
             "strengths":       _to_str(parsed.get("strengths")),
             "gaps":            _to_str(parsed.get("gaps")),
+            "domain_match":    _to_str(parsed.get("domain_match")),
             "recommendation":  _to_str(parsed.get("recommendation")),
             "log_entry":       _to_str(parsed.get("log_entry")),
             "keywords":        _to_str(parsed.get("keywords")),
