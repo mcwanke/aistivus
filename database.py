@@ -236,6 +236,7 @@ CREATE TABLE IF NOT EXISTS application_audit (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     application_id  INTEGER NOT NULL REFERENCES applications(id),
     timestamp       TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     event           TEXT NOT NULL
 );
 
@@ -737,7 +738,7 @@ def get_application_logs(application_id: int) -> list[sqlite3.Row]:
         return conn.execute(
             """SELECT * FROM application_logs
                WHERE application_id = ?
-               ORDER BY created_at""",
+               ORDER BY timestamp""",
             (application_id,)
         ).fetchall()
 
@@ -759,8 +760,21 @@ def update_application_log_timestamp(note_id: int, new_timestamp: str) -> bool:
     """
     with get_connection() as conn:
         conn.execute(
-            "UPDATE application_logs SET created_at = ? WHERE id = ?",
+            "UPDATE application_logs SET timestamp = ? WHERE id = ?",
             (new_timestamp, note_id)
+        )
+        return conn.total_changes > 0
+
+
+def update_application_audit_timestamp(audit_id: int, new_timestamp: str) -> bool:
+    """
+    Update the created_at timestamp of a application audit entry.
+    Returns True if a row was updated, False if not found.
+    """
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE application_audit SET timestamp = ? WHERE id = ?",
+            (new_timestamp, audit_id)
         )
         return conn.total_changes > 0
 
@@ -784,7 +798,8 @@ def _audit_application(
     """Append an audit event for an application. Audit tables are append-only."""
     def _run(c: sqlite3.Connection) -> None:
         c.execute(
-            "INSERT INTO application_audit (application_id, event) VALUES (?, ?)",
+            """INSERT INTO application_audit (application_id, event, timestamp, created_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
             (application_id, event)
         )
     if conn:

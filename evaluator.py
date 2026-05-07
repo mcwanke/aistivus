@@ -106,6 +106,11 @@ CRITICAL RULES:
   not true, do not score 6.
 - Most roles should score 5-7. Roles outside the candidate's domain should
   score 2-5.
+- When the candidate's background directly satisfies a JD requirement,
+  do not flag it as a gap. Give benefit of the doubt when experience
+  is plausibly applicable even if not explicitly stated in identical terms.
+  A strong fit with minor gaps should score 8. Do not let the instruction
+  to "be critical" suppress a genuinely high score when the fit is real.
 
 When evaluating a job description, you must respond with valid JSON only.
 No preamble. No explanation outside the JSON structure.

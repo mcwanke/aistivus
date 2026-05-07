@@ -794,6 +794,15 @@ async def update_log_timestamp(application_id: int, note_id: int, request: Updat
     return JSONResponse({"success": True})
 
 
+@app.patch("/api/applications/{application_id}/audit/{audit_id}/timestamp")
+async def update_application_audit_timestamp(application_id: int, audit_id: int, request: UpdateLogTimestampRequest):
+    """Update the display timestamp of an audit entry. created_at is preserved."""
+    updated = database.update_application_audit_timestamp(audit_id, request.timestamp)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Audit entry {audit_id} not found.")
+    return JSONResponse({"success": True})
+
+
 @app.post("/api/applications/{application_id}/generate-prompt")
 async def generate_prompt(application_id: int):
     """

@@ -652,11 +652,13 @@
     }
     .note-collapse-top:hover { color: var(--accent); }
 
-    .note-date.editable-ts {
+    .note-date.editable-ts,
+    .timeline-audit-time.editable-ts {
       cursor: pointer;
       text-decoration: underline dotted;
     }
-    .note-date.editable-ts:hover { color: var(--accent); }
+    .note-date.editable-ts:hover,
+    .timeline-audit-time.editable-ts:hover { color: var(--accent); }
 
 
     /* ── Toast ────────────────────────────────────────────── */
@@ -828,7 +830,7 @@
       const notes = appData.logs || [];
       const audit = appData.audit || [];
       const timeline = [
-        ...notes.map(n => ({ ...n, _kind: 'log',   _ts: n.created_at })),
+        ...notes.map(n => ({ ...n, _kind: 'log',   _ts: n.timestamp })),
         ...audit.map(a => ({ ...a, _kind: 'audit',  _ts: a.timestamp  })),
       ].sort((a, b) => new Date(b._ts) - new Date(a._ts));
       const evals = appData.evaluations || [];
@@ -980,7 +982,7 @@
               ${(n.note_type || 'general').replace(/_/g, ' ')}
             </span>
             <button class="note-collapse-top" id="${wrapId}-top-btn" onclick="toggleNoteExpand('${wrapId}')">show less</button>
-            <span class="note-date editable-ts" onclick="openTsEdit(${n.id}, '${n.created_at}')">${formatDateTime(n.created_at)}</span>
+            <span class="note-date editable-ts" onclick="openTsEdit('/api/applications/${appId}/logs/${n.id}/timestamp', '${n.timestamp}')">${formatDateTime(n.timestamp)}</span>
             <button class="btn-copy" data-text="${escapeHtml(n.note || '')}" onclick="copyBtnText(this)">Copy</button>
             <button class="btn-delete" onclick="deleteNote(${n.id})">Delete</button>
           </div>
@@ -1022,7 +1024,7 @@
       return `
         <div class="timeline-audit">
           <span class="timeline-audit-label">system</span>
-          <span class="timeline-audit-time">${formatDateTime(ev.timestamp)}</span>
+          <span class="timeline-audit-time editable-ts" onclick="openTsEdit('/api/applications/${appId}/audit/${ev.id}/timestamp', '${ev.timestamp}')">${formatDateTime(ev.timestamp)}</span>
           <span class="timeline-audit-event">${escapeHtml(ev.event)}</span>
         </div>`;
     }
@@ -1169,28 +1171,27 @@
     }
 
         // ── Edit log entry timestamp ───────────────────────────
-    function openTsEdit(noteId, currentTs) {
+    function openTsEdit(endpoint, currentTs) {
       const overlay = document.getElementById('tsEditOverlay');
       const input   = document.getElementById('tsEditInput');
       const saveBtn = document.getElementById('tsEditSaveBtn');
-      // SQLite stores "YYYY-MM-DD HH:MM:SS", datetime-local needs "YYYY-MM-DDTHH:MM"
       input.value = currentTs ? currentTs.replace(' ', 'T').slice(0, 16) : '';
       overlay.classList.add('visible');
-      saveBtn.onclick = () => saveTsEdit(noteId);
+      saveBtn.onclick = () => saveTsEdit(endpoint);
     }
 
     function hideTsEdit() {
       document.getElementById('tsEditOverlay').classList.remove('visible');
     }
 
-    async function saveTsEdit(noteId) {
+    async function saveTsEdit(endpoint) {
       const raw = document.getElementById('tsEditInput').value;
       if (!raw) { showToast('Please select a date and time', 'error'); return; }
       // Convert back to SQLite format: "YYYY-MM-DD HH:MM:SS"
       const ts = raw.replace('T', ' ') + ':00';
       hideTsEdit();
       try {
-        const res = await fetch(`/api/applications/${appId}/logs/${noteId}/timestamp`, {
+        const res = await fetch(endpoint, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ timestamp: ts }),
