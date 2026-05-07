@@ -163,16 +163,16 @@ jobs        (id, company_id, title, location, remote_type, description_merged, p
              role_keyword, dedup_status, first_seen_date, last_seen_date, posting_count,
              is_repost, project_id)
              UNIQUE: (company_id, title, role_keyword)
-job_postings (id, job_id, source_board, source_url, description_raw, date_posted,
+job_postings (id, job_id, source_board, apply_url, description_raw, date_posted,
               date_scraped, is_repost, days_since_prior_posting, repost_url_changed)
 evaluations (id, job_id, model_used, score_overall, score_role_fit, score_scope_fit,
              score_culture, score_comp, fit_type, archetype, strengths, gaps,
              recommendation, log_entry, prompt_hash, raw_response, keywords, evaluated_at)
 
 -- ACTIVE PHASE 1
-applications        (id, job_id, apply_date, end_date, cv_link, cover_link,
+applications        (id, job_id, apply_date, end_date,
                      application_status, excitement_level, project_id)
-application_notes   (id, application_id, note_type, note, created_at)
+application_logs    (id, application_id, note_type, note, url, timestamp, created_at)
 application_audit   (id, application_id, timestamp, event)
 llm_call_log        (id, timestamp, provider, model, call_type, prompt_tokens_estimated,
                      prompt_tokens_actual, completion_tokens_actual, total_tokens_actual,

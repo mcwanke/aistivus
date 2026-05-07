@@ -770,6 +770,30 @@ async def add_log(application_id: int, request: AddLogRequest):
     return JSONResponse({"success": True, "log_id": log_id})
 
 
+@app.delete("/api/applications/{application_id}/logs/{note_id}")
+async def delete_log(application_id: int, note_id: int):
+    """
+    Delete a single log entry by id.
+    Audit entries cannot be deleted — this only affects application_logs.
+    """
+    deleted = database.delete_application_note(note_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Log entry {note_id} not found.")
+    return JSONResponse({"success": True})
+
+class UpdateLogTimestampRequest(BaseModel):
+    timestamp: str
+
+
+@app.patch("/api/applications/{application_id}/logs/{note_id}/timestamp")
+async def update_log_timestamp(application_id: int, note_id: int, request: UpdateLogTimestampRequest):
+    """Update the displayed timestamp of a non-audit log entry."""
+    updated = database.update_application_log_timestamp(note_id, request.timestamp)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Log entry {note_id} not found.")
+    return JSONResponse({"success": True})
+
+
 @app.post("/api/applications/{application_id}/generate-prompt")
 async def generate_prompt(application_id: int):
     """

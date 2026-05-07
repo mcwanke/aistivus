@@ -340,6 +340,69 @@
 
     .btn-copy:hover { border-color: var(--accent); color: var(--accent); }
 
+    .btn-delete {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-dim);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      padding: 2px 8px;
+      transition: border-color var(--transition), color var(--transition);
+    }
+    .btn-delete:hover { border-color: var(--red); color: var(--red); }
+
+    .confirm-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .confirm-overlay.visible { display: flex; }
+    .confirm-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      max-width: 360px;
+      width: 90%;
+      font-family: var(--mono);
+    }
+    .confirm-msg {
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+    .confirm-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    .btn-confirm-ok {
+      background: none;
+      border: 1px solid var(--red);
+      border-radius: var(--radius);
+      color: var(--red);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      padding: 5px 14px;
+    }
+    .btn-confirm-cancel {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-dim);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      padding: 5px 14px;
+    }
+    .btn-confirm-ok:hover    { opacity: 0.8; }
+    .btn-confirm-cancel:hover { border-color: var(--accent); color: var(--accent); }
+
+
     /* ── Note list ────────────────────────────────────────── */
     .note-list { display: flex; flex-direction: column; gap: 10px; }
 
@@ -576,6 +639,26 @@
     .note-expand-btn.visible { display: block; }
     .note-expand-btn:hover { color: var(--accent); }
 
+    .note-collapse-top {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-size: 0.63rem;
+      cursor: pointer;
+      padding: 0;
+      flex-shrink: 0;
+    }
+    .note-collapse-top:hover { color: var(--accent); }
+
+    .note-date.editable-ts {
+      cursor: pointer;
+      text-decoration: underline dotted;
+    }
+    .note-date.editable-ts:hover { color: var(--accent); }
+
+
     /* ── Toast ────────────────────────────────────────────── */
     .toast {
       position: fixed;
@@ -629,6 +712,31 @@
   </div>
 
   <div class="toast" id="toast"></div>
+
+  <div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-box">
+      <div class="confirm-msg">Please confirm that you want to delete this timeline activity.</div>
+      <div class="confirm-actions">
+        <button class="btn-confirm-cancel" onclick="hideConfirm()">Cancel</button>
+        <button class="btn-confirm-ok" id="confirmOkBtn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+    <div class="confirm-overlay" id="tsEditOverlay">
+    <div class="confirm-box">
+      <div class="confirm-msg">Edit timestamp</div>
+      <input type="datetime-local" id="tsEditInput"
+             style="width:100%;background:var(--bg);border:1px solid var(--border);
+                    border-radius:var(--radius);color:var(--text-muted);
+                    font-family:var(--mono);font-size:0.78rem;padding:6px 10px;
+                    margin-bottom:16px;box-sizing:border-box;" />
+      <div class="confirm-actions">
+        <button class="btn-confirm-cancel" onclick="hideTsEdit()">Cancel</button>
+        <button class="btn-confirm-ok" id="tsEditSaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     // ── Get application ID from URL ────────────────────────
@@ -866,15 +974,15 @@
     function renderNote(n) {
       const wrapId = `note-wrap-${n.id}`;
       return `
-        <div class="note-item">
+        <div class="note-item" id="note-item-${n.id}">
           <div class="note-item-header">
             <span class="note-type-badge ${n.note_type}">
               ${(n.note_type || 'general').replace(/_/g, ' ')}
             </span>
-            <span class="note-date">${formatDateTime(n.created_at)}</span>
-            ${n.note_type === 'prompt'
-              ? `<button class="btn-copy" data-text="${escapeHtml(n.note || '')}" onclick="copyBtnText(this)">Copy</button>`
-              : ''}
+            <button class="note-collapse-top" id="${wrapId}-top-btn" onclick="toggleNoteExpand('${wrapId}')">show less</button>
+            <span class="note-date editable-ts" onclick="openTsEdit(${n.id}, '${n.created_at}')">${formatDateTime(n.created_at)}</span>
+            <button class="btn-copy" data-text="${escapeHtml(n.note || '')}" onclick="copyBtnText(this)">Copy</button>
+            <button class="btn-delete" onclick="deleteNote(${n.id})">Delete</button>
           </div>
           <div class="note-text-wrap clamped" id="${wrapId}">
             <div class="note-text">${escapeHtml(n.note || '')}</div>
@@ -886,12 +994,15 @@
     }
 
     function toggleNoteExpand(wrapId) {
-      const wrap = document.getElementById(wrapId);
-      const btn  = document.getElementById(wrapId + '-btn');
+      const wrap   = document.getElementById(wrapId);
+      const btn    = document.getElementById(wrapId + '-btn');
+      const topBtn = document.getElementById(wrapId + '-top-btn');
       if (wrap.classList.toggle('clamped')) {
         btn.textContent = 'show more';
+        if (topBtn) topBtn.style.display = 'none';
       } else {
         btn.textContent = 'show less';
+        if (topBtn) topBtn.style.display = 'inline-block';
       }
     }
 
@@ -1043,6 +1154,69 @@
         btn.disabled = false;
         btn.textContent = 'Generate Prompt';
       }
+    }
+
+        // ── Delete timeline note ───────────────────────────────
+    function showConfirm(onConfirm) {
+      const overlay = document.getElementById('confirmOverlay');
+      const okBtn   = document.getElementById('confirmOkBtn');
+      overlay.classList.add('visible');
+      okBtn.onclick = () => { hideConfirm(); onConfirm(); };
+    }
+
+    function hideConfirm() {
+      document.getElementById('confirmOverlay').classList.remove('visible');
+    }
+
+        // ── Edit log entry timestamp ───────────────────────────
+    function openTsEdit(noteId, currentTs) {
+      const overlay = document.getElementById('tsEditOverlay');
+      const input   = document.getElementById('tsEditInput');
+      const saveBtn = document.getElementById('tsEditSaveBtn');
+      // SQLite stores "YYYY-MM-DD HH:MM:SS", datetime-local needs "YYYY-MM-DDTHH:MM"
+      input.value = currentTs ? currentTs.replace(' ', 'T').slice(0, 16) : '';
+      overlay.classList.add('visible');
+      saveBtn.onclick = () => saveTsEdit(noteId);
+    }
+
+    function hideTsEdit() {
+      document.getElementById('tsEditOverlay').classList.remove('visible');
+    }
+
+    async function saveTsEdit(noteId) {
+      const raw = document.getElementById('tsEditInput').value;
+      if (!raw) { showToast('Please select a date and time', 'error'); return; }
+      // Convert back to SQLite format: "YYYY-MM-DD HH:MM:SS"
+      const ts = raw.replace('T', ' ') + ':00';
+      hideTsEdit();
+      try {
+        const res = await fetch(`/api/applications/${appId}/logs/${noteId}/timestamp`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ timestamp: ts }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        showToast('Timestamp updated');
+        await loadApplication();
+      } catch (err) {
+        showToast(`Failed to update timestamp: ${err.message}`, 'error');
+      }
+    }
+
+    async function deleteNote(noteId) {
+      showConfirm(async () => {
+        try {
+          const res = await fetch(`/api/applications/${appId}/logs/${noteId}`, {
+            method: 'DELETE',
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const el = document.getElementById(`note-item-${noteId}`);
+          if (el) el.remove();
+          showToast('Entry deleted');
+        } catch (err) {
+          showToast(`Failed to delete: ${err.message}`, 'error');
+        }
+      });
     }
 
     // ── Copy note text to clipboard ────────────────────────

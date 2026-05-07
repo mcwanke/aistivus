@@ -742,6 +742,29 @@ def get_application_logs(application_id: int) -> list[sqlite3.Row]:
         ).fetchall()
 
 
+def delete_application_note(note_id: int) -> bool:
+    """
+    Hard-delete a single log entry from application_logs by id.
+    Returns True if a row was deleted, False if not found.
+    """
+    with get_connection() as conn:
+        conn.execute("DELETE FROM application_logs WHERE id = ?", (note_id,))
+        return conn.total_changes > 0
+
+
+def update_application_log_timestamp(note_id: int, new_timestamp: str) -> bool:
+    """
+    Update the created_at timestamp of a log entry.
+    Returns True if a row was updated, False if not found.
+    """
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE application_logs SET created_at = ? WHERE id = ?",
+            (new_timestamp, note_id)
+        )
+        return conn.total_changes > 0
+
+
 def get_application_audit(application_id: int) -> list[sqlite3.Row]:
     """Return full audit trail for an application."""
     with get_connection() as conn:
