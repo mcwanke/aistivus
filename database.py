@@ -282,6 +282,13 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     rollback_sql    TEXT,
     created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS user_settings (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    key        TEXT NOT NULL UNIQUE,
+    value      TEXT,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 CURRENT_SCHEMA_VERSION = "0.1"
@@ -310,6 +317,20 @@ def init_db() -> None:
                     "Initial schema — all tables created at Phase 0 init"
                 )
             )
+
+        defaults = {
+            "timezone": "America/New_York",
+            "allow_log_timestamp_editing": "false",
+        }
+        for key, value in defaults.items():
+            existing_setting = conn.execute(
+                "SELECT id FROM user_settings WHERE key = ?", (key,)
+            ).fetchone()
+            if not existing_setting:
+                conn.execute(
+                    "INSERT INTO user_settings (key, value) VALUES (?, ?)",
+                    (key, value)
+                )
 
     print(f"✓ Database initialized at {_get_db_path().resolve()}")
     print(f"✓ Schema version: {CURRENT_SCHEMA_VERSION}")
@@ -937,6 +958,44 @@ def get_chunks_by_tags(
 
 
 # ─────────────────────────────────────────────────────────────
+# User Settings
+# ─────────────────────────────────────────────────────────────
+
+def get_setting(key: str, default: str | None = None) -> str | None:
+    """Return the value for a settings key, or default if not found."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT value FROM user_settings WHERE key = ?", (key,)
+        ).fetchone()
+        return row["value"] if row else default
+
+
+def set_setting(key: str, value: str) -> None:
+    """Insert or update a single setting by key."""
+    with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT id FROM user_settings WHERE key = ?", (key,)
+        ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE user_settings SET value = ?, updated_at = datetime('now') WHERE key = ?",
+                (value, key)
+            )
+        else:
+            conn.execute(
+                "INSERT INTO user_settings (key, value) VALUES (?, ?)",
+                (key, value)
+            )
+
+
+def get_all_settings() -> dict[str, str]:
+    """Return all settings as a plain dict keyed by setting name."""
+    with get_connection() as conn:
+        rows = conn.execute("SELECT key, value FROM user_settings").fetchall()
+        return {row["key"]: row["value"] for row in rows}
+
+
+# ─────────────────────────────────────────────────────────────
 # Export / Import / Backup
 # ─────────────────────────────────────────────────────────────
 
@@ -951,7 +1010,8 @@ _ALL_TABLES = [
     "resume_info", "generated_docs",
     "search_runs", "search_run_errors",
     "chat_sessions", "chat_messages",
-    "schema_versions", "schema_migrations"
+    "schema_versions", "schema_migrations",
+    "user_settings"
 ]
 
 
