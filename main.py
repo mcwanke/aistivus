@@ -4,8 +4,8 @@ main.py
 FastAPI server for AIstivus.
 
 Phase 0 routes:
-  GET  /            → landing page (index.html)
-  GET  /evaluate    → evaluate page (evaluate.html)
+  GET  /            → landing page (pages/index.html)
+  GET  /evaluate    → evaluate page (pages/evaluate.html)
   POST /evaluate    → run evaluation, return JSON result
   GET  /health      → health check (Ollama + DB status)
   GET  /report      → render a markdown report as HTML
@@ -176,7 +176,7 @@ class RerunRequest(BaseModel):
 @app.get("/", response_class=FileResponse)
 async def serve_index():
     """Landing page."""
-    path = Path("index.html")
+    path = Path("pages/index.html")
     if not path.exists():
         raise HTTPException(status_code=404, detail="index.html not found.")
     return FileResponse(path)
@@ -185,7 +185,7 @@ async def serve_index():
 @app.get("/evaluate", response_class=FileResponse)
 async def serve_evaluate():
     """Evaluation input page."""
-    path = Path("evaluate.html")
+    path = Path("pages/evaluate.html")
     if not path.exists():
         raise HTTPException(status_code=404, detail="evaluate.html not found.")
     return FileResponse(path)
@@ -194,7 +194,7 @@ async def serve_evaluate():
 @app.get("/jobs", response_class=FileResponse)
 async def serve_jobs():
     """Jobs and opportunities page."""
-    path = Path("jobs.html")
+    path = Path("pages/jobs.html")
     if not path.exists():
         raise HTTPException(status_code=404, detail="jobs.html not found.")
     return FileResponse(path)
@@ -572,7 +572,7 @@ def _find_report(company_name: str, job_title: str, evaluated_at: str) -> str | 
 @app.get("/applications", response_class=FileResponse)
 async def serve_applications():
     """Applications list page."""
-    path = Path("applications.html")
+    path = Path("pages/applications.html")
     if not path.exists():
         raise HTTPException(status_code=404, detail="applications.html not found.")
     return FileResponse(path)
@@ -581,7 +581,7 @@ async def serve_applications():
 @app.get("/applications/{application_id}", response_class=FileResponse)
 async def serve_application_detail(application_id: int):
     """Application detail page."""
-    path = Path("application_detail.html")
+    path = Path("pages/application_detail.html")
     if not path.exists():
         raise HTTPException(status_code=404, detail="application_detail.html not found.")
     return FileResponse(path)
