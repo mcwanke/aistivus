@@ -347,6 +347,30 @@
       </div>
     </div>
 
+    <!-- ── Inbox & Evaluation ────────────────────────────── -->
+    <div class="section">
+      <div class="section-header" onclick="toggleSection('inbox')">
+        <span class="section-title">Inbox &amp; Evaluation</span>
+        <span class="section-toggle" id="toggle-inbox">▾</span>
+      </div>
+      <div class="section-body" id="body-inbox">
+        <div class="setting-row">
+          <div class="toggle-row">
+            <label class="toggle">
+              <input type="checkbox" id="export-evaluation-to-file" />
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">Export evaluations to inbox/done/ on completion</span>
+          </div>
+          <p class="setting-help">
+            When enabled, each completed evaluation writes a .md file to inbox/done/ in the
+            standard inbox format — frontmatter + full JD text. Use this to build a test
+            batch and re-import it later via Process Inbox.
+          </p>
+        </div>
+      </div>
+    </div>
+
     <!-- ── External AI ──────────────────────────────────── -->
     <div class="section">
       <div class="section-header" onclick="toggleSection('ai')">
@@ -887,6 +911,13 @@
       toggle.checked = settings.allow_log_timestamp_editing === 'true';
       toggle.addEventListener('change', () =>
         patchSetting('allow_log_timestamp_editing', toggle.checked ? 'true' : 'false')
+      );
+
+      // Export evaluation to file toggle
+      const exportToggle = document.getElementById('export-evaluation-to-file');
+      exportToggle.checked = settings.export_evaluation_to_file === 'true';
+      exportToggle.addEventListener('change', () =>
+        patchSetting('export_evaluation_to_file', exportToggle.checked ? 'true' : 'false')
       );
 
       // Anthropic key status

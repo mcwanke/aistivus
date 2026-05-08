@@ -239,6 +239,155 @@
       color: var(--text-dim);
       font-family: var(--mono);
     }
+
+    /* ── Action card ─────────────────────────────────────── */
+    .action-card { cursor: pointer; }
+
+    .action-card-run {
+      margin-top: auto;
+      padding-top: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-run {
+      background: var(--accent-dim);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius);
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      padding: 6px 14px;
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition);
+      letter-spacing: 0.04em;
+    }
+    .btn-run:hover { background: var(--accent); color: var(--bg); }
+
+    /* ── Modal overlay ───────────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.72);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      width: 540px;
+      max-width: calc(100vw - 48px);
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-header {
+      padding: 18px 24px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .modal-title {
+      font-family: var(--serif);
+      font-size: 1.15rem;
+      color: var(--text);
+    }
+
+    .modal-subtitle {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      margin-top: 4px;
+    }
+
+    .modal-body {
+      padding: 18px 24px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .modal-empty {
+      font-size: 0.82rem;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      text-align: center;
+      padding: 32px 0;
+    }
+
+    .modal-controls {
+      margin-bottom: 14px;
+      display: flex;
+      gap: 12px;
+    }
+
+    .modal-select-link {
+      font-size: 0.72rem;
+      font-family: var(--mono);
+      color: var(--text-dim);
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .modal-select-link:hover { color: var(--text-muted); }
+
+    .file-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 0.8rem;
+    }
+    .file-row:last-child { border-bottom: none; }
+    .file-row input[type=checkbox] { accent-color: var(--accent); flex-shrink: 0; }
+    .file-row-name { flex: 1; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-row-status { flex-shrink: 0; width: 160px; font-size: 0.72rem; text-align: right; }
+    .file-row-status.spinning { color: var(--text-dim); }
+    .file-row-status.ok  { color: var(--green); }
+    .file-row-status.err { color: var(--red); }
+
+    .modal-footer {
+      padding: 14px 24px 18px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .btn-primary {
+      background: var(--accent-dim);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius);
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      padding: 8px 18px;
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition);
+      letter-spacing: 0.03em;
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--accent); color: var(--bg); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      padding: 8px 18px;
+      cursor: pointer;
+      transition: border-color var(--transition), color var(--transition);
+    }
+    .btn-secondary:hover { border-color: var(--border-focus); color: var(--text); }
   </style>
 </head>
 <body>
@@ -333,6 +482,43 @@
     </div>
   </div>
 
+  <!-- Actions -->
+  <div class="nav-section">
+    <div class="nav-section-label">Actions</div>
+    <div class="nav-grid">
+
+      <div class="nav-card action-card" onclick="openInboxModal()">
+        <div class="nav-card-icon">📥</div>
+        <div class="nav-card-title">Process Inbox</div>
+        <div class="nav-card-desc">
+          Evaluate job description files waiting in /inbox/. Select which files to
+          process and track progress in real time.
+        </div>
+        <div class="action-card-run">
+          <button class="btn-run" onclick="event.stopPropagation(); openInboxModal()">Run</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Inbox processing modal -->
+  <div class="modal-overlay" id="inboxModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Process Inbox</div>
+        <div class="modal-subtitle" id="modalSubtitle">Loading…</div>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <div class="modal-empty">Loading…</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="btnCancel" onclick="closeInboxModal()">Cancel</button>
+        <button class="btn-primary"   id="btnProcess" onclick="runProcess()">Process</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     async function loadStats() {
       try {
@@ -348,6 +534,125 @@
     }
 
     loadStats();
+
+    // ── Inbox modal ──────────────────────────────────────────────
+    let _inboxProcessing = false;
+
+    async function openInboxModal() {
+      document.getElementById('inboxModal').classList.add('open');
+      document.getElementById('modalSubtitle').textContent = 'Loading…';
+      document.getElementById('modalBody').innerHTML = '<div class="modal-empty">Loading…</div>';
+      document.getElementById('btnProcess').disabled = true;
+      document.getElementById('btnCancel').textContent = 'Cancel';
+      document.getElementById('btnCancel').onclick = closeInboxModal;
+      _inboxProcessing = false;
+
+      let pending = [];
+      try {
+        const res = await fetch('/api/inbox/files');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        pending = data.pending || [];
+      } catch (err) {
+        document.getElementById('modalBody').innerHTML =
+          `<div class="modal-empty" style="color:var(--red)">Failed to load inbox: ${err.message}</div>`;
+        return;
+      }
+
+      if (pending.length === 0) {
+        document.getElementById('modalSubtitle').textContent = 'No files pending';
+        document.getElementById('modalBody').innerHTML =
+          '<div class="modal-empty">inbox/ is empty. Drop .md or .txt files there to get started.</div>';
+        document.getElementById('btnProcess').disabled = true;
+        return;
+      }
+
+      document.getElementById('modalSubtitle').textContent =
+        `${pending.length} file${pending.length !== 1 ? 's' : ''} pending`;
+      document.getElementById('btnProcess').disabled = false;
+
+      const body = document.getElementById('modalBody');
+      body.innerHTML = `
+        <div class="modal-controls">
+          <span class="modal-select-link" onclick="selectAllFiles(true)">Select all</span>
+          <span class="modal-select-link" onclick="selectAllFiles(false)">Deselect all</span>
+        </div>
+        <div id="fileList"></div>
+      `;
+
+      const list = document.getElementById('fileList');
+      for (const name of pending) {
+        const row = document.createElement('div');
+        row.className = 'file-row';
+        row.innerHTML = `
+          <input type="checkbox" class="file-checkbox" value="${name}" checked />
+          <span class="file-row-name" title="${name}">${name}</span>
+          <span class="file-row-status" id="fstatus-${CSS.escape(name)}"></span>
+        `;
+        list.appendChild(row);
+      }
+    }
+
+    function selectAllFiles(checked) {
+      document.querySelectorAll('.file-checkbox').forEach(cb => cb.checked = checked);
+    }
+
+    function closeInboxModal() {
+      if (_inboxProcessing) return;
+      document.getElementById('inboxModal').classList.remove('open');
+    }
+
+    async function runProcess() {
+      const checked = [...document.querySelectorAll('.file-checkbox:checked')];
+      if (checked.length === 0) return;
+
+      _inboxProcessing = true;
+      document.getElementById('btnProcess').disabled = true;
+      document.getElementById('btnCancel').textContent = 'Close';
+      document.getElementById('btnCancel').onclick = null;
+      document.querySelectorAll('.file-checkbox').forEach(cb => cb.disabled = true);
+
+      let anySuccess = false;
+
+      for (const cb of checked) {
+        const name     = cb.value;
+        const statusEl = document.getElementById('fstatus-' + CSS.escape(name));
+        statusEl.className   = 'file-row-status spinning';
+        statusEl.textContent = '⟳ processing…';
+
+        try {
+          const res = await fetch('/api/inbox/process', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ filenames: [name] }),
+          });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const data       = await res.json();
+          const fileResult = data.files?.[0];
+
+          if (fileResult?.success) {
+            anySuccess = true;
+            const score   = fileResult.score != null ? fileResult.score + '/10' : '—';
+            const fitType = fileResult.fit_type || '';
+            statusEl.className   = 'file-row-status ok';
+            statusEl.textContent = `✓ ${score}${fitType ? ' · ' + fitType : ''}`;
+          } else {
+            statusEl.className   = 'file-row-status err';
+            const short = (fileResult?.error || 'failed').split(':')[0].slice(0, 40);
+            statusEl.textContent = `✗ ${short}`;
+          }
+        } catch (err) {
+          statusEl.className   = 'file-row-status err';
+          statusEl.textContent = '✗ ' + err.message;
+        }
+      }
+
+      _inboxProcessing = false;
+      document.getElementById('btnCancel').onclick = () => {
+        document.getElementById('inboxModal').classList.remove('open');
+        if (anySuccess) loadStats();
+      };
+    }
   </script>
 </body>
 </html>

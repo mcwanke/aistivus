@@ -321,6 +321,7 @@ def init_db() -> None:
         defaults = {
             "timezone": "America/New_York",
             "allow_log_timestamp_editing": "false",
+            "export_evaluation_to_file": "false",
         }
         for key, value in defaults.items():
             existing_setting = conn.execute(

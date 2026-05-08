@@ -153,11 +153,11 @@ async def process_file(
     done_dir:  Path,
     failed_dir: Path,
     dry_run:   bool = False,
-) -> bool:
+) -> dict:
     """
     Process a single inbox file.
 
-    Returns True if successful, False if failed.
+    Returns {"success": bool, "score": float|None, "fit_type": str|None, "error": str|None}
     """
     filename = file_path.name
     print(f"\n  Processing: {filename}")
@@ -171,7 +171,7 @@ async def process_file(
         if not dry_run:
             shutil.move(str(file_path), str(failed_dir / filename))
             _write_error_sidecar(failed_dir, filename, error)
-        return False
+        return {"success": False, "score": None, "fit_type": None, "error": error}
 
     # Validate JD text exists
     if not jd_text.strip():
@@ -184,14 +184,14 @@ async def process_file(
         if not dry_run:
             shutil.move(str(file_path), str(failed_dir / filename))
             _write_error_sidecar(failed_dir, filename, error)
-        return False
+        return {"success": False, "score": None, "fit_type": None, "error": error}
 
     # Extract fields from frontmatter
-    company    = frontmatter.get("company")    or "Unknown Company"
-    title      = frontmatter.get("title")      or "Unknown Role"
-    location   = frontmatter.get("location")
+    company     = frontmatter.get("company")     or "Unknown Company"
+    title       = frontmatter.get("title")       or "Unknown Role"
+    location    = frontmatter.get("location")
     remote_type = frontmatter.get("remote_type")
-    apply_url = frontmatter.get("url")
+    apply_url   = frontmatter.get("url")
 
     print(f"  Company:  {company}")
     print(f"  Title:    {title}")
@@ -200,7 +200,7 @@ async def process_file(
 
     if dry_run:
         print(f"  [dry-run] Would evaluate and move to /done/")
-        return True
+        return {"success": True, "score": None, "fit_type": None, "error": None}
 
     # Run evaluation
     try:
@@ -211,23 +211,23 @@ async def process_file(
             location=location,
             remote_type=remote_type,
             apply_url=apply_url,
-
         )
     except Exception as e:
         error = f"Evaluation raised an exception: {type(e).__name__}: {e}"
         print(f"  ✗ {error}")
         shutil.move(str(file_path), str(failed_dir / filename))
         _write_error_sidecar(failed_dir, filename, error)
-        return False
+        return {"success": False, "score": None, "fit_type": None, "error": error}
 
     if result["success"]:
-        ev   = result["evaluation"] or {}
-        score = ev.get("score_overall")
-        print(f"  ✓ Score: {score}/10 | {ev.get('fit_type','—')} | {ev.get('recommendation','—')}")
+        ev       = result["evaluation"] or {}
+        score    = ev.get("score_overall")
+        fit_type = ev.get("fit_type")
+        print(f"  ✓ Score: {score}/10 | {fit_type or '—'} | {ev.get('recommendation','—')}")
         print(f"  ✓ Report: {result.get('report_path','—')}")
         print(f"  ✓ Evaluation ID: {result.get('evaluation_id')}")
         shutil.move(str(file_path), str(done_dir / filename))
-        return True
+        return {"success": True, "score": score, "fit_type": fit_type, "error": None}
     else:
         # Evaluation ran but failed to parse — still recorded in DB
         error = result.get("error", "Unknown evaluation error")
@@ -235,7 +235,59 @@ async def process_file(
         print(f"  ⚠ Evaluation ID {result.get('evaluation_id')} preserved in database")
         # Move to done — it's in the DB, just with null scores
         shutil.move(str(file_path), str(done_dir / filename))
-        return True  # Partial success — data is preserved
+        return {"success": True, "score": None, "fit_type": None, "error": error}
+
+
+# ─────────────────────────────────────────────────────────────
+# Batch processor (used by API route and CLI)
+# ─────────────────────────────────────────────────────────────
+
+async def process_inbox_files(filenames: list[str] | None = None) -> dict:
+    """
+    Process inbox files by filename. Called by the API route.
+
+    filenames: bare filenames residing in inbox/ root.
+               If None, processes all pending .md/.txt files.
+
+    Returns:
+        {
+            "succeeded": int,
+            "failed":    int,
+            "files":     [{"filename", "success", "score", "fit_type", "error"}]
+        }
+    """
+    inbox_dir, done_dir, failed_dir = _get_inbox_paths()
+    for d in [inbox_dir, done_dir, failed_dir]:
+        d.mkdir(parents=True, exist_ok=True)
+
+    if filenames is not None:
+        resolved_inbox = inbox_dir.resolve()
+        files = []
+        for name in filenames:
+            p = (inbox_dir / name).resolve()
+            if not str(p).startswith(str(resolved_inbox)):
+                raise ValueError(f"Invalid filename: {name}")
+            files.append(inbox_dir / name)
+    else:
+        files = sorted([
+            f for f in inbox_dir.iterdir()
+            if f.is_file() and f.suffix in {".md", ".txt"}
+            and f.parent == inbox_dir
+        ])
+
+    file_results = []
+    succeeded    = 0
+    failed       = 0
+
+    for file_path in files:
+        result = await process_file(file_path, done_dir, failed_dir)
+        file_results.append({"filename": file_path.name, **result})
+        if result["success"]:
+            succeeded += 1
+        else:
+            failed += 1
+
+    return {"succeeded": succeeded, "failed": failed, "files": file_results}
 
 
 # ─────────────────────────────────────────────────────────────
@@ -305,8 +357,8 @@ async def main(dry_run: bool = False, single_file: str | None = None) -> None:
     failed    = 0
 
     for file_path in files:
-        ok = await process_file(file_path, done_dir, failed_dir, dry_run=dry_run)
-        if ok:
+        result = await process_file(file_path, done_dir, failed_dir, dry_run=dry_run)
+        if result["success"]:
             succeeded += 1
         else:
             failed += 1

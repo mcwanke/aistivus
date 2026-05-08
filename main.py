@@ -25,6 +25,8 @@ Phase 0 routes:
   GET  /settings              → settings page (pages/settings.html)
   GET  /api/settings          → return all settings as dict
   PATCH /api/settings         → update one or more settings keys
+  GET  /api/inbox/files       → list pending files in inbox/
+  POST /api/inbox/process     → process selected inbox files by filename
 """
 
 import os
@@ -40,6 +42,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import database
+import evaluate
 import evaluator
 import llm_client
 
@@ -520,6 +523,9 @@ class AddLogRequest(BaseModel):
 class UpdateSettingsRequest(BaseModel):
     settings: dict[str, str]
 
+class ProcessInboxRequest(BaseModel):
+    filenames: list[str]
+
 
 @app.post("/api/evaluations/rerun")
 async def rerun_evaluation(request: RerunRequest):
@@ -947,7 +953,7 @@ async def get_settings():
 async def update_settings(request: UpdateSettingsRequest):
     """Update one or more settings keys. Creates keys that do not exist."""
     for key, value in request.settings.items():
-        database.upsert_setting(key, value)
+        database.set_setting(key, value)
     return JSONResponse({"success": True})
 
 
@@ -972,6 +978,41 @@ async def get_job_application(job_id: int):
     if row:
         return JSONResponse({"exists": True, "application": dict(row)})
     return JSONResponse({"exists": False, "application": None})
+
+
+# ─────────────────────────────────────────────────────────────
+# Inbox routes
+# ─────────────────────────────────────────────────────────────
+
+@app.get("/api/inbox/files")
+async def list_inbox_files():
+    """List pending .md/.txt files in inbox/ root."""
+    inbox_dir, _, _ = evaluate._get_inbox_paths()
+    inbox_dir.mkdir(parents=True, exist_ok=True)
+    pending = sorted([
+        f.name for f in inbox_dir.iterdir()
+        if f.is_file() and f.suffix in {".md", ".txt"}
+        and f.parent == inbox_dir
+    ])
+    return JSONResponse({"pending": pending})
+
+
+@app.post("/api/inbox/process")
+async def process_inbox(request: ProcessInboxRequest):
+    """
+    Process selected inbox files by filename.
+    Filenames must be bare names (no path components) of files in inbox/.
+    """
+    if not request.filenames:
+        raise HTTPException(status_code=400, detail="No filenames provided.")
+    for name in request.filenames:
+        if "/" in name or "\\" in name or name.startswith("."):
+            raise HTTPException(status_code=400, detail=f"Invalid filename: {name}")
+    try:
+        result = await evaluate.process_inbox_files(filenames=request.filenames)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return JSONResponse(result)
 
 
 # ─────────────────────────────────────────────────────────────
