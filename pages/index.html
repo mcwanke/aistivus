@@ -74,15 +74,18 @@
       font-family: var(--mono);
     }
 
-    .status-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--text-dim);
-      transition: background var(--transition);
+    .header-settings {
+      margin-left: auto;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: var(--mono);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: color var(--transition);
     }
-    .status-dot.ok   { background: var(--green); }
-    .status-dot.fail { background: var(--red); }
+    .header-settings:hover { color: var(--text); }
 
     /* ── Hero ────────────────────────────────────────────── */
     .hero {
@@ -243,10 +246,9 @@
   <header class="header">
     <span class="header-wordmark">AIstivus</span>
     <span class="header-tagline">AI Job Search Helper for the Rest of Us</span>
-    <div class="header-status">
-      <div class="status-dot" id="statusDot"></div>
-      <span id="statusText">checking...</span>
-    </div>
+    <a href="/settings" class="header-settings">
+      ⚙️ Settings
+    </a>
   </header>
 
   <div class="hero">
@@ -328,38 +330,10 @@
         <div class="nav-card-phase">Phase 3</div>
       </a>
 
-      <a class="nav-card disabled">
-        <div class="nav-card-icon">⚙️</div>
-        <div class="nav-card-title">Settings</div>
-        <div class="nav-card-desc">
-          Configure models, manage your jobsearch.md context, and adjust thresholds.
-        </div>
-        <div class="nav-card-phase">Phase 1</div>
-      </a>
-
     </div>
   </div>
 
   <script>
-    async function checkHealth() {
-      const dot  = document.getElementById('statusDot');
-      const text = document.getElementById('statusText');
-      try {
-        const res  = await fetch('/health');
-        const data = await res.json();
-        if (data.status === 'ok') {
-          dot.className    = 'status-dot ok';
-          text.textContent = data.ollama.model;
-        } else {
-          dot.className    = 'status-dot fail';
-          text.textContent = 'degraded';
-        }
-      } catch {
-        dot.className    = 'status-dot fail';
-        text.textContent = 'offline';
-      }
-    }
-
     async function loadStats() {
       try {
         const res  = await fetch('/stats');
@@ -373,7 +347,6 @@
       }
     }
 
-    checkHealth();
     loadStats();
   </script>
 </body>

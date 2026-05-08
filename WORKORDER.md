@@ -220,7 +220,7 @@ This file defines what to build and in what order.
 ## Priority 6 — Settings Page UI
 *Builds `pages/settings.html`.*
 
-- [ ] **9. Build `pages/settings.html`**
+- [x] **9. Build `pages/settings.html`**
   - File: `pages/settings.html` (new file)
   - Follows same design language as all other pages:
     - Same header with ← Home back link
@@ -264,7 +264,7 @@ This file defines what to build and in what order.
     "Claude API calls incur costs charged to your Anthropic account.
      A confirmation prompt is shown before each cloud evaluation."
 
-- [ ] **10. Add Settings link to `pages/index.html` nav**
+- [x] **10. Add Settings link to `pages/index.html` nav**
   - File: `pages/index.html`
   - In the header, find the status dot + model name:
     ```html
