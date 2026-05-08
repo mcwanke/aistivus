@@ -108,7 +108,7 @@ This file defines what to build and in what order.
 ## Priority 4 — Shared Markdown Modal
 *Builds the reusable component used by jobs.html and future pages.*
 
-- [ ] **5. Build shared markdown modal in `static/modal.js` and `static/modal.css`**
+- [x] **5. Build shared markdown modal in `static/modal.js` and `static/modal.css`**
   - File: `static/modal.css`
   - Add modal CSS — dark theme matching existing design language:
     - Modal overlay: fixed, full screen, rgba(0,0,0,0.85) background
@@ -131,7 +131,7 @@ This file defines what to build and in what order.
   - Handles loading state ("Loading...") while fetching
   - Handles fetch errors gracefully
 
-- [ ] **6. Wire shared modal into `pages/jobs.html`**
+- [x] **6. Wire shared modal into `pages/jobs.html`**
   - File: `pages/jobs.html`
   - Add to `<head>`:
     ```html
@@ -154,7 +154,7 @@ This file defines what to build and in what order.
 ## Priority 5 — Settings Infrastructure
 *Schema change — DB wipe required after this item.*
 
-- [ ] **7. Add `user_settings` table to database schema**
+- [x] **7. Add `user_settings` table to database schema**
   - File: `database.py`
   - Add to SCHEMA string:
     ```sql
@@ -191,7 +191,7 @@ This file defines what to build and in what order.
   - **⚠️ WIPE DATABASE after this item:**
     `rm data/jobs.db` then `python3 main.py`
 
-- [ ] **8. Add settings API routes to `main.py`**
+- [x] **8. Add settings API routes to `main.py`**
   - File: `main.py`
   - Add page route:
     ```python

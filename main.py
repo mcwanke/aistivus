@@ -22,6 +22,9 @@ Phase 0 routes:
   PATCH /api/applications/{id}  → update application fields
   POST /api/applications/{id}/logs → add log entry to application
   GET  /api/jobs/{id}/application   → check if job has application
+  GET  /settings              → settings page (pages/settings.html)
+  GET  /api/settings          → return all settings as dict
+  PATCH /api/settings         → update one or more settings keys
 """
 
 import sys
@@ -202,6 +205,15 @@ async def serve_jobs():
     path = Path("pages/jobs.html")
     if not path.exists():
         raise HTTPException(status_code=404, detail="jobs.html not found.")
+    return FileResponse(path)
+
+
+@app.get("/settings", response_class=FileResponse)
+async def serve_settings():
+    """Settings page."""
+    path = Path("pages/settings.html")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="settings.html not found.")
     return FileResponse(path)
 
 
@@ -503,6 +515,9 @@ class AddLogRequest(BaseModel):
     note: str
     url: str | None = None
     timestamp: str | None = None
+
+class UpdateSettingsRequest(BaseModel):
+    settings: dict[str, str]
 
 
 @app.post("/api/evaluations/rerun")
@@ -917,6 +932,20 @@ separately in this conversation."""
 
 
 
+
+
+@app.get("/api/settings")
+async def get_settings():
+    """Return all user settings as a flat dict."""
+    return JSONResponse(database.get_all_settings())
+
+
+@app.patch("/api/settings")
+async def update_settings(request: UpdateSettingsRequest):
+    """Update one or more settings keys. Creates keys that do not exist."""
+    for key, value in request.settings.items():
+        database.upsert_setting(key, value)
+    return JSONResponse({"success": True})
 
 
 @app.get("/api/jobs/{job_id}/application")
