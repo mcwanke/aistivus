@@ -27,6 +27,7 @@ Phase 0 routes:
   PATCH /api/settings         → update one or more settings keys
 """
 
+import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -936,8 +937,10 @@ separately in this conversation."""
 
 @app.get("/api/settings")
 async def get_settings():
-    """Return all user settings as a flat dict."""
-    return JSONResponse(database.get_all_settings())
+    """Return all user settings as a flat dict, plus server-side booleans."""
+    data = database.get_all_settings()
+    data["anthropic_api_key_configured"] = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    return JSONResponse(data)
 
 
 @app.patch("/api/settings")
