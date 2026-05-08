@@ -299,6 +299,7 @@ def _generate_report(
 | Compensation | {evaluation.get('score_comp', 'N/A')}/5 |
 
 **Fit Type:** {fit_type}
+**Domain Match:** {evaluation.get('domain_match', 'Not assessed')}
 **Role Archetype:** {archetype}
 **Recommendation:** {evaluation.get('recommendation', 'N/A')}
 
@@ -324,17 +325,17 @@ Copy this line into your jobsearch.md Application Log:
 {evaluation.get('keywords', 'No keywords extracted.')}
 ```
 
+## Keyword Gaps (Tailoring Targets)
+
+{evaluation.get('keyword_gaps', 'None identified.')}
+
+---
+
 ## Evaluation Summary
 
 {evaluation.get('log_entry', '')}
 
 ---
-
-## Domain Match for Scoring
-
-```
-{evaluation.get('domain_match', 'No domain extracted.')}
-```
 
 ## Evaluation Summary
 

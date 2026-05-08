@@ -43,7 +43,7 @@ This file defines what to build and in what order.
   - Test: restart server, confirm all pages load correctly
   - Do NOT touch any HTML content — file move only
 
-- [ ] **2. Create `static/` folder for shared assets**
+- [x] **2. Create `static/` folder for shared assets**
   - Create: `static/` directory in repo root
   - Create: `static/modal.js` — empty file with a comment placeholder:
     `// Shared markdown modal — populated in item 5`
@@ -63,7 +63,7 @@ This file defines what to build and in what order.
 *Touches all HTML files in `pages/`. Do after file move.*
 *Purely visual — no logic changes.*
 
-- [ ] **3. Brighten font contrast across all pages**
+- [x] **3. Brighten font contrast across all pages**
   - Files: all files in `pages/` (index, evaluate, jobs, applications, application_detail)
   - In the `:root` CSS block on EVERY page, find and update these two variables:
     ```css
@@ -84,7 +84,7 @@ This file defines what to build and in what order.
 ## Priority 3 — Report Template Fix
 *Backend change — no DB wipe needed.*
 
-- [ ] **4. Add `keyword_gaps` and `domain_match` to markdown report**
+- [x] **4. Add `keyword_gaps` and `domain_match` to markdown report**
   - File: `evaluator.py`
   - Find `_generate_report()` function
   - Add `domain_match` to the report header section after Fit Type:
