@@ -896,8 +896,8 @@ async def generate_prompt(application_id: int):
         fit_type = archetype = recommendation = model_used = "N/A"
         strengths = gaps = keywords = "N/A"
 
-    prompt = f"""I am going to share my background context (jobsearch.md) after this message. Please wait for that before completing tasks 3 and 4.
-You can complete tasks 1 and 2 immediately.
+    prompt = f"""Read this information and also read the attached jobsearch.md file
+    for additional context before starting.
 
 JOB DETAILS:
 Company: {company_name}
@@ -932,19 +932,24 @@ TASKS:
    with the overall assessment? What would you change and why?
 
 2. Assess overall fit for this role. What is your honest assessment
-   of the candidate's likelihood of success in this role?
+   of the candidate's likelihood of success in this role? Be brief.
 
-3. Based on the keywords, keyword gaps, and JD requirements, what
+3. Assign your own scoring (1-10) for my fit for this role and give me a 
+   single Apply / Skip suggestion
+
+4. Stop and ask me if I want to proceed with tailoring or not. 
+
+If I want to proceed then complete the following tasks:
+   
+1. What are the 3-5 most important things to highlight for this
+   specific role? What should be front and center?
+   
+2. Based on the keywords, keyword gaps, and JD requirements, what
    specific changes should be made to a resume? Be prescriptive —
    give exact language where possible. Ensure as many ATS keywords
    as possible are represented while remaining accurate to the
    candidate's actual experience.
-
-4. What are the 3-5 most important things to highlight for this
-   specific role? What should be front and center?
-
-Note: I will provide my full background context (jobsearch.md)
-separately in this conversation."""
+"""
 
     log_id = database.add_application_log(
         application_id=application_id,
