@@ -165,15 +165,18 @@ class EvaluateRequest(BaseModel):
     remote_type:  str | None = None
     apply_url:    str | None = None
     model:        str | None = None
+    force:        bool       = False
 
 
 class EvaluateResponse(BaseModel):
-    success:       bool
-    evaluation_id: int | None
-    job_id:        int | None
-    report_path:   str | None
-    evaluation:    dict | None
-    error:         str | None
+    success:            bool
+    evaluation_id:      int | None
+    job_id:             int | None
+    report_path:        str | None
+    evaluation:         dict | None
+    error:              str | None
+    duplicate_detected: bool            = False
+    existing_jobs:      list | None     = None
 
 
 class RerunRequest(BaseModel):
@@ -326,6 +329,20 @@ async def evaluate_endpoint(request: EvaluateRequest):
     """
     if not request.jd_text.strip():
         raise HTTPException(status_code=400, detail="jd_text cannot be empty.")
+
+    if not request.force:
+        existing = database.find_existing_job(request.company_name, request.job_title)
+        if existing:
+            return EvaluateResponse(
+                success=False,
+                duplicate_detected=True,
+                existing_jobs=existing,
+                evaluation_id=None,
+                job_id=None,
+                report_path=None,
+                evaluation=None,
+                error=None,
+            )
 
     result = await evaluator.evaluate_jd(
         jd_text=request.jd_text,

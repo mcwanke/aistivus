@@ -117,10 +117,8 @@ CRITICAL RULES:
   compensate for missing domain expertise at the Director level and above.
 - Be honest about dealbreakers. If the role requires specific credentials,
   licenses, or domain experience the candidate clearly lacks, score accordingly.
-- A score of 6 means "this person could plausibly do this job." If that is
-  not true, do not score 6.
-- Most roles should score 5-7. Roles outside the candidate's domain should
-  score 2-5.
+- Most roles with a domain or profile match should score 5-9. Roles outside 
+  the candidate's domain or profile should score 1-5.
 - When the candidate's background directly satisfies a JD requirement,
   do not flag it as a gap. Give benefit of the doubt when experience
   is plausibly applicable even if not explicitly stated in identical terms.
@@ -141,7 +139,7 @@ EVALUATION_USER_PROMPT = """Evaluate this job description and return a JSON obje
 Return ONLY this JSON structure with no additional text:
 
 {{
-  "score_overall": <float 1-10, be critical — most roles should score 5-7>,
+  "score_overall": <float 1-10 — mismatches score 1-3, average fits 5-7, strong fits 8-10>,
   "score_role_fit": <float 1-5>,
   "score_scope_fit": <float 1-5>,
   "score_culture": <float 1-5>,

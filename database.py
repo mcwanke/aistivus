@@ -488,6 +488,32 @@ def upsert_job(
         return job_id, True
 
 
+def find_existing_job(company_name: str, title: str) -> list[dict]:
+    """
+    Find jobs matching company name + title, regardless of role_keyword.
+
+    Used for duplicate detection before running an LLM evaluation. Returns
+    enough context for the user to decide whether to proceed.
+
+    Returns:
+        List of dicts with id, title, company_name, first_seen_date,
+        eval_count, latest_score. Empty list if no match.
+    """
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT j.id, j.title, c.name AS company_name, j.first_seen_date,
+                      COUNT(e.id) AS eval_count,
+                      MAX(e.score_overall) AS latest_score
+               FROM jobs j
+               JOIN companies c ON c.id = j.company_id
+               LEFT JOIN evaluations e ON e.job_id = j.id
+               WHERE c.name = ? AND j.title = ?
+               GROUP BY j.id""",
+            (company_name, title)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
 def get_job(job_id: int) -> sqlite3.Row | None:
     """Return a job with its company name, or None."""
     with get_connection() as conn:

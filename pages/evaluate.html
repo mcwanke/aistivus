@@ -634,6 +634,21 @@
   </div>
 </div>
 
+<!-- Duplicate detection modal -->
+<div id="dupOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.72); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:28px 32px; max-width:460px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.6);">
+    <div style="font-family:var(--serif); font-size:1.15rem; color:var(--accent); margin-bottom:6px;">Potential Duplicate Found</div>
+    <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:18px; line-height:1.5;">
+      A job with the same company and title already exists in your database. It may be a repost or the same listing you've seen before.
+    </div>
+    <div id="dupJobList" style="margin-bottom:20px;"></div>
+    <div style="display:flex; gap:10px; justify-content:flex-end;">
+      <button onclick="closeDupModal()" style="background:var(--surface-2); color:var(--text-muted); border:1px solid var(--border); border-radius:var(--radius); padding:8px 18px; font-family:var(--sans); font-size:0.85rem; cursor:pointer;">Cancel</button>
+      <button onclick="evaluateAnyway()" style="background:var(--accent); color:#0f0f0f; border:none; border-radius:var(--radius); padding:8px 18px; font-family:var(--sans); font-size:0.85rem; font-weight:500; cursor:pointer;">Evaluate Anyway</button>
+    </div>
+  </div>
+</div>
+
 <script>
   async function checkHealth() {
     const dot  = document.getElementById('statusDot');
@@ -761,6 +776,44 @@
     document.getElementById('errorMessage').textContent = message;
   }
 
+  let _pendingPayload = null;
+
+  function showDupModal(existingJobs) {
+    const list = document.getElementById('dupJobList');
+    list.innerHTML = '';
+    existingJobs.forEach(job => {
+      const score = job.latest_score != null ? job.latest_score.toFixed(1) : '—';
+      const date  = job.first_seen_date ? job.first_seen_date.slice(0, 10) : '—';
+      const evals = job.eval_count === 1 ? '1 evaluation' : `${job.eval_count} evaluations`;
+      const el = document.createElement('div');
+      el.style.cssText = 'background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; font-size:0.8rem; line-height:1.6;';
+      el.innerHTML = `
+        <div style="color:var(--text); font-weight:500;">${job.company_name} — ${job.title}</div>
+        <div style="color:var(--text-muted);">Added ${date} &middot; Score ${score}/10 &middot; ${evals}</div>
+        <div style="margin-top:6px;"><a href="/jobs/${job.id}" target="_blank" style="color:var(--accent); font-size:0.75rem; text-decoration:none;">View existing job ↗</a></div>
+      `;
+      list.appendChild(el);
+    });
+    document.getElementById('dupOverlay').style.display = 'flex';
+  }
+
+  function closeDupModal() {
+    document.getElementById('dupOverlay').style.display = 'none';
+    _pendingPayload = null;
+    const btn = document.getElementById('evaluateBtn');
+    btn.disabled = false;
+    btn.classList.remove('loading');
+    stopTimer();
+  }
+
+  async function evaluateAnyway() {
+    document.getElementById('dupOverlay').style.display = 'none';
+    if (!_pendingPayload) return;
+    const payload = { ..._pendingPayload, force: true };
+    _pendingPayload = null;
+    await _submitEvaluation(payload);
+  }
+
   async function runEvaluation() {
     const jdText     = document.getElementById('jdText').value.trim();
     const company    = document.getElementById('companyName').value.trim();
@@ -774,26 +827,42 @@
       return;
     }
 
+    const payload = {
+      jd_text:      jdText,
+      company_name: company    || 'Unknown Company',
+      job_title:    title      || 'Unknown Role',
+      location:     location   || null,
+      remote_type:  remoteType || null,
+      apply_url:    sourceUrl  || null,
+      force:        false,
+    };
+
+    await _submitEvaluation(payload);
+  }
+
+  async function _submitEvaluation(payload) {
+    const company = payload.company_name;
+    const title   = payload.job_title;
+
     const btn = document.getElementById('evaluateBtn');
     btn.disabled = true;
     btn.classList.add('loading');
     startTimer();
 
     try {
-      const res = await fetch('/evaluate', {
+      const res  = await fetch('/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jd_text:      jdText,
-          company_name: company    || 'Unknown Company',
-          job_title:    title      || 'Unknown Role',
-          location:     location   || null,
-          remote_type:  remoteType || null,
-          apply_url:    sourceUrl  || null,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
+
+      if (data.duplicate_detected) {
+        _pendingPayload = payload;
+        showDupModal(data.existing_jobs || []);
+        return;
+      }
 
       if (data.success) {
         showResults(data, company, title);
@@ -803,9 +872,11 @@
     } catch (err) {
       showError(`Could not reach the server: ${err.message}`);
     } finally {
-      btn.disabled = false;
-      btn.classList.remove('loading');
-      stopTimer();
+      if (!_pendingPayload) {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        stopTimer();
+      }
     }
   }
 
