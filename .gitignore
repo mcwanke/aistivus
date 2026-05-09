@@ -5,6 +5,7 @@ reports/
 generated/
 inbox/
 jobsearch.md
+jobsearch.md.old
 prompts.md
 config.yaml
 .env

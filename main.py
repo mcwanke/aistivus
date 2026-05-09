@@ -882,22 +882,35 @@ async def generate_prompt(application_id: int):
     jd_text        = job["description_merged"] or ""
 
     if eval_row:
-        score        = eval_row["score_overall"]
-        fit_type     = eval_row["fit_type"] or "N/A"
-        archetype    = eval_row["archetype"] or "N/A"
+        score          = eval_row["score_overall"]
+        fit_type       = eval_row["fit_type"] or "N/A"
+        archetype      = eval_row["archetype"] or "N/A"
         recommendation = eval_row["recommendation"] or "N/A"
-        model_used   = eval_row["model_used"] or "N/A"
-        strengths    = eval_row["strengths"] or "N/A"
-        gaps         = eval_row["gaps"] or "N/A"
-        keywords     = eval_row["keywords"] or "N/A"
-        score_display = f"{score}/10" if score is not None else "N/A"
+        model_used     = eval_row["model_used"] or "N/A"
+        strengths      = eval_row["strengths"] or "N/A"
+        gaps           = eval_row["gaps"] or "N/A"
+        keywords       = eval_row["keywords"] or "N/A"
+        score_display  = f"{score}/10" if score is not None else "N/A"
+
+        def _fmt(v):
+            return f"{v}/5" if v is not None else "N/A"
+
+        score_role_fit_display = _fmt(eval_row["score_role_fit"])
+        score_scope_display    = _fmt(eval_row["score_scope_fit"])
+        score_culture_display  = _fmt(eval_row["score_culture"])
+        score_comp_display     = _fmt(eval_row["score_comp"])
     else:
         score_display = "N/A"
         fit_type = archetype = recommendation = model_used = "N/A"
         strengths = gaps = keywords = "N/A"
+        score_role_fit_display = score_scope_display = "N/A"
+        score_culture_display  = score_comp_display  = "N/A"
 
-    prompt = f"""Read this information and also read the attached jobsearch.md file
-    for additional context before starting.
+    prompt = f"""Read this information and the attached jobsearch.md file before starting.
+When evaluating, apply the Section 7 framework exactly as written.
+When tailoring, apply all Section 6 Always and Never rules without exception.
+Treat Section 9 session instructions as active constraints throughout this session.
+
 
 JOB DETAILS:
 Company: {company_name}
@@ -909,6 +922,7 @@ JOB DESCRIPTION:
 {jd_text}
 
 LOCAL AI EVALUATION RESULTS:
+Dimension Scores: Role fit: {score_role_fit_display} | Scope fit: {score_scope_display} | Culture: {score_culture_display} | Comp: {score_comp_display}
 Overall Score: {score_display}
 Fit Type: {fit_type}
 Role Archetype: {archetype}
@@ -924,31 +938,50 @@ Gaps identified:
 ATS Keywords extracted:
 {keywords}
 
-Keyword gaps (keywords from JD unlikely to appear in resume — tailoring targets):
-(Not separately stored — review the ATS keywords above against your resume)
+Keyword gaps (tailoring targets):
+Identify any keywords or phrases from the JD above that appear in
+neither the ATS keywords list above nor the master resume in Section 5
+of the attached jobsearch.md. List these separately as tailoring targets
+when producing resume changes.
 
 TASKS:
-1. Review and validate the evaluation scoring above. Do you agree
-   with the overall assessment? What would you change and why?
+1. Produce a full evaluation scorecard using the Section 7 framework
+   in the attached jobsearch.md. Include:
+   - Dimension scores (1-5 each): Role fit / Scope fit / Culture
+     signals / Comp signals
+   - Overall score (1-10) and one-sentence verdict
+   - Fit type: Core Fit / Stretch / Mismatch with reasoning
+   - Role archetype
+   - Strengths of this match (bullets)
+   - Gaps or concerns (bullets)
+   - Interview process analysis: if the JD above includes interview
+     stages, flag any stage that conflicts with known gaps or
+     deal-breakers from Section 4 of the attached jobsearch.md
+   - Recommended action: Apply / Apply with modifications / Skip
+   Use the local evaluation above as a reference, not as ground truth.
 
 2. Assess overall fit for this role. What is your honest assessment
-   of the candidate's likelihood of success in this role? Be brief.
+   of the candidate's likelihood of success?
 
-3. Assign your own scoring (1-10) for my fit for this role and give me a 
-   single Apply / Skip suggestion
-
-4. Stop and ask me if I want to proceed with tailoring or not. 
+3. Stop and ask if I want to proceed with tailoring or not.
 
 If I want to proceed then complete the following tasks:
    
 1. What are the 3-5 most important things to highlight for this
    specific role? What should be front and center?
-   
-2. Based on the keywords, keyword gaps, and JD requirements, what
-   specific changes should be made to a resume? Be prescriptive —
-   give exact language where possible. Ensure as many ATS keywords
-   as possible are represented while remaining accurate to the
-   candidate's actual experience.
+
+2. Based on the keywords, tailoring targets, and JD requirements,
+   what specific changes should be made to the master resume in
+   Section 5 of the attached jobsearch.md? Apply all Always and
+   Never rules from Section 6 without exception — flag any
+   conflicts explicitly. Be prescriptive — give exact language
+   where possible. Show delta only from the master resume — do
+   not reprint the full resume. Flag any tailored claim that
+   could be challenged in an interview.
+
+3. After delivering resume changes, ask whether to generate a
+   cover letter — do not generate it automatically.
+
 """
 
     log_id = database.add_application_log(

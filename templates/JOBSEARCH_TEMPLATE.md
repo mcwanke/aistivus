@@ -104,6 +104,9 @@
 **Deal-breakers:**
 [FILL — e.g. return-to-office mandate, no-equity, pure IC with no growth path]
 
+**Interview process deal-breakers:**
+[FILL — e.g. live coding screens, take-home coding assignments, technical design tests — list any interview stage that conflicts with your gaps or deal-breakers]
+
 **Known stretch areas / documented gaps:**
 [FILL — be honest here; the model uses this to flag roles where you'll be defending gaps]
 
@@ -153,6 +156,7 @@
 - **Scope fit** — Is the team size, ownership, and complexity a match?
 - **Culture signals** — Does the JD language suggest a place I'd thrive?
 - **Comp signals** — Any listed range? Does it likely meet my floor?
+- **Red flags** — List any concerns explicitly: deal-breaker language, interview process conflicts, scope mismatches, title inflation
 
 ### Role archetype classifier:
 Classify as one of: People Leader / Hybrid / Technical Specialist / Functional Leader.
@@ -163,13 +167,15 @@ Classify as one of: Core Fit / Stretch / Mismatch.
 One sentence explaining which and why.
 
 ### Output format for JD evaluation:
-1. **Overall score** (1-10) and one-sentence verdict
-2. **Fit type** — Core Fit / Stretch / Mismatch with reasoning
-3. **Role archetype**
-4. **Strengths of this match** (bullets)
-5. **Gaps or concerns** (bullets)
-6. **Recommended action:** Apply / Apply with modifications / Skip
-7. **Keywords** — 25-35 comma-separated keywords and phrases from the JD relevant to ATS matching and resume tailoring
+1. **Dimension scores** — Rate each 1-5: Role fit / Scope fit / Culture signals / Comp signals
+2. **Overall score** (1-10) and one-sentence verdict
+3. **Fit type** — Core Fit / Stretch / Mismatch with reasoning
+4. **Role archetype**
+5. **Strengths of this match** (bullets)
+6. **Gaps or concerns** (bullets)
+7. **Interview process analysis** — If the JD includes an interview process, flag any stage that conflicts with known gaps or deal-breakers from Section 4
+8. **Recommended action:** Apply / Apply with modifications / Skip
+9. **Keywords** — 25-35 comma-separated keywords from the JD relevant to ATS matching and resume tailoring. Separately list any JD keywords absent from both this list and the master resume — these are tailoring targets.
 
 ---
 
@@ -204,6 +210,9 @@ One sentence explaining which and why.
 - Ask one clarifying question if something about the role is ambiguous before proceeding
 - When tailoring, show me the delta from the master resume — don't reprint the whole thing unless asked
 - Flag any claims in tailored materials that could be challenged in an interview
-- Keep cover letters under 250 words unless asked otherwise
+- Keep cover letters to 4-6 paragraphs unless asked otherwise
 - If a role scores below 6/10, explain why before asking if I want to proceed
 - Do NOT generate resume or cover letter materials in the same response as a JD evaluation — wait for explicit instruction to proceed
+- When tailoring, apply all Always and Never rules from Section 6 without exception — flag any conflicts explicitly
+- When a JD includes an interview process description, analyze each stage for conflicts with known gaps or deal-breakers from Section 4 — surface this in the evaluation, not after
+- After delivering tailored resume changes, offer cover letter as a separate optional next step — do not generate it automatically

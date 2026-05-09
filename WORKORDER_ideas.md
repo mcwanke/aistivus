@@ -16,3 +16,6 @@ idea - while evaluating do a matrix style character dropdown with messages....
 should start capturing LLM processing time so that instead of a count up timer we can do an estimated time dountdown timer on the evaluations.html page
 
 I made a typo when typing in a title. Need a way to edit a company name, title, or other job/application info
+
+Add a myScore field where I can add in my own rating to help sort through jobs
+
