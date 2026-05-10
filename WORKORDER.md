@@ -366,13 +366,13 @@ This file defines what to build and in what order.
 ## Priority 8 — Anthropic API Integration
 *Adds Claude as an evaluation provider.*
 
-- [ ] **14. Add `anthropic` SDK to `requirements.txt`**
+- [x] **14. Add `anthropic` SDK to `requirements.txt`**
   - File: `requirements.txt`
   - Add: `anthropic>=0.40.0`
   - Run: `pip install -r requirements.txt`
   - Confirm install succeeds before proceeding
 
-- [ ] **15. Add Anthropic provider to `llm_client.py`**
+- [x] **15. Add Anthropic provider to `llm_client.py`**
   - File: `llm_client.py`
   - Add at top: `PROVIDER_ANTHROPIC = "anthropic"`
   - Add import: `import anthropic` (conditional — only imported if used)

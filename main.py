@@ -392,14 +392,27 @@ async def get_job(job_id: int):
     })
 
 
+ANTHROPIC_MODELS = [
+    {"id": "claude-haiku-4-5-20251001", "label": "Claude Haiku — Fast, low cost",         "provider": "anthropic"},
+    {"id": "claude-sonnet-4-6",         "label": "Claude Sonnet — Balanced (recommended)", "provider": "anthropic"},
+    {"id": "claude-opus-4-6",           "label": "Claude Opus — Most capable",             "provider": "anthropic"},
+]
+
+
 @app.get("/api/models")
 async def list_models():
-    """Return available Ollama models for the model picker UI."""
-    base_url, _ = _get_ollama_config()
+    """Return available Ollama and Anthropic models for the model picker UI."""
+    base_url, default_model = _get_ollama_config()
     health = await llm_client.check_ollama_health(base_url)
-    if not health["reachable"]:
-        raise HTTPException(status_code=503, detail="Ollama not reachable.")
-    return JSONResponse({"models": health["models"]})
+
+    models: list[dict] = []
+    if health["reachable"]:
+        models.extend(health["models"])
+
+    if llm_client.check_anthropic_configured():
+        models.extend(ANTHROPIC_MODELS)
+
+    return JSONResponse({"models": models, "default": default_model})
 
 
 @app.get("/api/jobs-with-evaluations")
