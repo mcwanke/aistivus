@@ -963,24 +963,25 @@ TASKS:
 2. Assess overall fit for this role. What is your honest assessment
    of the candidate's likelihood of success?
 
-3. Stop and ask if I want to proceed with tailoring or not.
+3. Stop and ask if I want to proceed with the next phase or not.
 
 If I want to proceed then complete the following tasks:
    
-1. What are the 3-5 most important things to highlight for this
-   specific role? What should be front and center?
-
-2. Based on the keywords, tailoring targets, and JD requirements,
-   what specific changes should be made to the master resume in
-   Section 5 of the attached jobsearch.md? Apply all Always and
-   Never rules from Section 6 without exception — flag any
-   conflicts explicitly. Be prescriptive — give exact language
-   where possible. Show delta only from the master resume — do
-   not reprint the full resume. Flag any tailored claim that
-   could be challenged in an interview.
-
-3. After delivering resume changes, ask whether to generate a
-   cover letter — do not generate it automatically.
+1. Using the attached resume_template.typ as the exact structural
+and formatting base, generate a complete, ready-to-compile
+.typ file tailored to this role. Populate every [CONTENT: ...]
+block using jobsearch.md as the sole source of truth for facts.
+Apply all Always and Never rules from Section 6 without
+exception — flag any conflicts explicitly. Flag any tailored
+claim that could be challenged in an interview. Do not modify
+any formatting, font, color, spacing, or layout code in the
+template — only replace [CONTENT: ...] comments with real
+content. Target output: 2 pages when compiled. If the content 
+does not naturally fill page 2, add additional bullets drawn 
+from jobsearch.md to the experience sections most relevant to 
+this specific role or expand text on existing bullets — focus 
+and priority are to add meaningful additional context for this 
+application.
 
 """
 

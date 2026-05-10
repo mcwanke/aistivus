@@ -302,7 +302,7 @@ This file defines what to build and in what order.
 ## Priority 7 — Timezone Rendering
 *Apply timezone conversion to all pages using user settings.*
 
-- [ ] **11. Add timezone utility to `static/modal.js` or new `static/utils.js`**
+- [x] **11. Add timezone utility to `static/modal.js` or new `static/utils.js`**
   - Preferred: create `static/utils.js` — separate from modal concerns
   - File: `static/utils.js`
   - Implement:

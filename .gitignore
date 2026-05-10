@@ -6,6 +6,7 @@ generated/
 inbox/
 jobsearch.md
 jobsearch.md.old
+resume_template.typ
 prompts.md
 config.yaml
 .env
