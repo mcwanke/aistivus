@@ -24,7 +24,7 @@ import httpx
 
 PROVIDER_OLLAMA = "ollama"
 # Phase 1+ additions:
-# PROVIDER_ANTHROPIC = "anthropic"
+PROVIDER_ANTHROPIC = "anthropic"
 # PROVIDER_OPENAI = "openai"
 
 
@@ -75,11 +75,18 @@ async def complete(
             timeout=timeout,
         )
 
-    # Phase 1+: route to anthropic/openai here
+    elif provider == PROVIDER_ANTHROPIC:
+        return await _call_anthropic(
+            prompt=prompt,
+            system=system,
+            model=model,
+            max_tokens=max_tokens,
+        )
+
     return _error_response(
         provider=provider,
         model=model,
-        error=f"Provider '{provider}' not yet implemented. Phase 1+ feature."
+        error=f"Provider '{provider}' not yet implemented.",
     )
 
 
@@ -175,6 +182,89 @@ async def _call_ollama(
 
 
 # ─────────────────────────────────────────────────────────────
+# Anthropic
+# ─────────────────────────────────────────────────────────────
+
+async def _call_anthropic(
+    prompt: str,
+    system: str,
+    model: str,
+    max_tokens: int,
+) -> dict[str, Any]:
+    """
+    Call Anthropic API using the official SDK.
+    API key loaded from ANTHROPIC_API_KEY environment variable.
+    Never log or store the key value.
+    """
+    import os
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        return _error_response(
+            provider=PROVIDER_ANTHROPIC,
+            model=model,
+            error="ANTHROPIC_API_KEY is not set. Configure it in your .env file.",
+        )
+
+    import anthropic as anthropic_sdk
+    import asyncio
+
+    start = time.monotonic()
+    try:
+        client = anthropic_sdk.Anthropic(api_key=api_key)
+
+        # SDK is synchronous — run in a thread to avoid blocking the event loop
+        response = await asyncio.to_thread(
+            client.messages.create,
+            model=model,
+            max_tokens=max_tokens,
+            system=system,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        latency_ms = int((time.monotonic() - start) * 1000)
+        content = response.content[0].text if response.content else ""
+        prompt_tokens = response.usage.input_tokens
+        completion_tokens = response.usage.output_tokens
+
+        return {
+            "success": True,
+            "content": content.strip(),
+            "error": None,
+            "model": model,
+            "provider": PROVIDER_ANTHROPIC,
+            "latency_ms": latency_ms,
+            "prompt_tokens_actual": prompt_tokens,
+            "completion_tokens_actual": completion_tokens,
+            "total_tokens_actual": prompt_tokens + completion_tokens,
+        }
+
+    except anthropic_sdk.RateLimitError as e:
+        latency_ms = int((time.monotonic() - start) * 1000)
+        return _error_response(
+            provider=PROVIDER_ANTHROPIC,
+            model=model,
+            error=f"Anthropic rate limit reached. Wait a moment and retry. ({e})",
+            latency_ms=latency_ms,
+        )
+    except anthropic_sdk.APIError as e:
+        latency_ms = int((time.monotonic() - start) * 1000)
+        return _error_response(
+            provider=PROVIDER_ANTHROPIC,
+            model=model,
+            error=f"Anthropic API error: {e}",
+            latency_ms=latency_ms,
+        )
+    except Exception as e:
+        latency_ms = int((time.monotonic() - start) * 1000)
+        return _error_response(
+            provider=PROVIDER_ANTHROPIC,
+            model=model,
+            error=f"Unexpected error calling Anthropic: {type(e).__name__}: {e}",
+            latency_ms=latency_ms,
+        )
+
+
+# ─────────────────────────────────────────────────────────────
 # Ollama health check
 # ─────────────────────────────────────────────────────────────
 
@@ -232,6 +322,16 @@ def model_is_available(model: str, available_models: list[str]) -> bool:
     # Try matching without tag suffix
     base = model.split(":")[0]
     return any(m.split(":")[0] == base for m in available_models)
+
+
+# ─────────────────────────────────────────────────────────────
+# Anthropic configuration check
+# ─────────────────────────────────────────────────────────────
+
+def check_anthropic_configured() -> bool:
+    """Return True if ANTHROPIC_API_KEY is set in environment."""
+    import os
+    return bool(os.getenv("ANTHROPIC_API_KEY"))
 
 
 # ─────────────────────────────────────────────────────────────
