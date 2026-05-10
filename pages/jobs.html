@@ -774,7 +774,8 @@
   <script>
     let allJobs    = [];
     let selectedJobId = null;
-    let rerunJobId    = null;
+    let rerunJobId      = null;
+    let availableModels = [];
 
     // ── Helpers ────────────────────────────────────────────
     function fitClass(v) {
@@ -1104,16 +1105,33 @@ ${data.postings[0].description_raw}
       try {
         const res  = await fetch('/api/models');
         const data = await res.json();
-        const models = data.models || [];
+        availableModels = data.models || [];
 
-        if (models.length === 0) {
+        if (availableModels.length === 0) {
           sel.innerHTML = '<option value="">No models available</option>';
           return;
         }
 
-        sel.innerHTML = models
-          .map(m => `<option value="${m}">${m}</option>`)
-          .join('');
+        const ollamaModels    = availableModels.filter(m => m.provider === 'ollama');
+        const anthropicModels = availableModels.filter(m => m.provider === 'anthropic');
+
+        let html = '';
+        if (ollamaModels.length > 0) {
+          html += '<optgroup label="--- Local (Ollama) ---">';
+          html += ollamaModels.map(m => `<option value="${m.id}" data-provider="ollama">${m.label}</option>`).join('');
+          html += '</optgroup>';
+        }
+        if (anthropicModels.length > 0) {
+          html += '<optgroup label="--- Cloud (Anthropic) ---">';
+          html += anthropicModels.map(m => `<option value="${m.id}" data-provider="anthropic">${m.label}</option>`).join('');
+          html += '</optgroup>';
+        }
+        sel.innerHTML = html;
+
+        // Pre-select the server's default model if present
+        if (data.default) {
+          sel.value = data.default;
+        }
       } catch {
         sel.innerHTML = '<option value="">Failed to load models</option>';
       }
@@ -1160,6 +1178,16 @@ ${data.postings[0].description_raw}
       const model = document.getElementById('modelSelect').value;
       if (!model || !rerunJobId) return;
 
+      const selectedModel = availableModels.find(m => m.id === model);
+      const provider = selectedModel ? selectedModel.provider : 'ollama';
+
+      if (provider === 'anthropic') {
+        const confirmed = confirm(
+          'This will use the Anthropic API and may incur costs. Continue?'
+        );
+        if (!confirmed) return;
+      }
+
       const btn = document.getElementById('runBtn');
       const msg = document.getElementById('runningMsg');
       btn.disabled     = true;
@@ -1169,7 +1197,7 @@ ${data.postings[0].description_raw}
         const res  = await fetch(`/api/evaluations/rerun`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ job_id: rerunJobId, model }),
+          body: JSON.stringify({ job_id: rerunJobId, model, provider }),
         });
         const data = await res.json();
 

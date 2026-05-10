@@ -408,7 +408,7 @@ This file defines what to build and in what order.
     - API error → return error response with message, never raise
     - Rate limit → return error response with retry suggestion
 
-- [ ] **16. Add Anthropic model list to `main.py` `/api/models` route**
+- [x] **16. Add Anthropic model list to `main.py` `/api/models` route**
   - File: `main.py`
   - Update `GET /api/models` to return both Ollama and Anthropic models:
     ```python
@@ -431,7 +431,7 @@ This file defines what to build and in what order.
     ```
   - `default` is the configured `ollama.default_model` from config.yaml
 
-- [ ] **17. Update re-evaluate modal in `pages/jobs.html` to use new model list format**
+- [x] **17. Update re-evaluate modal in `pages/jobs.html` to use new model list format**
   - File: `pages/jobs.html`
   - Update `loadModels()` function to handle new response format
     (models is now array of objects with `id`, `label`, `provider` instead of array of strings)
@@ -454,7 +454,7 @@ This file defines what to build and in what order.
     ```
   - Update `submitRerun()` to pass provider alongside model to the rerun endpoint
 
-- [ ] **18. Update `POST /api/evaluations/rerun` to route by provider**
+- [x] **18. Update `POST /api/evaluations/rerun` to route by provider**
   - File: `main.py`
   - Update `RerunRequest` model:
     ```python

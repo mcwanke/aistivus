@@ -35,6 +35,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import yaml
+from dotenv import load_dotenv
+
+load_dotenv()
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
@@ -180,9 +183,10 @@ class EvaluateResponse(BaseModel):
 
 
 class RerunRequest(BaseModel):
-    job_id: int
-    model:  str
-    
+    job_id:   int
+    model:    str
+    provider: str = "ollama"
+
 
 # ─────────────────────────────────────────────────────────────
 # Page routes — serve HTML files
@@ -407,7 +411,10 @@ async def list_models():
 
     models: list[dict] = []
     if health["reachable"]:
-        models.extend(health["models"])
+        models.extend(
+            {"id": name, "label": name, "provider": "ollama"}
+            for name in health["models"]
+        )
 
     if llm_client.check_anthropic_configured():
         models.extend(ANTHROPIC_MODELS)
@@ -581,11 +588,6 @@ async def rerun_evaluation(request: RerunRequest):
                    "The JD text may not have been stored."
         )
 
-    # Determine provider from model name
-    # Phase 0: Ollama only. Phase 1+ adds anthropic/openai routing here.
-    base_url, _ = _get_ollama_config()
-    provider     = llm_client.PROVIDER_OLLAMA
-
     result = await evaluator.evaluate_jd(
         jd_text=jd_text,
         company_name=dict(job).get("company_name", "Unknown Company"),
@@ -593,7 +595,7 @@ async def rerun_evaluation(request: RerunRequest):
         location=dict(job).get("location"),
         remote_type=dict(job).get("remote_type"),
         model=request.model,
-        provider=provider,
+        provider=request.provider,
     )
 
     return JSONResponse(result)
