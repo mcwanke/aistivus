@@ -346,7 +346,7 @@ This file defines what to build and in what order.
   - File: `main.py` — add static file serving for utils.js
     (already covered if static mount is in place from item 2)
 
-- [ ] **12. Apply timezone formatting to `pages/jobs.html`**
+- [x] **12. Apply timezone formatting to `pages/jobs.html`**
   - File: `pages/jobs.html`
   - Add to `<head>`: `<script src="/static/utils.js"></script>`
   - Replace all `formatDate()` and `formatDateTime()` calls with
@@ -355,7 +355,7 @@ This file defines what to build and in what order.
   - Test: change timezone in Settings, reload jobs page,
     confirm dates render in selected timezone
 
-- [ ] **13. Apply timezone formatting to remaining pages**
+- [x] **13. Apply timezone formatting to remaining pages**
   - Files: `pages/applications.html`, `pages/application_detail.html`
   - Same pattern as item 12
   - Add utils.js script tag, replace date formatting calls

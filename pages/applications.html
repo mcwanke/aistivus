@@ -330,6 +330,7 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
   </style>
+  <script src="/static/utils.js"></script>
 </head>
 <body>
 
@@ -409,12 +410,6 @@
       return diff;
     }
 
-    function formatDate(iso) {
-      if (!iso) return '—';
-      return new Date(iso).toLocaleDateString('en-US',
-        { month: 'short', day: 'numeric', year: 'numeric' });
-    }
-
     // ── Load ───────────────────────────────────────────────
     async function loadApplications() {
       try {
@@ -464,7 +459,7 @@
     }
 
     // ── Filter + sort ──────────────────────────────────────
-    function applyFilters() {
+    async function applyFilters() {
       const statusFilter     = document.getElementById('filterStatus').value;
       const excitementFilter = parseInt(document.getElementById('filterExcitement').value) || 0;
 
@@ -489,7 +484,7 @@
         return 0;
       });
 
-      renderTable(filtered);
+      await renderTable(filtered);
     }
 
     function setSort(field) {
@@ -508,7 +503,7 @@
     }
 
     // ── Render table ───────────────────────────────────────
-    function renderTable(apps) {
+    async function renderTable(apps) {
       const count = document.getElementById('toolbarCount');
       count.textContent = `${apps.length} application${apps.length !== 1 ? 's' : ''}`;
 
@@ -521,6 +516,34 @@
           </div>`;
         return;
       }
+
+      const rows = await Promise.all(apps.map(async a => {
+        const days  = daysSince(a.apply_date);
+        const score = a.score_overall != null
+          ? `<span class="score-chip">${parseFloat(a.score_overall).toFixed(1)}</span>`
+          : `<span class="score-chip none">—</span>`;
+
+        return `
+          <tr onclick="window.location='/applications/${a.id}'">
+            <td>
+              <div class="td-company">${a.company_name || '—'}</div>
+              <div class="td-title">${a.title || '—'}</div>
+            </td>
+            <td>
+              <span class="status-badge ${statusClass(a.application_status)}">
+                ${statusLabel(a.application_status)}
+              </span>
+            </td>
+            <td>${renderStars(a.excitement_level)}</td>
+            <td>${score}</td>
+            <td style="white-space:nowrap">${await AIstivusUtils.formatDate(a.apply_date)}</td>
+            <td>
+              <span class="days-chip">
+                ${days != null ? `${days}d` : '—'}
+              </span>
+            </td>
+          </tr>`;
+      }));
 
       document.getElementById('tableContainer').innerHTML = `
         <table>
@@ -535,33 +558,7 @@
             </tr>
           </thead>
           <tbody>
-            ${apps.map(a => {
-              const days  = daysSince(a.apply_date);
-              const score = a.score_overall != null
-                ? `<span class="score-chip">${parseFloat(a.score_overall).toFixed(1)}</span>`
-                : `<span class="score-chip none">—</span>`;
-
-              return `
-                <tr onclick="window.location='/applications/${a.id}'">
-                  <td>
-                    <div class="td-company">${a.company_name || '—'}</div>
-                    <div class="td-title">${a.title || '—'}</div>
-                  </td>
-                  <td>
-                    <span class="status-badge ${statusClass(a.application_status)}">
-                      ${statusLabel(a.application_status)}
-                    </span>
-                  </td>
-                  <td>${renderStars(a.excitement_level)}</td>
-                  <td>${score}</td>
-                  <td style="white-space:nowrap">${formatDate(a.apply_date)}</td>
-                  <td>
-                    <span class="days-chip">
-                      ${days != null ? `${days}d` : '—'}
-                    </span>
-                  </td>
-                </tr>`;
-            }).join('')}
+            ${rows.join('')}
           </tbody>
         </table>`;
     }

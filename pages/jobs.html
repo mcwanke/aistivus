@@ -698,6 +698,7 @@
       .detail-panel { display: none; }
     }
   </style>
+  <script src="/static/utils.js"></script>
 </head>
 <body>
 
@@ -792,18 +793,6 @@
       if (r.startsWith('apply'))      return 'rec-apply';
       if (r.startsWith('skip'))       return 'rec-skip';
       return '';
-    }
-
-    function formatDate(iso) {
-      if (!iso) return '—';
-      return new Date(iso).toLocaleDateString('en-US',
-        { month: 'short', day: 'numeric', year: 'numeric' });
-    }
-
-    function formatDateShort(iso) {
-      if (!iso) return '—';
-      return new Date(iso).toLocaleDateString('en-US',
-        { month: 'short', day: 'numeric' });
     }
 
     // ── Load data ──────────────────────────────────────────
@@ -949,8 +938,8 @@
       });
 
       const evalCards = sorted.length > 0
-        ? sorted.map((e, i) => renderEvalCard(e, i === 0, job.id,
-            `${(job.company_name || '').replace(/'/g, "\\'")} — ${(job.title || '').replace(/'/g, "\\'")}`)).join('')
+        ? (await Promise.all(sorted.map((e, i) => renderEvalCard(e, i === 0, job.id,
+            `${(job.company_name || '').replace(/'/g, "\\'")} — ${(job.title || '').replace(/'/g, "\\'")}`)))).join('')
         : `<div class="no-evals">
              No evaluations yet.<br>
              <button class="btn-link" style="margin-top:10px" onclick="openRerun(${job.id}, '${(job.company_name || '').replace(/'/g,"\\'")} — ${(job.title || '').replace(/'/g,"\\'")}')">
@@ -968,7 +957,7 @@
             ${job.remote_type ? `<span>🏠 ${job.remote_type}</span>` : ''}
             ${job.pay_band ? `<span>💰 ${job.pay_band}</span>` : ''}
             ${job.role_keyword ? `<span>🏷 ${job.role_keyword}</span>` : ''}
-            <span>First seen: ${formatDate(job.first_seen_date)}</span>
+            <span>First seen: ${await AIstivusUtils.formatDate(job.first_seen_date)}</span>
           </div>
 
           ${data.postings && data.postings.length > 0 && data.postings[0].source_url
@@ -1026,7 +1015,7 @@ ${data.postings[0].description_raw}
       `;
     }
 
-    function renderEvalCard(e, isBest, jobId, jobLabel) {
+    async function renderEvalCard(e, isBest, jobId, jobLabel) {
       const score  = e.score_overall != null ? e.score_overall.toFixed(1) : null;
       const failed = e.score_overall == null;
 
@@ -1045,7 +1034,7 @@ ${data.postings[0].description_raw}
               <span class="eval-card-model">${e.model_used || 'unknown model'}</span>
               ${isBest && !failed ? '<span class="best-badge">best</span>' : ''}
             </div>
-            <span class="eval-card-date">${formatDateShort(e.evaluated_at)}</span>
+            <span class="eval-card-date">${await AIstivusUtils.formatDateShort(e.evaluated_at)}</span>
           </div>
 
           ${!failed ? `

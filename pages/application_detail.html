@@ -694,6 +694,7 @@
       .note-type-select { min-width: unset; width: 100%; }
     }
   </style>
+  <script src="/static/utils.js"></script>
 </head>
 <body>
 
@@ -754,18 +755,6 @@
     }
 
     // ── Helpers ────────────────────────────────────────────
-    function formatDate(iso) {
-      if (!iso) return '—';
-      return new Date(iso).toLocaleDateString('en-US',
-        { month: 'short', day: 'numeric', year: 'numeric' });
-    }
-
-    function formatDateTime(iso) {
-      if (!iso) return '—';
-      return new Date(iso).toLocaleString('en-US',
-        { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-    }
-
     function statusClass(s) {
       return (s || 'draft').toLowerCase();
     }
@@ -814,7 +803,7 @@
         const res = await fetch(`/api/applications/${appId}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         appData = await res.json();
-        render();
+        await render();
       } catch (err) {
         document.getElementById('pageContent').innerHTML =
           `<div style="text-align:center;padding:80px;color:var(--red);
@@ -825,7 +814,7 @@
     }
 
     // ── Render full page ───────────────────────────────────
-    function render() {
+    async function render() {
       const a    = appData.application;
       const notes = appData.logs || [];
       const audit = appData.audit || [];
@@ -845,6 +834,17 @@
       const nowStr = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
         .toISOString().slice(0, 16);
 
+      const applyDateStr = await AIstivusUtils.formatDate(a.apply_date);
+      const endDateStr   = a.end_date
+        ? `<span>Closed: ${await AIstivusUtils.formatDate(a.end_date)}</span>`
+        : '';
+
+      const timelineHtml = timeline.length === 0
+        ? '<div class="notes-empty">No entries yet.</div>'
+        : (await Promise.all(timeline.map(item =>
+            item._kind === 'audit' ? renderTimelineAudit(item) : renderNote(item)
+          ))).join('');
+
       document.getElementById('pageContent').innerHTML = `
 
         <!-- Hero -->
@@ -855,8 +855,8 @@
             ${a.location ? `<span>📍 ${a.location}</span>` : ''}
             ${a.remote_type ? `<span>🏠 ${a.remote_type}</span>` : ''}
             ${a.pay_band ? `<span>💰 ${a.pay_band}</span>` : ''}
-            <span>Applied: ${formatDate(a.apply_date)}</span>
-            ${a.end_date ? `<span>Closed: ${formatDate(a.end_date)}</span>` : ''}
+            <span>Applied: ${applyDateStr}</span>
+            ${endDateStr}
           </div>
         </div>
 
@@ -931,11 +931,7 @@
               </button>
             </div>
             <div class="timeline-list" id="noteList">
-              ${timeline.length === 0
-                ? '<div class="notes-empty">No entries yet.</div>'
-                : timeline.map(item =>
-                    item._kind === 'audit' ? renderTimelineAudit(item) : renderNote(item)
-                  ).join('')}
+              ${timelineHtml}
             </div>
           </div>
         </div>
@@ -973,7 +969,7 @@
       initNoteExpand();
     }
 
-    function renderNote(n) {
+    async function renderNote(n) {
       const wrapId = `note-wrap-${n.id}`;
       return `
         <div class="note-item" id="note-item-${n.id}">
@@ -982,7 +978,7 @@
               ${(n.note_type || 'general').replace(/_/g, ' ')}
             </span>
             <button class="note-collapse-top" id="${wrapId}-top-btn" onclick="toggleNoteExpand('${wrapId}')">show less</button>
-            <span class="note-date editable-ts" onclick="openTsEdit('/api/applications/${appId}/logs/${n.id}/timestamp', '${n.timestamp}')">${formatDateTime(n.timestamp)}</span>
+            <span class="note-date editable-ts" onclick="openTsEdit('/api/applications/${appId}/logs/${n.id}/timestamp', '${n.timestamp}')">${await AIstivusUtils.formatDateTime(n.timestamp)}</span>
             <button class="btn-copy" data-text="${escapeHtml(n.note || '')}" onclick="copyBtnText(this)">Copy</button>
             <button class="btn-delete" onclick="deleteNote(${n.id})">Delete</button>
           </div>
@@ -1020,11 +1016,11 @@
       });
     }
 
-    function renderTimelineAudit(ev) {
+    async function renderTimelineAudit(ev) {
       return `
         <div class="timeline-audit">
           <span class="timeline-audit-label">system</span>
-          <span class="timeline-audit-time editable-ts" onclick="openTsEdit('/api/applications/${appId}/audit/${ev.id}/timestamp', '${ev.timestamp}')">${formatDateTime(ev.timestamp)}</span>
+          <span class="timeline-audit-time editable-ts" onclick="openTsEdit('/api/applications/${appId}/audit/${ev.id}/timestamp', '${ev.timestamp}')">${await AIstivusUtils.formatDateTime(ev.timestamp)}</span>
           <span class="timeline-audit-event">${escapeHtml(ev.event)}</span>
         </div>`;
     }

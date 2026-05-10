@@ -22,6 +22,15 @@ const AIstivusUtils = {
     });
   },
 
+  async formatDateShort(isoString) {
+    const tz = await this.getTimezone();
+    if (!isoString) return '—';
+    return new Date(isoString).toLocaleDateString('en-US', {
+      timeZone: tz,
+      month: 'short', day: 'numeric'
+    });
+  },
+
   async formatDateTime(isoString) {
     const tz = await this.getTimezone();
     if (!isoString) return '—';
