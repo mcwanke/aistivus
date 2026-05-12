@@ -589,6 +589,7 @@ async def evaluate_jd(
         model=model,
         provider=provider,
         base_url=base_url,
+        think=False,
     )
 
     parsed = None
