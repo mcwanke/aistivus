@@ -472,7 +472,7 @@ This file defines what to build and in what order.
 
 ## Priority 9 — Cleanup
 
-- [ ] **19. Update `CLAUDE.md`**
+- [x] **19. Update `CLAUDE.md`**
   - File: `CLAUDE.md`
   - Update file structure section — add `pages/` and `static/` folders
   - Update tech stack — add `anthropic` SDK
@@ -480,7 +480,7 @@ This file defines what to build and in what order.
   - Add `user_settings` table to schema section
   - Update available models section — add Anthropic models
 
-- [ ] **21. Final commit and DB wipe**
+- [x] **21. Final commit and DB wipe**
   - Commit message: `"Phase 0.4 — settings page, Anthropic API, markdown modal, file structure cleanup"`
   - Wipe DB: `rm data/jobs.db`
   - Restart: `python3 main.py`

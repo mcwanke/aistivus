@@ -40,6 +40,7 @@ async def complete(
     base_url: str = "http://localhost:11434",
     max_tokens: int = 2000,
     timeout: float = 300.0,
+    think: bool = True,
 ) -> dict[str, Any]:
     """
     Send a completion request to the configured LLM provider.
@@ -73,6 +74,7 @@ async def complete(
             base_url=base_url,
             max_tokens=max_tokens,
             timeout=timeout,
+            think=think,
         )
 
     elif provider == PROVIDER_ANTHROPIC:
@@ -101,6 +103,7 @@ async def _call_ollama(
     base_url: str,
     max_tokens: int,
     timeout: float,
+    think: bool = True,
 ) -> dict[str, Any]:
     """
     Call the Ollama /api/chat endpoint.
@@ -114,8 +117,10 @@ async def _call_ollama(
             {"role": "user", "content": prompt},
         ],
         "stream": False,
+        "think": think,
         "options": {
             "num_predict": max_tokens,
+            "num_ctx": 4096,
         }
     }
 
