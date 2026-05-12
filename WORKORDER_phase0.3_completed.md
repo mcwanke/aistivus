@@ -1,4 +1,4 @@
-# AIstivus — Phase 0.2 Work Order
+# AIstivus — Phase 0.3 Work Order
 
 ## How to Use This File
 
@@ -95,7 +95,7 @@ This file defines what to build and in what order.
   - Update Pydantic models if needed
   - Update docstrings
 
-- x] **9. Update all `application_notes` → `application_logs` references in routes**
+- [x] **9. Update all `application_notes` → `application_logs` references in routes**
   - Files: `main.py`
   - Rename routes: `/api/applications/{id}/notes` → `/api/applications/{id}/logs`
   - Update all function names, variable names, docstrings

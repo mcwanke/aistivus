@@ -480,11 +480,6 @@ This file defines what to build and in what order.
   - Add `user_settings` table to schema section
   - Update available models section — add Anthropic models
 
-- [ ] **20. Update `WORKORDER.md` (Phase 0.2) — mark remaining items status**
-  - Review Phase 0.2 WORKORDER
-  - Mark any items completed as part of 0.4 work
-  - Note any items deferred to Phase 1
-
 - [ ] **21. Final commit and DB wipe**
   - Commit message: `"Phase 0.4 — settings page, Anthropic API, markdown modal, file structure cleanup"`
   - Wipe DB: `rm data/jobs.db`

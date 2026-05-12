@@ -25,7 +25,7 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 **Phase 0 and Phase 0.1 are complete.** Core evaluation pipeline working end-to-end.
 Vanilla HTML frontend operational. Ready for React/TypeScript rebuild.
 
-### Phase 0 + 0.1 Complete ✅
+**Phase 0 through Phase 0.4 are complete.**
 All items shipped. See git history for details.
 
 ### Phase 1 Checklist 🔄
@@ -39,7 +39,6 @@ All items shipped. See git history for details.
 - [ ] `Dashboard.tsx` — stats, health indicators, recent activity
 - [ ] `Jobs.tsx` — jobs list with scores, search, filters
 - [ ] `JobDetail.tsx` — evaluations, re-evaluate, View JD
-- [ ] `Evaluations.tsx` — history, detail panel, report viewer
 - [ ] `Settings.tsx` — model config, jobsearch.md editor + version history
 
 **Application Tracking:**
@@ -47,10 +46,10 @@ All items shipped. See git history for details.
 - [ ] Activate applications tables in database
 
 **LLM Enhancements:**
-- [ ] Anthropic provider in `llm_client.py`
+- [x] Anthropic provider in `llm_client.py` # done in phase 0.4
 - [ ] OpenAI provider in `llm_client.py`
 - [ ] tiktoken pre-call token estimation
-- [ ] Cloud evaluation confirmation dialog
+- [x] Cloud evaluation confirmation dialog # done in phase 0.4
 - [ ] Activate `llm_call_log` table
 - [ ] `LLMUsage.tsx` page
 
@@ -58,7 +57,7 @@ All items shipped. See git history for details.
 - [ ] `logger.py` structured JSON logging
 - [ ] `slowapi` rate limiting
 - [ ] Async polling pattern (202 + status endpoint)
-- [ ] Application routes, settings routes, LLM usage routes
+- [x] Application routes, settings routes, LLM usage routes # done in phase 0.4
 
 **Testing:**
 - [ ] pytest setup + fixtures
@@ -88,6 +87,13 @@ aistivus/
 ├── llm_client.py
 ├── logger.py               (Phase 1 — new)
 ├── templates/
+├── pages/
+│   ├── application_detail.html
+│   ├── applications.html
+│   ├── evaluate.html
+│   ├── index.html
+│   ├── jobs.html
+│   ├── settings.html
 ├── frontend/               (Phase 1 — new)
 │   ├── package.json
 │   ├── tsconfig.json
@@ -99,7 +105,6 @@ aistivus/
 │           ├── Dashboard.tsx
 │           ├── Jobs.tsx
 │           ├── JobDetail.tsx
-│           ├── Evaluations.tsx
 │           ├── Applications.tsx
 │           ├── LLMUsage.tsx
 │           └── Settings.tsx
@@ -370,7 +375,7 @@ Stop and ask for explicit confirmation before:
 - No auto-submit of applications
 - No hard-deletion of `resume_info` records
 - No automatic schema changes on startup
-- Do not refactor or "improve" the vanilla HTML files (index.html, evaluate.html, evaluations.html, jobs.html) — they remain operational during Phase 1 transition and are retired page by page as React replacements are completed
+- Do not refactor or "improve" the HTML pages in pages/ — they remain operational during Phase 1 transition and are retired page by page as React replacements are completed
 - Do not build React pages without first defining TypeScript interfaces in `frontend/src/types/`
 - Do not use `any` type in TypeScript
 - Do not add frontend dependencies without explicit instruction

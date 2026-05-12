@@ -1,4 +1,9 @@
 
+Changed my mind - requested salary comes in when an application is generated, not when 
+a job is submitted. So a requested_salary column should like in the applications table,
+not in the jobs table. Need to make this change and add a field for input in the
+application creation flow
+
 Need to update the claude prompt that is generated so that we can output a block of text and re-import that back into the system. The reason for this is that claude is doing the same evaluation that the local model is doing and if we have a copyable output from the claude run we can re-import it as an evaluation run. 
 
 Make sure that we are storing the LLM prompts so that we can show them in the application logs alongside the prompts and other information. I want to be able to copy/paste the original prompt and run it elsewhere.

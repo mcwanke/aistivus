@@ -39,7 +39,7 @@ async def complete(
     provider: str = PROVIDER_OLLAMA,
     base_url: str = "http://localhost:11434",
     max_tokens: int = 2000,
-    timeout: float = 120.0,
+    timeout: float = 300.0,
 ) -> dict[str, Any]:
     """
     Send a completion request to the configured LLM provider.

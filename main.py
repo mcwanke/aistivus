@@ -541,6 +541,60 @@ async def get_evaluation(evaluation_id: int):
     return JSONResponse(data)
 
 
+class ImportEvaluationRequest(BaseModel):
+    job_id: int
+    model_used: str
+    score_overall: int | None = None
+    score_role_fit: int | None = None
+    score_scope_fit: int | None = None
+    score_culture: int | None = None
+    score_comp: int | None = None
+    fit_type: str | None = None
+    archetype: str | None = None
+    strengths: str | None = None
+    gaps: str | None = None
+    recommendation: str | None = None
+    keywords: str | None = None
+    log_entry: str | None = None
+    raw_response: str | None = None
+
+
+@app.post("/api/evaluations/import")
+async def import_evaluation(request: ImportEvaluationRequest):
+    """
+    Import a manually-produced evaluation (e.g. from a Claude session).
+    Creates a new evaluation record identical in structure to a pipeline evaluation.
+    All score fields are nullable — partial imports are accepted.
+    """
+    import hashlib, json
+    job = database.get_job(request.job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {request.job_id} not found.")
+
+    prompt_hash = hashlib.sha256(
+        json.dumps({"source": "manual_import", "model": request.model_used}).encode()
+    ).hexdigest()
+
+    eval_id = database.insert_evaluation(
+        job_id=request.job_id,
+        model_used=request.model_used,
+        score_overall=request.score_overall,
+        score_role_fit=request.score_role_fit,
+        score_scope_fit=request.score_scope_fit,
+        score_culture=request.score_culture,
+        score_comp=request.score_comp,
+        fit_type=request.fit_type,
+        archetype=request.archetype,
+        strengths=request.strengths,
+        gaps=request.gaps,
+        recommendation=request.recommendation,
+        keywords=request.keywords,
+        log_entry=request.log_entry,
+        prompt_hash=prompt_hash,
+        raw_response=request.raw_response,
+    )
+    return JSONResponse({"success": True, "evaluation_id": eval_id})
+
 class CreateApplicationRequest(BaseModel):
     job_id: int
     excitement_level: int | None = None
@@ -997,6 +1051,30 @@ from jobsearch.md to the experience sections most relevant to
 this specific role or expand text on existing bullets — focus 
 and priority are to add meaningful additional context for this 
 application.
+
+2. After you deliver the evaluation scorecard and before asking whether
+   to proceed, output the following block exactly — no prose before or
+   after it on those lines:
+
+EVALUATION_JSON_START
+{{
+  "score_overall": <1-10 integer>,
+  "score_role_fit": <1-5 integer>,
+  "score_scope_fit": <1-5 integer>,
+  "score_culture": <1-5 integer>,
+  "score_comp": <1-5 integer>,
+  "fit_type": "<Core Fit | Stretch | Mismatch>",
+  "archetype": "<role archetype label>",
+  "strengths": "<bullet 1|bullet 2|bullet 3>",
+  "gaps": "<bullet 1|bullet 2>",
+  "recommendation": "<Apply | Apply with modifications | Skip>",
+  "keywords": "<comma-separated ATS keywords, 25-35 terms>",
+  "log_entry": "<one-sentence verdict>"
+}}
+EVALUATION_JSON_END
+
+Pipe-separate multiple strengths and gaps bullets within their string values.
+Do not add trailing commas. Output valid JSON only between the sentinel lines.
 
 """
 

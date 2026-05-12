@@ -363,6 +363,68 @@
       justify-content: center;
     }
     .confirm-overlay.visible { display: flex; }
+        .import-eval-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      max-width: 560px;
+      width: 94%;
+      font-family: var(--mono);
+    }
+    .import-eval-box h3 {
+      color: var(--accent);
+      font-size: 0.85rem;
+      margin: 0 0 6px;
+      font-family: var(--mono);
+    }
+    .import-eval-hint {
+      color: var(--text-dim);
+      font-size: 0.75rem;
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+    .import-eval-textarea {
+      width: 100%;
+      height: 220px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      padding: 8px 10px;
+      box-sizing: border-box;
+      resize: vertical;
+      margin-bottom: 6px;
+    }
+    .import-eval-status {
+      min-height: 18px;
+      font-size: 0.73rem;
+      color: var(--red);
+      margin-bottom: 10px;
+    }
+    .import-model-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .import-model-row label {
+      font-size: 0.76rem;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+    .import-model-input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      font-family: var(--mono);
+      font-size: 0.76rem;
+      padding: 5px 9px;
+    }
     .confirm-box {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -726,7 +788,7 @@
     </div>
   </div>
 
-    <div class="confirm-overlay" id="tsEditOverlay">
+  <div class="confirm-overlay" id="tsEditOverlay">
     <div class="confirm-box">
       <div class="confirm-msg">Edit timestamp</div>
       <input type="datetime-local" id="tsEditInput"
@@ -737,6 +799,29 @@
       <div class="confirm-actions">
         <button class="btn-confirm-cancel" onclick="hideTsEdit()">Cancel</button>
         <button class="btn-confirm-ok" id="tsEditSaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+
+    <div class="confirm-overlay" id="importEvalOverlay">
+    <div class="import-eval-box">
+      <h3>Import Claude Evaluation</h3>
+      <div class="import-eval-hint">
+        Paste the <code style="color:var(--accent)">EVALUATION_JSON_START … EVALUATION_JSON_END</code>
+        block from your Claude session. The sentinels and surrounding text are fine to include.
+      </div>
+      <textarea class="import-eval-textarea" id="importEvalText"
+                placeholder="Paste Claude output here..."></textarea>
+      <div class="import-eval-status" id="importEvalStatus"></div>
+      <div class="import-model-row">
+        <label>Model used:</label>
+        <input class="import-model-input" id="importEvalModel"
+               type="text" placeholder="e.g. claude/claude-sonnet-4-6" />
+      </div>
+      <div class="confirm-actions">
+        <button class="btn-confirm-cancel" onclick="hideImportEval()">Cancel</button>
+        <button class="btn-confirm-ok" id="importEvalSubmitBtn"
+                onclick="submitImportEval()">Import</button>
       </div>
     </div>
   </div>
@@ -940,7 +1025,13 @@
         <div class="section">
           <div class="section-header" onclick="toggleSection('evals-body')">
             <span class="section-title">Evaluations (${evals.length})</span>
-            <span class="section-toggle" id="evals-body-toggle">▼</span>
+            <span style="display:flex;align-items:center;gap:8px;">
+              <button onclick="event.stopPropagation();showImportEval()"
+                      style="background:none;border:1px solid var(--border);border-radius:var(--radius);
+                             color:var(--text-dim);font-family:var(--mono);font-size:0.72rem;
+                             padding:2px 8px;cursor:pointer;">Import Claude Eval</button>
+              <span class="section-toggle" id="evals-body-toggle">▼</span>
+            </span>
           </div>
           <div class="section-body" id="evals-body">
             ${evals.length === 0
@@ -1245,6 +1336,77 @@
       } catch {
         dot.className    = 'status-dot fail';
         text.textContent = 'offline';
+      }
+    }
+
+        // ── Import Claude evaluation ───────────────────────────
+    function showImportEval() {
+      document.getElementById('importEvalText').value   = '';
+      document.getElementById('importEvalModel').value  = '';
+      document.getElementById('importEvalStatus').textContent = '';
+      document.getElementById('importEvalOverlay').classList.add('visible');
+    }
+
+    function hideImportEval() {
+      document.getElementById('importEvalOverlay').classList.remove('visible');
+    }
+
+    async function submitImportEval() {
+      const raw   = document.getElementById('importEvalText').value;
+      const model = document.getElementById('importEvalModel').value.trim();
+      const status = document.getElementById('importEvalStatus');
+
+      if (!model) { status.textContent = 'Model name is required.'; return; }
+
+      const start = raw.indexOf('EVALUATION_JSON_START');
+      const end   = raw.indexOf('EVALUATION_JSON_END');
+      if (start === -1 || end === -1) {
+        status.textContent = 'Could not find EVALUATION_JSON_START / EVALUATION_JSON_END sentinels.';
+        return;
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(raw.slice(start + 'EVALUATION_JSON_START'.length, end).trim());
+      } catch (e) {
+        status.textContent = `JSON parse error: ${e.message}`;
+        return;
+      }
+
+      const btn = document.getElementById('importEvalSubmitBtn');
+      btn.disabled = true;
+      status.textContent = '';
+
+      try {
+        const res = await fetch('/api/evaluations/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            job_id:         appData.application.job_id,
+            model_used:     model,
+            score_overall:  parsed.score_overall  ?? null,
+            score_role_fit: parsed.score_role_fit ?? null,
+            score_scope_fit:parsed.score_scope_fit?? null,
+            score_culture:  parsed.score_culture  ?? null,
+            score_comp:     parsed.score_comp      ?? null,
+            fit_type:       parsed.fit_type        ?? null,
+            archetype:      parsed.archetype       ?? null,
+            strengths:      parsed.strengths       ?? null,
+            gaps:           parsed.gaps            ?? null,
+            recommendation: parsed.recommendation  ?? null,
+            keywords:       parsed.keywords        ?? null,
+            log_entry:      parsed.log_entry       ?? null,
+            raw_response:   raw,
+          }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        hideImportEval();
+        showToast('Evaluation imported');
+        await loadApplication();
+      } catch (err) {
+        status.textContent = `Import failed: ${err.message}`;
+      } finally {
+        btn.disabled = false;
       }
     }
 
