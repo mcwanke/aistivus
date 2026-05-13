@@ -39,12 +39,12 @@ HTML frontend operational (read-only reference — do not modify).
 - [x] `agg_*` score recalculation on jobs after each evaluation insert
 - [x] Auto-create `not-started` application on job creation
 - [x] `requested_salary` on applications
-- [ ] All routes → `/api/v1/` prefix
-- [ ] `slowapi` inbound rate limiting
-- [ ] `logger.py` structured JSON logging
-- [ ] `GET /api/v1/health` endpoint
+- [x] All routes → `/api/v1/` prefix
+- [x] `slowapi` inbound rate limiting
+- [x] `logger.py` structured JSON logging
+- [x] `GET /api/v1/health` endpoint
 - [x] pytest setup: fixtures, unit tests, 90% coverage (tests/conftest.py + tests/test_database.py + tests/test_evaluator.py)
-- [ ] Integration tests for routes (tests/routes/)
+- [x] Integration tests for routes (tests/routes/)
 - [ ] GitHub Actions CI (pytest + ruff lint)
 
 ### Phase 1.1 Checklist 🔲

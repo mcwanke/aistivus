@@ -1394,6 +1394,75 @@ def get_jobsearch_version_content(version_id: int) -> str | None:
 
 
 # ─────────────────────────────────────────────────────────────
+# Evaluation queries — list + single-record
+# ─────────────────────────────────────────────────────────────
+
+def get_all_evaluations(limit: int = 500) -> list[sqlite3.Row]:
+    """
+    Return all evaluations with job title, company_name, location, remote_type.
+    Sorted newest first. Used by GET /api/v1/evaluations.
+    """
+    with get_connection() as conn:
+        return conn.execute(
+            """SELECT e.*,
+                      j.title,
+                      j.company_name,
+                      j.location,
+                      j.remote_type,
+                      m.model AS model_name
+               FROM evaluations e
+               JOIN jobs j       ON j.id = e.job_id
+               JOIN llm_models m ON m.id = e.llm_model_id
+               ORDER BY e.evaluated_at DESC, e.id DESC
+               LIMIT ?""",
+            (limit,)
+        ).fetchall()
+
+
+def get_evaluation(eval_id: int) -> sqlite3.Row | None:
+    """
+    Return a single evaluation with job and model info, or None.
+    Used by GET /api/v1/evaluations/{id}.
+    """
+    with get_connection() as conn:
+        return conn.execute(
+            """SELECT e.*,
+                      j.title,
+                      j.company_name,
+                      j.location,
+                      j.remote_type,
+                      j.pay_band,
+                      m.model AS model_name
+               FROM evaluations e
+               JOIN jobs j       ON j.id = e.job_id
+               JOIN llm_models m ON m.id = e.llm_model_id
+               WHERE e.id = ?""",
+            (eval_id,)
+        ).fetchone()
+
+
+# ─────────────────────────────────────────────────────────────
+# Dashboard stats
+# ─────────────────────────────────────────────────────────────
+
+def get_stats() -> dict:
+    """Return summary counts for the dashboard."""
+    with get_connection() as conn:
+        jobs = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+        evals = conn.execute("SELECT COUNT(*) FROM evaluations").fetchone()[0]
+        apps = conn.execute(
+            "SELECT COUNT(*) FROM applications WHERE application_status != 'not-started'"
+        ).fetchone()[0]
+        llm_calls = conn.execute("SELECT COUNT(*) FROM llm_call_log").fetchone()[0]
+    return {
+        "jobs": jobs,
+        "evaluations": evals,
+        "applications": apps,
+        "llm_calls": llm_calls,
+    }
+
+
+# ─────────────────────────────────────────────────────────────
 # Utilities
 # ─────────────────────────────────────────────────────────────
 

@@ -1,54 +1,78 @@
 """
 main.py
 ───────
-FastAPI server for AIstivus.
+FastAPI server for AIstivus — Phase 1.0.
 
-Phase 0 routes:
-  GET  /            → landing page (pages/index.html)
-  GET  /evaluate    → evaluate page (pages/evaluate.html)
-  POST /evaluate    → run evaluation, return JSON result
-  GET  /health      → health check (Ollama + DB status)
-  GET  /report      → render a markdown report as HTML
-  GET  /stats       → summary counts for landing page
-  GET  /jobs        → all jobs with latest scores
-  GET  /jobs/{id}   → single job with evaluations and postings
-  GET  /api/evaluations      → all evaluations with job+company data
-  GET  /api/evaluations/{id} → single evaluation detail
-  GET  /applications            → applications list page
-  GET  /applications/{id}       → application detail page
-  POST /api/applications        → create application from job
-  GET  /api/applications        → all applications with job+company data
-  GET  /api/applications/{id}   → single application with all related data
-  PATCH /api/applications/{id}  → update application fields
-  POST /api/applications/{id}/logs → add log entry to application
-  GET  /api/jobs/{id}/application   → check if job has application
-  GET  /settings              → settings page (pages/settings.html)
-  GET  /api/settings          → return all settings as dict
-  PATCH /api/settings         → update one or more settings keys
-  GET  /api/inbox/files       → list pending files in inbox/
-  POST /api/inbox/process     → process selected inbox files by filename
+All API routes are prefixed /api/v1/.
+Page-serving routes (HTML) keep their short paths until Phase 1.1.
+
+API routes:
+  GET  /api/v1/health
+  GET  /api/v1/stats
+  POST /api/v1/evaluate
+  POST /api/v1/evaluations/rerun
+  POST /api/v1/evaluations/import
+  GET  /api/v1/evaluations
+  GET  /api/v1/evaluations/{id}
+  GET  /api/v1/jobs
+  GET  /api/v1/jobs/{id}
+  GET  /api/v1/jobs/{id}/application
+  GET  /api/v1/models
+  POST /api/v1/applications
+  GET  /api/v1/applications
+  GET  /api/v1/applications/{id}
+  PATCH /api/v1/applications/{id}
+  POST /api/v1/applications/{id}/logs
+  DELETE /api/v1/applications/{id}/logs/{log_id}
+  POST /api/v1/applications/{id}/generate-prompt
+  GET  /api/v1/llm-call-log
+  GET  /api/v1/system-types
+  GET  /api/v1/settings
+  PATCH /api/v1/settings
+  GET  /api/v1/inbox/files
+  POST /api/v1/inbox/process
+
+Page routes (read-only reference — retired Phase 1.1):
+  GET  /
+  GET  /evaluate
+  GET  /jobs      (→ jobs.html)
+  GET  /settings
+  GET  /applications
+  GET  /applications/{id}
+  GET  /report
 """
 
 import os
-import sys
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
 from dotenv import load_dotenv
-
-load_dotenv()
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 import database
 import evaluate
 import evaluator
 import llm_client
+from logger import get_logger
 
+load_dotenv()
+
+log = get_logger(__name__)
+
+# ─────────────────────────────────────────────────────────────
+# Rate limiter
+# ─────────────────────────────────────────────────────────────
+
+limiter = Limiter(key_func=get_remote_address)
 
 # ─────────────────────────────────────────────────────────────
 # Configuration
@@ -62,68 +86,76 @@ def _load_config() -> dict:
     return {}
 
 
-def _get_ollama_config() -> tuple[str, str]:
-    config = _load_config()
-    ollama = config.get("ollama", {})
-    return (
-        ollama.get("base_url", "http://localhost:11434"),
-        ollama.get("default_model", "qwen2.5-coder:14b"),
-    )
+# ─────────────────────────────────────────────────────────────
+# Startup helpers
+# ─────────────────────────────────────────────────────────────
+
+async def _update_model_availability() -> None:
+    """
+    Re-check availability of every llm_models record and update the available flag.
+    Failures are logged; the app continues regardless — usable for browsing.
+    """
+    models = database.get_all_llm_models()
+    if not models:
+        log.warning("no_models_configured", extra={"hint": "add a model in Settings"})
+        return
+
+    available_count = 0
+    for row in models:
+        model_dict = dict(row)
+        endpoint = model_dict["endpoint"]
+        model_name = model_dict["model"]
+        model_id = model_dict["id"]
+
+        try:
+            if "anthropic.com" in endpoint:
+                is_available = llm_client.check_anthropic_configured()
+            else:
+                health = await llm_client.check_ollama_health(endpoint)
+                is_available = (
+                    health.get("reachable", False)
+                    and llm_client.model_is_available(model_name, health.get("models", []))
+                )
+            database.set_llm_model_available(model_id, 1 if is_available else 0)
+            if is_available:
+                available_count += 1
+        except Exception as exc:
+            log.warning(
+                "model_availability_check_failed",
+                extra={"model": model_name, "error": str(exc)},
+            )
+            database.set_llm_model_available(model_id, 0)
+
+    if available_count == 0:
+        log.error(
+            "no_models_available",
+            extra={"hint": "evaluation will be unavailable; app still usable for browsing"},
+        )
+    else:
+        log.info("models_available", extra={"count": available_count})
 
 
 # ─────────────────────────────────────────────────────────────
-# Startup validation
+# Lifespan
 # ─────────────────────────────────────────────────────────────
-
-async def _validate_startup() -> None:
-    """
-    Validate Ollama is running and the configured model is available.
-    Fails fast with a clear error message if not.
-    """
-    base_url, model = _get_ollama_config()
-
-    print(f"  Checking Ollama at {base_url}...")
-    health = await llm_client.check_ollama_health(base_url)
-
-    if not health["reachable"]:
-        print(f"\n✗ Startup failed: {health['error']}")
-        print("  Fix: run 'brew services start ollama' then try again.")
-        sys.exit(1)
-
-    if not llm_client.model_is_available(model, health["models"]):
-        print(f"\n✗ Startup failed: model '{model}' not found in Ollama.")
-        print(f"  Available models: {health['models']}")
-        print(f"  Fix: run 'ollama pull {model}' then try again.")
-        sys.exit(1)
-
-    print(f"  ✓ Ollama reachable — model '{model}' available")
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup and shutdown logic."""
-    print("\nAIstivus — starting up...")
-    print("─" * 40)
+    log.info("aistivus_starting")
 
     database.init_db()
-    await _validate_startup()
+    await _update_model_availability()
 
     jobsearch_path = Path("jobsearch.md")
     if not jobsearch_path.exists():
-        print(
-            "\n⚠️  jobsearch.md not found. "
-            "Copy JOBSEARCH_TEMPLATE.md to jobsearch.md and fill it in."
+        log.warning(
+            "jobsearch_md_missing",
+            extra={"hint": "copy JOBSEARCH_TEMPLATE.md to jobsearch.md"},
         )
-    else:
-        print("  ✓ jobsearch.md found")
 
-    print("─" * 40)
-    print("✓ AIstivus ready")
-    print(f"  Open http://127.0.0.1:8080 in your browser\n")
-
+    log.info("aistivus_ready", extra={"url": "http://127.0.0.1:8080"})
     yield
-
-    print("\nAIstivus — shutting down.")
+    log.info("aistivus_shutdown")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -133,9 +165,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AIstivus",
     description="AI Job Search Helper for the Rest of Us",
-    version="0.1.0",
+    version="1.0.0",
     lifespan=lifespan,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS — localhost only. Never wildcard.
 app.add_middleware(
@@ -147,13 +182,11 @@ app.add_middleware(
         "http://127.0.0.1:3000",
     ],
     allow_credentials=False,
-    allow_methods=["GET", "POST", "PATCH"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Content-Type"],
 )
 
-# Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
 
 
 # ─────────────────────────────────────────────────────────────
@@ -161,129 +194,172 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # ─────────────────────────────────────────────────────────────
 
 class EvaluateRequest(BaseModel):
-    jd_text:       str
-    company_name:  str        = "Unknown Company"
-    job_title:     str        = "Unknown Role"
-    location:      str | None = None
-    remote_type:   str | None = None
-    apply_url:     str | None = None
-    llm_model_id:  int | None = None
-    force:         bool       = False
+    jd_text: str
+    company_name: str = "Unknown Company"
+    job_title: str = "Unknown Role"
+    location: str | None = None
+    remote_type: str | None = None
+    apply_url: str | None = None
+    llm_model_id: int | None = None
+    force: bool = False
 
 
 class EvaluateResponse(BaseModel):
-    success:            bool
-    evaluation_id:      int | None
-    job_id:             int | None
-    report_path:        str | None
-    evaluation:         dict | None
-    error:              str | None
-    duplicate_detected: bool            = False
-    existing_jobs:      list | None     = None
+    success: bool
+    evaluation_id: int | None
+    job_id: int | None
+    report_path: str | None
+    evaluation: dict | None
+    error: str | None
+    duplicate_detected: bool = False
+    existing_jobs: list | None = None
 
 
 class RerunRequest(BaseModel):
-    job_id:       int
+    job_id: int
     llm_model_id: int | None = None
 
 
+class ImportEvaluationRequest(BaseModel):
+    job_id: int
+    llm_model_id: int | None = None
+    score_overall: float | None = None
+    score_role_fit: float | None = None
+    score_scope_fit: float | None = None
+    score_culture: float | None = None
+    score_comp: float | None = None
+    fit_type: str | None = None
+    archetype: str | None = None
+    strengths: str | None = None
+    gaps: str | None = None
+    recommendation: str | None = None
+    keywords: str | None = None
+    domain_match: str | None = None
+    role_type_match: str | None = None
+    keyword_gaps: str | None = None
+
+
+class CreateApplicationRequest(BaseModel):
+    job_id: int
+
+
+class UpdateApplicationRequest(BaseModel):
+    application_status: str | None = None
+    apply_date: str | None = None
+    end_date: str | None = None
+    requested_salary: str | None = None
+
+
+class AddLogRequest(BaseModel):
+    type_value: str           # matches system_types.type_value (e.g. "recruiter_call")
+    log: str
+    url: str | None = None
+    log_timestamp: str | None = None
+
+
+class UpdateSettingsRequest(BaseModel):
+    settings: dict[str, str]
+
+
+class ProcessInboxRequest(BaseModel):
+    filenames: list[str]
+
+
+# Valid application status values per spec
+_VALID_STATUSES = frozenset({
+    "not-started", "draft", "applied", "screening", "interview",
+    "offer", "rejected", "ghosted", "withdrawn",
+})
+
+
 # ─────────────────────────────────────────────────────────────
-# Page routes — serve HTML files
+# Page routes — serve HTML reference pages (retired Phase 1.1)
 # ─────────────────────────────────────────────────────────────
 
-@app.get("/", response_class=FileResponse)
+@app.get("/", response_class=FileResponse, include_in_schema=False)
 async def serve_index():
-    """Landing page."""
     path = Path("pages/index.html")
     if not path.exists():
         raise HTTPException(status_code=404, detail="index.html not found.")
     return FileResponse(path)
 
 
-@app.get("/evaluate", response_class=FileResponse)
+@app.get("/evaluate", response_class=FileResponse, include_in_schema=False)
 async def serve_evaluate():
-    """Evaluation input page."""
     path = Path("pages/evaluate.html")
     if not path.exists():
         raise HTTPException(status_code=404, detail="evaluate.html not found.")
     return FileResponse(path)
 
 
-@app.get("/jobs", response_class=FileResponse)
-async def serve_jobs():
-    """Jobs and opportunities page."""
+@app.get("/jobs", response_class=FileResponse, include_in_schema=False)
+async def serve_jobs_page():
     path = Path("pages/jobs.html")
     if not path.exists():
         raise HTTPException(status_code=404, detail="jobs.html not found.")
     return FileResponse(path)
 
 
-@app.get("/settings", response_class=FileResponse)
-async def serve_settings():
-    """Settings page."""
+@app.get("/settings", response_class=FileResponse, include_in_schema=False)
+async def serve_settings_page():
     path = Path("pages/settings.html")
     if not path.exists():
         raise HTTPException(status_code=404, detail="settings.html not found.")
     return FileResponse(path)
 
 
-# ─────────────────────────────────────────────────────────────
-# Report viewer
-# ─────────────────────────────────────────────────────────────
+@app.get("/applications", response_class=FileResponse, include_in_schema=False)
+async def serve_applications_page():
+    path = Path("pages/applications.html")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="applications.html not found.")
+    return FileResponse(path)
 
-@app.get("/report", response_class=HTMLResponse)
+
+@app.get("/applications/{application_id}", response_class=FileResponse, include_in_schema=False)
+async def serve_application_detail_page(application_id: int):
+    path = Path("pages/application_detail.html")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="application_detail.html not found.")
+    return FileResponse(path)
+
+
+@app.get("/report", response_class=HTMLResponse, include_in_schema=False)
 async def view_report(path: str = Query(..., description="Path to the markdown report file")):
-    """
-    Read a markdown report file and return it rendered as HTML.
-    Uses marked.js on the client side (evaluations.html).
-    This endpoint returns the raw markdown — the browser renders it.
-
-    Security: path is validated to be within the /reports/ directory.
-    """
+    """Return raw markdown from /reports/ — path traversal protected."""
     report_path = Path(path).resolve()
     reports_dir = Path("reports").resolve()
-
-    # Validate path is within /reports/ — prevent path traversal
     try:
         report_path.relative_to(reports_dir)
     except ValueError:
-        raise HTTPException(
-            status_code=403,
-            detail="Access denied — report path must be within the reports directory."
-        )
-
+        raise HTTPException(status_code=403, detail="Access denied.")
     if not report_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"Report not found: {path}"
-        )
-
-    if not report_path.suffix == ".md":
-        raise HTTPException(
-            status_code=400,
-            detail="Only .md report files are served."
-        )
-
-    # Return raw markdown — client uses marked.js to render
-    content = report_path.read_text()
-    return HTMLResponse(content=content, media_type="text/plain")
+        raise HTTPException(status_code=404, detail=f"Report not found: {path}")
+    if report_path.suffix != ".md":
+        raise HTTPException(status_code=400, detail="Only .md files are served.")
+    return HTMLResponse(content=report_path.read_text(), media_type="text/plain")
 
 
 # ─────────────────────────────────────────────────────────────
-# API routes
+# Health
 # ─────────────────────────────────────────────────────────────
 
-@app.get("/health")
-async def health_check():
-    """Health check — Ollama status, model availability, DB version."""
-    base_url, model = _get_ollama_config()
-    ollama_health   = await llm_client.check_ollama_health(base_url)
-
-    model_available = (
-        llm_client.model_is_available(model, ollama_health.get("models", []))
-        if ollama_health["reachable"]
-        else False
-    )
+@app.get("/api/v1/health")
+@limiter.limit("60/minute")
+async def health_check(request: Request):
+    """Health check — DB schema version, model availability, Anthropic key presence."""
+    models = database.get_all_llm_models()
+    models_out = [
+        {
+            "id": dict(m)["id"],
+            "model": dict(m)["model"],
+            "endpoint": dict(m)["endpoint"],
+            "available": bool(dict(m)["available"]),
+            "default_flag": bool(dict(m)["default_flag"]),
+        }
+        for m in models
+    ]
+    any_available = any(m["available"] for m in models_out)
 
     db_version = "unknown"
     try:
@@ -292,49 +368,41 @@ async def health_check():
         pass
 
     return JSONResponse({
-        "status":   "ok" if ollama_health["reachable"] and model_available else "degraded",
-        "ollama":   {
-            "reachable":       ollama_health["reachable"],
-            "model":           model,
-            "model_available": model_available,
-            "error":           ollama_health.get("error"),
-        },
+        "status": "ok" if any_available else "degraded",
         "database": {"schema_version": db_version},
-        "version":  "0.1.0",
+        "models": models_out,
+        "anthropic_configured": bool(os.environ.get("ANTHROPIC_API_KEY")),
+        "version": "1.0.0",
     })
 
 
-@app.get("/stats")
-async def stats():
-    """Summary counts for the landing page dashboard."""
-    with database.get_connection() as conn:
-        jobs        = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
-        evals       = conn.execute("SELECT COUNT(*) FROM evaluations").fetchone()[0]
-        companies   = conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
-        apps        = conn.execute("SELECT COUNT(*) FROM applications").fetchone()[0]
+# ─────────────────────────────────────────────────────────────
+# Stats
+# ─────────────────────────────────────────────────────────────
 
-    return JSONResponse({
-        "jobs":        jobs,
-        "evaluations": evals,
-        "companies":   companies,
-        "applications": apps
-    })
+@app.get("/api/v1/stats")
+@limiter.limit("60/minute")
+async def stats(request: Request):
+    """Summary counts for the dashboard."""
+    return JSONResponse(database.get_stats())
 
 
-@app.post("/evaluate", response_model=EvaluateResponse)
-async def evaluate_endpoint(request: EvaluateRequest):
+# ─────────────────────────────────────────────────────────────
+# Evaluate
+# ─────────────────────────────────────────────────────────────
+
+@app.post("/api/v1/evaluate", response_model=EvaluateResponse)
+@limiter.limit("10/minute")
+async def evaluate_endpoint(request: Request, body: EvaluateRequest):
     """
     Evaluate a job description against jobsearch.md.
-
-    Note: Phase 0 is synchronous — this request blocks until evaluation
-    completes. This is intentional for single-user local use.
-    Long-running async pattern added in Phase 1.
+    Synchronous in Phase 1.0 — single-user local use.
     """
-    if not request.jd_text.strip():
+    if not body.jd_text.strip():
         raise HTTPException(status_code=400, detail="jd_text cannot be empty.")
 
-    if not request.force:
-        existing = database.find_existing_job(request.company_name, request.job_title)
+    if not body.force:
+        existing = database.find_similar_jobs(body.company_name, body.job_title)
         if existing:
             return EvaluateResponse(
                 success=False,
@@ -347,37 +415,167 @@ async def evaluate_endpoint(request: EvaluateRequest):
                 error=None,
             )
 
-    result = await evaluator.evaluate_jd(
-        jd_text=request.jd_text,
-        company_name=request.company_name,
-        job_title=request.job_title,
-        location=request.location,
-        remote_type=request.remote_type,
-        apply_url=request.apply_url,
-        llm_model_id=request.llm_model_id,
+    log.info(
+        "evaluate_request",
+        extra={"company": body.company_name, "title": body.job_title},
     )
 
+    result = await evaluator.evaluate_jd(
+        jd_text=body.jd_text,
+        company_name=body.company_name,
+        job_title=body.job_title,
+        location=body.location,
+        remote_type=body.remote_type,
+        apply_url=body.apply_url,
+        llm_model_id=body.llm_model_id,
+    )
+
+    log.info(
+        "evaluate_complete",
+        extra={
+            "job_id": result.get("job_id"),
+            "success": result.get("success"),
+        },
+    )
     return EvaluateResponse(**result)
 
 
-@app.get("/jobs")
-async def list_jobs():
-    """All jobs with latest evaluation scores."""
+@app.post("/api/v1/evaluations/rerun")
+@limiter.limit("10/minute")
+async def rerun_evaluation(request: Request, body: RerunRequest):
+    """Re-evaluate an existing job. Creates a new evaluation record."""
+    job = database.get_job(body.job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {body.job_id} not found.")
+
+    job_dict = dict(job)
+    jd_text = job_dict.get("description_merged") or ""
+    if not jd_text:
+        postings = database.get_postings_for_job(body.job_id)
+        if postings:
+            jd_text = dict(postings[0]).get("description_raw") or ""
+
+    if not jd_text.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="No job description stored for this job.",
+        )
+
+    result = await evaluator.evaluate_jd(
+        jd_text=jd_text,
+        company_name=job_dict.get("company_name", "Unknown Company"),
+        job_title=job_dict.get("title", "Unknown Role"),
+        location=job_dict.get("location"),
+        remote_type=job_dict.get("remote_type"),
+        llm_model_id=body.llm_model_id,
+    )
+    return JSONResponse(result)
+
+
+@app.post("/api/v1/evaluations/import")
+@limiter.limit("20/minute")
+async def import_evaluation(request: Request, body: ImportEvaluationRequest):
+    """
+    Import a manually-produced evaluation (e.g. from a Claude session).
+    Uses the default model if llm_model_id is not specified.
+    """
+    job = database.get_job(body.job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {body.job_id} not found.")
+
+    if body.llm_model_id is not None:
+        model_row = database.get_llm_model(body.llm_model_id)
+        if not model_row:
+            raise HTTPException(
+                status_code=404,
+                detail=f"LLM model {body.llm_model_id} not found.",
+            )
+        model_id = body.llm_model_id
+    else:
+        default = database.get_default_llm_model()
+        if not default:
+            raise HTTPException(
+                status_code=400,
+                detail="No default LLM model configured — provide llm_model_id.",
+            )
+        model_id = dict(default)["id"]
+
+    eval_id = database.insert_evaluation(
+        job_id=body.job_id,
+        llm_model_id=model_id,
+        score_overall=body.score_overall,
+        score_role_fit=body.score_role_fit,
+        score_scope_fit=body.score_scope_fit,
+        score_culture=body.score_culture,
+        score_comp=body.score_comp,
+        fit_type=body.fit_type,
+        archetype=body.archetype,
+        strengths=body.strengths,
+        gaps=body.gaps,
+        recommendation=body.recommendation,
+        keywords=body.keywords,
+        domain_match=body.domain_match,
+        role_type_match=body.role_type_match,
+        keyword_gaps=body.keyword_gaps,
+    )
+    log.info("evaluation_imported", extra={"eval_id": eval_id, "job_id": body.job_id})
+    return JSONResponse({"success": True, "evaluation_id": eval_id})
+
+
+# ─────────────────────────────────────────────────────────────
+# Evaluations list + detail
+# ─────────────────────────────────────────────────────────────
+
+@app.get("/api/v1/evaluations")
+@limiter.limit("60/minute")
+async def list_evaluations(request: Request, limit: int = Query(500, ge=1, le=2000)):
+    """All evaluations with job title and company, newest first."""
+    rows = database.get_all_evaluations(limit=limit)
+    return JSONResponse([dict(r) for r in rows])
+
+
+@app.get("/api/v1/evaluations/{evaluation_id}")
+@limiter.limit("60/minute")
+async def get_evaluation(request: Request, evaluation_id: int):
+    """Single evaluation with full job and model info."""
+    row = database.get_evaluation(evaluation_id)
+    if not row:
+        raise HTTPException(
+            status_code=404, detail=f"Evaluation {evaluation_id} not found."
+        )
+    data = dict(row)
+    data["report_path"] = _find_report(
+        company_name=data.get("company_name", ""),
+        job_title=data.get("title", ""),
+        evaluated_at=data.get("evaluated_at", ""),
+    )
+    return JSONResponse(data)
+
+
+# ─────────────────────────────────────────────────────────────
+# Jobs
+# ─────────────────────────────────────────────────────────────
+
+@app.get("/api/v1/jobs")
+@limiter.limit("60/minute")
+async def list_jobs(request: Request):
+    """All jobs with current application status and aggregated scores."""
     jobs = database.get_all_jobs()
-    return JSONResponse([dict(row) for row in jobs])
+    return JSONResponse([dict(j) for j in jobs])
 
 
-@app.get("/jobs/{job_id}")
-async def get_job(job_id: int):
+@app.get("/api/v1/jobs/{job_id}")
+@limiter.limit("60/minute")
+async def get_job(request: Request, job_id: int):
     """Single job with all evaluations and postings."""
     job = database.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found.")
 
     evaluations = database.get_evaluations_for_job(job_id)
-    postings    = database.get_postings_for_job(job_id)
-
+    postings = database.get_postings_for_job(job_id)
     job_dict = dict(job)
+
     evals_out = []
     for e in evaluations:
         d = dict(e)
@@ -389,589 +587,226 @@ async def get_job(job_id: int):
         evals_out.append(d)
 
     return JSONResponse({
-        "job":         job_dict,
+        "job": job_dict,
         "evaluations": evals_out,
-        "postings":    [dict(p) for p in postings],
+        "postings": [dict(p) for p in postings],
     })
 
 
-ANTHROPIC_MODELS = [
-    {"id": "claude-haiku-4-5-20251001", "label": "Claude Haiku — Fast, low cost",         "provider": "anthropic"},
-    {"id": "claude-sonnet-4-6",         "label": "Claude Sonnet — Balanced (recommended)", "provider": "anthropic"},
-    {"id": "claude-opus-4-6",           "label": "Claude Opus — Most capable",             "provider": "anthropic"},
-]
+@app.get("/api/v1/jobs/{job_id}/application")
+@limiter.limit("60/minute")
+async def get_job_application(request: Request, job_id: int):
+    """Check whether a job has an active application and return its status."""
+    app_row = database.get_application_for_job(job_id)
+    if app_row:
+        return JSONResponse({"exists": True, "application": dict(app_row)})
+    return JSONResponse({"exists": False, "application": None})
 
 
-@app.get("/api/models")
-async def list_models():
-    """Return available Ollama and Anthropic models for the model picker UI."""
-    base_url, default_model = _get_ollama_config()
-    health = await llm_client.check_ollama_health(base_url)
+# ─────────────────────────────────────────────────────────────
+# Models
+# ─────────────────────────────────────────────────────────────
 
-    models: list[dict] = []
-    if health["reachable"]:
-        models.extend(
-            {"id": name, "label": name, "provider": "ollama"}
-            for name in health["models"]
-        )
-
-    if llm_client.check_anthropic_configured():
-        models.extend(ANTHROPIC_MODELS)
-
-    return JSONResponse({"models": models, "default": default_model})
+@app.get("/api/v1/models")
+@limiter.limit("60/minute")
+async def list_models(request: Request):
+    """Return all configured LLM models with availability status."""
+    models = database.get_all_llm_models()
+    return JSONResponse({"models": [dict(m) for m in models]})
 
 
-@app.get("/api/jobs-with-evaluations")
-async def list_jobs_with_evaluations():
+# ─────────────────────────────────────────────────────────────
+# Applications
+# ─────────────────────────────────────────────────────────────
+
+@app.post("/api/v1/applications")
+@limiter.limit("30/minute")
+async def create_application(request: Request, body: CreateApplicationRequest):
     """
-    Return all jobs with their best evaluation score and total evaluation count.
-    Used by jobs.html for the jobs list with scoring summary.
+    Activate the not-started application for a job (transitions it to 'draft').
+    Returns 404 if the job has no application, 409 if already active.
     """
-    with database.get_connection() as conn:
-        rows = conn.execute(
-            """SELECT j.*,
-                      c.name AS company_name,
-                      COUNT(e.id) AS evaluation_count,
-                      MAX(e.score_overall) AS best_score,
-                      (SELECT fit_type FROM evaluations
-                       WHERE job_id = j.id
-                       ORDER BY score_overall DESC NULLS LAST, evaluated_at DESC
-                       LIMIT 1) AS best_fit_type,
-                      (SELECT model_used FROM evaluations
-                       WHERE job_id = j.id
-                       ORDER BY score_overall DESC NULLS LAST, evaluated_at DESC
-                       LIMIT 1) AS best_model,
-                      (SELECT apply_url FROM job_postings
-                       WHERE job_id = j.id
-                       ORDER BY date_scraped DESC
-                       LIMIT 1) AS apply_url,
-                      (SELECT id FROM applications
-                       WHERE job_id = j.id
-                         AND application_status NOT IN ('rejected', 'withdrawn', 'ghosted')
-                       LIMIT 1) AS application_id,
-                      (SELECT application_status FROM applications
-                       WHERE job_id = j.id
-                         AND application_status NOT IN ('rejected', 'withdrawn', 'ghosted')
-                       LIMIT 1) AS application_status
-               FROM jobs j
-               JOIN companies c ON c.id = j.company_id
-               LEFT JOIN evaluations e ON e.job_id = j.id
-               GROUP BY j.id
-
-               ORDER BY best_score DESC NULLS LAST, j.last_seen_date DESC"""
-        ).fetchall()
-
-    result = []
-    for row in rows:
-        d = dict(row)
-        # Attach best_evaluation as a nested object for the frontend
-        d["best_evaluation"] = {
-            "score_overall": d.pop("best_score"),
-            "fit_type":      d.pop("best_fit_type"),
-            "model_used":    d.pop("best_model"),
-        } if d.get("evaluation_count", 0) > 0 else None
-        if "best_score" in d: d.pop("best_score", None)
-        result.append(d)
-
-    return JSONResponse(result)
-
-
-@app.get("/api/evaluations")
-async def list_evaluations():
-    """
-    All evaluations joined with job and company data.
-    Sorted by evaluated_at descending (newest first).
-    """
-    with database.get_connection() as conn:
-        rows = conn.execute(
-            """SELECT e.*,
-                      j.title,
-                      j.location,
-                      j.remote_type,
-                      c.name AS company_name
-               FROM evaluations e
-               JOIN jobs j      ON j.id = e.job_id
-               JOIN companies c ON c.id = j.company_id
-               ORDER BY e.evaluated_at DESC"""
-        ).fetchall()
-
-    return JSONResponse([dict(row) for row in rows])
-
-
-@app.get("/api/evaluations/{evaluation_id}")
-async def get_evaluation(evaluation_id: int):
-    """
-    Single evaluation with full detail including job and company data.
-    Also includes report_path derived from the reports directory.
-    """
-    with database.get_connection() as conn:
-        row = conn.execute(
-            """SELECT e.*,
-                      j.title,
-                      j.location,
-                      j.remote_type,
-                      j.pay_band,
-                      c.name AS company_name
-               FROM evaluations e
-               JOIN jobs j      ON j.id = e.job_id
-               JOIN companies c ON c.id = j.company_id
-               WHERE e.id = ?""",
-            (evaluation_id,)
-        ).fetchone()
-
-    if not row:
+    app_row = database.get_application_for_job(body.job_id)
+    if not app_row:
         raise HTTPException(
-            status_code=404,
-            detail=f"Evaluation {evaluation_id} not found."
+            status_code=404, detail=f"Job {body.job_id} not found or has no application."
         )
-
-    data = dict(row)
-
-    # Find the report file for this evaluation if it exists
-    # Report files are named: YYYYMMDD_Company_Role.md
-    # We look for the most recent matching file in /reports/
-    report_path = _find_report(
-        company_name=data.get("company_name", ""),
-        job_title=data.get("title", ""),
-        evaluated_at=data.get("evaluated_at", ""),
-    )
-    data["report_path"] = report_path
-
-    return JSONResponse(data)
-
-
-class ImportEvaluationRequest(BaseModel):
-    job_id: int
-    model_used: str
-    score_overall: int | None = None
-    score_role_fit: int | None = None
-    score_scope_fit: int | None = None
-    score_culture: int | None = None
-    score_comp: int | None = None
-    fit_type: str | None = None
-    archetype: str | None = None
-    strengths: str | None = None
-    gaps: str | None = None
-    recommendation: str | None = None
-    keywords: str | None = None
-    log_entry: str | None = None
-    raw_response: str | None = None
-
-
-@app.post("/api/evaluations/import")
-async def import_evaluation(request: ImportEvaluationRequest):
-    """
-    Import a manually-produced evaluation (e.g. from a Claude session).
-    Creates a new evaluation record identical in structure to a pipeline evaluation.
-    All score fields are nullable — partial imports are accepted.
-    """
-    import hashlib, json
-    job = database.get_job(request.job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail=f"Job {request.job_id} not found.")
-
-    prompt_hash = hashlib.sha256(
-        json.dumps({"source": "manual_import", "model": request.model_used}).encode()
-    ).hexdigest()
-
-    eval_id = database.insert_evaluation(
-        job_id=request.job_id,
-        model_used=request.model_used,
-        score_overall=request.score_overall,
-        score_role_fit=request.score_role_fit,
-        score_scope_fit=request.score_scope_fit,
-        score_culture=request.score_culture,
-        score_comp=request.score_comp,
-        fit_type=request.fit_type,
-        archetype=request.archetype,
-        strengths=request.strengths,
-        gaps=request.gaps,
-        recommendation=request.recommendation,
-        keywords=request.keywords,
-        log_entry=request.log_entry,
-        prompt_hash=prompt_hash,
-        raw_response=request.raw_response,
-    )
-    return JSONResponse({"success": True, "evaluation_id": eval_id})
-
-class CreateApplicationRequest(BaseModel):
-    job_id: int
-    excitement_level: int | None = None
-
-class UpdateApplicationRequest(BaseModel):
-    excitement_level: int | None = None
-    application_status: str | None = None
-    apply_date: str | None = None
-    end_date: str | None = None
-
-class AddLogRequest(BaseModel):
-    note_type: str
-    note: str
-    url: str | None = None
-    timestamp: str | None = None
-
-class UpdateSettingsRequest(BaseModel):
-    settings: dict[str, str]
-
-class ProcessInboxRequest(BaseModel):
-    filenames: list[str]
-
-
-@app.post("/api/evaluations/rerun")
-async def rerun_evaluation(request: RerunRequest):
-    """
-    Re-evaluate an existing job with a specified model.
-    Creates a new evaluation record — does not overwrite existing ones.
-    Multiple evaluations per job are expected and supported.
-    """
-    job = database.get_job(request.job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail=f"Job {request.job_id} not found.")
-
-    # Get the best available description for this job
-    postings = database.get_postings_for_job(request.job_id)
-    jd_text  = dict(job).get("description_merged") or ""
-    if not jd_text and postings:
-        jd_text = dict(postings[0]).get("description_raw") or ""
-
-    if not jd_text.strip():
+    app_dict = dict(app_row)
+    if app_dict["application_status"] != "not-started":
         raise HTTPException(
-            status_code=400,
-            detail="No job description available for this job. "
-                   "The JD text may not have been stored."
+            status_code=409,
+            detail=(
+                f"Application already active "
+                f"(id={app_dict['id']}, status={app_dict['application_status']})."
+            ),
         )
 
-    result = await evaluator.evaluate_jd(
-        jd_text=jd_text,
-        company_name=dict(job).get("company_name", "Unknown Company"),
-        job_title=dict(job).get("title", "Unknown Role"),
-        location=dict(job).get("location"),
-        remote_type=dict(job).get("remote_type"),
-        llm_model_id=request.llm_model_id,
-    )
+    database.update_application_status(app_dict["id"], "draft")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    database.update_application(app_dict["id"], apply_date=today)
 
-    return JSONResponse(result)
+    log.info("application_created", extra={"application_id": app_dict["id"]})
+    return JSONResponse({"success": True, "application_id": app_dict["id"]})
 
 
-def _find_report(company_name: str, job_title: str, evaluated_at: str) -> str | None:
-    """
-    Find the most likely report file for a given evaluation.
-    Matches on date prefix from evaluated_at timestamp.
-    """
-    reports_dir = Path("reports")
-    if not reports_dir.exists():
-        return None
-
-    # Extract date from evaluated_at (format: YYYY-MM-DD HH:MM:SS or ISO)
-    date_prefix = ""
-    if evaluated_at:
-        date_prefix = evaluated_at[:10].replace("-", "")  # YYYYMMDD
-
-    # Look for files starting with the date prefix
-    candidates = list(reports_dir.glob(f"{date_prefix}_*.md")) if date_prefix else []
-
-    if not candidates:
-        # Fall back: return most recent report file
-        all_reports = sorted(reports_dir.glob("*.md"), reverse=True)
-        return str(all_reports[0]) if all_reports else None
-
-    # Return most recent matching file
-    candidates.sort(reverse=True)
-    return str(candidates[0])
+@app.get("/api/v1/applications")
+@limiter.limit("60/minute")
+async def list_applications(request: Request):
+    """All active applications (excludes not-started) with job info."""
+    rows = database.get_all_applications(exclude_not_started=True)
+    return JSONResponse([dict(r) for r in rows])
 
 
-@app.get("/applications", response_class=FileResponse)
-async def serve_applications():
-    """Applications list page."""
-    path = Path("pages/applications.html")
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="applications.html not found.")
-    return FileResponse(path)
+@app.get("/api/v1/applications/{application_id}")
+@limiter.limit("60/minute")
+async def get_application(request: Request, application_id: int):
+    """Single application with logs, audit trail, evaluations, and postings."""
+    app_row = database.get_application(application_id)
+    if not app_row:
+        raise HTTPException(
+            status_code=404, detail=f"Application {application_id} not found."
+        )
+    app_dict = dict(app_row)
+    job_id = app_dict["job_id"]
 
-
-@app.get("/applications/{application_id}", response_class=FileResponse)
-async def serve_application_detail(application_id: int):
-    """Application detail page."""
-    path = Path("pages/application_detail.html")
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="application_detail.html not found.")
-    return FileResponse(path)
-
-
-@app.post("/api/applications")
-async def create_application(request: CreateApplicationRequest):
-    """
-    Create a new application from a job.
-    Returns 409 if an application already exists for this job.
-    """
-    # Check for existing application
-    with database.get_connection() as conn:
-        existing = conn.execute(
-            "SELECT id FROM applications WHERE job_id = ?",
-            (request.job_id,)
-        ).fetchone()
-        if existing:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Application already exists for job {request.job_id}. "
-                       f"Application ID: {existing['id']}"
-            )
-
-    from datetime import datetime, timezone
-    app_id = database.insert_application(
-        job_id=request.job_id,
-        application_status="draft",
-        excitement_level=request.excitement_level,
-        apply_date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-    )
-    return JSONResponse({"success": True, "application_id": app_id})
-
-
-@app.get("/api/applications")
-async def list_applications():
-    """
-    All applications joined with job, company, and latest evaluation data.
-    Sorted by apply_date descending.
-    """
-    with database.get_connection() as conn:
-        rows = conn.execute(
-            """SELECT a.*,
-                      j.title, j.location, j.remote_type, j.pay_band,
-                      c.name AS company_name,
-                      e.score_overall, e.fit_type, e.recommendation
-               FROM applications a
-               JOIN jobs j      ON j.id = a.job_id
-               JOIN companies c ON c.id = j.company_id
-               LEFT JOIN evaluations e ON e.id = (
-                   SELECT id FROM evaluations
-                   WHERE job_id = a.job_id
-                   ORDER BY score_overall DESC NULLS LAST, evaluated_at DESC
-                   LIMIT 1
-               )
-               ORDER BY a.apply_date DESC"""
-        ).fetchall()
-    return JSONResponse([dict(row) for row in rows])
-
-
-@app.get("/api/applications/{application_id}")
-async def get_application(application_id: int):
-    """
-    Single application with all related data:
-    job, company, all evaluations, logs, audit trail.
-    """
-    with database.get_connection() as conn:
-        app_row = conn.execute(
-            """SELECT a.*,
-                      j.title, j.location, j.remote_type, j.pay_band,
-                      j.description_merged, j.role_keyword,
-                      c.name AS company_name
-               FROM applications a
-               JOIN jobs j      ON j.id = a.job_id
-               JOIN companies c ON c.id = j.company_id
-               WHERE a.id = ?""",
-            (application_id,)
-        ).fetchone()
-
-        if not app_row:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Application {application_id} not found."
-            )
-
-        logs = conn.execute(
-            """SELECT * FROM application_logs
-               WHERE application_id = ?
-               ORDER BY created_at DESC""",
-            (application_id,)
-        ).fetchall()
-
-        audit = conn.execute(
-            """SELECT * FROM application_audit
-               WHERE application_id = ?
-               ORDER BY timestamp DESC""",
-            (application_id,)
-        ).fetchall()
-
-        evaluations = conn.execute(
-            """SELECT * FROM evaluations
-               WHERE job_id = ?
-               ORDER BY score_overall DESC NULLS LAST, evaluated_at DESC""",
-            (dict(app_row)["job_id"],)
-        ).fetchall()
-
-        postings = conn.execute(
-            """SELECT * FROM job_postings
-               WHERE job_id = ?
-               ORDER BY date_scraped DESC""",
-            (dict(app_row)["job_id"],)
-        ).fetchall()
+    job = database.get_job(job_id)
+    logs = database.get_application_logs(application_id)
+    audit = database.get_application_audit(application_id)
+    evaluations = database.get_evaluations_for_job(job_id)
+    postings = database.get_postings_for_job(job_id)
 
     return JSONResponse({
-        "application": dict(app_row),
-        "logs":        [dict(n) for n in logs],
-        "audit":       [dict(a) for a in audit],
+        "application": app_dict,
+        "job": dict(job) if job else None,
+        "logs": [dict(l) for l in logs],
+        "audit": [dict(a) for a in audit],
         "evaluations": [dict(e) for e in evaluations],
-        "postings":    [dict(p) for p in postings],
+        "postings": [dict(p) for p in postings],
     })
 
 
-@app.patch("/api/applications/{application_id}")
-async def update_application(application_id: int, request: UpdateApplicationRequest):
-    """Update application fields. Writes audit event on status change."""
-    with database.get_connection() as conn:
-        existing = conn.execute(
-            "SELECT * FROM applications WHERE id = ?",
-            (application_id,)
-        ).fetchone()
-        if not existing:
-            raise HTTPException(status_code=404, detail="Application not found.")
+@app.patch("/api/v1/applications/{application_id}")
+@limiter.limit("30/minute")
+async def update_application(
+    request: Request, application_id: int, body: UpdateApplicationRequest
+):
+    """Update application fields. Status changes write an audit event."""
+    app_row = database.get_application(application_id)
+    if not app_row:
+        raise HTTPException(status_code=404, detail="Application not found.")
 
-        updates = {
-            k: v for k, v in request.model_dump().items()
-            if v is not None
-        }
-        if not updates:
-            return JSONResponse({"success": True, "message": "Nothing to update."})
+    if body.application_status is not None:
+        if body.application_status not in _VALID_STATUSES:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Invalid status '{body.application_status}'. "
+                    f"Valid: {', '.join(sorted(_VALID_STATUSES))}"
+                ),
+            )
+        database.update_application_status(application_id, body.application_status)
 
-        set_clause = ", ".join(f"{k} = ?" for k in updates)
-        conn.execute(
-            f"UPDATE applications SET {set_clause} WHERE id = ?",
-            (*updates.values(), application_id)
-        )
-
-        # Write audit event for status changes
-        if "application_status" in updates:
-            old_status = dict(existing)["application_status"]
-            new_status = updates["application_status"]
-            if old_status != new_status:
-                database._audit_application(
-                    application_id,
-                    f"Status changed: {old_status} → {new_status}",
-                    conn=conn
-                )
+    field_updates = {
+        k: v for k, v in body.model_dump().items()
+        if k != "application_status" and v is not None
+    }
+    if field_updates:
+        database.update_application(application_id, **field_updates)
 
     return JSONResponse({"success": True})
 
 
-@app.post("/api/applications/{application_id}/logs")
-async def add_log(application_id: int, request: AddLogRequest):
-    """
-    Add a timestamped log entry to an application.
-    Log entries are append-only — no editing after creation.
-    Valid note_type values: recruiter_call, interview_feedback,
-    compensation, general, repost_alert, application_question
-    """
-    valid_types = {
-        "recruiter_call", "interview_feedback", "compensation",
-        "general", "repost_alert", "application_question"
-    }
-    if request.note_type not in valid_types:
+@app.post("/api/v1/applications/{application_id}/logs")
+@limiter.limit("30/minute")
+async def add_log(request: Request, application_id: int, body: AddLogRequest):
+    """Add a timestamped log entry to an application. Append-only."""
+    app_row = database.get_application(application_id)
+    if not app_row:
+        raise HTTPException(
+            status_code=404, detail=f"Application {application_id} not found."
+        )
+
+    type_id = database.get_system_type_id("application_log", body.type_value)
+    if type_id is None:
+        valid = [
+            dict(t)["type_value"]
+            for t in database.get_all_system_types("application_log")
+        ]
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid note_type. Valid values: {', '.join(sorted(valid_types))}"
+            detail=f"Invalid type_value. Valid: {', '.join(sorted(valid))}",
         )
 
     log_id = database.add_application_log(
         application_id=application_id,
-        note_type=request.note_type,
-        note=request.note,
-        url=request.url,
-        timestamp=request.timestamp,
+        type_id=type_id,
+        log=body.log,
+        url=body.url,
+        log_timestamp=body.log_timestamp,
     )
     return JSONResponse({"success": True, "log_id": log_id})
 
 
-@app.delete("/api/applications/{application_id}/logs/{note_id}")
-async def delete_log(application_id: int, note_id: int):
-    """
-    Delete a single log entry by id.
-    Audit entries cannot be deleted — this only affects application_logs.
-    """
-    deleted = database.delete_application_note(note_id)
+@app.delete("/api/v1/applications/{application_id}/logs/{log_id}")
+@limiter.limit("30/minute")
+async def delete_log(request: Request, application_id: int, log_id: int):
+    """Delete a single application log entry."""
+    deleted = database.delete_application_log(log_id)
     if not deleted:
-        raise HTTPException(status_code=404, detail=f"Log entry {note_id} not found.")
-    return JSONResponse({"success": True})
-
-class UpdateLogTimestampRequest(BaseModel):
-    timestamp: str
-
-
-@app.patch("/api/applications/{application_id}/logs/{note_id}/timestamp")
-async def update_log_timestamp(application_id: int, note_id: int, request: UpdateLogTimestampRequest):
-    """Update the displayed timestamp of a non-audit log entry."""
-    updated = database.update_application_log_timestamp(note_id, request.timestamp)
-    if not updated:
-        raise HTTPException(status_code=404, detail=f"Log entry {note_id} not found.")
+        raise HTTPException(status_code=404, detail=f"Log entry {log_id} not found.")
     return JSONResponse({"success": True})
 
 
-@app.patch("/api/applications/{application_id}/audit/{audit_id}/timestamp")
-async def update_application_audit_timestamp(application_id: int, audit_id: int, request: UpdateLogTimestampRequest):
-    """Update the display timestamp of an audit entry. created_at is preserved."""
-    updated = database.update_application_audit_timestamp(audit_id, request.timestamp)
-    if not updated:
-        raise HTTPException(status_code=404, detail=f"Audit entry {audit_id} not found.")
-    return JSONResponse({"success": True})
-
-
-@app.post("/api/applications/{application_id}/generate-prompt")
-async def generate_prompt(application_id: int):
+@app.post("/api/v1/applications/{application_id}/generate-prompt")
+@limiter.limit("10/minute")
+async def generate_prompt(request: Request, application_id: int):
     """
     Build a structured AI prompt for this application and store it as a log entry.
-    Fetches job details, full JD text, and the latest evaluation.
-    Returns the generated prompt and its log id.
+    Returns the generated prompt text and its log id.
     """
-    with database.get_connection() as conn:
-        app_row = conn.execute(
-            "SELECT * FROM applications WHERE id = ?",
-            (application_id,)
-        ).fetchone()
-
+    app_row = database.get_application(application_id)
     if not app_row:
         raise HTTPException(
-            status_code=404,
-            detail=f"Application {application_id} not found."
+            status_code=404, detail=f"Application {application_id} not found."
         )
+    app_dict = dict(app_row)
 
-    job = database.get_job(app_row["job_id"])
+    job = database.get_job(app_dict["job_id"])
     if not job:
         raise HTTPException(
-            status_code=404,
-            detail=f"Job {app_row['job_id']} not found."
+            status_code=404, detail=f"Job {app_dict['job_id']} not found."
         )
+    job_dict = dict(job)
+    eval_row = database.get_latest_evaluation(app_dict["job_id"])
 
-    eval_row = database.get_latest_evaluation(app_row["job_id"])
+    company_name = job_dict.get("company_name") or "N/A"
+    title = job_dict.get("title") or "N/A"
+    location = job_dict.get("location") or "N/A"
+    pay_band = job_dict.get("pay_band") or "Not listed"
+    jd_text = job_dict.get("description_merged") or ""
 
-    company_name   = job["company_name"] or "N/A"
-    title          = job["title"] or "N/A"
-    location       = job["location"] or "N/A"
-    pay_band       = job["pay_band"] or "Not listed"
-    jd_text        = job["description_merged"] or ""
+    def _fmt_sub(v: object) -> str:
+        return f"{v}/5" if v is not None else "N/A"
 
     if eval_row:
-        score          = eval_row["score_overall"]
-        fit_type       = eval_row["fit_type"] or "N/A"
-        archetype      = eval_row["archetype"] or "N/A"
-        recommendation = eval_row["recommendation"] or "N/A"
-        model_used     = eval_row["model_used"] or "N/A"
-        strengths      = eval_row["strengths"] or "N/A"
-        gaps           = eval_row["gaps"] or "N/A"
-        keywords       = eval_row["keywords"] or "N/A"
-        score_display  = f"{score}/10" if score is not None else "N/A"
-
-        def _fmt(v):
-            return f"{v}/5" if v is not None else "N/A"
-
-        score_role_fit_display = _fmt(eval_row["score_role_fit"])
-        score_scope_display    = _fmt(eval_row["score_scope_fit"])
-        score_culture_display  = _fmt(eval_row["score_culture"])
-        score_comp_display     = _fmt(eval_row["score_comp"])
+        e = dict(eval_row)
+        score_display = f"{e.get('score_overall')}/10" if e.get("score_overall") is not None else "N/A"
+        fit_type = e.get("fit_type") or "N/A"
+        archetype = e.get("archetype") or "N/A"
+        recommendation = e.get("recommendation") or "N/A"
+        model_label = e.get("model_name") or "N/A"
+        strengths = e.get("strengths") or "N/A"
+        gaps = e.get("gaps") or "N/A"
+        keywords = e.get("keywords") or "N/A"
+        score_role_fit_display = _fmt_sub(e.get("score_role_fit"))
+        score_scope_display = _fmt_sub(e.get("score_scope_fit"))
+        score_culture_display = _fmt_sub(e.get("score_culture"))
+        score_comp_display = _fmt_sub(e.get("score_comp"))
     else:
-        score_display = "N/A"
-        fit_type = archetype = recommendation = model_used = "N/A"
+        score_display = fit_type = archetype = recommendation = model_label = "N/A"
         strengths = gaps = keywords = "N/A"
         score_role_fit_display = score_scope_display = "N/A"
-        score_culture_display  = score_comp_display  = "N/A"
+        score_culture_display = score_comp_display = "N/A"
 
     prompt = f"""Read this information and the attached jobsearch.md file before starting.
 When evaluating, apply the Section 7 framework exactly as written.
@@ -994,7 +829,7 @@ Overall Score: {score_display}
 Fit Type: {fit_type}
 Role Archetype: {archetype}
 Recommendation: {recommendation}
-Model Used: {model_used}
+Model Used: {model_label}
 
 Strengths identified:
 {strengths}
@@ -1033,26 +868,16 @@ TASKS:
 3. Stop and ask if I want to proceed with the next phase or not.
 
 If I want to proceed then complete the following tasks:
-   
+
 1. Using the attached resume_template.typ as the exact structural
 and formatting base, generate a complete, ready-to-compile
 .typ file tailored to this role. Populate every [CONTENT: ...]
 block using jobsearch.md as the sole source of truth for facts.
 Apply all Always and Never rules from Section 6 without
-exception — flag any conflicts explicitly. Flag any tailored
-claim that could be challenged in an interview. Do not modify
-any formatting, font, color, spacing, or layout code in the
-template — only replace [CONTENT: ...] comments with real
-content. Target output: 2 pages when compiled. If the content 
-does not naturally fill page 2, add additional bullets drawn 
-from jobsearch.md to the experience sections most relevant to 
-this specific role or expand text on existing bullets — focus 
-and priority are to add meaningful additional context for this 
-application.
+exception. Target output: 2 pages when compiled.
 
 2. After you deliver the evaluation scorecard and before asking whether
-   to proceed, output the following block exactly — no prose before or
-   after it on those lines:
+   to proceed, output the following block exactly:
 
 EVALUATION_JSON_START
 {{
@@ -1070,96 +895,140 @@ EVALUATION_JSON_START
   "log_entry": "<one-sentence verdict>"
 }}
 EVALUATION_JSON_END
-
-Pipe-separate multiple strengths and gaps bullets within their string values.
-Do not add trailing commas. Output valid JSON only between the sentinel lines.
-
 """
+
+    prompt_type_id = database.get_system_type_id("application_log", "prompt")
+    if prompt_type_id is None:
+        raise HTTPException(status_code=500, detail="system_types not seeded correctly.")
 
     log_id = database.add_application_log(
         application_id=application_id,
-        note_type="prompt",
-        note=prompt,
-        url=None,
+        type_id=prompt_type_id,
+        log=prompt,
     )
     return JSONResponse({"success": True, "log_id": log_id, "prompt": prompt})
 
 
+# ─────────────────────────────────────────────────────────────
+# LLM call log
+# ─────────────────────────────────────────────────────────────
+
+@app.get("/api/v1/llm-call-log")
+@limiter.limit("60/minute")
+async def get_llm_call_log(
+    request: Request,
+    job_id: int | None = Query(None),
+    call_type: str | None = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+):
+    """LLM call log — metadata only. Prompt and raw response included for debug use."""
+    rows = database.get_llm_call_log(limit=limit, job_id=job_id, call_type=call_type)
+    return JSONResponse([dict(r) for r in rows])
 
 
+# ─────────────────────────────────────────────────────────────
+# System types
+# ─────────────────────────────────────────────────────────────
 
-@app.get("/api/settings")
-async def get_settings():
-    """Return all user settings as a flat dict, plus server-side booleans."""
-    data = database.get_all_settings()
-    data["anthropic_api_key_configured"] = bool(os.environ.get("ANTHROPIC_API_KEY"))
-    return JSONResponse(data)
+@app.get("/api/v1/system-types")
+@limiter.limit("60/minute")
+async def list_system_types(
+    request: Request,
+    type_name: str | None = Query(None),
+):
+    """Return system_types, optionally filtered by type_name."""
+    rows = database.get_all_system_types(type_name=type_name)
+    return JSONResponse([dict(r) for r in rows])
 
 
-@app.patch("/api/settings")
-async def update_settings(request: UpdateSettingsRequest):
-    """Update one or more settings keys. Creates keys that do not exist."""
-    for key, value in request.settings.items():
-        database.set_setting(key, value)
+# ─────────────────────────────────────────────────────────────
+# Settings
+# ─────────────────────────────────────────────────────────────
+
+@app.get("/api/v1/settings")
+@limiter.limit("30/minute")
+async def get_settings(request: Request):
+    """Return runtime settings. API key values are never echoed — boolean presence only."""
+    config = _load_config()
+    return JSONResponse({
+        "schema_version": database.get_schema_version(),
+        "anthropic_api_key_configured": bool(os.environ.get("ANTHROPIC_API_KEY")),
+        "server": config.get("server", {}),
+        "logging": {k: v for k, v in config.get("logging", {}).items()},
+        "database": {
+            k: v for k, v in config.get("database", {}).items()
+            if k != "db_path"  # omit local path details
+        },
+    })
+
+
+@app.patch("/api/v1/settings")
+@limiter.limit("10/minute")
+async def update_settings(request: Request, body: UpdateSettingsRequest):
+    """
+    Settings stub — Phase 1.0. Model management goes through /api/v1/models.
+    Returns success without modifying anything (full settings UI in Phase 1.1).
+    """
+    log.info("settings_patch_called", extra={"keys": list(body.settings.keys())})
     return JSONResponse({"success": True})
 
 
-@app.get("/api/jobs/{job_id}/application")
-async def get_job_application(job_id: int):
-    """
-    Check if a job has an existing application.
-    Returns application id and status if found, null if not.
-    Used by jobs.html to determine whether to show
-    'Create Application' or 'View Application' button.
-    """
-    with database.get_connection() as conn:
-        row = conn.execute(
-            """SELECT a.id, a.application_status, a.excitement_level,
-                      a.apply_date
-               FROM applications a
-               WHERE a.job_id = ?
-               LIMIT 1""",
-            (job_id,)
-        ).fetchone()
-
-    if row:
-        return JSONResponse({"exists": True, "application": dict(row)})
-    return JSONResponse({"exists": False, "application": None})
-
-
 # ─────────────────────────────────────────────────────────────
-# Inbox routes
+# Inbox
 # ─────────────────────────────────────────────────────────────
 
-@app.get("/api/inbox/files")
-async def list_inbox_files():
+@app.get("/api/v1/inbox/files")
+@limiter.limit("30/minute")
+async def list_inbox_files(request: Request):
     """List pending .md/.txt files in inbox/ root."""
     inbox_dir, _, _ = evaluate._get_inbox_paths()
     inbox_dir.mkdir(parents=True, exist_ok=True)
     pending = sorted([
         f.name for f in inbox_dir.iterdir()
-        if f.is_file() and f.suffix in {".md", ".txt"}
+        if f.is_file()
+        and f.suffix in {".md", ".txt"}
         and f.parent == inbox_dir
     ])
     return JSONResponse({"pending": pending})
 
 
-@app.post("/api/inbox/process")
-async def process_inbox(request: ProcessInboxRequest):
-    """
-    Process selected inbox files by filename.
-    Filenames must be bare names (no path components) of files in inbox/.
-    """
-    if not request.filenames:
+@app.post("/api/v1/inbox/process")
+@limiter.limit("10/minute")
+async def process_inbox(request: Request, body: ProcessInboxRequest):
+    """Process selected inbox files. Filenames must be bare names (no path)."""
+    if not body.filenames:
         raise HTTPException(status_code=400, detail="No filenames provided.")
-    for name in request.filenames:
+    for name in body.filenames:
         if "/" in name or "\\" in name or name.startswith("."):
             raise HTTPException(status_code=400, detail=f"Invalid filename: {name}")
     try:
-        result = await evaluate.process_inbox_files(filenames=request.filenames)
+        result = await evaluate.process_inbox_files(filenames=body.filenames)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return JSONResponse(result)
+
+
+# ─────────────────────────────────────────────────────────────
+# Helpers
+# ─────────────────────────────────────────────────────────────
+
+def _find_report(company_name: str, job_title: str, evaluated_at: str) -> str | None:
+    """Find the most likely report file for an evaluation by date prefix."""
+    reports_dir = Path("reports")
+    if not reports_dir.exists():
+        return None
+
+    date_prefix = ""
+    if evaluated_at:
+        date_prefix = evaluated_at[:10].replace("-", "")
+
+    candidates = list(reports_dir.glob(f"{date_prefix}_*.md")) if date_prefix else []
+    if not candidates:
+        all_reports = sorted(reports_dir.glob("*.md"), reverse=True)
+        return str(all_reports[0]) if all_reports else None
+
+    candidates.sort(reverse=True)
+    return str(candidates[0])
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1169,10 +1038,10 @@ async def process_inbox(request: ProcessInboxRequest):
 if __name__ == "__main__":
     import uvicorn
 
-    config     = _load_config()
-    app_config = config.get("app", {})
-    host       = app_config.get("host", "127.0.0.1")
-    port       = app_config.get("port", 8080)
+    config = _load_config()
+    server_cfg = config.get("server", {})
+    host = server_cfg.get("host", "127.0.0.1")
+    port = server_cfg.get("port", 8080)
 
-    print(f"Starting AIstivus on http://{host}:{port}")
+    log.info("starting", extra={"host": host, "port": port})
     uvicorn.run("main:app", host=host, port=port, reload=False)
