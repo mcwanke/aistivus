@@ -161,14 +161,14 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # ─────────────────────────────────────────────────────────────
 
 class EvaluateRequest(BaseModel):
-    jd_text:      str
-    company_name: str        = "Unknown Company"
-    job_title:    str        = "Unknown Role"
-    location:     str | None = None
-    remote_type:  str | None = None
-    apply_url:    str | None = None
-    model:        str | None = None
-    force:        bool       = False
+    jd_text:       str
+    company_name:  str        = "Unknown Company"
+    job_title:     str        = "Unknown Role"
+    location:      str | None = None
+    remote_type:   str | None = None
+    apply_url:     str | None = None
+    llm_model_id:  int | None = None
+    force:         bool       = False
 
 
 class EvaluateResponse(BaseModel):
@@ -183,9 +183,8 @@ class EvaluateResponse(BaseModel):
 
 
 class RerunRequest(BaseModel):
-    job_id:   int
-    model:    str
-    provider: str = "ollama"
+    job_id:       int
+    llm_model_id: int | None = None
 
 
 # ─────────────────────────────────────────────────────────────
@@ -355,7 +354,7 @@ async def evaluate_endpoint(request: EvaluateRequest):
         location=request.location,
         remote_type=request.remote_type,
         apply_url=request.apply_url,
-        model=request.model,
+        llm_model_id=request.llm_model_id,
     )
 
     return EvaluateResponse(**result)
@@ -648,8 +647,7 @@ async def rerun_evaluation(request: RerunRequest):
         job_title=dict(job).get("title", "Unknown Role"),
         location=dict(job).get("location"),
         remote_type=dict(job).get("remote_type"),
-        model=request.model,
-        provider=request.provider,
+        llm_model_id=request.llm_model_id,
     )
 
     return JSONResponse(result)

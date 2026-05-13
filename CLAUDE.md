@@ -32,8 +32,10 @@ HTML frontend operational (read-only reference — do not modify).
 - [x] `system_types` table seeded at init (see seed values in DATABASE RULES)
 - [x] `llm_models` table + startup auto-seed from config.yaml if empty
 - [x] `companies` table dropped → `company_name` on jobs + `job_company_log` table
-- [ ] Evaluator updated: populate `domain_match`, `role_type_match`, `keyword_gaps`
-- [ ] Evaluator writes to `llm_call_log`; sets `evaluations.llm_call_log_id`
+- [x] Evaluator updated: populate `domain_match`, `role_type_match`, `keyword_gaps`
+- [x] Evaluator writes to `llm_call_log`; sets `evaluations.llm_call_log_id`
+- [x] Evaluator writes `application_logs` prompt entry (type=prompt, llm_call_log_id set)
+- [x] Model resolved from `llm_models` table; `model`/`provider` params removed from routes
 - [x] `agg_*` score recalculation on jobs after each evaluation insert
 - [x] Auto-create `not-started` application on job creation
 - [x] `requested_salary` on applications
@@ -41,7 +43,7 @@ HTML frontend operational (read-only reference — do not modify).
 - [ ] `slowapi` inbound rate limiting
 - [ ] `logger.py` structured JSON logging
 - [ ] `GET /api/v1/health` endpoint
-- [x] pytest setup: fixtures, unit tests, 90% coverage (tests/conftest.py + tests/test_database.py)
+- [x] pytest setup: fixtures, unit tests, 90% coverage (tests/conftest.py + tests/test_database.py + tests/test_evaluator.py)
 - [ ] Integration tests for routes (tests/routes/)
 - [ ] GitHub Actions CI (pytest + ruff lint)
 

@@ -4,11 +4,13 @@ evaluator.py
 JD evaluation pipeline for AIstivus.
 
 Reads jobsearch.md, builds a structured evaluation prompt,
-calls Ollama via llm_client.py, parses the response, writes
-to the database, and generates a markdown report.
+calls the configured LLM via llm_client.py, parses the response,
+writes to the database, and generates a markdown report.
 
-Phase 0: Ollama only. Single JD at a time.
-Phase 1+: Multi-model, batch evaluation, token tracking.
+Phase 1.0+: Model resolved from llm_models table. Every evaluation
+call writes an llm_call_log record and an application_logs entry.
+All LLM response fields (including domain_match, role_type_match,
+keyword_gaps) are stored.
 
 Rules (from CLAUDE.md):
 - All LLM calls go through llm_client.py — never direct.
@@ -16,6 +18,7 @@ Rules (from CLAUDE.md):
 - Delimiter injection mitigation is required on every evaluation.
 - Failed evaluations are recorded, never silently dropped.
 - prompt_hash uses SHA-256 — never MD5.
+- Model and endpoint resolved from llm_models table — never config.yaml.
 """
 
 import asyncio
@@ -54,20 +57,40 @@ def _get_jobsearch_path() -> Path:
     )
 
 
-def _get_ollama_config() -> tuple[str, str]:
-    """Return (base_url, default_model) from config."""
-    config = _load_config()
-    ollama = config.get("ollama", {})
-    return (
-        ollama.get("base_url", "http://localhost:11434"),
-        ollama.get("default_model", "qwen2.5-coder:14b"),
-    )
-
-
 def _get_inbox_done_dir() -> Path:
     config = _load_config()
     inbox  = config.get("inbox", {})
     return Path(inbox.get("done_path", "./inbox/done"))
+
+
+# ─────────────────────────────────────────────────────────────
+# Model resolution
+# ─────────────────────────────────────────────────────────────
+
+def _provider_from_endpoint(endpoint: str) -> str:
+    """Derive provider constant from endpoint URL."""
+    if "anthropic.com" in endpoint:
+        return llm_client.PROVIDER_ANTHROPIC
+    return llm_client.PROVIDER_OLLAMA
+
+
+def _resolve_llm_model(llm_model_id: int | None):
+    """
+    Return the llm_models row to use for an evaluation.
+    If llm_model_id is None, returns the default model.
+    Raises ValueError if the model cannot be found.
+    """
+    if llm_model_id is not None:
+        row = database.get_llm_model(llm_model_id)
+        if row is None:
+            raise ValueError(f"LLM model id={llm_model_id} not found")
+        return row
+    row = database.get_default_llm_model()
+    if row is None:
+        raise ValueError(
+            "No default LLM model configured. Add a model in Settings."
+        )
+    return row
 
 
 # ─────────────────────────────────────────────────────────────
@@ -88,8 +111,8 @@ A score of 10 should be extremely rare — reserved for roles that are an almost
 === END CONTEXT ===
 
 Scoring guidance — apply this strictly and critically:
-1-2: Categorically outside the job seeker's stated target profile — the role type, 
-     function, or seniority level is fundamentally misaligned with what they said 
+1-2: Categorically outside the job seeker's stated target profile — the role type,
+     function, or seniority level is fundamentally misaligned with what they said
      they're looking for, regardless of domain or industry overlap.
 3-4: Significant mismatch — major gaps in required experience, wrong level,
      or domain knowledge gap that would be disqualifying for most hiring managers
@@ -110,14 +133,14 @@ CRITICAL RULES:
 - Domain mismatch is a hard penalty. A software engineering leader applying
   for a construction role, a finance role, or any non-tech role should score
   no higher than 4 regardless of leadership experience.
-- Target profile mismatch is a hard penalty. If the role's function, type, or 
-  seniority tier conflicts with the job seeker's stated targets in the context 
+- Target profile mismatch is a hard penalty. If the role's function, type, or
+  seniority tier conflicts with the job seeker's stated targets in the context
   document, score no higher than 3 regardless of domain fit or transferable skills.
 - Transferable soft skills (leadership, management, communication) do NOT
   compensate for missing domain expertise at the Director level and above.
 - Be honest about dealbreakers. If the role requires specific credentials,
   licenses, or domain experience the candidate clearly lacks, score accordingly.
-- Most roles with a domain or profile match should score 5-9. Roles outside 
+- Most roles with a domain or profile match should score 5-9. Roles outside
   the candidate's domain or profile should score 1-5.
 - When the candidate's background directly satisfies a JD requirement,
   do not flag it as a gap. Give benefit of the doubt when experience
@@ -170,7 +193,6 @@ def _build_user_prompt(jd_text: str) -> str:
     This prevents a malicious JD containing '[JD_END]' from terminating
     the delimited block early and injecting into the system prompt space.
     """
-    # Strip delimiter strings from raw JD text (prompt injection mitigation)
     jd_clean = jd_text.replace("[JD_START]", "").replace("[JD_END]", "")
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -179,10 +201,9 @@ def _build_user_prompt(jd_text: str) -> str:
 
 def _compute_prompt_hash(system_prompt: str) -> str:
     """
-    Compute SHA-256 hash of the system prompt.
-    Stored in evaluations.prompt_hash to enable valid comparison.
-    Evaluations with different prompt hashes are not directly comparable
-    — similar to how cross-model scores are not directly comparable.
+    SHA-256 of the system prompt.
+    Stored in llm_call_log.prompt_hash. Evaluations sharing a prompt_hash
+    used identical scoring criteria; different hashes break comparability.
     """
     return hashlib.sha256(system_prompt.encode()).hexdigest()
 
@@ -205,14 +226,11 @@ def _parse_evaluation_response(raw: str) -> dict | None:
     if not raw:
         return None
 
-    # Try direct parse first
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
         pass
 
-    # Strip markdown code blocks if present
-    # Handles ```json ... ``` and ``` ... ```
     cleaned = re.sub(r"```(?:json)?\s*", "", raw)
     cleaned = cleaned.replace("```", "").strip()
     try:
@@ -220,7 +238,6 @@ def _parse_evaluation_response(raw: str) -> dict | None:
     except json.JSONDecodeError:
         pass
 
-    # Try to find a JSON object anywhere in the response
     match = re.search(r"\{.*\}", raw, re.DOTALL)
     if match:
         try:
@@ -243,29 +260,25 @@ def _validate_parsed_response(parsed: dict) -> bool:
     if not all(k in parsed for k in required):
         return False
 
-    # Clamp and validate score_overall — must be 1-10
     score = parsed.get("score_overall")
     if score is not None:
         try:
             score = float(score)
             if score < 1 or score > 10:
-                return False  # out of range — trigger retry
+                return False
             parsed["score_overall"] = round(score, 1)
         except (TypeError, ValueError):
             return False
 
-    # Validate sub-scores — must be 1-5 if present
     for field in ["score_role_fit", "score_scope_fit", "score_culture", "score_comp"]:
         val = parsed.get(field)
         if val is not None:
             try:
                 val = float(val)
-                # Clamp to 1-5 rather than failing — sub-scores are less critical
                 parsed[field] = round(max(1.0, min(5.0, val)), 1)
             except (TypeError, ValueError):
                 parsed[field] = None
 
-    # Reject placeholder text — model returned template instead of real values
     fit_type = str(parsed.get("fit_type", ""))
     if "<" in fit_type and ">" in fit_type:
         return False
@@ -352,54 +365,9 @@ Copy this line into your jobsearch.md Application Log:
 
 ---
 
-## Evaluation Summary
-
-{evaluation.get('log_entry', '')}
-
----
-
 *Generated by AIstivus*
 """
     return report
-
-
-def _write_inbox_export(
-    jd_text: str,
-    company_name: str,
-    job_title: str,
-    location: str | None,
-    remote_type: str | None,
-    apply_url: str | None,
-) -> Path:
-    """
-    Write an inbox-format .md file to inbox/done/ after a successful evaluation.
-    The file is valid for re-import via the inbox processor for batch testing.
-    """
-    done_dir = _get_inbox_done_dir()
-    done_dir.mkdir(parents=True, exist_ok=True)
-
-    def sanitize(s: str) -> str:
-        clean = re.sub(r"[^a-zA-Z0-9\-]", "-", s)
-        clean = re.sub(r"-+", "-", clean).strip("-")
-        return clean[:32]
-
-    date_str  = datetime.now(timezone.utc).strftime("%Y%m%d")
-    filename  = f"{date_str}_{sanitize(company_name)}_{sanitize(job_title)}.md"
-    file_path = done_dir / filename
-
-    content = (
-        "---\n"
-        f"company: {company_name}\n"
-        f"title: {job_title}\n"
-        f"location: {location or ''}\n"
-        f"remote_type: {remote_type or ''}\n"
-        f"url: {apply_url or ''}\n"
-        f"date_posted: \n"
-        "---\n\n"
-        f"{jd_text}\n"
-    )
-    file_path.write_text(content, encoding="utf-8")
-    return file_path
 
 
 def _write_report(
@@ -414,7 +382,6 @@ def _write_report(
     reports_dir = _get_reports_dir()
     reports_dir.mkdir(parents=True, exist_ok=True)
 
-    # Sanitize path components — alphanumeric and hyphens only, max 64 chars
     def sanitize(s: str) -> str:
         clean = re.sub(r"[^a-zA-Z0-9\-]", "-", s)
         clean = re.sub(r"-+", "-", clean).strip("-")
@@ -481,7 +448,6 @@ def extract_role_keyword(description: str) -> str:
     if not scores or max(scores.values()) == 0:
         return "general"
 
-    # Highest score wins; dict insertion order breaks ties (first listed wins)
     return max(scores, key=lambda t: scores[t])
 
 
@@ -496,32 +462,32 @@ async def evaluate_jd(
     location: str | None = None,
     remote_type: str | None = None,
     apply_url: str | None = None,
-    model: str | None = None,
-    provider: str = llm_client.PROVIDER_OLLAMA,
+    llm_model_id: int | None = None,
 ) -> dict:
     """
     Full evaluation pipeline for a single job description.
 
     Steps:
-    1. Load jobsearch.md
-    2. Upsert company and job records
-    3. Insert job_posting record
-    4. Extract role keyword from JD
+    1. Resolve LLM model from llm_models table
+    2. Load jobsearch.md
+    3. Upsert job record
+    4. Insert job_posting record
     5. Build prompt with delimiter injection mitigation
     6. Call LLM (retry once on parse failure)
-    7. Write evaluation to DB (NULL scores on second failure)
-    8. Write markdown report to /reports/
-    9. Return result dict
+    7. Write llm_call_log for each attempt
+    8. Write evaluation to DB (NULL scores on double failure)
+    9. Write application_logs prompt entry
+    10. Write markdown report
+    11. Return result dict
 
     Args:
-        jd_text:      Raw job description text
-        company_name: Company name
-        job_title:    Job title
-        location:     Optional location string
-        remote_type:  Optional remote type (Remote / Hybrid / On-site)
-        apply_url:    Optional apply URL
-        model:        Model name (defaults to config default_model)
-        provider:     LLM provider (ollama in Phase 0)
+        jd_text:       Raw job description text
+        company_name:  Company name
+        job_title:     Job title
+        location:      Optional location string
+        remote_type:   Optional remote type (Remote / Hybrid / On-site)
+        apply_url:     Optional apply URL
+        llm_model_id:  llm_models.id to use; None uses the default model
 
     Returns:
         dict with keys:
@@ -532,10 +498,25 @@ async def evaluate_jd(
             evaluation      (dict | None)  — parsed evaluation fields
             error           (str | None)
     """
-    base_url, default_model = _get_ollama_config()
-    model = model or default_model
+    # ── Step 1: Resolve LLM model ──────────────────────────────
+    try:
+        model_row = _resolve_llm_model(llm_model_id)
+    except ValueError as e:
+        return {
+            "success": False,
+            "evaluation_id": None,
+            "job_id": None,
+            "report_path": None,
+            "evaluation": None,
+            "error": str(e),
+        }
 
-    # ── Step 1: Load jobsearch.md ──────────────────────────────
+    resolved_model_id = model_row["id"]
+    model = model_row["model"]
+    endpoint = model_row["endpoint"]
+    provider = _provider_from_endpoint(endpoint)
+
+    # ── Step 2: Load jobsearch.md ──────────────────────────────
     jobsearch_path = _get_jobsearch_path()
     if not jobsearch_path.exists():
         return {
@@ -552,21 +533,19 @@ async def evaluate_jd(
 
     jobsearch_context = jobsearch_path.read_text()
 
-    # ── Step 2: Upsert company and job ─────────────────────────
-    company_id = database.upsert_company(company_name)
-
+    # ── Step 3: Upsert job ─────────────────────────────────────
     role_keyword = extract_role_keyword(jd_text)
 
     job_id, _created = database.upsert_job(
-        company_id=company_id,
-        title=job_title,
-        role_keyword=role_keyword,
+        company_name,
+        job_title,
+        role_keyword,
         location=location,
         remote_type=remote_type,
         description_merged=jd_text,
     )
 
-    # ── Step 3: Insert job_posting ─────────────────────────────
+    # ── Step 4: Insert job_posting ─────────────────────────────
     database.insert_job_posting(
         job_id=job_id,
         source_board="manual",
@@ -575,32 +554,49 @@ async def evaluate_jd(
         date_posted=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
     )
 
-    # ── Steps 4-6: Build prompt and call LLM ───────────────────
+    # ── Step 5: Build prompt ───────────────────────────────────
     system_prompt = _build_system_prompt(jobsearch_context)
     user_prompt = _build_user_prompt(jd_text)
     prompt_hash = _compute_prompt_hash(system_prompt)
 
     print(f"  Calling {provider}/{model}...")
 
-    # Attempt 1: standard prompt
+    # ── Step 6: Call LLM — attempt 1 ──────────────────────────
     result = await llm_client.complete(
         prompt=user_prompt,
         system=system_prompt,
         model=model,
         provider=provider,
-        base_url=base_url,
+        base_url=endpoint,
         think=False,
     )
 
-    parsed = None
     raw_response = result.get("content", "")
+    parsed = None
 
     if result["success"] and raw_response:
         parsed = _parse_evaluation_response(raw_response)
         if parsed and not _validate_parsed_response(parsed):
-            parsed = None  # Invalid structure — treat as parse failure
+            parsed = None
 
-    # Attempt 2: retry with stricter prompt if parse failed
+    # ── Step 7: Write llm_call_log for attempt 1 ──────────────
+    log_id = database.insert_llm_call_log(
+        llm_model_id=resolved_model_id,
+        call_type="evaluation",
+        prompt=user_prompt,
+        prompt_hash=prompt_hash,
+        raw_response=raw_response,
+        prompt_tokens_actual=result.get("prompt_tokens_actual"),
+        completion_tokens_actual=result.get("completion_tokens_actual"),
+        total_tokens_actual=result.get("total_tokens_actual"),
+        latency_ms=result.get("latency_ms"),
+        call_time=(result.get("latency_ms") or 0) // 1000,
+        success=1 if result["success"] else 0,
+        error_message=result.get("error"),
+        job_id=job_id,
+    )
+
+    # ── Step 6b: Retry with stricter prompt if parse failed ────
     if result["success"] and not parsed:
         print("  Parse failed — retrying with stricter prompt...")
         strict_prompt = (
@@ -613,7 +609,7 @@ async def evaluate_jd(
             system=system_prompt,
             model=model,
             provider=provider,
-            base_url=base_url,
+            base_url=endpoint,
         )
         raw_response = result.get("content", "")
         if result["success"] and raw_response:
@@ -621,17 +617,29 @@ async def evaluate_jd(
             if parsed and not _validate_parsed_response(parsed):
                 parsed = None
 
-    # ── Step 7: Write evaluation to DB ─────────────────────────
+        # Write llm_call_log for attempt 2 — this becomes the final log_id
+        log_id = database.insert_llm_call_log(
+            llm_model_id=resolved_model_id,
+            call_type="evaluation",
+            prompt=strict_prompt,
+            prompt_hash=prompt_hash,
+            raw_response=raw_response,
+            prompt_tokens_actual=result.get("prompt_tokens_actual"),
+            completion_tokens_actual=result.get("completion_tokens_actual"),
+            total_tokens_actual=result.get("total_tokens_actual"),
+            latency_ms=result.get("latency_ms"),
+            call_time=(result.get("latency_ms") or 0) // 1000,
+            success=1 if result["success"] else 0,
+            error_message=result.get("error"),
+            job_id=job_id,
+        )
+
+    # ── Step 8: Write evaluation to DB ─────────────────────────
     # Always write — even on failure. Never silently drop.
-    evaluation_kwargs: dict = {
-        "model_used": f"{provider}/{model}",
-        "prompt_hash": prompt_hash,
-        "raw_response": raw_response,
-    }
+    evaluation_kwargs: dict = {"llm_call_log_id": log_id}
 
     if parsed:
         def _to_str(val) -> str | None:
-            """Coerce lists or other non-string values to strings."""
             if val is None:
                 return None
             if isinstance(val, list):
@@ -649,17 +657,31 @@ async def evaluate_jd(
             "strengths":       _to_str(parsed.get("strengths")),
             "gaps":            _to_str(parsed.get("gaps")),
             "recommendation":  _to_str(parsed.get("recommendation")),
-            "log_entry":       _to_str(parsed.get("log_entry")),
             "keywords":        _to_str(parsed.get("keywords")),
             "domain_match":    _to_str(parsed.get("domain_match")),
+            "role_type_match": _to_str(parsed.get("role_type_match")),
+            "keyword_gaps":    _to_str(parsed.get("keyword_gaps")),
         })
 
     evaluation_id = database.insert_evaluation(
         job_id=job_id,
-        **evaluation_kwargs
+        llm_model_id=resolved_model_id,
+        **evaluation_kwargs,
     )
 
-    # ── Step 8: Write markdown report ──────────────────────────
+    # ── Step 9: Write application_logs prompt entry ────────────
+    app = database.get_application_for_job(job_id)
+    if app:
+        prompt_type_id = database.get_system_type_id("application_log", "prompt")
+        if prompt_type_id:
+            database.add_application_log(
+                application_id=app["id"],
+                type_id=prompt_type_id,
+                log=f"Evaluated by {provider}/{model} — eval ID {evaluation_id}",
+                llm_call_log_id=log_id,
+            )
+
+    # ── Step 10: Write markdown report ────────────────────────
     report_path = None
     if parsed:
         report_content = _generate_report(
@@ -673,19 +695,7 @@ async def evaluate_jd(
         report_path = _write_report(report_content, company_name, job_title)
         print(f"  Report written to {report_path}")
 
-    # ── Step 8a: Export to inbox/done/ if enabled ──────────────
-    if parsed and database.get_setting("export_evaluation_to_file") == "true":
-        export_path = _write_inbox_export(
-            jd_text=jd_text,
-            company_name=company_name,
-            job_title=job_title,
-            location=location,
-            remote_type=remote_type,
-            apply_url=apply_url,
-        )
-        print(f"  Inbox export written to {export_path}")
-
-    # ── Step 9: Return result ───────────────────────────────────
+    # ── Step 11: Return result ─────────────────────────────────
     if not result["success"]:
         return {
             "success": False,
@@ -731,7 +741,6 @@ async def evaluate_jd(
 if __name__ == "__main__":
     import sys
 
-    # Quick smoke test with a minimal JD
     test_jd = """
     Senior Engineering Manager — Platform
 
@@ -749,7 +758,7 @@ if __name__ == "__main__":
     """
 
     print("Running evaluator smoke test...")
-    print("(Requires jobsearch.md and Ollama to be running)\n")
+    print("(Requires jobsearch.md and a configured LLM model in the DB)\n")
 
     async def _test():
         database.init_db()
