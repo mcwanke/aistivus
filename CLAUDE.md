@@ -24,7 +24,7 @@ document generation.
 
 ## Current Phase: PHASE 1.0 — DB + Backend + Tests
 
-**Phases 0 through 0.4 are complete.** Core evaluation pipeline working end-to-end.
+**Phases 0 through 1.0 are complete.** Core evaluation pipeline working end-to-end.
 HTML frontend operational (read-only reference — do not modify).
 
 ### Phase 1.0 Checklist 🔄
@@ -48,8 +48,8 @@ HTML frontend operational (read-only reference — do not modify).
 - [ ] GitHub Actions CI (pytest + ruff lint)
 
 ### Phase 1.1 Checklist 🔲
-- [ ] Vite + React 18 + TypeScript + Tailwind scaffolding
-- [ ] React Query (TanStack Query) configured
+- [x] Vite + React 18 + TypeScript + Tailwind scaffolding
+- [x] React Query (TanStack Query) configured
 - [ ] TypeScript interfaces for all API responses in `frontend/src/types/`
 - [ ] Dashboard.tsx
 - [ ] Jobs.tsx / JobDetail.tsx (redesigned layout per PROJECT_SPEC Section 10)
