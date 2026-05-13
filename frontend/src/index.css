@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0f0f0f;
+  --color-surface: #181818;
+  --color-surface2: #222222;
+  --color-accent: #c8a96e;
+  --color-green: #6a9c6a;
+  --color-red: #9c6a6a;
+  --color-text: #e0d8cc;
+  --color-muted: #888077;
+
+  --font-serif: "DM Serif Display", serif;
+  --font-mono: "DM Mono", monospace;
+  --font-sans: "DM Sans", sans-serif;
+
+  --font-family-default: var(--font-sans);
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
