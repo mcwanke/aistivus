@@ -1,0 +1,573 @@
+import { useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useJobDetail, usePatchJob, useStartApplication } from '@/hooks/useJobs'
+import type { Evaluation, JobPosting } from '@/types/api'
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  return iso.split('T')[0] ?? iso.slice(0, 10)
+}
+
+function fmtScore(val: number | null | undefined): string {
+  if (val === null || val === undefined) return '—'
+  return val.toFixed(1)
+}
+
+// ─── Collapsible section ──────────────────────────────────────────────────────
+
+interface CollapsibleProps {
+  title: string
+  defaultOpen?: boolean
+  children: React.ReactNode
+}
+
+function Collapsible({ title, defaultOpen = true, children }: CollapsibleProps): React.JSX.Element {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between py-2 text-left group"
+      >
+        <span className="text-muted text-xs font-mono uppercase tracking-widest group-hover:text-text transition-colors">
+          {title}
+        </span>
+        <span className="text-muted text-xs">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && <div>{children}</div>}
+    </div>
+  )
+}
+
+// ─── Edit Job Detail Modal ────────────────────────────────────────────────────
+
+interface EditJobModalProps {
+  jobId: number
+  initial: { company_name: string; title: string; location: string | null; remote_type: string | null }
+  onClose: () => void
+}
+
+function EditJobModal({ jobId, initial, onClose }: EditJobModalProps): React.JSX.Element {
+  const [company, setCompany] = useState(initial.company_name)
+  const [title, setTitle] = useState(initial.title)
+  const [location, setLocation] = useState(initial.location ?? '')
+  const [remoteType, setRemoteType] = useState(initial.remote_type ?? '')
+  const patch = usePatchJob()
+
+  async function handleSave(): Promise<void> {
+    await patch.mutateAsync({
+      jobId,
+      updates: {
+        company_name: company || undefined,
+        title: title || undefined,
+        location: location || undefined,
+        remote_type: remoteType || undefined,
+      },
+    })
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-bg/80 flex items-center justify-center z-50">
+      <div className="bg-surface rounded p-6 w-full max-w-md space-y-4">
+        <h2 className="font-serif text-accent text-lg">Edit Job</h2>
+        <div className="space-y-3">
+          <label className="block">
+            <span className="text-muted text-xs font-mono uppercase tracking-widest">Company</span>
+            <input
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              value={company}
+              onChange={(e) => setCompany(e.target.value)}
+            />
+          </label>
+          <label className="block">
+            <span className="text-muted text-xs font-mono uppercase tracking-widest">Title</span>
+            <input
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </label>
+          <label className="block">
+            <span className="text-muted text-xs font-mono uppercase tracking-widest">Location</span>
+            <input
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+            />
+          </label>
+          <label className="block">
+            <span className="text-muted text-xs font-mono uppercase tracking-widest">Remote type</span>
+            <select
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              value={remoteType}
+              onChange={(e) => setRemoteType(e.target.value)}
+            >
+              <option value="">—</option>
+              <option>Remote</option>
+              <option>Hybrid</option>
+              <option>On-site</option>
+            </select>
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 text-sm text-muted hover:text-text transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => void handleSave()}
+            disabled={patch.isPending}
+            className="px-4 py-1.5 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+          >
+            {patch.isPending ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Edit Description Modal ───────────────────────────────────────────────────
+
+interface EditDescriptionModalProps {
+  jobId: number
+  initial: string
+  onClose: () => void
+}
+
+function EditDescriptionModal({ jobId, initial, onClose }: EditDescriptionModalProps): React.JSX.Element {
+  const [text, setText] = useState(initial)
+  const patch = usePatchJob()
+
+  async function handleSave(): Promise<void> {
+    await patch.mutateAsync({ jobId, updates: { description_merged: text } })
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-bg/80 flex items-center justify-center z-50">
+      <div className="bg-surface rounded p-6 w-full max-w-2xl space-y-4">
+        <h2 className="font-serif text-accent text-lg">Edit Description</h2>
+        <textarea
+          className="w-full h-64 bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent resize-y"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 text-sm text-muted hover:text-text transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => void handleSave()}
+            disabled={patch.isPending}
+            className="px-4 py-1.5 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+          >
+            {patch.isPending ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── My Ratings section ───────────────────────────────────────────────────────
+
+interface RatingInputProps {
+  label: string
+  value: number | null
+  max: number
+  onBlurSave: (val: number | null) => void
+}
+
+function RatingInput({ label, value, max, onBlurSave }: RatingInputProps): React.JSX.Element {
+  const [local, setLocal] = useState(value !== null ? String(value) : '')
+
+  function handleBlur(): void {
+    const n = local === '' ? null : parseFloat(local)
+    if (n !== null && (isNaN(n) || n < 0 || n > max)) return
+    onBlurSave(n)
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <span className="text-[10px] font-mono text-muted uppercase">{label}</span>
+      <input
+        type="number"
+        min={0}
+        max={max}
+        step={0.1}
+        value={local}
+        onChange={(e) => setLocal(e.target.value)}
+        onBlur={handleBlur}
+        className="w-14 bg-surface2 rounded px-2 py-1 text-center text-sm font-mono text-text focus:outline-none focus:ring-1 focus:ring-accent"
+        placeholder="—"
+      />
+      <span className="text-[10px] text-muted">/{max}</span>
+    </div>
+  )
+}
+
+interface MyRatingsSectionProps {
+  jobId: number
+  job: {
+    my_role_fit: number | null
+    my_scope_fit: number | null
+    my_culture: number | null
+    my_comp: number | null
+    my_score_overall: number | null
+    excitement_level: string | null
+  }
+}
+
+function MyRatingsSection({ jobId, job }: MyRatingsSectionProps): React.JSX.Element {
+  const patch = usePatchJob()
+
+  function save(field: string, val: number | null): void {
+    patch.mutate({ jobId, updates: { [field]: val } })
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-4 flex-wrap">
+        <RatingInput label="Role" value={job.my_role_fit} max={5} onBlurSave={(v) => save('my_role_fit', v)} />
+        <RatingInput label="Scope" value={job.my_scope_fit} max={5} onBlurSave={(v) => save('my_scope_fit', v)} />
+        <RatingInput label="Culture" value={job.my_culture} max={5} onBlurSave={(v) => save('my_culture', v)} />
+        <RatingInput label="Comp" value={job.my_comp} max={5} onBlurSave={(v) => save('my_comp', v)} />
+        <RatingInput label="Overall" value={job.my_score_overall} max={10} onBlurSave={(v) => save('my_score_overall', v)} />
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-muted text-xs font-mono uppercase tracking-widest">Excitement</span>
+        <select
+          className="bg-surface2 rounded px-2 py-1 text-sm text-text focus:outline-none focus:ring-1 focus:ring-accent"
+          value={job.excitement_level ?? ''}
+          onChange={(e) => {
+            patch.mutate({ jobId, updates: { excitement_level: e.target.value || undefined } })
+          }}
+        >
+          <option value="">—</option>
+          <option>Low</option>
+          <option>Medium</option>
+          <option>High</option>
+          <option>Very High</option>
+        </select>
+      </div>
+    </div>
+  )
+}
+
+// ─── Evaluation card ──────────────────────────────────────────────────────────
+
+function EvalCard({ evaluation }: { evaluation: Evaluation & { report_path: string | null } }): React.JSX.Element {
+  return (
+    <div className="bg-surface2 rounded p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-muted text-xs font-mono">{fmtDate(evaluation.evaluated_at)}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-mono text-muted">
+            OVR <span className="text-text">{fmtScore(evaluation.score_overall)}</span>/10
+          </span>
+          {evaluation.fit_type && (
+            <span className={`text-xs font-mono px-2 py-0.5 rounded ${
+              evaluation.fit_type === 'Core Fit'
+                ? 'bg-green/20 text-green'
+                : evaluation.fit_type === 'Stretch'
+                ? 'bg-accent/20 text-accent'
+                : 'bg-red/20 text-red'
+            }`}>
+              {evaluation.fit_type}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4 flex-wrap">
+        {(['role_fit', 'scope_fit', 'culture', 'comp'] as const).map((key) => {
+          const labels: Record<string, string> = { role_fit: 'R', scope_fit: 'SC', culture: 'CU', comp: 'CO' }
+          const val = evaluation[`score_${key}` as keyof Evaluation] as number | null
+          return (
+            <div key={key} className="flex flex-col items-center">
+              <span className="text-[10px] font-mono text-muted uppercase">{labels[key]}</span>
+              <span className="text-sm font-mono text-text">{fmtScore(val)}/5</span>
+            </div>
+          )
+        })}
+      </div>
+
+      {evaluation.archetype && (
+        <p className="text-xs text-muted">
+          <span className="text-muted">Archetype: </span>
+          <span className="text-text">{evaluation.archetype}</span>
+        </p>
+      )}
+
+      {evaluation.recommendation && (
+        <p className="text-xs">
+          <span className="text-muted">Rec: </span>
+          <span className={`font-mono ${
+            evaluation.recommendation === 'Apply'
+              ? 'text-green'
+              : evaluation.recommendation === 'Skip'
+              ? 'text-red'
+              : 'text-accent'
+          }`}>
+            {evaluation.recommendation}
+          </span>
+        </p>
+      )}
+
+      {evaluation.domain_match && (
+        <p className="text-xs text-muted">
+          Domain: <span className="text-text">{evaluation.domain_match}</span>
+          {evaluation.role_type_match && (
+            <> · Role: <span className="text-text">{evaluation.role_type_match}</span></>
+          )}
+        </p>
+      )}
+
+      {evaluation.strengths && (
+        <div>
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Strengths</p>
+          <p className="text-xs text-text leading-relaxed">{evaluation.strengths}</p>
+        </div>
+      )}
+
+      {evaluation.gaps && (
+        <div>
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Gaps</p>
+          <p className="text-xs text-text leading-relaxed">{evaluation.gaps}</p>
+        </div>
+      )}
+
+      {evaluation.keywords && (
+        <div>
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Keywords</p>
+          <p className="text-xs font-mono text-muted leading-relaxed">{evaluation.keywords}</p>
+        </div>
+      )}
+
+      {evaluation.keyword_gaps && (
+        <div>
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Keyword Gaps</p>
+          <p className="text-xs font-mono text-muted leading-relaxed">{evaluation.keyword_gaps}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Application status section ───────────────────────────────────────────────
+
+interface AppStatusSectionProps {
+  jobId: number
+  applicationId: number | null
+  status: string | null
+  postings: JobPosting[]
+}
+
+function AppStatusSection({ jobId, applicationId, status, postings }: AppStatusSectionProps): React.JSX.Element {
+  const navigate = useNavigate()
+  const startApp = useStartApplication()
+  const isActive = status && status !== 'not-started'
+  const applyUrl = postings.find((p) => p.source_url)?.source_url
+
+  async function handleStart(): Promise<void> {
+    await startApp.mutateAsync(jobId)
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3">
+        {status && (
+          <span className="text-xs font-mono px-2 py-0.5 rounded bg-surface2 text-muted">
+            {status}
+          </span>
+        )}
+        {isActive && applicationId ? (
+          <button
+            onClick={() => navigate(`/applications/${applicationId}`)}
+            className="text-sm px-3 py-1.5 bg-accent text-bg rounded hover:bg-accent/90 transition-colors"
+          >
+            View Application →
+          </button>
+        ) : (
+          <button
+            onClick={() => void handleStart()}
+            disabled={startApp.isPending}
+            className="text-sm px-3 py-1.5 bg-surface2 text-accent border border-accent/40 rounded hover:bg-accent/10 disabled:opacity-50 transition-colors"
+          >
+            {startApp.isPending ? 'Starting…' : '+ Start Application'}
+          </button>
+        )}
+      </div>
+      {startApp.isError && (
+        <p className="text-red text-xs">{startApp.error.message}</p>
+      )}
+      {applyUrl && (
+        <p className="text-xs text-muted">
+          Apply URL:{' '}
+          <a
+            href={applyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent hover:underline"
+          >
+            {applyUrl}
+          </a>
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+interface JobDetailProps {
+  jobId: number
+}
+
+export default function JobDetail({ jobId }: JobDetailProps): React.JSX.Element {
+  const { data, isLoading, isError } = useJobDetail(jobId)
+  const [editJobOpen, setEditJobOpen] = useState(false)
+  const [editDescOpen, setEditDescOpen] = useState(false)
+
+  const invalidateJobDetail = useCallback(() => {
+    setEditJobOpen(false)
+    setEditDescOpen(false)
+  }, [])
+
+  if (isLoading) {
+    return <div className="p-6 text-muted text-sm">Loading job details…</div>
+  }
+  if (isError || !data) {
+    return <div className="p-6 text-red text-sm">Failed to load job.</div>
+  }
+
+  const { job, evaluations, postings } = data
+
+  return (
+    <div className="p-6 max-w-2xl mx-auto space-y-6">
+
+      {/* ── Section 1: Job Detail ─────────────────────────────────── */}
+      <section>
+        <div className="flex items-start justify-between">
+          <div className="space-y-1">
+            <p className="text-muted text-xs font-mono">{job.company_name}</p>
+            <h2 className="font-serif text-accent text-2xl leading-tight">{job.title}</h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              {job.location && (
+                <span className="text-muted text-xs">📍 {job.location}</span>
+              )}
+              {job.remote_type && (
+                <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-surface2 text-muted">
+                  {job.remote_type}
+                </span>
+              )}
+              <span className="text-muted text-xs">Added {fmtDate(job.created_at)}</span>
+            </div>
+          </div>
+          <button
+            onClick={() => setEditJobOpen(true)}
+            className="text-xs text-muted hover:text-text px-2 py-1 border border-surface2 rounded transition-colors shrink-0"
+          >
+            Edit
+          </button>
+        </div>
+      </section>
+
+      {/* ── Section 2: Application Status ────────────────────────── */}
+      <section>
+        <p className="text-muted text-xs font-mono uppercase tracking-widest mb-2">Application</p>
+        <AppStatusSection
+          jobId={job.id}
+          applicationId={(job as JobListItemExtended).application_id ?? null}
+          status={(job as JobListItemExtended).application_status ?? null}
+          postings={postings}
+        />
+      </section>
+
+      <hr className="border-surface2" />
+
+      {/* ── Section 3: My Ratings ─────────────────────────────────── */}
+      <section>
+        <p className="text-muted text-xs font-mono uppercase tracking-widest mb-3">My Ratings</p>
+        <MyRatingsSection jobId={job.id} job={job} />
+      </section>
+
+      <hr className="border-surface2" />
+
+      {/* ── Section 4: Job Description ────────────────────────────── */}
+      <section>
+        <Collapsible title="Description">
+          <div className="flex items-start justify-between mb-2">
+            <span />
+            <button
+              onClick={() => setEditDescOpen(true)}
+              className="text-xs text-muted hover:text-text px-2 py-1 border border-surface2 rounded transition-colors"
+            >
+              Edit
+            </button>
+          </div>
+          {job.description_merged ? (
+            <pre className="text-xs text-text font-sans leading-relaxed whitespace-pre-wrap break-words">
+              {job.description_merged}
+            </pre>
+          ) : (
+            <p className="text-muted text-xs italic">No description.</p>
+          )}
+        </Collapsible>
+        <hr className="border-surface2 mt-4" />
+      </section>
+
+      {/* ── Section 5: Evaluations ────────────────────────────────── */}
+      <section>
+        <Collapsible title={`Evaluations (${evaluations.length})`}>
+          {evaluations.length === 0 ? (
+            <p className="text-muted text-xs py-2">No evaluations yet.</p>
+          ) : (
+            <div className="space-y-3 mt-2">
+              {evaluations.map((ev) => (
+                <EvalCard key={ev.id} evaluation={ev} />
+              ))}
+            </div>
+          )}
+        </Collapsible>
+      </section>
+
+      {/* ── Modals ───────────────────────────────────────────────── */}
+      {editJobOpen && (
+        <EditJobModal
+          jobId={job.id}
+          initial={{
+            company_name: job.company_name,
+            title: job.title,
+            location: job.location,
+            remote_type: job.remote_type,
+          }}
+          onClose={() => { setEditJobOpen(false); invalidateJobDetail() }}
+        />
+      )}
+      {editDescOpen && (
+        <EditDescriptionModal
+          jobId={job.id}
+          initial={job.description_merged ?? ''}
+          onClose={() => { setEditDescOpen(false); invalidateJobDetail() }}
+        />
+      )}
+    </div>
+  )
+}
+
+// The job detail API response includes the job without application fields,
+// but we need them from the list. Cast to access them if present.
+interface JobListItemExtended {
+  application_id?: number | null
+  application_status?: string | null
+}

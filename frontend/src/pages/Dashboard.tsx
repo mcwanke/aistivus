@@ -50,7 +50,7 @@ export default function Dashboard(): React.JSX.Element {
   const health = useQuery({ queryKey: ['health'], queryFn: fetchHealth })
 
   return (
-    <div className="p-8 max-w-4xl mx-auto space-y-8">
+    <div className="h-full overflow-y-auto p-8 max-w-4xl mx-auto space-y-8">
       <h1 className="font-serif text-accent text-3xl">Dashboard</h1>
 
       {/* Stat cards */}

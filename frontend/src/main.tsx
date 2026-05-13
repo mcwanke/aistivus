@@ -4,13 +4,19 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { RouterProvider, createBrowserRouter } from 'react-router-dom'
 import { queryClient } from '@/queryClient'
+import Layout from '@/components/Layout'
 import Dashboard from '@/pages/Dashboard'
+import Jobs from '@/pages/Jobs'
 import '@/index.css'
 
 const router = createBrowserRouter([
   {
-    path: '/',
-    element: <Dashboard />,
+    element: <Layout />,
+    children: [
+      { path: '/',          element: <Dashboard /> },
+      { path: '/jobs',      element: <Jobs /> },
+      { path: '/jobs/:jobId', element: <Jobs /> },
+    ],
   },
 ])
 

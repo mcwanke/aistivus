@@ -16,6 +16,7 @@ API routes:
   GET  /api/v1/evaluations/{id}
   GET  /api/v1/jobs
   GET  /api/v1/jobs/{id}
+  PATCH /api/v1/jobs/{id}
   GET  /api/v1/jobs/{id}/application
   GET  /api/v1/models
   POST /api/v1/applications
@@ -241,6 +242,20 @@ class ImportEvaluationRequest(BaseModel):
 
 class CreateApplicationRequest(BaseModel):
     job_id: int
+
+
+class PatchJobRequest(BaseModel):
+    company_name: str | None = None
+    title: str | None = None
+    location: str | None = None
+    remote_type: str | None = None
+    description_merged: str | None = None
+    excitement_level: str | None = None
+    my_role_fit: float | None = None
+    my_scope_fit: float | None = None
+    my_culture: float | None = None
+    my_comp: float | None = None
+    my_score_overall: float | None = None
 
 
 class UpdateApplicationRequest(BaseModel):
@@ -591,6 +606,19 @@ async def get_job(request: Request, job_id: int):
         "evaluations": evals_out,
         "postings": [dict(p) for p in postings],
     })
+
+
+@app.patch("/api/v1/jobs/{job_id}")
+@limiter.limit("30/minute")
+async def patch_job(request: Request, job_id: int, body: PatchJobRequest):
+    """Update editable job fields (details, description, my ratings)."""
+    job = database.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found.")
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if updates:
+        database.update_job(job_id, **updates)
+    return JSONResponse({"success": True})
 
 
 @app.get("/api/v1/jobs/{job_id}/application")

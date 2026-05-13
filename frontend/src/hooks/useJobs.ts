@@ -1,0 +1,87 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import type { JobListItem, JobDetailResponse } from '@/types/api'
+
+// ─── Fetchers ─────────────────────────────────────────────────────────────────
+
+async function fetchJobs(): Promise<JobListItem[]> {
+  const res = await fetch('/api/v1/jobs')
+  if (!res.ok) throw new Error(`jobs ${res.status}`)
+  return res.json() as Promise<JobListItem[]>
+}
+
+async function fetchJobDetail(jobId: number): Promise<JobDetailResponse> {
+  const res = await fetch(`/api/v1/jobs/${jobId}`)
+  if (!res.ok) throw new Error(`job ${jobId} ${res.status}`)
+  return res.json() as Promise<JobDetailResponse>
+}
+
+// ─── Hooks ────────────────────────────────────────────────────────────────────
+
+export function useJobs() {
+  return useQuery({ queryKey: ['jobs'], queryFn: fetchJobs })
+}
+
+export function useJobDetail(jobId: number | undefined) {
+  return useQuery({
+    queryKey: ['job', jobId],
+    queryFn: () => fetchJobDetail(jobId!),
+    enabled: jobId !== undefined,
+  })
+}
+
+// ─── Mutations ────────────────────────────────────────────────────────────────
+
+interface PatchJobPayload {
+  jobId: number
+  updates: {
+    company_name?: string
+    title?: string
+    location?: string
+    remote_type?: string
+    description_merged?: string
+    excitement_level?: string
+    my_role_fit?: number | null
+    my_scope_fit?: number | null
+    my_culture?: number | null
+    my_comp?: number | null
+    my_score_overall?: number | null
+  }
+}
+
+export function usePatchJob() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ jobId, updates }: PatchJobPayload) => {
+      const res = await fetch(`/api/v1/jobs/${jobId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+      if (!res.ok) throw new Error(`patch job ${jobId} ${res.status}`)
+    },
+    onSuccess: (_data, { jobId }) => {
+      void qc.invalidateQueries({ queryKey: ['jobs'] })
+      void qc.invalidateQueries({ queryKey: ['job', jobId] })
+    },
+  })
+}
+
+export function useStartApplication() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (jobId: number) => {
+      const res = await fetch('/api/v1/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId }),
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw new Error(err.detail ?? `start application ${res.status}`)
+      }
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['jobs'] })
+    },
+  })
+}

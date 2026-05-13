@@ -50,9 +50,9 @@ HTML frontend operational (read-only reference — do not modify).
 ### Phase 1.1 Checklist 🔲
 - [x] Vite + React 18 + TypeScript + Tailwind scaffolding
 - [x] React Query (TanStack Query) configured
-- [ ] TypeScript interfaces for all API responses in `frontend/src/types/`
-- [ ] Dashboard.tsx
-- [ ] Jobs.tsx / JobDetail.tsx (redesigned layout per PROJECT_SPEC Section 10)
+- [x] TypeScript interfaces for all API responses in `frontend/src/types/`
+- [x] Dashboard.tsx
+- [x] Jobs.tsx / JobDetail.tsx (redesigned layout per PROJECT_SPEC Section 10)
 - [ ] Evaluate.tsx (animated panel, reset on new run, dual timer)
 - [ ] Applications.tsx (excludes not-started)
 - [ ] ApplicationDetail.tsx (logs, audit, applied button, documents)
