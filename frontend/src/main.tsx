@@ -7,6 +7,7 @@ import { queryClient } from '@/queryClient'
 import Layout from '@/components/Layout'
 import Dashboard from '@/pages/Dashboard'
 import Jobs from '@/pages/Jobs'
+import Evaluate from '@/pages/Evaluate'
 import '@/index.css'
 
 const router = createBrowserRouter([
@@ -15,6 +16,7 @@ const router = createBrowserRouter([
     children: [
       { path: '/',          element: <Dashboard /> },
       { path: '/jobs',      element: <Jobs /> },
+      { path: '/evaluate', element: <Evaluate /> },
       { path: '/jobs/:jobId', element: <Jobs /> },
     ],
   },

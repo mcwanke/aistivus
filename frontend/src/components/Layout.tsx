@@ -1,8 +1,9 @@
 import { NavLink, Outlet } from 'react-router-dom'
 
 const NAV_ITEMS = [
-  { to: '/',    label: 'Dashboard' },
-  { to: '/jobs', label: 'Jobs' },
+  { to: '/',         label: 'Dashboard' },
+  { to: '/jobs',     label: 'Jobs' },
+  { to: '/evaluate', label: 'Evaluate' },
 ]
 
 export default function Layout(): React.JSX.Element {

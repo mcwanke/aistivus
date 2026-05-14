@@ -51,7 +51,9 @@ export interface LlmModel {
   available: number   // 0 | 1 from SQLite
   default_flag: number
   model_weight: number
+  estimated_eval_time: number | null
   created_at: string
+
 }
 
 export interface ModelsResponse {
@@ -277,6 +279,17 @@ export interface InboxFilesResponse {
   pending: string[]
 }
 
+// ─── Duplicate detection ──────────────────────────────────────────────────────
+
+export interface ExistingJob {
+  id: number
+  company_name: string
+  title: string
+  first_seen_date: string | null
+  eval_count: number
+  latest_score: number | null
+}
+
 // ─── POST /api/v1/evaluate ───────────────────────────────────────────────────
 
 export interface EvaluateResponse {
@@ -287,5 +300,6 @@ export interface EvaluateResponse {
   evaluation: Record<string, unknown> | null
   error: string | null
   duplicate_detected: boolean
-  existing_jobs: unknown[] | null
+  existing_jobs: ExistingJob[] | null
 }
+
