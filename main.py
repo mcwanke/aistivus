@@ -43,14 +43,9 @@ API routes:
   GET  /api/v1/inbox/files
   POST /api/v1/inbox/process
 
-Page routes (read-only reference — retired Phase 1.1):
-  GET  /
-  GET  /evaluate
-  GET  /jobs      (→ jobs.html)
-  GET  /settings
-  GET  /applications
-  GET  /applications/{id}
-  GET  /report
+SPA catch-all (Phase 1.1+):
+  GET  /{full_path}  → serves frontend/dist/index.html (React Router handles routing)
+  GET  /report       → serves raw markdown from /reports/ (path-traversal protected)
 """
 
 import os
@@ -197,7 +192,9 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+_frontend_assets = Path("frontend/dist/assets")
+if _frontend_assets.exists():
+    app.mount("/assets", StaticFiles(directory=str(_frontend_assets)), name="frontend-assets")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -321,57 +318,6 @@ _VALID_STATUSES = frozenset({
 })
 
 
-# ─────────────────────────────────────────────────────────────
-# Page routes — serve HTML reference pages (retired Phase 1.1)
-# ─────────────────────────────────────────────────────────────
-
-@app.get("/", response_class=FileResponse, include_in_schema=False)
-async def serve_index():
-    path = Path("pages/index.html")
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="index.html not found.")
-    return FileResponse(path)
-
-
-@app.get("/evaluate", response_class=FileResponse, include_in_schema=False)
-async def serve_evaluate():
-    path = Path("pages/evaluate.html")
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="evaluate.html not found.")
-    return FileResponse(path)
-
-
-@app.get("/jobs", response_class=FileResponse, include_in_schema=False)
-async def serve_jobs_page():
-    path = Path("pages/jobs.html")
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="jobs.html not found.")
-    return FileResponse(path)
-
-
-@app.get("/settings", response_class=FileResponse, include_in_schema=False)
-async def serve_settings_page():
-    path = Path("pages/settings.html")
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="settings.html not found.")
-    return FileResponse(path)
-
-
-@app.get("/applications", response_class=FileResponse, include_in_schema=False)
-async def serve_applications_page():
-    path = Path("pages/applications.html")
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="applications.html not found.")
-    return FileResponse(path)
-
-
-@app.get("/applications/{application_id}", response_class=FileResponse, include_in_schema=False)
-async def serve_application_detail_page(application_id: int):
-    path = Path("pages/application_detail.html")
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="application_detail.html not found.")
-    return FileResponse(path)
-
 
 @app.get("/report", response_class=HTMLResponse, include_in_schema=False)
 async def view_report(path: str = Query(..., description="Path to the markdown report file")):
@@ -387,6 +333,18 @@ async def view_report(path: str = Query(..., description="Path to the markdown r
     if report_path.suffix != ".md":
         raise HTTPException(status_code=400, detail="Only .md files are served.")
     return HTMLResponse(content=report_path.read_text(), media_type="text/plain")
+
+
+@app.get("/{full_path:path}", response_class=FileResponse, include_in_schema=False)
+async def serve_spa(_full_path: str):
+    """Serve the React SPA for all non-API routes so React Router handles navigation."""
+    index = Path("frontend/dist/index.html")
+    if not index.exists():
+        raise HTTPException(
+            status_code=503,
+            detail="Frontend not built — run: cd frontend && npm run build",
+        )
+    return FileResponse(index)
 
 
 # ─────────────────────────────────────────────────────────────
