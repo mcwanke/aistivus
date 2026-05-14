@@ -29,6 +29,8 @@ API routes:
   PATCH /api/v1/applications/{id}
   POST /api/v1/applications/{id}/logs
   DELETE /api/v1/applications/{id}/logs/{log_id}
+  PATCH /api/v1/applications/{id}/logs/{log_id}/timestamp
+  PATCH /api/v1/applications/{id}/audit/{audit_id}/timestamp
   POST /api/v1/applications/{id}/generate-prompt
   GET  /api/v1/llm-call-log
   GET  /api/v1/system-types
@@ -36,6 +38,8 @@ API routes:
   DELETE /api/v1/system-types/{id}
   GET  /api/v1/settings
   PATCH /api/v1/settings
+  GET  /api/v1/settings/app
+  PATCH /api/v1/settings/app/{key}
   GET  /api/v1/settings/jobsearch
   PUT  /api/v1/settings/jobsearch
   GET  /api/v1/settings/jobsearch/versions
@@ -278,6 +282,7 @@ class UpdateApplicationRequest(BaseModel):
     apply_date: str | None = None
     end_date: str | None = None
     requested_salary: str | None = None
+    applied: int | None = None
 
 
 class AddLogRequest(BaseModel):
@@ -285,6 +290,14 @@ class AddLogRequest(BaseModel):
     log: str
     url: str | None = None
     log_timestamp: str | None = None
+
+
+class UpdateAppSettingRequest(BaseModel):
+    value: str
+
+
+class UpdateTimestampRequest(BaseModel):
+    timestamp: str
 
 
 class UpdateSettingsRequest(BaseModel):
@@ -868,6 +881,40 @@ async def delete_log(request: Request, application_id: int, log_id: int):
     return JSONResponse({"success": True})
 
 
+@app.patch("/api/v1/applications/{application_id}/logs/{log_id}/timestamp")
+@limiter.limit("30/minute")
+async def update_log_timestamp(
+    request: Request, application_id: int, log_id: int, body: UpdateTimestampRequest
+):
+    """Update the timestamp on a user-created application log entry."""
+    if not body.timestamp.strip():
+        raise HTTPException(status_code=400, detail="timestamp must not be empty.")
+    updated = database.update_log_timestamp(log_id, body.timestamp)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Log entry {log_id} not found.")
+    return JSONResponse({"success": True})
+
+
+@app.patch("/api/v1/applications/{application_id}/audit/{audit_id}/timestamp")
+@limiter.limit("30/minute")
+async def update_audit_timestamp(
+    request: Request, application_id: int, audit_id: int, body: UpdateTimestampRequest
+):
+    """Update the timestamp on an audit entry. Requires allow_audit_timestamp_edit = 1."""
+    setting = database.get_app_setting("allow_audit_timestamp_edit")
+    if setting != "1":
+        raise HTTPException(
+            status_code=403,
+            detail="Audit timestamp editing is disabled. Enable it in Settings.",
+        )
+    if not body.timestamp.strip():
+        raise HTTPException(status_code=400, detail="timestamp must not be empty.")
+    updated = database.update_audit_timestamp(audit_id, body.timestamp)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Audit entry {audit_id} not found.")
+    return JSONResponse({"success": True})
+
+
 @app.post("/api/v1/applications/{application_id}/generate-prompt")
 @limiter.limit("10/minute")
 async def generate_prompt(request: Request, application_id: int):
@@ -1152,6 +1199,21 @@ async def get_jobsearch_version(request: Request, version_id: int):
     if content is None:
         raise HTTPException(status_code=404, detail=f"Version {version_id} not found.")
     return JSONResponse({"content": content})
+
+
+@app.get("/api/v1/settings/app")
+@limiter.limit("30/minute")
+async def get_app_settings(request: Request):
+    """Return all app_settings records as a flat list of {key, value} pairs."""
+    return JSONResponse(database.get_all_app_settings())
+
+
+@app.patch("/api/v1/settings/app/{key}")
+@limiter.limit("30/minute")
+async def update_app_setting(request: Request, key: str, body: UpdateAppSettingRequest):
+    """Update a single app_settings value by key."""
+    database.set_app_setting(key, body.value)
+    return JSONResponse({"success": True, "key": key, "value": body.value})
 
 
 # ─────────────────────────────────────────────────────────────

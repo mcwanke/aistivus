@@ -1230,11 +1230,11 @@ def update_application_status(application_id: int, status: str) -> None:
 
 def update_application(application_id: int, **kwargs) -> bool:
     """
-    Update application fields (apply_date, end_date, requested_salary).
+    Update application fields (apply_date, end_date, requested_salary, applied).
     For status changes use update_application_status (writes audit trail).
     Returns True if updated, False if not found.
     """
-    allowed = {"apply_date", "end_date", "requested_salary"}
+    allowed = {"apply_date", "end_date", "requested_salary", "applied"}
     updates = {k: v for k, v in kwargs.items() if k in allowed}
     if not updates:
         return False
