@@ -161,10 +161,22 @@ export interface JobPosting {
   repost_url_changed: number
 }
 
+export interface CompanyLogEntry {
+  id: number
+  job_id: number
+  type_id: number
+  type_name: string
+  type_value: string
+  log: string | null
+  url: string | null
+  log_timestamp: string
+}
+
 export interface JobDetailResponse {
   job: Job
   evaluations: Array<Evaluation & { report_path: string | null }>
   postings: JobPosting[]
+  company_log: CompanyLogEntry[]
 }
 
 // ─── GET /api/v1/jobs/{id}/application ───────────────────────────────────────

@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { JobListItem, JobDetailResponse } from '@/types/api'
 
+export type { JobDetailResponse }
+
 // ─── Fetchers ─────────────────────────────────────────────────────────────────
 
 async function fetchJobs(): Promise<JobListItem[]> {
@@ -39,6 +41,8 @@ interface PatchJobPayload {
     location?: string
     remote_type?: string
     description_merged?: string
+    pay_band?: string | null
+    role_keyword?: string | null
     excitement_level?: string
     my_role_fit?: number | null
     my_scope_fit?: number | null
@@ -61,6 +65,30 @@ export function usePatchJob() {
     },
     onSuccess: (_data, { jobId }) => {
       void qc.invalidateQueries({ queryKey: ['jobs'] })
+      void qc.invalidateQueries({ queryKey: ['job', jobId] })
+    },
+  })
+}
+
+interface AddCompanyLogPayload {
+  jobId: number
+  type_value: string
+  log?: string
+  url?: string
+}
+
+export function useAddCompanyLog() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ jobId, type_value, log, url }: AddCompanyLogPayload) => {
+      const res = await fetch(`/api/v1/jobs/${jobId}/company-log`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type_value, log, url }),
+      })
+      if (!res.ok) throw new Error(`add company log ${res.status}`)
+    },
+    onSuccess: (_data, { jobId }) => {
       void qc.invalidateQueries({ queryKey: ['job', jobId] })
     },
   })

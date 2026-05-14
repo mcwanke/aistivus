@@ -1,9 +1,9 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { useJobDetail, usePatchJob, useStartApplication } from '@/hooks/useJobs'
+import { useJobDetail, usePatchJob, useStartApplication, useAddCompanyLog } from '@/hooks/useJobs'
 import { useImportEvaluationMutation, useModels, type ImportPayload } from '@/hooks/useEvaluate'
-import type { Evaluation, JobPosting, LlmModel } from '@/types/api'
+import type { Evaluation, JobPosting, LlmModel, CompanyLogEntry } from '@/types/api'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -337,8 +337,8 @@ function MyRatingsSection({ jobId, job }: MyRatingsSectionProps): React.JSX.Elem
 
   return (
     <>
-      <div className="grid grid-cols-[30%_1fr] gap-6">
-        {/* Left col: Excitement — 30%, center */}
+      <div className="grid grid-cols-[25%_1fr] gap-6">
+        {/* Left col: Excitement — 25%, center */}
         <div className="flex flex-col items-center">
           <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Excitement</p>
           <StarRating
@@ -349,17 +349,9 @@ function MyRatingsSection({ jobId, job }: MyRatingsSectionProps): React.JSX.Elem
           />
         </div>
 
-        {/* Right col: My Ratings — remaining, center */}
+        {/* Right col: My Ratings — remaining 75%, center */}
         <div className="flex flex-col items-center">
-          <div className="flex items-center justify-between w-full mb-2">
-            <p className="text-[10px] font-mono text-muted uppercase tracking-widest">My Ratings</p>
-            <button
-              onClick={() => setEditOpen(true)}
-              className="text-xs text-muted hover:text-text px-2 py-0.5 border border-surface2 rounded transition-colors"
-            >
-              Edit
-            </button>
-          </div>
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">My Ratings</p>
           <div className="flex items-center gap-4 flex-wrap justify-center">
             {([
               ['Role',    job.my_role_fit,      5],
@@ -373,6 +365,12 @@ function MyRatingsSection({ jobId, job }: MyRatingsSectionProps): React.JSX.Elem
                 <span className="text-sm font-mono text-text">{fmtRating(val, max)}</span>
               </div>
             ))}
+            <button
+              onClick={() => setEditOpen(true)}
+              className="text-xs text-muted hover:text-text px-2 py-0.5 border border-surface2 rounded transition-colors self-end"
+            >
+              Edit
+            </button>
           </div>
         </div>
       </div>
@@ -509,8 +507,20 @@ function AppStatusSection({ jobId, applicationId, status, postings }: AppStatusS
 
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-[30%_20%_1fr] gap-4">
-        {/* Col 1: APPLICATION — 30%, center */}
+      <div className="grid grid-cols-[15%_25%_1fr] gap-4">
+        {/* Col 1: STATUS — 15%, center */}
+        <div className="flex flex-col items-center">
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Status</p>
+          {status ? (
+            <span className="text-xs font-mono px-2 py-0.5 rounded bg-surface2 text-muted">
+              {status}
+            </span>
+          ) : (
+            <span className="text-xs text-muted">—</span>
+          )}
+        </div>
+
+        {/* Col 2: APPLICATION — 25%, center */}
         <div className="flex flex-col items-center">
           <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Application</p>
           {isActive && applicationId ? (
@@ -531,19 +541,7 @@ function AppStatusSection({ jobId, applicationId, status, postings }: AppStatusS
           )}
         </div>
 
-        {/* Col 2: STATUS — 20%, center */}
-        <div className="flex flex-col items-center">
-          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Status</p>
-          {status ? (
-            <span className="text-xs font-mono px-2 py-0.5 rounded bg-surface2 text-muted">
-              {status}
-            </span>
-          ) : (
-            <span className="text-xs text-muted">—</span>
-          )}
-        </div>
-
-        {/* Col 3: APPLY URL — remaining, left */}
+        {/* Col 3: APPLY URL — remaining ~60%, left */}
         <div>
           <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Apply URL</p>
           {applyUrl ? (
@@ -680,6 +678,282 @@ function ImportModal({
   )
 }
 
+// ─── Job Info section ─────────────────────────────────────────────────────────
+
+const COMPANY_INFO_TYPES = [
+  { value: 'website',     label: 'Website' },
+  { value: 'careerpage',  label: 'Career Page' },
+  { value: 'culturepage', label: 'Culture Page' },
+  { value: 'industry',    label: 'Industry' },
+  { value: 'size',        label: 'Size' },
+  { value: 'notes',       label: 'Notes' },
+]
+
+interface CompanyLogRowProps {
+  entry: CompanyLogEntry
+}
+
+function CompanyLogRow({ entry }: CompanyLogRowProps): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const typeLabel = COMPANY_INFO_TYPES.find((t) => t.value === entry.type_value)?.label ?? entry.type_value
+
+  return (
+    <div className="border-b border-surface2 last:border-0">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between py-1.5 text-left group"
+      >
+        <span className="text-xs font-mono text-muted group-hover:text-text transition-colors">{typeLabel}</span>
+        <span className="text-muted text-xs">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="pb-2 space-y-1">
+          {entry.log && (
+            <p className="text-xs text-text leading-relaxed">{entry.log}</p>
+          )}
+          {entry.url && (
+            <a
+              href={entry.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-accent hover:underline break-all block"
+            >
+              {entry.url}
+            </a>
+          )}
+          {!entry.log && !entry.url && (
+            <p className="text-xs text-muted italic">No content.</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface EditJobInfoModalProps {
+  jobId: number
+  initial: { location: string | null; remote_type: string | null; pay_band: string | null; role_keyword: string | null }
+  onClose: () => void
+}
+
+function EditJobInfoModal({ jobId, initial, onClose }: EditJobInfoModalProps): React.JSX.Element {
+  const [location, setLocation] = useState(initial.location ?? '')
+  const [remoteType, setRemoteType] = useState(initial.remote_type ?? '')
+  const [payBand, setPayBand] = useState(initial.pay_band ?? '')
+  const [roleKeyword, setRoleKeyword] = useState(initial.role_keyword ?? '')
+  const patch = usePatchJob()
+
+  async function handleSave(): Promise<void> {
+    await patch.mutateAsync({
+      jobId,
+      updates: {
+        location: location || undefined,
+        remote_type: remoteType || undefined,
+        pay_band: payBand || null,
+        role_keyword: roleKeyword || null,
+      },
+    })
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-bg/80 flex items-center justify-center z-50">
+      <div className="bg-surface rounded p-6 w-full max-w-md space-y-4">
+        <h2 className="font-serif text-accent text-lg">Edit Job Info</h2>
+        <div className="space-y-3">
+          <label className="block">
+            <span className="text-muted text-xs font-mono uppercase tracking-widest">Location</span>
+            <input
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+            />
+          </label>
+          <label className="block">
+            <span className="text-muted text-xs font-mono uppercase tracking-widest">Remote Type</span>
+            <select
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              value={remoteType}
+              onChange={(e) => setRemoteType(e.target.value)}
+            >
+              <option value="">—</option>
+              <option>Remote</option>
+              <option>Hybrid</option>
+              <option>On-site</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-muted text-xs font-mono uppercase tracking-widest">Pay Band</span>
+            <input
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              value={payBand}
+              onChange={(e) => setPayBand(e.target.value)}
+            />
+          </label>
+          <label className="block">
+            <span className="text-muted text-xs font-mono uppercase tracking-widest">Role Keyword</span>
+            <input
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              value={roleKeyword}
+              onChange={(e) => setRoleKeyword(e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 pt-1">
+          <button onClick={onClose} className="px-4 py-1.5 text-sm text-muted hover:text-text transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={() => void handleSave()}
+            disabled={patch.isPending}
+            className="px-4 py-1.5 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+          >
+            {patch.isPending ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface AddCompanyInfoModalProps {
+  jobId: number
+  onClose: () => void
+}
+
+function AddCompanyInfoModal({ jobId, onClose }: AddCompanyInfoModalProps): React.JSX.Element {
+  const [typeValue, setTypeValue] = useState('website')
+  const [log, setLog] = useState('')
+  const [url, setUrl] = useState('')
+  const addLog = useAddCompanyLog()
+
+  async function handleSave(): Promise<void> {
+    await addLog.mutateAsync({ jobId, type_value: typeValue, log: log || undefined, url: url || undefined })
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-bg/80 flex items-center justify-center z-50">
+      <div className="bg-surface rounded p-6 w-full max-w-md space-y-4">
+        <h2 className="font-serif text-accent text-lg">Add Company Info</h2>
+        <div className="space-y-3">
+          <label className="block">
+            <span className="text-muted text-xs font-mono uppercase tracking-widest">Type</span>
+            <select
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              value={typeValue}
+              onChange={(e) => setTypeValue(e.target.value)}
+            >
+              {COMPANY_INFO_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-muted text-xs font-mono uppercase tracking-widest">Notes</span>
+            <textarea
+              className="mt-1 w-full h-24 bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent resize-y"
+              value={log}
+              onChange={(e) => setLog(e.target.value)}
+              placeholder="Optional notes…"
+            />
+          </label>
+          <label className="block">
+            <span className="text-muted text-xs font-mono uppercase tracking-widest">URL</span>
+            <input
+              type="url"
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://…"
+            />
+          </label>
+        </div>
+        {addLog.isError && <p className="text-red text-xs">{addLog.error.message}</p>}
+        <div className="flex justify-end gap-2 pt-1">
+          <button onClick={onClose} className="px-4 py-1.5 text-sm text-muted hover:text-text transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={() => void handleSave()}
+            disabled={addLog.isPending}
+            className="px-4 py-1.5 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+          >
+            {addLog.isPending ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface JobInfoSectionProps {
+  jobId: number
+  job: { location: string | null; remote_type: string | null; pay_band: string | null; role_keyword: string | null }
+  companyLog: CompanyLogEntry[]
+}
+
+function JobInfoSection({ jobId, job, companyLog }: JobInfoSectionProps): React.JSX.Element {
+  const [editOpen, setEditOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-6">
+        {/* Left col: job fields */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Job Info</p>
+            <button
+              onClick={() => setEditOpen(true)}
+              className="text-xs text-muted hover:text-text px-2 py-0.5 border border-surface2 rounded transition-colors"
+            >
+              Edit
+            </button>
+          </div>
+          <div className="space-y-1.5">
+            {([ ['Location', job.location], ['Remote', job.remote_type], ['Pay Band', job.pay_band], ['Role Keyword', job.role_keyword] ] as [string, string | null][]).map(([label, val]) => (
+              <div key={label} className="flex items-baseline gap-2">
+                <span className="text-[10px] font-mono text-muted uppercase w-20 shrink-0">{label}</span>
+                <span className="text-xs text-text">{val ?? '—'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right col: company log */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Company Info</p>
+            <button
+              onClick={() => setAddOpen(true)}
+              className="text-xs text-muted hover:text-text px-2 py-0.5 border border-surface2 rounded transition-colors"
+            >
+              + Add
+            </button>
+          </div>
+          {companyLog.length === 0 ? (
+            <p className="text-xs text-muted italic">No company info yet.</p>
+          ) : (
+            <div>
+              {companyLog.map((entry) => (
+                <CompanyLogRow key={entry.id} entry={entry} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {editOpen && (
+        <EditJobInfoModal jobId={jobId} initial={job} onClose={() => setEditOpen(false)} />
+      )}
+      {addOpen && (
+        <AddCompanyInfoModal jobId={jobId} onClose={() => setAddOpen(false)} />
+      )}
+    </>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface JobDetailProps {
@@ -708,7 +982,7 @@ export default function JobDetail({ jobId }: JobDetailProps): React.JSX.Element 
     return <div className="p-6 text-red text-sm">Failed to load job.</div>
   }
 
-  const { job, evaluations, postings } = data
+  const { job, evaluations, postings, company_log } = data
 
   const defaultModelId = models.find((m) => m.default_flag === 1)?.id ?? null
 
@@ -807,7 +1081,14 @@ export default function JobDetail({ jobId }: JobDetailProps): React.JSX.Element 
 
       <hr className="border-surface2" />
 
-      {/* ── Section 5: Job Description ────────────────────────────── */}
+      {/* ── Section 5: Job Info ───────────────────────────────────── */}
+      <section>
+        <JobInfoSection jobId={job.id} job={job} companyLog={company_log} />
+      </section>
+
+      <hr className="border-surface2" />
+
+      {/* ── Section 6: Job Description ────────────────────────────── */}
       <section>
         <Collapsible title="Description" defaultOpen={false}>
           <div className="flex items-start justify-between mb-2">

@@ -257,12 +257,20 @@ class PatchJobRequest(BaseModel):
     location: str | None = None
     remote_type: str | None = None
     description_merged: str | None = None
+    pay_band: str | None = None
+    role_keyword: str | None = None
     excitement_level: str | None = None
     my_role_fit: float | None = None
     my_scope_fit: float | None = None
     my_culture: float | None = None
     my_comp: float | None = None
     my_score_overall: float | None = None
+
+
+class AddCompanyLogRequest(BaseModel):
+    type_value: str
+    log: str | None = None
+    url: str | None = None
 
 
 class UpdateApplicationRequest(BaseModel):
@@ -584,10 +592,13 @@ async def get_job(request: Request, job_id: int):
         )
         evals_out.append(d)
 
+    company_log = database.get_job_company_log(job_id)
+
     return JSONResponse({
         "job": job_dict,
         "evaluations": evals_out,
         "postings": [dict(p) for p in postings],
+        "company_log": [dict(e) for e in company_log],
     })
 
 
@@ -602,6 +613,20 @@ async def patch_job(request: Request, job_id: int, body: PatchJobRequest):
     if updates:
         database.update_job(job_id, **updates)
     return JSONResponse({"success": True})
+
+
+@app.post("/api/v1/jobs/{job_id}/company-log")
+@limiter.limit("30/minute")
+async def add_job_company_log_entry(request: Request, job_id: int, body: AddCompanyLogRequest):
+    """Add a company info log entry for a job."""
+    job = database.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found.")
+    type_id = database.get_system_type_id("company_info", body.type_value)
+    if not type_id:
+        raise HTTPException(status_code=400, detail=f"Unknown company_info type: {body.type_value}")
+    log_id = database.add_job_company_log(job_id, type_id, body.log, body.url)
+    return JSONResponse({"success": True, "id": log_id})
 
 
 @app.get("/api/v1/jobs/{job_id}/application")
