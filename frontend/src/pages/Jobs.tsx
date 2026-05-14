@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { useJobs } from '@/hooks/useJobs'
-import type { JobListItem, ApplicationStatus } from '@/types/api'
+import type { JobListItem } from '@/types/api'
 import JobDetail from '@/pages/JobDetail'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -8,33 +8,6 @@ import JobDetail from '@/pages/JobDetail'
 function fmtScore(val: number | null | undefined): string {
   if (val === null || val === undefined) return '—'
   return val.toFixed(1)
-}
-
-// ─── Status pill ──────────────────────────────────────────────────────────────
-
-const STATUS_COLORS: Record<ApplicationStatus, string> = {
-  'not-started': 'bg-surface2 text-muted',
-  draft:         'bg-surface2 text-muted',
-  applied:       'bg-accent/20 text-accent',
-  screening:     'bg-accent/30 text-accent',
-  interview:     'bg-green/20 text-green',
-  offer:         'bg-green/30 text-green',
-  rejected:      'bg-red/20 text-red',
-  ghosted:       'bg-red/15 text-red',
-  withdrawn:     'bg-surface2 text-muted',
-}
-
-interface StatusPillProps {
-  status: ApplicationStatus | null
-}
-
-function StatusPill({ status }: StatusPillProps): React.JSX.Element | null {
-  if (!status || status === 'not-started') return null
-  return (
-    <span className={`text-xs font-mono px-2 py-0.5 rounded ${STATUS_COLORS[status] ?? 'bg-surface2 text-muted'}`}>
-      {status}
-    </span>
-  )
 }
 
 // ─── Remote type pill ─────────────────────────────────────────────────────────
@@ -54,11 +27,11 @@ function ScoreCell({ label, value }: { label: string; value: number | null }): R
   const display = fmtScore(value)
   const hasScore = value !== null && value !== undefined
   return (
-    <div className="flex flex-col items-center min-w-[36px]">
-      <span className="text-[10px] font-mono text-muted uppercase">{label}</span>
-      <span className={`text-sm font-mono ${hasScore ? 'text-text' : 'text-surface2'}`}>
+    <div className="flex flex-col items-center">
+      <span className={`text-sm font-mono ${hasScore ? 'text-text' : 'text-muted'}`}>
         {display}
       </span>
+      <span className="text-[10px] font-mono text-muted">{label}</span>
     </div>
   )
 }
@@ -72,8 +45,6 @@ interface JobRowProps {
 }
 
 function JobRow({ job, selected, onSelect }: JobRowProps): React.JSX.Element {
-  const isActive = job.application_status && job.application_status !== 'not-started'
-
   return (
     <button
       onClick={onSelect}
@@ -81,44 +52,32 @@ function JobRow({ job, selected, onSelect }: JobRowProps): React.JSX.Element {
         selected ? 'bg-surface2' : 'hover:bg-surface'
       }`}
     >
-      {/* Row 1: company + scores + application button */}
-      <div className="flex items-center gap-2">
-        <span className="font-sans font-medium text-text text-sm flex-1 truncate">
+      {/* Top: company (30%) + title/location stacked (70%) */}
+      <div className="flex items-start gap-3">
+        <span className="w-[30%] shrink-0 font-sans font-medium text-text text-sm truncate">
           {job.company_name}
         </span>
-        <div className="flex items-center gap-3 shrink-0">
-          <ScoreCell label="R"   value={job.agg_role_fit} />
-          <ScoreCell label="SC"  value={job.agg_scope_fit} />
-          <ScoreCell label="CU"  value={job.agg_culture} />
-          <ScoreCell label="CO"  value={job.agg_comp} />
-          <ScoreCell label="OVR" value={job.agg_score_overall} />
-        </div>
-        <span
-          className={`text-xs font-mono px-2 py-1 rounded shrink-0 ${
-            isActive
-              ? 'bg-accent/15 text-accent'
-              : 'bg-surface2 text-muted'
-          }`}
-        >
-          {isActive ? 'View →' : '+ Start'}
-        </span>
-      </div>
-
-      {/* Row 2: title + status pill */}
-      <div className="flex items-center gap-2 mt-0.5">
-        <span className="font-serif text-accent text-sm flex-1 truncate">{job.title}</span>
-        <StatusPill status={job.application_status} />
-      </div>
-
-      {/* Row 3: location + remote pill */}
-      {(job.location || job.remote_type) && (
-        <div className="flex items-center gap-2 mt-0.5">
-          {job.location && (
-            <span className="text-xs text-muted truncate">📍 {job.location}</span>
+        <div className="flex-1 min-w-0">
+          <div className="font-serif text-accent text-sm truncate">{job.title}</div>
+          {(job.location || job.remote_type) && (
+            <div className="flex items-center gap-2 mt-0.5">
+              {job.location && (
+                <span className="text-xs text-muted truncate">📍 {job.location}</span>
+              )}
+              <RemotePill remoteType={job.remote_type} />
+            </div>
           )}
-          <RemotePill remoteType={job.remote_type} />
         </div>
-      )}
+      </div>
+
+      {/* Rows 3–4: scores — value on top, label below */}
+      <div className="flex justify-between mt-2">
+        <ScoreCell label="Overall /10" value={job.agg_score_overall} />
+        <ScoreCell label="Role /5"     value={job.agg_role_fit} />
+        <ScoreCell label="Scope /5"    value={job.agg_scope_fit} />
+        <ScoreCell label="Culture /5"  value={job.agg_culture} />
+        <ScoreCell label="Comp /5"     value={job.agg_comp} />
+      </div>
     </button>
   )
 }
@@ -143,7 +102,7 @@ export default function Jobs(): React.JSX.Element {
   return (
     <div className="flex h-full overflow-hidden">
       {/* ── Left panel ──────────────────────────────────────────────── */}
-      <div className="w-[420px] shrink-0 border-r border-surface2 flex flex-col overflow-hidden">
+      <div className="w-[465px] shrink-0 border-r border-surface2 flex flex-col overflow-hidden">
         <div className="px-4 py-3 border-b border-surface2">
           <h1 className="font-serif text-accent text-xl">Jobs</h1>
           {jobs && (

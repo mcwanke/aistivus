@@ -217,6 +217,100 @@ function RatingInput({ label, value, max, onBlurSave }: RatingInputProps): React
   )
 }
 
+// ─── Star rating ──────────────────────────────────────────────────────────────
+
+interface StarRatingProps {
+  value: number | null
+  onChange: (val: number) => void
+}
+
+function StarRating({ value, onChange }: StarRatingProps): React.JSX.Element {
+  const current = value !== null && value !== undefined ? value : 0
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <button
+          key={i}
+          type="button"
+          onClick={() => onChange(i)}
+          className={`text-xl leading-none transition-all hover:scale-110 ${
+            i <= current ? 'text-accent' : 'text-muted/30'
+          }`}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ─── Edit ratings modal ───────────────────────────────────────────────────────
+
+interface EditRatingsModalProps {
+  jobId: number
+  job: {
+    my_role_fit: number | null
+    my_scope_fit: number | null
+    my_culture: number | null
+    my_comp: number | null
+    my_score_overall: number | null
+  }
+  onClose: () => void
+}
+
+function EditRatingsModal({ jobId, job, onClose }: EditRatingsModalProps): React.JSX.Element {
+  const [rolefit, setRolefit] = useState(job.my_role_fit)
+  const [scopefit, setScopefit] = useState(job.my_scope_fit)
+  const [culture, setCulture] = useState(job.my_culture)
+  const [comp, setComp] = useState(job.my_comp)
+  const [overall, setOverall] = useState(job.my_score_overall)
+  const patch = usePatchJob()
+
+  async function handleSave(): Promise<void> {
+    await patch.mutateAsync({
+      jobId,
+      updates: {
+        my_role_fit: rolefit,
+        my_scope_fit: scopefit,
+        my_culture: culture,
+        my_comp: comp,
+        my_score_overall: overall,
+      },
+    })
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-bg/80 flex items-center justify-center z-50">
+      <div className="bg-surface rounded p-6 w-full max-w-md space-y-4">
+        <h2 className="font-serif text-accent text-lg">My Ratings</h2>
+        <div className="flex items-end gap-4 flex-wrap">
+          <RatingInput label="Role"    value={rolefit}  max={5}  onBlurSave={setRolefit} />
+          <RatingInput label="Scope"   value={scopefit} max={5}  onBlurSave={setScopefit} />
+          <RatingInput label="Culture" value={culture}  max={5}  onBlurSave={setCulture} />
+          <RatingInput label="Comp"    value={comp}     max={5}  onBlurSave={setComp} />
+          <RatingInput label="Overall" value={overall}  max={10} onBlurSave={setOverall} />
+        </div>
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 text-sm text-muted hover:text-text transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => void handleSave()}
+            disabled={patch.isPending}
+            className="px-4 py-1.5 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+          >
+            {patch.isPending ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 interface MyRatingsSectionProps {
   jobId: number
   job: {
@@ -231,37 +325,66 @@ interface MyRatingsSectionProps {
 
 function MyRatingsSection({ jobId, job }: MyRatingsSectionProps): React.JSX.Element {
   const patch = usePatchJob()
+  const [editOpen, setEditOpen] = useState(false)
 
-  function save(field: string, val: number | null): void {
-    patch.mutate({ jobId, updates: { [field]: val } })
+  const excitementVal = job.excitement_level !== null ? parseInt(job.excitement_level, 10) : null
+  const excitementNum = !isNaN(excitementVal ?? NaN) ? excitementVal : null
+
+  function fmtRating(val: number | null, max: number): string {
+    if (val === null || val === undefined) return '—'
+    return `${val.toFixed(1)} /${max}`
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-4 flex-wrap">
-        <RatingInput label="Role" value={job.my_role_fit} max={5} onBlurSave={(v) => save('my_role_fit', v)} />
-        <RatingInput label="Scope" value={job.my_scope_fit} max={5} onBlurSave={(v) => save('my_scope_fit', v)} />
-        <RatingInput label="Culture" value={job.my_culture} max={5} onBlurSave={(v) => save('my_culture', v)} />
-        <RatingInput label="Comp" value={job.my_comp} max={5} onBlurSave={(v) => save('my_comp', v)} />
-        <RatingInput label="Overall" value={job.my_score_overall} max={10} onBlurSave={(v) => save('my_score_overall', v)} />
+    <>
+      <div className="grid grid-cols-[30%_1fr] gap-6">
+        {/* Left col: Excitement — 30%, center */}
+        <div className="flex flex-col items-center">
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Excitement</p>
+          <StarRating
+            value={excitementNum}
+            onChange={(val) => {
+              patch.mutate({ jobId, updates: { excitement_level: String(val) } })
+            }}
+          />
+        </div>
+
+        {/* Right col: My Ratings — remaining, center */}
+        <div className="flex flex-col items-center">
+          <div className="flex items-center justify-between w-full mb-2">
+            <p className="text-[10px] font-mono text-muted uppercase tracking-widest">My Ratings</p>
+            <button
+              onClick={() => setEditOpen(true)}
+              className="text-xs text-muted hover:text-text px-2 py-0.5 border border-surface2 rounded transition-colors"
+            >
+              Edit
+            </button>
+          </div>
+          <div className="flex items-center gap-4 flex-wrap justify-center">
+            {([
+              ['Role',    job.my_role_fit,      5],
+              ['Scope',   job.my_scope_fit,     5],
+              ['Culture', job.my_culture,       5],
+              ['Comp',    job.my_comp,          5],
+              ['Overall', job.my_score_overall, 10],
+            ] as [string, number | null, number][]).map(([label, val, max]) => (
+              <div key={label} className="flex flex-col items-center">
+                <span className="text-[10px] font-mono text-muted uppercase">{label}</span>
+                <span className="text-sm font-mono text-text">{fmtRating(val, max)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-      <div className="flex items-center gap-2">
-        <span className="text-muted text-xs font-mono uppercase tracking-widest">Excitement</span>
-        <select
-          className="bg-surface2 rounded px-2 py-1 text-sm text-text focus:outline-none focus:ring-1 focus:ring-accent"
-          value={job.excitement_level ?? ''}
-          onChange={(e) => {
-            patch.mutate({ jobId, updates: { excitement_level: e.target.value || undefined } })
-          }}
-        >
-          <option value="">—</option>
-          <option>Low</option>
-          <option>Medium</option>
-          <option>High</option>
-          <option>Very High</option>
-        </select>
-      </div>
-    </div>
+
+      {editOpen && (
+        <EditRatingsModal
+          jobId={jobId}
+          job={job}
+          onClose={() => setEditOpen(false)}
+        />
+      )}
+    </>
   )
 }
 
@@ -385,45 +508,61 @@ function AppStatusSection({ jobId, applicationId, status, postings }: AppStatusS
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-3">
-        {status && (
-          <span className="text-xs font-mono px-2 py-0.5 rounded bg-surface2 text-muted">
-            {status}
-          </span>
-        )}
-        {isActive && applicationId ? (
-          <button
-            onClick={() => navigate(`/applications/${applicationId}`)}
-            className="text-sm px-3 py-1.5 bg-accent text-bg rounded hover:bg-accent/90 transition-colors"
-          >
-            View Application →
-          </button>
-        ) : (
-          <button
-            onClick={() => void handleStart()}
-            disabled={startApp.isPending}
-            className="text-sm px-3 py-1.5 bg-surface2 text-accent border border-accent/40 rounded hover:bg-accent/10 disabled:opacity-50 transition-colors"
-          >
-            {startApp.isPending ? 'Starting…' : '+ Start Application'}
-          </button>
-        )}
+    <div className="space-y-2">
+      <div className="grid grid-cols-[30%_20%_1fr] gap-4">
+        {/* Col 1: APPLICATION — 30%, center */}
+        <div className="flex flex-col items-center">
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Application</p>
+          {isActive && applicationId ? (
+            <button
+              onClick={() => navigate(`/applications/${applicationId}`)}
+              className="text-sm px-3 py-1.5 bg-accent text-bg rounded hover:bg-accent/90 transition-colors"
+            >
+              View Application →
+            </button>
+          ) : (
+            <button
+              onClick={() => void handleStart()}
+              disabled={startApp.isPending}
+              className="text-sm px-3 py-1.5 bg-surface2 text-accent border border-accent/40 rounded hover:bg-accent/10 disabled:opacity-50 transition-colors"
+            >
+              {startApp.isPending ? 'Starting…' : '+ Start Application'}
+            </button>
+          )}
+        </div>
+
+        {/* Col 2: STATUS — 20%, center */}
+        <div className="flex flex-col items-center">
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Status</p>
+          {status ? (
+            <span className="text-xs font-mono px-2 py-0.5 rounded bg-surface2 text-muted">
+              {status}
+            </span>
+          ) : (
+            <span className="text-xs text-muted">—</span>
+          )}
+        </div>
+
+        {/* Col 3: APPLY URL — remaining, left */}
+        <div>
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Apply URL</p>
+          {applyUrl ? (
+            <a
+              href={applyUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-accent hover:underline break-all"
+            >
+              {applyUrl}
+            </a>
+          ) : (
+            <span className="text-xs text-muted">—</span>
+          )}
+        </div>
       </div>
+
       {startApp.isError && (
         <p className="text-red text-xs">{startApp.error.message}</p>
-      )}
-      {applyUrl && (
-        <p className="text-xs text-muted">
-          Apply URL:{' '}
-          <a
-            href={applyUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-accent hover:underline"
-          >
-            {applyUrl}
-          </a>
-        </p>
       )}
     </div>
   )
@@ -650,7 +789,6 @@ export default function JobDetail({ jobId }: JobDetailProps): React.JSX.Element 
 
       {/* ── Section 3: My Ratings ─────────────────────────────────── */}
       <section>
-        <p className="text-muted text-xs font-mono uppercase tracking-widest mb-3">My Ratings</p>
         <MyRatingsSection jobId={job.id} job={job} />
       </section>
 
@@ -671,7 +809,7 @@ export default function JobDetail({ jobId }: JobDetailProps): React.JSX.Element 
 
       {/* ── Section 5: Job Description ────────────────────────────── */}
       <section>
-        <Collapsible title="Description">
+        <Collapsible title="Description" defaultOpen={false}>
           <div className="flex items-start justify-between mb-2">
             <span />
             <button
@@ -694,7 +832,7 @@ export default function JobDetail({ jobId }: JobDetailProps): React.JSX.Element 
 
       {/* ── Section 5: Evaluations ────────────────────────────────── */}
       <section>
-        <Collapsible title={`Evaluations (${evaluations.length})`}>
+        <Collapsible title={`Evaluations (${evaluations.length})`} defaultOpen={false}>
           {evaluations.length === 0 ? (
             <p className="text-muted text-xs py-2">No evaluations yet.</p>
           ) : (
