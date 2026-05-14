@@ -335,17 +335,6 @@ async def view_report(path: str = Query(..., description="Path to the markdown r
     return HTMLResponse(content=report_path.read_text(), media_type="text/plain")
 
 
-@app.get("/{full_path:path}", response_class=FileResponse, include_in_schema=False)
-async def serve_spa(_full_path: str):
-    """Serve the React SPA for all non-API routes so React Router handles navigation."""
-    index = Path("frontend/dist/index.html")
-    if not index.exists():
-        raise HTTPException(
-            status_code=503,
-            detail="Frontend not built — run: cd frontend && npm run build",
-        )
-    return FileResponse(index)
-
 
 # ─────────────────────────────────────────────────────────────
 # Health
@@ -1159,6 +1148,22 @@ async def process_inbox(request: Request, body: ProcessInboxRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return JSONResponse(result)
+
+
+# ─────────────────────────────────────────────────────────────
+# SPA catch-all — must be last so API routes match first
+# ─────────────────────────────────────────────────────────────
+
+@app.get("/{full_path:path}", response_class=FileResponse, include_in_schema=False)
+async def serve_spa(full_path: str):
+    """Serve the React SPA for all non-API routes so React Router handles navigation."""
+    index = Path("frontend/dist/index.html")
+    if not index.exists():
+        raise HTTPException(
+            status_code=503,
+            detail="Frontend not built — run: cd frontend && npm run build",
+        )
+    return FileResponse(index)
 
 
 # ─────────────────────────────────────────────────────────────

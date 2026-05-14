@@ -24,7 +24,7 @@ document generation.
 
 ## Current Phase: PHASE 1.0 — DB + Backend + Tests
 
-**Phases 0 through 1.0 are complete.** Core evaluation pipeline working end-to-end.
+**Phases 0 through 1.1 are complete.** Core evaluation pipeline working end-to-end.
 HTML frontend operational (read-only reference — do not modify).
 
 ### Phase 1.0 Checklist 🔄
@@ -59,8 +59,8 @@ HTML frontend operational (read-only reference — do not modify).
 - [x] Settings.tsx (model management, system_types, jobsearch.md editor + history)
 - [x] LLMUsage.tsx (llm_call_log viewer with copy-prompt button)
 - [x] Claude import modal preserved on Evaluate page
-- [ ] HTML pages retired
-- [ ] Vitest + React Testing Library, 70% coverage
+- [x] HTML pages retired
+- [x] Vitest + React Testing Library, 70% coverage
 
 ### Phase 1.2 Checklist 🔲
 - [ ] Typst binary startup validation (graceful degradation)

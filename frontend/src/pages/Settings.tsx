@@ -189,6 +189,138 @@ function ModelForm({
   )
 }
 
+type OllamaModel = { name: string }
+
+function QueryEndpointModal({
+  existingModels,
+  onAdd,
+  onClose,
+}: {
+  existingModels: LlmModel[]
+  onAdd: (model: string, endpoint: string) => Promise<void>
+  onClose: () => void
+}): React.JSX.Element {
+  const [url, setUrl] = useState('')
+  const [querying, setQuerying] = useState(false)
+  const [queryError, setQueryError] = useState('')
+  const [results, setResults] = useState<OllamaModel[] | null>(null)
+  const [adding, setAdding] = useState<Record<string, boolean>>({})
+  const [addErrors, setAddErrors] = useState<Record<string, string>>({})
+
+  const normalizedUrl = url.trim().replace(/\/$/, '')
+
+  function isAlreadyAdded(modelName: string): boolean {
+    return existingModels.some(
+      (m) => m.model === modelName && m.endpoint === normalizedUrl,
+    )
+  }
+
+  async function handleQuery(): Promise<void> {
+    if (!normalizedUrl) return
+    setQuerying(true)
+    setQueryError('')
+    setResults(null)
+    try {
+      const res = await fetch(`${normalizedUrl}/api/tags`, { signal: AbortSignal.timeout(8000) })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = (await res.json()) as { models?: OllamaModel[] }
+      const found = data.models ?? []
+      if (found.length === 0) {
+        setQueryError('No models found at this endpoint.')
+      } else {
+        setResults(found)
+      }
+    } catch {
+      setQueryError('Could not reach an Ollama service at this endpoint.')
+    } finally {
+      setQuerying(false)
+    }
+  }
+
+  async function handleAdd(modelName: string): Promise<void> {
+    setAdding((prev) => ({ ...prev, [modelName]: true }))
+    setAddErrors((prev) => ({ ...prev, [modelName]: '' }))
+    try {
+      await onAdd(modelName, normalizedUrl)
+    } catch (e) {
+      setAddErrors((prev) => ({ ...prev, [modelName]: (e as Error).message }))
+    } finally {
+      setAdding((prev) => ({ ...prev, [modelName]: false }))
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="bg-surface border border-surface2 rounded-xl shadow-2xl w-full max-w-lg mx-4 p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="font-serif text-accent text-base">Query Endpoint</h3>
+          <button
+            onClick={onClose}
+            className="text-muted hover:text-text transition-colors font-mono text-sm px-2 py-0.5 border border-surface2 rounded hover:border-accent/40"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="flex gap-2 mb-4">
+          <input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void handleQuery() }}
+            placeholder="http://localhost:11434"
+            className="flex-1 bg-surface2 border border-surface2 rounded px-3 py-1.5 text-sm font-mono text-text focus:outline-none focus:border-accent/50"
+          />
+          <button
+            onClick={() => void handleQuery()}
+            disabled={querying || !url.trim()}
+            className="px-3 py-1.5 text-sm font-sans bg-accent text-bg rounded hover:bg-accent/90 transition-colors disabled:opacity-50 shrink-0"
+          >
+            {querying ? 'Querying…' : 'Query'}
+          </button>
+        </div>
+
+        {queryError && (
+          <p className="text-xs font-mono text-red mb-3">{queryError}</p>
+        )}
+
+        {results !== null && (
+          <div className="border border-surface2 rounded-lg overflow-hidden">
+            <p className="text-[10px] font-mono text-muted uppercase tracking-wider px-3 py-2 bg-surface2/50 border-b border-surface2">
+              {results.length} model{results.length !== 1 ? 's' : ''} found
+            </p>
+            <div className="divide-y divide-surface2 max-h-64 overflow-y-auto">
+              {results.map((m) => {
+                const added = isAlreadyAdded(m.name)
+                return (
+                  <div key={m.name} className="flex items-center gap-3 px-3 py-2.5">
+                    <span className="font-mono text-sm text-text flex-1 truncate">{m.name}</span>
+                    {addErrors[m.name] && (
+                      <span className="text-xs font-mono text-red">{addErrors[m.name]}</span>
+                    )}
+                    {added ? (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-surface2 text-muted border border-surface2">
+                        added
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => void handleAdd(m.name)}
+                        disabled={adding[m.name]}
+                        className="text-xs font-mono px-2 py-0.5 rounded border border-accent/40 text-accent hover:bg-accent/10 transition-colors disabled:opacity-50"
+                      >
+                        {adding[m.name] ? '…' : '+'}
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function ModelsSection(): React.JSX.Element {
   const { data: models = [], isLoading, error } = useLlmModels()
   const createModel = useCreateModel()
@@ -200,6 +332,7 @@ function ModelsSection(): React.JSX.Element {
   const [editingModel, setEditingModel] = useState<LlmModel | null>(null)
   const [formError, setFormError] = useState('')
   const [deleteError, setDeleteError] = useState('')
+  const [showQueryModal, setShowQueryModal] = useState(false)
 
   function formToPayload(form: ModelFormState): CreateModelPayload {
     return {
@@ -310,13 +443,35 @@ function ModelsSection(): React.JSX.Element {
             error={formError}
           />
         ) : (
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="text-sm font-mono text-muted border border-dashed border-surface2 rounded px-3 py-1.5 hover:text-accent hover:border-accent/40 transition-colors"
-          >
-            + Add model
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="text-sm font-mono text-muted border border-dashed border-surface2 rounded px-3 py-1.5 hover:text-accent hover:border-accent/40 transition-colors"
+            >
+              + Add model
+            </button>
+            <button
+              onClick={() => setShowQueryModal(true)}
+              className="text-sm font-mono text-muted border border-dashed border-surface2 rounded px-3 py-1.5 hover:text-accent hover:border-accent/40 transition-colors"
+            >
+              Query Endpoint
+            </button>
+          </div>
         )
+      )}
+      {showQueryModal && (
+        <QueryEndpointModal
+          existingModels={models}
+          onAdd={async (modelName, endpoint) => {
+            await createModel.mutateAsync({
+              model: modelName,
+              endpoint,
+              model_weight: 1,
+              estimated_eval_time: null,
+            })
+          }}
+          onClose={() => setShowQueryModal(false)}
+        />
       )}
     </section>
   )

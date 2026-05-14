@@ -516,7 +516,8 @@ export default function ApplicationDetail({ applicationId }: ApplicationDetailPr
       {/* ── Section 4: Logs ───────────────────────────────────────── */}
       <section>
         <Collapsible title={`Logs (${logs.length})`}>
-          <div className="space-y-2 mt-2">
+          <AddLogForm applicationId={applicationId} />
+          <div className="space-y-2 mt-4">
             {sortedLogs.length === 0 ? (
               <p className="text-muted text-xs py-1">No log entries yet.</p>
             ) : (
@@ -525,7 +526,6 @@ export default function ApplicationDetail({ applicationId }: ApplicationDetailPr
               ))
             )}
           </div>
-          <AddLogForm applicationId={applicationId} />
         </Collapsible>
       </section>
 

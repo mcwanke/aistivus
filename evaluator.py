@@ -558,6 +558,9 @@ async def evaluate_jd(
     system_prompt = _build_system_prompt(jobsearch_context)
     user_prompt = _build_user_prompt(jd_text)
     prompt_hash = _compute_prompt_hash(system_prompt)
+    # Combined for storage — system prompt carries jobsearch context that must
+    # be visible when reviewing past evaluations from LLM Usage.
+    full_prompt = f"=== SYSTEM ===\n{system_prompt}\n\n=== USER ===\n{user_prompt}"
 
     print(f"  Calling {provider}/{model}...")
 
@@ -583,7 +586,7 @@ async def evaluate_jd(
     log_id = database.insert_llm_call_log(
         llm_model_id=resolved_model_id,
         call_type="evaluation",
-        prompt=user_prompt,
+        prompt=full_prompt,
         prompt_hash=prompt_hash,
         raw_response=raw_response,
         prompt_tokens_actual=result.get("prompt_tokens_actual"),
@@ -599,13 +602,14 @@ async def evaluate_jd(
     # ── Step 6b: Retry with stricter prompt if parse failed ────
     if result["success"] and not parsed:
         print("  Parse failed — retrying with stricter prompt...")
-        strict_prompt = (
+        strict_user_prompt = (
             user_prompt
             + "\n\nIMPORTANT: Return ONLY the raw JSON object. "
             "No markdown. No code blocks. No explanation. Just the JSON."
         )
+        strict_full_prompt = f"=== SYSTEM ===\n{system_prompt}\n\n=== USER ===\n{strict_user_prompt}"
         result = await llm_client.complete(
-            prompt=strict_prompt,
+            prompt=strict_user_prompt,
             system=system_prompt,
             model=model,
             provider=provider,
@@ -621,7 +625,7 @@ async def evaluate_jd(
         log_id = database.insert_llm_call_log(
             llm_model_id=resolved_model_id,
             call_type="evaluation",
-            prompt=strict_prompt,
+            prompt=strict_full_prompt,
             prompt_hash=prompt_hash,
             raw_response=raw_response,
             prompt_tokens_actual=result.get("prompt_tokens_actual"),
