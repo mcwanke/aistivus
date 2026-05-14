@@ -203,6 +203,7 @@ CREATE TABLE IF NOT EXISTS applications (
     end_date           TEXT,
     requested_salary   TEXT,
     application_status TEXT NOT NULL DEFAULT 'not-started',
+    applied            INTEGER NOT NULL DEFAULT 0,
     project_id         INTEGER
 );
 
@@ -243,6 +244,13 @@ CREATE TABLE IF NOT EXISTS jobsearch_versions (
     content  TEXT NOT NULL,
     saved_at TEXT NOT NULL DEFAULT (datetime('now')),
     note     TEXT
+);
+
+CREATE TABLE IF NOT EXISTS app_settings (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    key        TEXT NOT NULL UNIQUE,
+    value      TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS resume_info (
@@ -332,7 +340,11 @@ CREATE INDEX IF NOT EXISTS idx_app_logs_app_id        ON application_logs(applic
 CREATE INDEX IF NOT EXISTS idx_job_company_log_job_id ON job_company_log(job_id);
 """
 
-CURRENT_SCHEMA_VERSION = "1.0"
+CURRENT_SCHEMA_VERSION = "1.1"
+
+_APP_SETTINGS_SEED: list[tuple[str, str]] = [
+    ("allow_audit_timestamp_edit", "0"),
+]
 
 _SYSTEM_TYPES_SEED: list[tuple[str, str]] = [
     ("application_log", "recruiter_call"),
@@ -374,6 +386,16 @@ def init_db() -> None:
                     (type_name, type_value)
                 )
 
+        for key, value in _APP_SETTINGS_SEED:
+            existing = conn.execute(
+                "SELECT id FROM app_settings WHERE key = ?", (key,)
+            ).fetchone()
+            if not existing:
+                conn.execute(
+                    "INSERT INTO app_settings (key, value) VALUES (?, ?)",
+                    (key, value)
+                )
+
         existing_version = conn.execute(
             "SELECT id FROM schema_versions WHERE version = ?",
             (CURRENT_SCHEMA_VERSION,)
@@ -381,7 +403,7 @@ def init_db() -> None:
         if not existing_version:
             conn.execute(
                 "INSERT INTO schema_versions (version, description) VALUES (?, ?)",
-                (CURRENT_SCHEMA_VERSION, "Schema v1.0 — clean break from v0.1")
+                (CURRENT_SCHEMA_VERSION, "Schema v1.1 — app_settings table; applied column on applications")
             )
 
     seed_llm_models_from_config()
@@ -1358,6 +1380,30 @@ def get_application_audit(application_id: int) -> list[sqlite3.Row]:
         ).fetchall()
 
 
+def update_log_timestamp(log_id: int, timestamp: str) -> bool:
+    """Update the log_timestamp on an application_logs entry. Returns False if not found."""
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "UPDATE application_logs SET log_timestamp = ? WHERE id = ?",
+            (timestamp, log_id),
+        )
+        return cursor.rowcount > 0
+
+
+def update_audit_timestamp(audit_id: int, timestamp: str) -> bool:
+    """
+    Update the timestamp on an application_audit entry.
+    Only called when the allow_audit_timestamp_edit setting is enabled.
+    Returns False if not found.
+    """
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "UPDATE application_audit SET timestamp = ? WHERE id = ?",
+            (timestamp, audit_id),
+        )
+        return cursor.rowcount > 0
+
+
 # ─────────────────────────────────────────────────────────────
 # jobsearch.md version history
 # ─────────────────────────────────────────────────────────────
@@ -1393,6 +1439,44 @@ def get_jobsearch_version_content(version_id: int) -> str | None:
             (version_id,)
         ).fetchone()
         return row["content"] if row else None
+
+
+# ─────────────────────────────────────────────────────────────
+# App settings
+# ─────────────────────────────────────────────────────────────
+
+def get_app_setting(key: str) -> str | None:
+    """Return the value for a single app_settings key, or None if not found."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT value FROM app_settings WHERE key = ?", (key,)
+        ).fetchone()
+        return row["value"] if row else None
+
+
+def set_app_setting(key: str, value: str) -> None:
+    """Upsert a single app_settings record."""
+    with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT id FROM app_settings WHERE key = ?", (key,)
+        ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE app_settings SET value = ? WHERE key = ?", (value, key)
+            )
+        else:
+            conn.execute(
+                "INSERT INTO app_settings (key, value) VALUES (?, ?)", (key, value)
+            )
+
+
+def get_all_app_settings() -> list[dict]:
+    """Return all app_settings rows as plain dicts."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, key, value, created_at FROM app_settings ORDER BY key"
+        ).fetchall()
+        return [dict(r) for r in rows]
 
 
 # ─────────────────────────────────────────────────────────────
