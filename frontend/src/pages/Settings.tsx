@@ -7,6 +7,7 @@ import {
   useUpdateModel,
   useSetDefaultModel,
   useDeleteModel,
+  useCheckAvailability,
   useSystemTypes,
   useAddSystemType,
   useDeleteSystemType,
@@ -48,11 +49,13 @@ function ModelRow({
   onSetDefault,
   onDelete,
   onEdit,
+  onToggleEnabled,
 }: {
   model: LlmModel
   onSetDefault: (id: number) => void
   onDelete: (id: number) => void
   onEdit: (model: LlmModel) => void
+  onToggleEnabled: (id: number, enabled: number) => void
 }): React.JSX.Element {
   return (
     <div className="flex items-center gap-3 py-2.5 border-b border-surface2 last:border-0">
@@ -66,12 +69,18 @@ function ModelRow({
           )}
           <span
             className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
-              model.available === 1
+              model.enabled === 0
+                ? 'bg-surface2 text-muted border-surface2'
+                : model.available === 1
                 ? 'bg-green/10 text-green border-green/30'
                 : 'bg-red/10 text-red border-red/30'
             }`}
           >
-            {model.available === 1 ? 'available' : 'unavailable'}
+            {model.enabled === 0
+              ? 'disabled'
+              : model.available === 1
+              ? 'available'
+              : 'unreachable'}
           </span>
         </div>
         <p className="font-mono text-xs text-muted mt-0.5 truncate">{model.endpoint}</p>
@@ -102,6 +111,16 @@ function ModelRow({
           className="px-2 py-1 text-xs font-mono text-muted border border-surface2 rounded hover:text-red hover:border-red/40 transition-colors"
         >
           Delete
+        </button>
+                <button
+          onClick={() => onToggleEnabled(model.id, model.enabled === 1 ? 0 : 1)}
+          className={`px-2 py-1 text-xs font-mono border rounded transition-colors ${
+            model.enabled === 1
+              ? 'text-muted border-surface2 hover:text-red hover:border-red/40'
+              : 'text-accent border-accent/40 hover:bg-accent/10'
+          }`}
+        >
+          {model.enabled === 1 ? 'Disable' : 'Enable'}
         </button>
       </div>
     </div>
@@ -142,7 +161,7 @@ function ModelForm({
           <input
             value={form.endpoint}
             onChange={set('endpoint')}
-            placeholder="http://localhost:11434"
+            placeholder="http://localhost:11434 (optional for external models)"
             className="bg-surface border border-surface2 rounded px-3 py-1.5 text-sm font-mono text-text focus:outline-none focus:border-accent/50"
           />
         </div>
@@ -327,6 +346,7 @@ function ModelsSection(): React.JSX.Element {
   const updateModel = useUpdateModel()
   const setDefault = useSetDefaultModel()
   const deleteModel = useDeleteModel()
+  const checkAvailability = useCheckAvailability()
 
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingModel, setEditingModel] = useState<LlmModel | null>(null)
@@ -346,8 +366,8 @@ function ModelsSection(): React.JSX.Element {
   }
 
   async function handleCreate(form: ModelFormState): Promise<void> {
-    if (!form.model.trim() || !form.endpoint.trim()) {
-      setFormError('Model name and endpoint are required.')
+    if (!form.model.trim()) {
+      setFormError('Model name is required.')
       return
     }
     setFormError('')
@@ -361,8 +381,8 @@ function ModelsSection(): React.JSX.Element {
 
   async function handleUpdate(form: ModelFormState): Promise<void> {
     if (!editingModel) return
-    if (!form.model.trim() || !form.endpoint.trim()) {
-      setFormError('Model name and endpoint are required.')
+    if (!form.model.trim()) {
+      setFormError('Model name is required.')
       return
     }
     setFormError('')
@@ -419,6 +439,9 @@ function ModelsSection(): React.JSX.Element {
                 setShowAddForm(false)
                 setFormError('')
               }}
+              onToggleEnabled={(id, enabled) =>
+                void updateModel.mutateAsync({ modelId: id, updates: { enabled } })
+              }
             />
           ))}
         </div>
@@ -455,6 +478,13 @@ function ModelsSection(): React.JSX.Element {
               className="text-sm font-mono text-muted border border-dashed border-surface2 rounded px-3 py-1.5 hover:text-accent hover:border-accent/40 transition-colors"
             >
               Query Endpoint
+            </button>
+            <button
+              onClick={() => void checkAvailability.mutateAsync()}
+              disabled={checkAvailability.isPending}
+              className="text-sm font-mono text-muted border border-dashed border-surface2 rounded px-3 py-1.5 hover:text-accent hover:border-accent/40 transition-colors disabled:opacity-50"
+            >
+              {checkAvailability.isPending ? 'Checking…' : 'Check Availability'}
             </button>
           </div>
         )

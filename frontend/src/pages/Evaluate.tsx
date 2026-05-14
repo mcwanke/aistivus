@@ -2,11 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import {
   useModels,
   useEvaluateMutation,
-  useImportEvaluationMutation,
   type EvaluatePayload,
-  type ImportPayload,
 } from '@/hooks/useEvaluate'
-import type { EvaluateResponse, ExistingJob, LlmModel } from '@/types/api'
+import type { EvaluateResponse, ExistingJob } from '@/types/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -273,133 +271,6 @@ function DupModal({
   )
 }
 
-// ─── Import modal ─────────────────────────────────────────────────────────────
-
-function ImportModal({
-  models,
-  defaultModelId,
-  onClose,
-  onImport,
-  importError,
-  importing,
-}: {
-  models: LlmModel[]
-  defaultModelId: number | null
-  onClose: () => void
-  onImport: (jobId: number, modelId: number | null, parsed: Record<string, unknown>) => void
-  importError: string
-  importing: boolean
-}): React.JSX.Element {
-  const [rawText, setRawText] = useState('')
-  const [jobIdStr, setJobIdStr] = useState('')
-  const [modelId, setModelId] = useState<number | null>(defaultModelId)
-  const [parseError, setParseError] = useState('')
-
-  function handleImport(): void {
-    setParseError('')
-    const jobId = parseInt(jobIdStr, 10)
-    if (isNaN(jobId) || jobId <= 0) {
-      setParseError('Enter a valid Job ID.')
-      return
-    }
-    const start = rawText.indexOf('EVALUATION_JSON_START')
-    const end = rawText.indexOf('EVALUATION_JSON_END')
-    if (start === -1 || end === -1) {
-      setParseError('Could not find EVALUATION_JSON_START / EVALUATION_JSON_END sentinels.')
-      return
-    }
-    let parsed: Record<string, unknown>
-    try {
-      parsed = JSON.parse(
-        rawText.slice(start + 'EVALUATION_JSON_START'.length, end).trim(),
-      ) as Record<string, unknown>
-    } catch (e) {
-      setParseError(`JSON parse error: ${(e as Error).message}`)
-      return
-    }
-    onImport(jobId, modelId, parsed)
-  }
-
-  const error = parseError || importError
-
-  return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-surface2 rounded-xl p-7 max-w-lg w-full shadow-2xl flex flex-col gap-4">
-        <div>
-          <p className="font-serif text-accent text-lg mb-1">Import Claude Evaluation</p>
-          <p className="text-xs text-muted leading-relaxed">
-            Paste the full Claude response containing{' '}
-            <span className="font-mono text-accent/70">
-              EVALUATION_JSON_START … EVALUATION_JSON_END
-            </span>
-            .
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-mono text-muted uppercase tracking-wider">Job ID</label>
-          <input
-            type="number"
-            value={jobIdStr}
-            onChange={(e) => setJobIdStr(e.target.value)}
-            placeholder="e.g. 42"
-            className="bg-surface2 border border-surface2 rounded px-3 py-2 text-sm font-mono text-text focus:outline-none focus:border-accent/50"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-mono text-muted uppercase tracking-wider">Model</label>
-          <select
-            value={modelId ?? ''}
-            onChange={(e) =>
-              setModelId(e.target.value ? parseInt(e.target.value, 10) : null)
-            }
-            className="bg-surface2 border border-surface2 rounded px-3 py-2 text-sm font-mono text-text focus:outline-none focus:border-accent/50"
-          >
-            <option value="">— default model —</option>
-            {models.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.model}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-mono text-muted uppercase tracking-wider">
-            Claude Response
-          </label>
-          <textarea
-            value={rawText}
-            onChange={(e) => setRawText(e.target.value)}
-            placeholder="Paste the full response here…"
-            rows={8}
-            className="bg-surface2 border border-surface2 rounded px-3 py-2 text-xs font-mono text-text focus:outline-none focus:border-accent/50 resize-y"
-          />
-        </div>
-
-        {error && <p className="text-xs font-mono text-red">{error}</p>}
-
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-sans bg-surface2 text-muted border border-surface2 rounded hover:text-text transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleImport}
-            disabled={importing}
-            className="px-4 py-2 text-sm font-sans bg-accent text-bg rounded hover:bg-accent/90 transition-colors disabled:opacity-50"
-          >
-            {importing ? 'Importing…' : 'Import'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Evaluate(): React.JSX.Element {
@@ -421,12 +292,8 @@ export default function Evaluate(): React.JSX.Element {
   const [dupJobs, setDupJobs] = useState<ExistingJob[]>([])
   const [pendingPayload, setPendingPayload] = useState<EvaluatePayload | null>(null)
 
-  const [importOpen, setImportOpen] = useState(false)
-  const [importError, setImportError] = useState('')
-
   const { data: models = [] } = useModels()
   const evaluateMutation = useEvaluateMutation()
-  const importMutation = useImportEvaluationMutation()
 
   useEffect(() => {
     if (models.length > 0 && selectedModelId === null) {
@@ -531,40 +398,7 @@ export default function Evaluate(): React.JSX.Element {
     await submitEvaluation(payload)
   }
 
-  async function handleImport(
-    jobId: number,
-    modelId: number | null,
-    parsed: Record<string, unknown>,
-  ): Promise<void> {
-    setImportError('')
-    const payload: ImportPayload = {
-      job_id: jobId,
-      llm_model_id: modelId,
-      score_overall: (parsed.score_overall as number | null) ?? null,
-      score_role_fit: (parsed.score_role_fit as number | null) ?? null,
-      score_scope_fit: (parsed.score_scope_fit as number | null) ?? null,
-      score_culture: (parsed.score_culture as number | null) ?? null,
-      score_comp: (parsed.score_comp as number | null) ?? null,
-      fit_type: (parsed.fit_type as string | null) ?? null,
-      archetype: (parsed.archetype as string | null) ?? null,
-      strengths: (parsed.strengths as string | null) ?? null,
-      gaps: (parsed.gaps as string | null) ?? null,
-      recommendation: (parsed.recommendation as string | null) ?? null,
-      keywords: (parsed.keywords as string | null) ?? null,
-      domain_match: (parsed.domain_match as string | null) ?? null,
-      role_type_match: (parsed.role_type_match as string | null) ?? null,
-      keyword_gaps: (parsed.keyword_gaps as string | null) ?? null,
-    }
-    try {
-      await importMutation.mutateAsync(payload)
-      setImportOpen(false)
-    } catch (err) {
-      setImportError((err as Error).message)
-    }
-  }
-
   const isRunning = panelState === 'running'
-  const defaultModelId = models.find((m) => m.default_flag === 1)?.id ?? null
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -572,12 +406,6 @@ export default function Evaluate(): React.JSX.Element {
       <div className="w-[460px] shrink-0 border-r border-surface2 flex flex-col overflow-y-auto">
         <div className="px-5 py-4 border-b border-surface2 flex items-center justify-between">
           <h1 className="font-serif text-accent text-xl">Evaluate</h1>
-          <button
-            onClick={() => { setImportOpen(true); setImportError('') }}
-            className="text-xs font-mono text-muted hover:text-accent border border-surface2 px-2 py-1 rounded hover:border-accent/40 transition-colors"
-          >
-            Import Claude eval
-          </button>
         </div>
 
         <div className="flex flex-col gap-4 p-5">
@@ -650,7 +478,7 @@ export default function Evaluate(): React.JSX.Element {
           </div>
 
           {/* Model selector */}
-          {models.length > 0 && (
+          {models.filter((m) => m.available === 1 && m.enabled === 1).length > 0 && (
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-mono text-muted uppercase tracking-wider">Model</label>
               <select
@@ -661,13 +489,14 @@ export default function Evaluate(): React.JSX.Element {
                 disabled={isRunning}
                 className="bg-surface border border-surface2 rounded px-3 py-2 text-sm font-mono text-text focus:outline-none focus:border-accent/50 disabled:opacity-50"
               >
-                {models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.model}
-                    {m.default_flag === 1 ? ' (default)' : ''}
-                    {m.available === 0 ? ' — unavailable' : ''}
-                  </option>
-                ))}
+                {models
+                  .filter((m) => m.available === 1 && m.enabled === 1)
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.model}
+                      {m.default_flag === 1 ? ' (default)' : ''}
+                    </option>
+                  ))}
               </select>
             </div>
           )}
@@ -762,17 +591,6 @@ export default function Evaluate(): React.JSX.Element {
         />
       )}
 
-      {/* ── Import modal ─────────────────────────────────────────────── */}
-      {importOpen && (
-        <ImportModal
-          models={models}
-          defaultModelId={defaultModelId}
-          onClose={() => setImportOpen(false)}
-          onImport={(jobId, modelId, parsed) => void handleImport(jobId, modelId, parsed)}
-          importError={importError}
-          importing={importMutation.isPending}
-        />
-      )}
     </div>
   )
 }

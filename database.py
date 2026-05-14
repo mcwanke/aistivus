@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS llm_models (
     available           INTEGER NOT NULL DEFAULT 0,
     default_flag        INTEGER NOT NULL DEFAULT 0,
     model_weight        INTEGER NOT NULL DEFAULT 1,
+    enabled             INTEGER NOT NULL DEFAULT 1,
     created_at          TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -529,7 +530,7 @@ def insert_llm_model(model: str, endpoint: str, **kwargs) -> int:
     If default_flag=1, clears default_flag on all existing records first.
     Returns the new model id.
     """
-    allowed = {"estimated_eval_time", "available", "default_flag", "model_weight"}
+    allowed = {"estimated_eval_time", "available", "default_flag", "model_weight", "enabled"}
     params = {k: v for k, v in kwargs.items() if k in allowed}
     default_flag = params.get("default_flag", 0)
 
@@ -539,8 +540,8 @@ def insert_llm_model(model: str, endpoint: str, **kwargs) -> int:
 
         conn.execute(
             """INSERT INTO llm_models
-               (model, endpoint, estimated_eval_time, available, default_flag, model_weight)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+               (model, endpoint, estimated_eval_time, available, default_flag, model_weight, enabled)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (
                 model,
                 endpoint,
@@ -548,6 +549,7 @@ def insert_llm_model(model: str, endpoint: str, **kwargs) -> int:
                 params.get("available", 0),
                 default_flag,
                 params.get("model_weight", 1),
+                params.get("enabled", 1),
             )
         )
         return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -559,7 +561,7 @@ def update_llm_model(model_id: int, **kwargs) -> bool:
     Returns True if a row was updated, False if model not found.
     """
     allowed = {"model", "endpoint", "estimated_eval_time", "available",
-               "default_flag", "model_weight"}
+               "default_flag", "model_weight", "enabled"}
     updates = {k: v for k, v in kwargs.items() if k in allowed}
     if not updates:
         return False

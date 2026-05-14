@@ -49,6 +49,7 @@ export interface LlmModel {
   model: string
   endpoint: string
   available: number   // 0 | 1 from SQLite
+  enabled: number   // 0 | 1 from SQLite
   default_flag: number
   model_weight: number
   estimated_eval_time: number | null

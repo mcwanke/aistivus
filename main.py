@@ -292,6 +292,7 @@ class CreateModelRequest(BaseModel):
     endpoint: str
     model_weight: int = 1
     estimated_eval_time: int | None = None
+    enabled: int = 1
 
 
 class UpdateModelRequest(BaseModel):
@@ -299,6 +300,7 @@ class UpdateModelRequest(BaseModel):
     endpoint: str | None = None
     model_weight: int | None = None
     estimated_eval_time: int | None = None
+    enabled: int | None = None
 
 
 class CreateSystemTypeRequest(BaseModel):
@@ -627,12 +629,13 @@ async def list_models(request: Request):
 @app.post("/api/v1/models")
 @limiter.limit("30/minute")
 async def create_model(request: Request, body: CreateModelRequest):
-    """Add a new LLM model. Endpoint must be a valid URL."""
+    """Add a new LLM model. Endpoint is optional for external/manual models."""
     model_id = database.insert_llm_model(
         model=body.model,
         endpoint=body.endpoint,
         model_weight=body.model_weight,
         estimated_eval_time=body.estimated_eval_time,
+        enabled=body.enabled,
     )
     log.info("model_created", extra={"model_id": model_id, "model": body.model})
     return JSONResponse({"success": True, "model_id": model_id})
@@ -685,6 +688,17 @@ async def delete_model(request: Request, model_id: int):
         raise HTTPException(status_code=404, detail=f"Model {model_id} not found.")
     log.info("model_deleted", extra={"model_id": model_id})
     return JSONResponse({"success": True})
+
+
+@app.post("/api/v1/models/check-availability")
+@limiter.limit("10/minute")
+async def check_model_availability(request: Request):
+    """Re-run the availability check for all configured models."""
+    await _update_model_availability()
+    models = database.get_all_llm_models()
+    available_count = sum(1 for m in models if dict(m)["available"] == 1)
+    log.info("model_availability_checked", extra={"available": available_count})
+    return JSONResponse({"checked": len(models), "available": available_count})
 
 
 # ─────────────────────────────────────────────────────────────

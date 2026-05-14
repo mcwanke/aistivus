@@ -1,7 +1,9 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useJobDetail, usePatchJob, useStartApplication } from '@/hooks/useJobs'
-import type { Evaluation, JobPosting } from '@/types/api'
+import { useImportEvaluationMutation, useModels, type ImportPayload } from '@/hooks/useEvaluate'
+import type { Evaluation, JobPosting, LlmModel } from '@/types/api'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -427,6 +429,118 @@ function AppStatusSection({ jobId, applicationId, status, postings }: AppStatusS
   )
 }
 
+// ─── Import modal ─────────────────────────────────────────────────────────────
+
+interface ImportModalProps {
+  models: LlmModel[]
+  defaultModelId: number | null
+  onClose: () => void
+  onImport: (modelId: number | null, parsed: Record<string, unknown>) => void
+  importError: string
+  importing: boolean
+}
+
+function ImportModal({
+  models,
+  defaultModelId,
+  onClose,
+  onImport,
+  importError,
+  importing,
+}: ImportModalProps): React.JSX.Element {
+  const [rawText, setRawText] = useState('')
+  const [modelId, setModelId] = useState<number | null>(defaultModelId)
+  const [parseError, setParseError] = useState('')
+
+  function handleImport(): void {
+    setParseError('')
+    const start = rawText.indexOf('EVALUATION_JSON_START')
+    const end = rawText.indexOf('EVALUATION_JSON_END')
+    const jsonStr = start !== -1 && end !== -1
+      ? rawText.slice(start + 'EVALUATION_JSON_START'.length, end).trim()
+      : rawText.trim()
+    let parsed: Record<string, unknown>
+    try {
+      parsed = JSON.parse(jsonStr) as Record<string, unknown>
+    } catch (e) {
+      setParseError(`JSON parse error: ${(e as Error).message}`)
+      return
+    }
+    onImport(modelId, parsed)
+  }
+
+  const error = parseError || importError
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+      <div className="bg-surface border border-surface2 rounded-xl p-7 max-w-lg w-full shadow-2xl flex flex-col gap-4">
+        <div>
+          <p className="font-serif text-accent text-lg mb-1">Import External Model Evaluation</p>
+          <p className="text-xs text-muted leading-relaxed">
+            Paste the evaluation JSON output. Sentinels{' '}
+            <span className="font-mono text-accent/70">
+              EVALUATION_JSON_START … EVALUATION_JSON_END
+            </span>
+            {' '}are optional — if present they will be stripped automatically.
+          </p>
+          <p className="text-xs text-muted/60 leading-relaxed mt-1">
+            Models must be added in Settings before they are available here.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-mono text-muted uppercase tracking-wider">Model</label>
+          <select
+            value={modelId ?? ''}
+            onChange={(e) =>
+              setModelId(e.target.value ? parseInt(e.target.value, 10) : null)
+            }
+            className="bg-surface2 border border-surface2 rounded px-3 py-2 text-sm font-mono text-text focus:outline-none focus:border-accent/50"
+          >
+            <option value="">— default model —</option>
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.model}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-mono text-muted uppercase tracking-wider">
+            Evaluation JSON
+          </label>
+          <textarea
+            value={rawText}
+            onChange={(e) => setRawText(e.target.value)}
+            placeholder="Paste the full response here…"
+            rows={8}
+            className="bg-surface2 border border-surface2 rounded px-3 py-2 text-xs font-mono text-text focus:outline-none focus:border-accent/50 resize-y"
+          />
+        </div>
+
+        {error && <p className="text-xs font-mono text-red">{error}</p>}
+
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-sans bg-surface2 text-muted border border-surface2 rounded hover:text-text transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleImport}
+            disabled={importing}
+            className="px-4 py-2 text-sm font-sans bg-accent text-bg rounded hover:bg-accent/90 transition-colors disabled:opacity-50"
+          >
+            {importing ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface JobDetailProps {
@@ -437,6 +551,11 @@ export default function JobDetail({ jobId }: JobDetailProps): React.JSX.Element 
   const { data, isLoading, isError } = useJobDetail(jobId)
   const [editJobOpen, setEditJobOpen] = useState(false)
   const [editDescOpen, setEditDescOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [importError, setImportError] = useState('')
+  const importMutation = useImportEvaluationMutation()
+  const { data: models = [] } = useModels()
+  const qc = useQueryClient()
 
   const invalidateJobDetail = useCallback(() => {
     setEditJobOpen(false)
@@ -451,6 +570,40 @@ export default function JobDetail({ jobId }: JobDetailProps): React.JSX.Element 
   }
 
   const { job, evaluations, postings } = data
+
+  const defaultModelId = models.find((m) => m.default_flag === 1)?.id ?? null
+
+  async function handleImport(
+    modelId: number | null,
+    parsed: Record<string, unknown>,
+  ): Promise<void> {
+    setImportError('')
+    const payload: ImportPayload = {
+      job_id: job.id,
+      llm_model_id: modelId,
+      score_overall: (parsed.score_overall as number | null) ?? null,
+      score_role_fit: (parsed.score_role_fit as number | null) ?? null,
+      score_scope_fit: (parsed.score_scope_fit as number | null) ?? null,
+      score_culture: (parsed.score_culture as number | null) ?? null,
+      score_comp: (parsed.score_comp as number | null) ?? null,
+      fit_type: (parsed.fit_type as string | null) ?? null,
+      archetype: (parsed.archetype as string | null) ?? null,
+      strengths: (parsed.strengths as string | null) ?? null,
+      gaps: (parsed.gaps as string | null) ?? null,
+      recommendation: (parsed.recommendation as string | null) ?? null,
+      keywords: (parsed.keywords as string | null) ?? null,
+      domain_match: (parsed.domain_match as string | null) ?? null,
+      role_type_match: (parsed.role_type_match as string | null) ?? null,
+      keyword_gaps: (parsed.keyword_gaps as string | null) ?? null,
+    }
+    try {
+      await importMutation.mutateAsync(payload)
+      setImportOpen(false)
+      void qc.invalidateQueries({ queryKey: ['job', jobId] })
+    } catch (err) {
+      setImportError((err as Error).message)
+    }
+  }
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
@@ -503,7 +656,20 @@ export default function JobDetail({ jobId }: JobDetailProps): React.JSX.Element 
 
       <hr className="border-surface2" />
 
-      {/* ── Section 4: Job Description ────────────────────────────── */}
+      {/* ── Section 4: Actions ───────────────────────────────────── */}
+      <section>
+        <p className="text-muted text-xs font-mono uppercase tracking-widest mb-3">Actions</p>
+        <button
+          onClick={() => { setImportOpen(true); setImportError('') }}
+          className="text-xs font-mono text-muted hover:text-accent border border-surface2 px-3 py-1.5 rounded hover:border-accent/40 transition-colors"
+        >
+          Import External Model Eval
+        </button>
+      </section>
+
+      <hr className="border-surface2" />
+
+      {/* ── Section 5: Job Description ────────────────────────────── */}
       <section>
         <Collapsible title="Description">
           <div className="flex items-start justify-between mb-2">
@@ -559,6 +725,16 @@ export default function JobDetail({ jobId }: JobDetailProps): React.JSX.Element 
           jobId={job.id}
           initial={job.description_merged ?? ''}
           onClose={() => { setEditDescOpen(false); invalidateJobDetail() }}
+        />
+      )}
+      {importOpen && (
+        <ImportModal
+          models={models}
+          defaultModelId={defaultModelId}
+          onClose={() => setImportOpen(false)}
+          onImport={(modelId, parsed) => void handleImport(modelId, parsed)}
+          importError={importError}
+          importing={importMutation.isPending}
         />
       )}
     </div>

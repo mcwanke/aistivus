@@ -116,6 +116,21 @@ export function useDeleteModel() {
   })
 }
 
+export function useCheckAvailability() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/v1/models/check-availability', { method: 'POST' })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw new Error(err.detail ?? `check availability ${res.status}`)
+      }
+      return res.json() as Promise<{ checked: number; available: number }>
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['models'] }),
+  })
+}
+
 // ─── System Types ─────────────────────────────────────────────────────────────
 
 async function fetchSystemTypes(): Promise<SystemType[]> {
