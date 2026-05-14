@@ -195,6 +195,7 @@ export interface Application {
   end_date: string | null
   requested_salary: string | null
   application_status: ApplicationStatus
+  applied: number
   project_id: number | null
 }
 
@@ -218,6 +219,7 @@ export interface ApplicationLog {
   id: number
   application_id: number
   type_id: number
+  type_value: string
   log: string | null
   url: string | null
   log_timestamp: string
@@ -275,6 +277,17 @@ export interface SystemType {
 }
 
 // GET /api/v1/system-types returns SystemType[]
+
+// ─── GET /api/v1/settings/app ────────────────────────────────────────────────
+
+export interface AppSetting {
+  id: number
+  key: string
+  value: string
+  created_at: string
+}
+
+// GET /api/v1/settings/app returns AppSetting[]
 
 // ─── GET /api/v1/settings ────────────────────────────────────────────────────
 

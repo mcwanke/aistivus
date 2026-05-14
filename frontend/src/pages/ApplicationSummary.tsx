@@ -342,11 +342,11 @@ function AuditRow({ entry }: { entry: ApplicationAuditEntry }): React.JSX.Elemen
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-interface ApplicationDetailProps {
+interface ApplicationSummaryProps {
   applicationId: number
 }
 
-export default function ApplicationDetail({ applicationId }: ApplicationDetailProps): React.JSX.Element {
+export default function ApplicationSummary({ applicationId }: ApplicationSummaryProps): React.JSX.Element {
   const { data, isLoading, isError } = useApplicationDetail(applicationId)
   const patch = usePatchApplication()
   const generatePrompt = useGeneratePrompt()
