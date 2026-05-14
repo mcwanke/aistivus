@@ -53,12 +53,12 @@ HTML frontend operational (read-only reference — do not modify).
 - [x] TypeScript interfaces for all API responses in `frontend/src/types/`
 - [x] Dashboard.tsx
 - [x] Jobs.tsx / JobDetail.tsx (redesigned layout per PROJECT_SPEC Section 10)
-- [ ] Evaluate.tsx (animated panel, reset on new run, dual timer)
-- [ ] Applications.tsx (excludes not-started)
-- [ ] ApplicationDetail.tsx (logs, audit, applied button, documents)
-- [ ] Settings.tsx (model management, system_types, jobsearch.md editor + history)
-- [ ] LLMUsage.tsx (llm_call_log viewer with copy-prompt button)
-- [ ] Claude import modal preserved on Evaluate page
+- [x] Evaluate.tsx (animated panel, reset on new run, dual timer)
+- [x] Applications.tsx (excludes not-started)
+- [x] ApplicationDetail.tsx (logs, audit, applied button, documents)
+- [x] Settings.tsx (model management, system_types, jobsearch.md editor + history)
+- [x] LLMUsage.tsx (llm_call_log viewer with copy-prompt button)
+- [x] Claude import modal preserved on Evaluate page
 - [ ] HTML pages retired
 - [ ] Vitest + React Testing Library, 70% coverage
 

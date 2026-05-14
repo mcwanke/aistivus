@@ -1,9 +1,12 @@
 import { NavLink, Outlet } from 'react-router-dom'
 
 const NAV_ITEMS = [
-  { to: '/',         label: 'Dashboard' },
-  { to: '/jobs',     label: 'Jobs' },
-  { to: '/evaluate', label: 'Evaluate' },
+  { to: '/',              label: 'Dashboard',    end: true  },
+  { to: '/jobs',          label: 'Jobs',         end: false },
+  { to: '/applications',  label: 'Applications', end: false },
+  { to: '/evaluate',      label: 'Evaluate',     end: true  },
+  { to: '/llm-usage',     label: 'LLM Usage',    end: true  },
+  { to: '/settings',      label: 'Settings',     end: true  },
 ]
 
 export default function Layout(): React.JSX.Element {
@@ -12,11 +15,11 @@ export default function Layout(): React.JSX.Element {
       {/* Sidebar */}
       <nav className="w-40 shrink-0 border-r border-surface2 flex flex-col py-4 px-3 gap-1">
         <p className="font-serif text-accent text-lg mb-4 px-2">AIstivus</p>
-        {NAV_ITEMS.map(({ to, label }) => (
+        {NAV_ITEMS.map(({ to, label, end }) => (
           <NavLink
             key={to}
             to={to}
-            end
+            end={end}
             className={({ isActive }) =>
               `px-2 py-1.5 rounded text-sm transition-colors ${
                 isActive

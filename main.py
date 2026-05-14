@@ -19,6 +19,10 @@ API routes:
   PATCH /api/v1/jobs/{id}
   GET  /api/v1/jobs/{id}/application
   GET  /api/v1/models
+  POST /api/v1/models
+  PATCH /api/v1/models/{id}
+  POST /api/v1/models/{id}/set-default
+  DELETE /api/v1/models/{id}
   POST /api/v1/applications
   GET  /api/v1/applications
   GET  /api/v1/applications/{id}
@@ -28,8 +32,14 @@ API routes:
   POST /api/v1/applications/{id}/generate-prompt
   GET  /api/v1/llm-call-log
   GET  /api/v1/system-types
+  POST /api/v1/system-types
+  DELETE /api/v1/system-types/{id}
   GET  /api/v1/settings
   PATCH /api/v1/settings
+  GET  /api/v1/settings/jobsearch
+  PUT  /api/v1/settings/jobsearch
+  GET  /api/v1/settings/jobsearch/versions
+  GET  /api/v1/settings/jobsearch/versions/{id}
   GET  /api/v1/inbox/files
   POST /api/v1/inbox/process
 
@@ -183,7 +193,7 @@ app.add_middleware(
         "http://127.0.0.1:3000",
     ],
     allow_credentials=False,
-    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
     allow_headers=["Content-Type"],
 )
 
@@ -278,6 +288,30 @@ class UpdateSettingsRequest(BaseModel):
 
 class ProcessInboxRequest(BaseModel):
     filenames: list[str]
+
+
+class CreateModelRequest(BaseModel):
+    model: str
+    endpoint: str
+    model_weight: int = 1
+    estimated_eval_time: int | None = None
+
+
+class UpdateModelRequest(BaseModel):
+    model: str | None = None
+    endpoint: str | None = None
+    model_weight: int | None = None
+    estimated_eval_time: int | None = None
+
+
+class CreateSystemTypeRequest(BaseModel):
+    type_name: str
+    type_value: str
+
+
+class SaveJobsearchRequest(BaseModel):
+    content: str
+    note: str | None = None
 
 
 # Valid application status values per spec
@@ -643,6 +677,69 @@ async def list_models(request: Request):
     return JSONResponse({"models": [dict(m) for m in models]})
 
 
+@app.post("/api/v1/models")
+@limiter.limit("30/minute")
+async def create_model(request: Request, body: CreateModelRequest):
+    """Add a new LLM model. Endpoint must be a valid URL."""
+    model_id = database.insert_llm_model(
+        model=body.model,
+        endpoint=body.endpoint,
+        model_weight=body.model_weight,
+        estimated_eval_time=body.estimated_eval_time,
+    )
+    log.info("model_created", extra={"model_id": model_id, "model": body.model})
+    return JSONResponse({"success": True, "model_id": model_id})
+
+
+@app.patch("/api/v1/models/{model_id}")
+@limiter.limit("30/minute")
+async def update_model(request: Request, model_id: int, body: UpdateModelRequest):
+    """Update mutable fields on a model record."""
+    row = database.get_llm_model(model_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Model {model_id} not found.")
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update.")
+    database.update_llm_model(model_id, **updates)
+    log.info("model_updated", extra={"model_id": model_id})
+    return JSONResponse({"success": True})
+
+
+@app.post("/api/v1/models/{model_id}/set-default")
+@limiter.limit("30/minute")
+async def set_default_model(request: Request, model_id: int):
+    """Set this model as the default. Clears default_flag on all others."""
+    row = database.get_llm_model(model_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Model {model_id} not found.")
+    database.set_llm_model_default(model_id)
+    log.info("model_default_set", extra={"model_id": model_id})
+    return JSONResponse({"success": True})
+
+
+@app.delete("/api/v1/models/{model_id}")
+@limiter.limit("30/minute")
+async def delete_model(request: Request, model_id: int):
+    """Delete a model. Blocked if it is the only configured default."""
+    row = database.get_llm_model(model_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Model {model_id} not found.")
+    model_dict = dict(row)
+    if model_dict["default_flag"] == 1:
+        all_models = database.get_all_llm_models()
+        if len(all_models) == 1:
+            raise HTTPException(
+                status_code=409,
+                detail="Cannot delete the only configured model.",
+            )
+    deleted = database.delete_llm_model(model_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Model {model_id} not found.")
+    log.info("model_deleted", extra={"model_id": model_id})
+    return JSONResponse({"success": True})
+
+
 # ─────────────────────────────────────────────────────────────
 # Applications
 # ─────────────────────────────────────────────────────────────
@@ -969,6 +1066,35 @@ async def list_system_types(
     return JSONResponse([dict(r) for r in rows])
 
 
+@app.post("/api/v1/system-types")
+@limiter.limit("30/minute")
+async def create_system_type(request: Request, body: CreateSystemTypeRequest):
+    """Add a new system type entry. type_name + type_value must be unique."""
+    existing = database.get_system_type_id(body.type_name, body.type_value)
+    if existing is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"system_type ({body.type_name}, {body.type_value}) already exists.",
+        )
+    type_id = database.add_system_type(body.type_name, body.type_value)
+    log.info("system_type_created", extra={"type_id": type_id})
+    return JSONResponse({"success": True, "type_id": type_id})
+
+
+@app.delete("/api/v1/system-types/{type_id}")
+@limiter.limit("30/minute")
+async def delete_system_type(request: Request, type_id: int):
+    """Delete a system type. Blocked if any record references this type_id."""
+    deleted = database.delete_system_type(type_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot delete: type is in use or does not exist.",
+        )
+    log.info("system_type_deleted", extra={"type_id": type_id})
+    return JSONResponse({"success": True})
+
+
 # ─────────────────────────────────────────────────────────────
 # Settings
 # ─────────────────────────────────────────────────────────────
@@ -999,6 +1125,47 @@ async def update_settings(request: Request, body: UpdateSettingsRequest):
     """
     log.info("settings_patch_called", extra={"keys": list(body.settings.keys())})
     return JSONResponse({"success": True})
+
+
+@app.get("/api/v1/settings/jobsearch")
+@limiter.limit("30/minute")
+async def get_jobsearch(request: Request):
+    """Return the current content of jobsearch.md from disk."""
+    config = _load_config()
+    path = Path(config.get("evaluation", {}).get("jobsearch_md_path", "jobsearch.md"))
+    if not path.exists():
+        return JSONResponse({"content": ""})
+    return JSONResponse({"content": path.read_text(encoding="utf-8")})
+
+
+@app.put("/api/v1/settings/jobsearch")
+@limiter.limit("10/minute")
+async def save_jobsearch(request: Request, body: SaveJobsearchRequest):
+    """Write content to jobsearch.md and save a version snapshot."""
+    config = _load_config()
+    path = Path(config.get("evaluation", {}).get("jobsearch_md_path", "jobsearch.md"))
+    path.write_text(body.content, encoding="utf-8")
+    version_id = database.save_jobsearch_version(body.content, note=body.note)
+    log.info("jobsearch_saved", extra={"version_id": version_id, "bytes": len(body.content)})
+    return JSONResponse({"success": True, "version_id": version_id})
+
+
+@app.get("/api/v1/settings/jobsearch/versions")
+@limiter.limit("30/minute")
+async def list_jobsearch_versions(request: Request, limit: int = Query(20, ge=1, le=100)):
+    """List saved jobsearch.md version history (id, saved_at, note — no content)."""
+    rows = database.get_jobsearch_versions(limit=limit)
+    return JSONResponse([dict(r) for r in rows])
+
+
+@app.get("/api/v1/settings/jobsearch/versions/{version_id}")
+@limiter.limit("30/minute")
+async def get_jobsearch_version(request: Request, version_id: int):
+    """Return the content of a specific jobsearch.md version."""
+    content = database.get_jobsearch_version_content(version_id)
+    if content is None:
+        raise HTTPException(status_code=404, detail=f"Version {version_id} not found.")
+    return JSONResponse({"content": content})
 
 
 # ─────────────────────────────────────────────────────────────

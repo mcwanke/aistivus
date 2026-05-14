@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import type { StatsResponse, HealthResponse } from '@/types/api'
 
 // ─── Data fetchers ────────────────────────────────────────────────────────────
@@ -20,13 +21,26 @@ async function fetchHealth(): Promise<HealthResponse> {
 interface StatCardProps {
   label: string
   value: number | string
+  to?: string
 }
 
-function StatCard({ label, value }: StatCardProps): React.JSX.Element {
-  return (
-    <div className="bg-surface rounded p-5 flex flex-col gap-1">
+function StatCard({ label, value, to }: StatCardProps): React.JSX.Element {
+  const inner = (
+    <>
       <span className="text-muted text-sm font-mono uppercase tracking-widest">{label}</span>
       <span className="text-accent font-serif text-4xl">{value}</span>
+    </>
+  )
+  if (to) {
+    return (
+      <Link to={to} className="bg-surface rounded p-5 flex flex-col gap-1 hover:bg-surface2 transition-colors">
+        {inner}
+      </Link>
+    )
+  }
+  return (
+    <div className="bg-surface rounded p-5 flex flex-col gap-1">
+      {inner}
     </div>
   )
 }
@@ -64,17 +78,22 @@ export default function Dashboard(): React.JSX.Element {
         )}
         {stats.data && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <StatCard label="Jobs" value={stats.data.jobs} />
-            <StatCard label="Evaluations" value={stats.data.evaluations} />
-            <StatCard label="Applications" value={stats.data.applications} />
-            <StatCard label="LLM Calls" value={stats.data.llm_calls} />
+            <StatCard label="Jobs"         value={stats.data.jobs}         to="/jobs" />
+            <StatCard label="Evaluations"  value={stats.data.evaluations} />
+            <StatCard label="Applications" value={stats.data.applications} to="/applications" />
+            <StatCard label="LLM Calls"    value={stats.data.llm_calls} to="/llm-usage" />
           </div>
         )}
       </section>
 
       {/* Model health */}
       <section>
-        <h2 className="text-muted text-xs font-mono uppercase tracking-widest mb-3">Models</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-muted text-xs font-mono uppercase tracking-widest">Models</h2>
+          <Link to="/settings" className="text-xs font-mono text-muted hover:text-accent transition-colors">
+            Manage →
+          </Link>
+        </div>
         {health.isLoading && (
           <p className="text-muted text-sm">Checking models…</p>
         )}

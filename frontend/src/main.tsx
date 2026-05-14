@@ -8,16 +8,23 @@ import Layout from '@/components/Layout'
 import Dashboard from '@/pages/Dashboard'
 import Jobs from '@/pages/Jobs'
 import Evaluate from '@/pages/Evaluate'
+import Applications from '@/pages/Applications'
+import Settings from '@/pages/Settings'
+import LLMUsage from '@/pages/LLMUsage'
 import '@/index.css'
 
 const router = createBrowserRouter([
   {
     element: <Layout />,
     children: [
-      { path: '/',          element: <Dashboard /> },
-      { path: '/jobs',      element: <Jobs /> },
-      { path: '/evaluate', element: <Evaluate /> },
-      { path: '/jobs/:jobId', element: <Jobs /> },
+      { path: '/',                              element: <Dashboard /> },
+      { path: '/jobs',                          element: <Jobs /> },
+      { path: '/jobs/:jobId',                   element: <Jobs /> },
+      { path: '/evaluate',                      element: <Evaluate /> },
+      { path: '/applications',                  element: <Applications /> },
+      { path: '/applications/:applicationId',   element: <Applications /> },
+      { path: '/settings',                      element: <Settings /> },
+      { path: '/llm-usage',                     element: <LLMUsage /> },
     ],
   },
 ])

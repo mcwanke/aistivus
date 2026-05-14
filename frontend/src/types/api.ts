@@ -273,6 +273,20 @@ export interface SettingsResponse {
   database: Record<string, unknown>
 }
 
+// ─── GET /api/v1/settings/jobsearch ──────────────────────────────────────────
+
+export interface JobsearchContent {
+  content: string
+}
+
+// ─── GET /api/v1/settings/jobsearch/versions ─────────────────────────────────
+
+export interface JobsearchVersion {
+  id: number
+  saved_at: string
+  note: string | null
+}
+
 // ─── GET /api/v1/inbox/files ─────────────────────────────────────────────────
 
 export interface InboxFilesResponse {
