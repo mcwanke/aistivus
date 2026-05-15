@@ -56,6 +56,11 @@
 - [ ] **Interview prep notes** `[P2]` — structured notes section per interview round
 - [ ] **Offer comparison tool** `[P2]` — side-by-side offer comparison with compensation calculator
 - [ ] **Application deadline reminders** `[P2]` — flag roles with known closing dates
+- [ ] **Interview prep questions** `[P1.2+]` — from Job Search Profile page or ApplicationDetail:
+  generate practice questions based on profile gaps + JD evaluation gaps.
+  "Based on your profile and the gaps in this evaluation, here are the 5 questions
+  you should prepare for." Reuses profile chat infrastructure; no new backend work.
+  Scheduled as near-term addition after Phase 1.2 profile builder is stable.
 
 ---
 

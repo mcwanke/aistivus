@@ -63,6 +63,26 @@ HTML frontend operational (read-only reference — do not modify).
 - [x] Vitest + React Testing Library, 70% coverage
 
 ### Phase 1.2 Checklist 🔲
+- [ ] Revised `JOBSEARCH_TEMPLATE.md` (Career Narrative, Experience Level, new-grad sections, merged Model Behavior Rules)
+- [ ] `lesson_learned` added to `system_types` seed in `database.py`
+- [ ] `jobsearch_versions` table-based approach verified/restored in `database.py`
+- [ ] Streaming support (`complete_stream()`) added to `llm_client.py`
+- [ ] Profile section parser utility in `database.py`
+- [ ] `profile_routes.py` with all profile API routes registered in `main.py`
+- [ ] SSE streaming chat route (`POST /api/v1/profile/chat`)
+- [ ] One-shot routes: synthesize-insights, coherence-check, generate-tailoring-rules
+- [ ] Lesson chat route on applications (`POST /api/v1/applications/{id}/lesson-chat`)
+- [ ] TypeScript interfaces in `frontend/src/types/profile.ts`
+- [ ] Profile hooks: `useProfileHealth`, `useProfileSections`, `useProfileVersions`, `useProfileChat`, `useLessonChat`
+- [ ] `JobSearchProfile.tsx` — two-column layout, section cards, AI chat panel, accept/discard flow
+- [ ] Left nav entry: "Job Search Profile"
+- [ ] Dashboard Profile Strength widget
+- [ ] ApplicationDetail "Capture a lesson" feature
+- [ ] Settings My Data: version history with preview + restore
+- [ ] Backend tests for all profile routes
+- [ ] Frontend tests for Job Search Profile page
+
+### Phase 1.3 Checklist 🔲
 - [ ] Typst binary startup validation (graceful degradation)
 - [ ] Document upload/list/delete routes (`/api/v1/applications/{id}/documents`)
 - [ ] Compile endpoint (`typst compile` server-side)
@@ -71,7 +91,7 @@ HTML frontend operational (read-only reference — do not modify).
 - [ ] Two bundled Typst templates in `templates/typst/`
 - [ ] Settings: Typst binary path + disk usage
 
-### Phase 1.3 Checklist 🔲
+### Phase 1.4 Checklist 🔲
 - [ ] Dockerfile
 - [ ] docker-compose.yml (volume mounts: data/, generated/, reports/, logs/)
 - [ ] .dockerignore
@@ -89,8 +109,9 @@ aistivus/
 ├── evaluate.py
 ├── llm_client.py
 ├── logger.py               (Phase 1.0 — new)
+├── profile_routes.py       (Phase 1.2 — new)
 ├── templates/
-│   └── typst/              (Phase 1.2)
+│   └── typst/              (Phase 1.3)
 ├── pages/                  (read-only reference; retired Phase 1.1)
 ├── tests/                  (Phase 1.0 — new)
 │   ├── conftest.py
@@ -104,8 +125,16 @@ aistivus/
 │   ├── vite.config.ts
 │   └── src/
 │       ├── types/
+│       │   └── profile.ts  (Phase 1.2 — new)
+│       ├── hooks/
+│       │   ├── useProfileHealth.ts    (Phase 1.2 — new)
+│       │   ├── useProfileSections.ts  (Phase 1.2 — new)
+│       │   ├── useProfileVersions.ts  (Phase 1.2 — new)
+│       │   ├── useProfileChat.ts      (Phase 1.2 — new)
+│       │   └── useLessonChat.ts       (Phase 1.2 — new)
 │       ├── components/
 │       └── pages/
+│           └── JobSearchProfile.tsx   (Phase 1.2 — new)
 ├── app_docs/               (planning docs, workorders)
 ├── my_data/                (gitignored — user PII)
 │   ├── jobsearch.md
@@ -132,11 +161,12 @@ aistivus/
 | LLM (local) | Ollama REST API |
 | LLM (cloud) | Anthropic API |
 | Model config | `llm_models` DB table (replaces config.yaml model config) |
-| Document gen | Typst binary (Phase 1.2) |
+| Document gen | Typst binary (Phase 1.3) |
 | Rate limiting | slowapi (Phase 1.0) |
 | Logging | Python stdlib logging — structured JSON (Phase 1.0) |
 | Testing | pytest + Vitest (Phase 1.0/1.1) |
-| Deployment | Docker + docker-compose (Phase 1.3) |
+| Streaming | SSE via FastAPI `StreamingResponse` (Phase 1.2) |
+| Deployment | Docker + docker-compose (Phase 1.4) |
 
 ---
 
@@ -167,6 +197,7 @@ aistivus/
 | application_log | general |
 | application_log | repost_alert |
 | application_log | prompt |
+| application_log | lesson_learned |
 | company_info | website |
 | company_info | careerpage |
 | company_info | culturepage |

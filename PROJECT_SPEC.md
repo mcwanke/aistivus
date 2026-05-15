@@ -423,6 +423,7 @@ Seeded at `init_db()`. Users may add types via Settings UI; seed values must alw
 | application_log | general | |
 | application_log | repost_alert | |
 | application_log | prompt | LLM prompt log entry |
+| application_log | lesson_learned | Captured via lesson chat on ApplicationDetail (Phase 1.2) |
 | company_info | website | |
 | company_info | careerpage | |
 | company_info | culturepage | |
@@ -785,7 +786,42 @@ Deliverables:
 - Vite dev proxy → FastAPI; FastAPI serves `frontend/dist/` in prod
 - Vitest + React Testing Library, 70% coverage
 
-### Phase 1.2 — Typst / Documents 🔲
+### Phase 1.2 — Job Search Profile Builder 🔲
+**Goal: AI-assisted editor for jobsearch.md — makes the tool usable for new grads,
+career changers, and non-technical users. Directly improves evaluation quality.**
+
+Deliverables:
+- Revised `JOBSEARCH_TEMPLATE.md` — Career Narrative section, Experience Level field,
+  new-grad Career History subsections, merged Model Behavior Rules section (9 sections total)
+- `lesson_learned` added to `system_types` seed
+- `jobsearch_versions` table-based versioning confirmed/restored; disk file always authoritative
+- SSE streaming support (`complete_stream()`) added to `llm_client.py`
+- Profile section parser utility in `database.py`
+- `profile_routes.py` — all profile API routes; registered in `main.py`
+- SSE streaming chat route (`POST /api/v1/profile/chat`) with Socratic / Directive modes
+- Propose-update endpoint (non-streaming synthesis of conversation → section draft)
+- One-shot routes: synthesize-insights (from app logs), coherence-check, generate-tailoring-rules
+- Lesson chat route on applications (`POST /api/v1/applications/{id}/lesson-chat`)
+- TypeScript interfaces in `frontend/src/types/profile.ts`
+- Custom hooks: `useProfileHealth`, `useProfileSections`, `useProfileVersions`,
+  `useProfileChat` (streaming), `useLessonChat` (streaming)
+- `JobSearchProfile.tsx` — two-column layout (section cards left, chat panel right)
+  with per-section status badges, direct editing, AI chat, Socratic/Directive toggle,
+  proposed-update Accept/Discard flow, special handling for paste-only and generate-button sections
+- Left nav entry: "Job Search Profile"
+- Dashboard: Profile Strength widget (completion % + link to profile page)
+- ApplicationDetail: "Capture a lesson" button → lesson chat → saves to `application_logs`
+  with `lesson_learned` type + proposes addition to Section 8
+- Settings My Data: jobsearch_versions history with preview + restore
+- Backend tests: all profile routes (80% coverage)
+- Frontend tests: Job Search Profile page (70% coverage)
+
+**Multi-user note:** Each user gets a separate Docker container (Phase 1.4).
+No multi-profile switching needed in this phase.
+
+**See:** `app_docs/WORKORDER-phase1.2.md` for full item-by-item build spec.
+
+### Phase 1.3 — Typst / Documents 🔲
 **Goal: Import, compile, and view Typst resume files within the app.**
 
 Deliverables:
@@ -797,15 +833,15 @@ Deliverables:
 - At least two bundled Typst resume templates in `templates/typst/`
 - Settings: Typst binary path configuration, generated files disk usage
 
-### Phase 1.3 — Docker 🔲
-**Goal: Consistent, portable local deployment.**
+### Phase 1.4 — Docker 🔲
+**Goal: Consistent, portable local deployment. One container per user for family/multi-user use.**
 
 Deliverables:
 - `Dockerfile` — Python + Node build, single container
 - `docker-compose.yml` — volume mounts for `data/`, `generated/`, `reports/`, `logs/`
 - `.dockerignore`
 - First-run wizard: network exposure warning, Typst binary note
-- README updated with Docker setup instructions
+- README updated with Docker setup instructions and per-user container pattern
 - `config.yaml` volume-mounted (not baked into image)
 
 ### Phase 2 — Extended Workflow 🔲 (Future)
@@ -814,13 +850,14 @@ Deliverables:
 - LLM-assisted resume/cover letter generation with inline editor
 - DOCX export (python-docx)
 - Multi-model evaluation comparison view
+- Interview prep: practice questions from profile gaps + JD evaluation
 
 ### Phase 3 — Discovery 🔲 (Future)
 - `scraper.py` (jobspy or equivalent)
 - `scraper_review.py` (keyword extraction, dedup, merge, repost detection)
 - Job boards management UI
 - Repost alerts
-- Chat interface (stub tables activated)
+- General-purpose chat interface (chat_sessions / chat_messages stub tables activated)
 
 ### Phase 4 — Projects & Multi-User 🔲 (Future)
 - Projects: activate `project_id` stubs + default project migration
@@ -898,7 +935,25 @@ aistivus/
 └── logs/                       (gitignored)
 ```
 
-### Phase 1.3 Additions
+### Phase 1.2 Additions
+```
+aistivus/
+└── profile_routes.py
+
+frontend/src/
+├── types/
+│   └── profile.ts
+├── hooks/
+│   ├── useProfileHealth.ts
+│   ├── useProfileSections.ts
+│   ├── useProfileVersions.ts
+│   ├── useProfileChat.ts
+│   └── useLessonChat.ts
+└── pages/
+    └── JobSearchProfile.tsx
+```
+
+### Phase 1.4 Additions
 ```
 aistivus/
 ├── Dockerfile
@@ -908,7 +963,116 @@ aistivus/
 
 ---
 
-## 19. Known Risks and Mitigations
+## 19. Job Search Profile Page Specification (Phase 1.2)
+
+### Layout
+
+Two-column layout. Left nav entry: **"Job Search Profile"**.
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ Job Search Profile          [3 of 9 sections complete]  [Review Profile ↗] │
+├───────────────────────────────┬──────────────────────────────────────┤
+│ LEFT: Section cards           │ RIGHT: Chat panel                    │
+│                               │                                      │
+│ ● Who I Am        [Complete]  │  (inactive: "Select a section        │
+│ ● Career Narrative [Empty]    │   to edit with AI")                  │
+│ ● Career History  [In Prog.]  │                                      │
+│   [textarea]                  │  Active section header               │
+│   [Save] [Edit with AI →]     │  Mode: [Socratic ●] [Directive]     │
+│ ● Skills…                     │  Recommended: Socratic               │
+│ ...                           │                                      │
+│                               │  [Chat thread — streaming]           │
+│                               │                                      │
+│                               │  [Proposed Update card]              │
+│                               │  [Accept] [Discard]                  │
+│                               │                                      │
+│                               │  [Input] [Send]                      │
+│                               │  [Propose Update] [Clear chat]       │
+└───────────────────────────────┴──────────────────────────────────────┘
+```
+
+### Section Cards (left column)
+
+Each card:
+- Section number + name
+- Status badge: Complete (green) / In Progress (amber) / Empty (gray)
+  - Heuristic: `Complete` = no `[FILL]` markers AND content > 50 chars
+- Editable `<textarea>` — direct editing always available
+- Save button (appears on content change)
+- "Edit with AI →" button — activates right panel for this section
+
+**Special section handling:**
+
+| Section | Special behavior |
+|---|---|
+| `tailoring_rules` | "Generate Rules" button instead of "Edit with AI" |
+| `insights_lessons` | "Synthesize from Logs" button + "Edit with AI" |
+| `model_behavior` | No "Edit with AI" — edit-only textarea |
+| `resume_master` | "Edit with AI" opens chat with paste-first UX note |
+
+### Chat Panel (right column)
+
+- **Inactive:** "Select a section on the left to edit with AI"
+- **Active:** section name, recommended mode label, mode toggle
+- **Mode toggle:** Socratic / Directive pill buttons; defaults to section's recommended mode
+- **Message thread:** user messages right (accent bg), assistant left (surface2 bg)
+- **Streaming:** tokens appear as they arrive; cursor indicator during generation
+- **"Propose Update" button:** sends current conversation to propose-update endpoint;
+  returns full draft section content; shown in Proposed Update card
+- **Proposed Update card:** shows draft content with Accept / Discard
+  - Accept: calls `PATCH /api/v1/profile/sections/{id}`, snapshots version, clears card
+  - Discard: clears card, conversation continues
+- **Input area:** `<textarea>`, Send button, disabled while streaming
+- **"Clear conversation" link:** resets chat state for this section
+
+### Profile Strength (Dashboard widget)
+
+- Source: `GET /api/v1/profile/health`
+- Shows: progress bar + "X of 9 sections complete" + link to `/profile`
+- If `file_exists: false`: "Profile not set up — start here →"
+- If `completion_pct === 100`: "Profile complete" in green accent
+
+### Capture a Lesson (ApplicationDetail)
+
+- Button: "Capture a lesson from this application" in the logs section
+- Opens inline chat panel below button (not a modal)
+- First assistant message auto-sent: "Tell me about your experience with this role..."
+- "Save lesson" button triggers finalize call — returns:
+  - A `lesson_learned` log entry for this application (always saved)
+  - A proposed addition to jobsearch.md Section 8 (user accepts or discards)
+- Accepted log entry appears immediately in the application logs list
+- Proposed insights addition: toast with "Review in Job Search Profile →" link
+
+### Recommended AI Mode per Section
+
+| Section | Recommended mode | Rationale |
+|---|---|---|
+| `who_i_am` | Either | Short, preference-driven |
+| `career_narrative` | Socratic | Story elicitation for transitions |
+| `career_history` | Socratic | Achievement story extraction |
+| `skills_strengths` | Directive | Faster to draft and react |
+| `target_role` | Either | Mix of hard preferences and trade-offs |
+| `resume_master` | Either | Paste + review OR build from scratch |
+| `tailoring_rules` | Generate button | One-shot from sections 1–5 |
+| `insights_lessons` | Synthesize + journal | Driven by application logs |
+| `model_behavior` | Edit only | Model instructions, not personal context |
+
+### Experience Level Calibration
+
+The `experience_level` field from Section 1 is passed with every chat request.
+The section system prompts adjust question framing:
+
+- **New grad:** Replace metric/achievement framing with "tell me about a project
+  you're proud of, even if it was for a class" style questions. Surface education,
+  projects, and non-work leadership as first-class experience.
+- **Career changer:** Emphasize translation of prior domain to target domain.
+  Help surface transferable skills not obvious in a corporate resume context.
+- **All other levels:** Standard professional framing.
+
+---
+
+## 20. Known Risks and Mitigations
 
 | Risk | Severity | Mitigation |
 |---|---|---|
@@ -917,7 +1081,9 @@ aistivus/
 | LLM evaluation parse failure | Medium | Retry once; write NULL record; surface raw response |
 | Local LLM quality on complex roles | Medium | Cloud LLM (Anthropic) available |
 | Inbound API abuse (WSL2/VM) | Low/Medium | slowapi rate limiting Phase 1.0 |
-| Typst compile with malicious .typ | Low/Medium | Phase 1.2: validate file extension, size limit, sandboxed process |
+| Typst compile with malicious .typ | Low/Medium | Phase 1.3: validate file extension, size limit, sandboxed process |
+| Chat prompt injection via profile content | Low | Profile content is user-supplied and never used as a JD — lower risk than evaluation; no delimiter wrapping required |
+| SSE stream abandoned mid-response | Low | Client disconnect handled by FastAPI StreamingResponse; partial LLM call logged to llm_call_log with success=0 |
 | Token cost surprise on cloud eval | Low | Estimate shown before confirmation; explicit user approval |
 | SQLite performance at scale | Low | Handles millions of rows; indexes on hot paths |
 | API key leakage via Settings | Low | Boolean presence only on GET |
@@ -928,18 +1094,52 @@ aistivus/
 
 ---
 
-## 20. `jobsearch.md` Specification
+## 21. `jobsearch.md` Specification
 
 Full template in `templates/JOBSEARCH_TEMPLATE.md`.
 
-**Dual-storage conflict policy:**
-- Disk is authoritative on startup
-- Settings UI reads from disk; writes to disk and `jobsearch_versions` simultaneously
-- Modified timestamp newer than latest `jobsearch_versions.saved_at` → startup warning logged
+### Section Structure (Phase 1.2+)
 
-**Trimmed fallback (Phase 1.0+):**
-Warning shown when token estimate exceeds configurable threshold. User manually selects
-trimmed mode. System never trims autonomously.
+9 sections, each identified by a stable `section_id` used in API routes:
+
+| # | section_id | Name |
+|---|---|---|
+| 1 | `who_i_am` | Who I Am |
+| 2 | `career_narrative` | Career Narrative |
+| 3 | `career_history` | Career History |
+| 4 | `skills_strengths` | Skills & Strengths |
+| 5 | `target_role` | Target Role Profile |
+| 6 | `resume_master` | Resume Master Copy |
+| 7 | `tailoring_rules` | Tailoring Rules |
+| 8 | `insights_lessons` | Insights & Lessons Learned |
+| 9 | `model_behavior` | Model Behavior Rules |
+
+### Storage Policy
+
+- **Disk is authoritative.** `jobsearch.md` on disk is always the current version.
+- Every write (AI-assisted or manual) snapshots the current content to
+  `jobsearch_versions` **before** writing the new content to disk.
+- `jobsearch_versions` is a true undo history — `note` field captures what triggered
+  the save (e.g. "AI edit — Career History", "Manual edit via Settings").
+- Retention: last 30 versions (configurable in Settings).
+- Settings UI reads from disk; writes to disk + `jobsearch_versions` simultaneously.
+- Modified timestamp newer than latest `jobsearch_versions.saved_at` → startup warning logged.
+
+### Completion Heuristic
+
+A section is considered **complete** when:
+- No `[FILL]` markers remain in the section content, AND
+- Content length exceeds 50 characters
+
+This is computed server-side in `is_section_complete()` and returned by
+`GET /api/v1/profile/health`.
+
+### Token Budget
+
+- Target: under 500 lines / ~8,000 tokens
+- Token estimate shown in `GET /api/v1/profile/health` response (`token_estimate` field)
+- Warning displayed in Job Search Profile header when estimate exceeds threshold
+- System never trims autonomously — user selects trimmed mode manually
 
 ---
 
@@ -952,3 +1152,9 @@ trimmed mode. System never trims autonomously.
   companies table dropped. prompt_hash/raw_response moved to llm_call_log. Typst replaces
   WeasyPrint. Phases restructured as 1.0/1.1/1.2/1.3. Docker at Phase 1.3. Tests from
   Phase 1.0. /api/v1/ versioning. generated_docs retired.
+- **v2.1** — Phase 1.2 redesigned as Job Search Profile Builder. Typst → Phase 1.3.
+  Docker → Phase 1.4. New: SSE streaming in llm_client.py, profile_routes.py,
+  JobSearchProfile.tsx, lesson chat on ApplicationDetail, Dashboard Profile Strength widget.
+  lesson_learned system_type added. jobsearch_versions restored to table-based approach.
+  JOBSEARCH_TEMPLATE.md revised: Career Narrative section added, Sections 7+9 merged into
+  Model Behavior Rules, Experience Level field, new-grad Career History subsections.
