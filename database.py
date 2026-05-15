@@ -1139,9 +1139,11 @@ def get_llm_call_log(
         params.append(limit)
 
         return conn.execute(
-            f"""SELECT l.*, m.model AS model_name
+            f"""SELECT l.*, m.model AS model_name,
+                       j.company_name AS job_company_name, j.title AS job_title
                 FROM llm_call_log l
                 LEFT JOIN llm_models m ON m.id = l.llm_model_id
+                LEFT JOIN jobs j ON j.id = l.job_id
                 {where}
                 ORDER BY l.timestamp DESC, l.id DESC
                 LIMIT ?""",
@@ -1153,9 +1155,11 @@ def get_llm_call_log_entry(log_id: int) -> sqlite3.Row | None:
     """Return a single LLM call log entry by id, or None."""
     with get_connection() as conn:
         return conn.execute(
-            """SELECT l.*, m.model AS model_name
+            """SELECT l.*, m.model AS model_name,
+                      j.company_name AS job_company_name, j.title AS job_title
                FROM llm_call_log l
                LEFT JOIN llm_models m ON m.id = l.llm_model_id
+               LEFT JOIN jobs j ON j.id = l.job_id
                WHERE l.id = ?""",
             (log_id,)
         ).fetchone()

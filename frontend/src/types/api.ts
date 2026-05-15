@@ -262,6 +262,9 @@ export interface LlmCallLogEntry {
   error_message: string | null
   job_id: number | null
   search_run_id: number | null
+  model_name: string | null
+  job_company_name: string | null
+  job_title: string | null
 }
 
 // GET /api/v1/llm-call-log returns LlmCallLogEntry[]
