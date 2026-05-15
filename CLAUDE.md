@@ -56,7 +56,7 @@ HTML frontend operational (read-only reference — do not modify).
 - [x] Evaluate.tsx (animated panel, reset on new run, dual timer)
 - [x] Applications.tsx (excludes not-started)
 - [x] ApplicationDetail.tsx (logs, audit, applied button, documents)
-- [x] Settings.tsx (model management, system_types, jobsearch.md editor + history)
+- [x] Settings.tsx (model management, system_types, My Data editor, app settings, system info)
 - [x] LLMUsage.tsx (llm_call_log viewer with copy-prompt button)
 - [x] Claude import modal preserved on Evaluate page
 - [x] HTML pages retired
@@ -106,6 +106,11 @@ aistivus/
 │       ├── types/
 │       ├── components/
 │       └── pages/
+├── app_docs/               (planning docs, workorders)
+├── my_data/                (gitignored — user PII)
+│   ├── jobsearch.md
+│   └── resume_templates/
+│       └── resume_template.typ
 ├── inbox/                  (gitignored)
 ├── data/                   (gitignored)
 ├── generated/              (gitignored)

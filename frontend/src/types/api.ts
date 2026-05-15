@@ -292,6 +292,7 @@ export interface AppSetting {
 // ─── GET /api/v1/settings ────────────────────────────────────────────────────
 
 export interface SettingsResponse {
+  app_version: string
   schema_version: string
   anthropic_api_key_configured: boolean
   server: Record<string, unknown>
@@ -303,14 +304,14 @@ export interface SettingsResponse {
 
 export interface JobsearchContent {
   content: string
+  has_backup: boolean
 }
 
-// ─── GET /api/v1/settings/jobsearch/versions ─────────────────────────────────
+// ─── GET /api/v1/settings/resume-template ────────────────────────────────────
 
-export interface JobsearchVersion {
-  id: number
-  saved_at: string
-  note: string | null
+export interface ResumeTemplateContent {
+  content: string
+  has_backup: boolean
 }
 
 // ─── GET /api/v1/inbox/files ─────────────────────────────────────────────────

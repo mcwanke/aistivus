@@ -42,6 +42,8 @@ providers:
 output:
   reports_dir: ./reports       # markdown evaluation reports
   generated_dir: ./generated   # generated resumes and cover letters (Phase 2+)
+  jobsearch_md_path: ./my_data/jobsearch.md
+  resume_template_path: ./my_data/resume_templates/resume_template.typ
 
 # ─────────────────────────────────────
 # Database

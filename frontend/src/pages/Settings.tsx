@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { LlmModel, SystemType, JobsearchVersion } from '@/types/api'
+import type { LlmModel, SystemType } from '@/types/api'
 import {
   useSettings,
   useLlmModels,
@@ -13,10 +13,13 @@ import {
   useDeleteSystemType,
   useJobsearch,
   useSaveJobsearch,
-  useJobsearchVersions,
-  useJobsearchVersionContent,
+  useJobsearchBackup,
+  useResumeTemplate,
+  useSaveResumeTemplate,
+  useResumeTemplateBackup,
   type CreateModelPayload,
 } from '@/hooks/useSettings'
+import { useAppSettings, usePatchAppSetting } from '@/hooks/useApplications'
 
 // ─── Section header ───────────────────────────────────────────────────────────
 
@@ -525,18 +528,20 @@ function SystemTypesSection(): React.JSX.Element {
     return acc
   }, {})
 
+  const typeNames = Object.keys(grouped)
+  const selectedTypeName = newTypeName || typeNames[0] || ''
+
   async function handleAdd(): Promise<void> {
-    if (!newTypeName.trim() || !newTypeValue.trim()) {
+    if (!selectedTypeName || !newTypeValue.trim()) {
       setAddError('Both type name and value are required.')
       return
     }
     setAddError('')
     try {
       await addType.mutateAsync({
-        type_name: newTypeName.trim(),
+        type_name: selectedTypeName,
         type_value: newTypeValue.trim(),
       })
-      setNewTypeName('')
       setNewTypeValue('')
     } catch (e) {
       setAddError((e as Error).message)
@@ -558,82 +563,86 @@ function SystemTypesSection(): React.JSX.Element {
   return (
     <section className="mb-10">
       <SectionHeader title="System Types" />
-      <div className="space-y-5 mb-5">
-        {Object.entries(grouped).map(([typeName, entries]) => (
-          <div key={typeName}>
-            <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1.5">
-              {typeName}
-            </p>
-            <div className="space-y-1">
-              {entries.map((t) => (
-                <div key={t.id} className="flex items-center gap-2">
-                  <span className="font-mono text-sm text-text flex-1">{t.type_value}</span>
-                  {deleteErrors[t.id] && (
-                    <span className="text-xs font-mono text-red">{deleteErrors[t.id]}</span>
-                  )}
-                  <button
-                    onClick={() => void handleDelete(t.id)}
-                    className="text-xs font-mono text-muted hover:text-red transition-colors px-1.5 py-0.5 border border-surface2 rounded hover:border-red/40"
-                  >
-                    ×
-                  </button>
-                </div>
+      <div className="flex gap-8">
+        {/* Add form */}
+        <div className="w-52 shrink-0 flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-mono text-muted uppercase tracking-wider">
+              Type name
+            </label>
+            <select
+              value={selectedTypeName}
+              onChange={(e) => setNewTypeName(e.target.value)}
+              className="bg-surface border border-surface2 rounded px-3 py-1.5 text-sm font-mono text-text focus:outline-none focus:border-accent/50"
+            >
+              {typeNames.map((name) => (
+                <option key={name} value={name}>{name}</option>
               ))}
-            </div>
+            </select>
           </div>
-        ))}
-      </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-mono text-muted uppercase tracking-wider">
+              Type value
+            </label>
+            <input
+              value={newTypeValue}
+              onChange={(e) => setNewTypeValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void handleAdd() }}
+              placeholder="custom_note"
+              className="bg-surface border border-surface2 rounded px-3 py-1.5 text-sm font-mono text-text focus:outline-none focus:border-accent/50"
+            />
+          </div>
+          <button
+            onClick={() => void handleAdd()}
+            disabled={addType.isPending}
+            className="px-3 py-1.5 text-sm font-sans bg-accent text-bg rounded hover:bg-accent/90 transition-colors disabled:opacity-50"
+          >
+            Add
+          </button>
+          {addError && <p className="text-xs font-mono text-red">{addError}</p>}
+        </div>
 
-      <div className="flex items-end gap-2 flex-wrap">
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-mono text-muted uppercase tracking-wider">
-            Type name
-          </label>
-          <input
-            value={newTypeName}
-            onChange={(e) => setNewTypeName(e.target.value)}
-            placeholder="application_log"
-            className="bg-surface border border-surface2 rounded px-3 py-1.5 text-sm font-mono text-text focus:outline-none focus:border-accent/50 w-44"
-          />
+        {/* Type lists */}
+        <div className="flex-1 space-y-5">
+          {Object.entries(grouped).map(([typeName, entries]) => (
+            <div key={typeName}>
+              <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1.5">
+                {typeName}
+              </p>
+              <div className="space-y-1">
+                {entries.map((t) => (
+                  <div key={t.id} className="flex items-center gap-2">
+                    <span className="font-mono text-sm text-text flex-1">{t.type_value}</span>
+                    {deleteErrors[t.id] && (
+                      <span className="text-xs font-mono text-red">{deleteErrors[t.id]}</span>
+                    )}
+                    <button
+                      onClick={() => void handleDelete(t.id)}
+                      className="text-xs font-mono text-muted hover:text-red transition-colors px-1.5 py-0.5 border border-surface2 rounded hover:border-red/40"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-mono text-muted uppercase tracking-wider">
-            Type value
-          </label>
-          <input
-            value={newTypeValue}
-            onChange={(e) => setNewTypeValue(e.target.value)}
-            placeholder="custom_note"
-            className="bg-surface border border-surface2 rounded px-3 py-1.5 text-sm font-mono text-text focus:outline-none focus:border-accent/50 w-44"
-          />
-        </div>
-        <button
-          onClick={() => void handleAdd()}
-          disabled={addType.isPending}
-          className="px-3 py-1.5 text-sm font-sans bg-accent text-bg rounded hover:bg-accent/90 transition-colors disabled:opacity-50"
-        >
-          Add
-        </button>
       </div>
-      {addError && <p className="text-xs font-mono text-red mt-2">{addError}</p>}
     </section>
   )
 }
 
-// ─── jobsearch.md editor ──────────────────────────────────────────────────────
+// ─── My Data editors ─────────────────────────────────────────────────────────
 
 function JobsearchSection(): React.JSX.Element {
   const { data: current, isLoading } = useJobsearch()
-  const { data: versions = [] } = useJobsearchVersions()
   const saveJobsearch = useSaveJobsearch()
+  const { refetch: loadBackup, isFetching: loadingBackup } = useJobsearchBackup()
 
   const [content, setContent] = useState<string | null>(null)
-  const [saveNote, setSaveNote] = useState('')
   const [saveError, setSaveError] = useState('')
   const [savedMsg, setSavedMsg] = useState(false)
-
-  const [previewVersionId, setPreviewVersionId] = useState<number | null>(null)
-  const { data: previewData } = useJobsearchVersionContent(previewVersionId)
 
   const displayContent = content ?? current?.content ?? ''
 
@@ -641,8 +650,7 @@ function JobsearchSection(): React.JSX.Element {
     setSaveError('')
     setSavedMsg(false)
     try {
-      await saveJobsearch.mutateAsync({ content: displayContent, note: saveNote || undefined })
-      setSaveNote('')
+      await saveJobsearch.mutateAsync({ content: displayContent })
       setSavedMsg(true)
       setTimeout(() => setSavedMsg(false), 3000)
       setContent(null)
@@ -651,106 +659,168 @@ function JobsearchSection(): React.JSX.Element {
     }
   }
 
-  async function handleRestore(): Promise<void> {
-    if (!previewData) return
-    setContent(previewData.content)
-    setPreviewVersionId(null)
+  async function handleLoadBackup(): Promise<void> {
+    const result = await loadBackup()
+    if (result.data) setContent(result.data.content)
   }
 
-  if (isLoading) return <p className="text-sm text-muted">Loading jobsearch.md…</p>
+  if (isLoading) return <p className="text-sm text-muted">Loading…</p>
+
+  return (
+    <section className="mb-8">
+      <SectionHeader title="Job Search Context" />
+      <div className="flex flex-col gap-3">
+        <textarea
+          value={displayContent}
+          onChange={(e) => setContent(e.target.value)}
+          rows={24}
+          spellCheck={false}
+          className="bg-surface border border-surface2 rounded px-3 py-2 text-sm font-mono text-text focus:outline-none focus:border-accent/50 resize-y w-full"
+        />
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={() => void handleSave()}
+            disabled={saveJobsearch.isPending}
+            className="px-4 py-1.5 text-sm font-sans bg-accent text-bg rounded hover:bg-accent/90 transition-colors disabled:opacity-50"
+          >
+            {saveJobsearch.isPending ? 'Saving…' : 'Save'}
+          </button>
+          {current?.has_backup && (
+            <button
+              onClick={() => void handleLoadBackup()}
+              disabled={loadingBackup}
+              className="px-3 py-1.5 text-sm font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50"
+            >
+              {loadingBackup ? 'Loading…' : 'Load backup'}
+            </button>
+          )}
+          {savedMsg && <span className="text-xs font-mono text-green">Saved.</span>}
+          {saveError && <span className="text-xs font-mono text-red">{saveError}</span>}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function ResumeTemplateSection(): React.JSX.Element {
+  const { data: current, isLoading, error } = useResumeTemplate()
+  const saveTemplate = useSaveResumeTemplate()
+  const { refetch: loadBackup, isFetching: loadingBackup } = useResumeTemplateBackup()
+
+  const [content, setContent] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState('')
+  const [savedMsg, setSavedMsg] = useState(false)
+
+  const displayContent = content ?? current?.content ?? ''
+
+  async function handleSave(): Promise<void> {
+    setSaveError('')
+    setSavedMsg(false)
+    try {
+      await saveTemplate.mutateAsync({ content: displayContent })
+      setSavedMsg(true)
+      setTimeout(() => setSavedMsg(false), 3000)
+      setContent(null)
+    } catch (e) {
+      setSaveError((e as Error).message)
+    }
+  }
+
+  async function handleLoadBackup(): Promise<void> {
+    const result = await loadBackup()
+    if (result.data) setContent(result.data.content)
+  }
+
+  if (isLoading) return <p className="text-sm text-muted">Loading…</p>
+  if (error) return <p className="text-sm text-red">{(error as Error).message}</p>
+
+  return (
+    <section className="mb-8">
+      <SectionHeader title="Resume Template" />
+      <div className="flex flex-col gap-3">
+        <textarea
+          value={displayContent}
+          onChange={(e) => setContent(e.target.value)}
+          rows={24}
+          spellCheck={false}
+          className="bg-surface border border-surface2 rounded px-3 py-2 text-sm font-mono text-text focus:outline-none focus:border-accent/50 resize-y w-full"
+        />
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={() => void handleSave()}
+            disabled={saveTemplate.isPending}
+            className="px-4 py-1.5 text-sm font-sans bg-accent text-bg rounded hover:bg-accent/90 transition-colors disabled:opacity-50"
+          >
+            {saveTemplate.isPending ? 'Saving…' : 'Save'}
+          </button>
+          {current?.has_backup && (
+            <button
+              onClick={() => void handleLoadBackup()}
+              disabled={loadingBackup}
+              className="px-3 py-1.5 text-sm font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50"
+            >
+              {loadingBackup ? 'Loading…' : 'Load backup'}
+            </button>
+          )}
+          {savedMsg && <span className="text-xs font-mono text-green">Saved.</span>}
+          {saveError && <span className="text-xs font-mono text-red">{saveError}</span>}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── App settings ─────────────────────────────────────────────────────────────
+
+function AppSettingsSection(): React.JSX.Element {
+  const { data: settings = [], isLoading, error } = useAppSettings()
+  const patch = usePatchAppSetting()
+  const [patchError, setPatchError] = useState('')
+
+  async function handleToggle(key: string, current: string): Promise<void> {
+    setPatchError('')
+    try {
+      await patch.mutateAsync({ key, value: current === '1' ? '0' : '1' })
+    } catch (e) {
+      setPatchError((e as Error).message)
+    }
+  }
+
+  if (isLoading) return <p className="text-sm text-muted">Loading…</p>
+  if (error) return <p className="text-sm text-red">{(error as Error).message}</p>
+
+  const auditSetting = settings.find((s) => s.key === 'allow_audit_timestamp_edit')
+  const auditEnabled = auditSetting?.value === '1'
 
   return (
     <section className="mb-10">
-      <SectionHeader title="jobsearch.md" />
-
-      <div className="flex gap-4">
-        {/* Editor */}
-        <div className="flex-1 flex flex-col gap-3">
-          <textarea
-            value={displayContent}
-            onChange={(e) => setContent(e.target.value)}
-            rows={24}
-            spellCheck={false}
-            className="bg-surface border border-surface2 rounded px-3 py-2 text-sm font-mono text-text focus:outline-none focus:border-accent/50 resize-y w-full"
-          />
-          <div className="flex items-center gap-3 flex-wrap">
-            <input
-              value={saveNote}
-              onChange={(e) => setSaveNote(e.target.value)}
-              placeholder="Version note (optional)"
-              className="bg-surface border border-surface2 rounded px-3 py-1.5 text-sm font-sans text-text focus:outline-none focus:border-accent/50 flex-1 min-w-0 max-w-xs"
-            />
-            <button
-              onClick={() => void handleSave()}
-              disabled={saveJobsearch.isPending}
-              className="px-4 py-1.5 text-sm font-sans bg-accent text-bg rounded hover:bg-accent/90 transition-colors disabled:opacity-50"
-            >
-              {saveJobsearch.isPending ? 'Saving…' : 'Save'}
-            </button>
-            {savedMsg && (
-              <span className="text-xs font-mono text-green">Saved.</span>
-            )}
-            {saveError && (
-              <span className="text-xs font-mono text-red">{saveError}</span>
-            )}
-          </div>
-        </div>
-
-        {/* Version history */}
-        <div className="w-52 shrink-0 flex flex-col gap-2">
-          <p className="text-[10px] font-mono text-muted uppercase tracking-wider">Version history</p>
-          {versions.length === 0 ? (
-            <p className="text-xs text-muted">No saved versions.</p>
-          ) : (
-            <div className="space-y-1 max-h-96 overflow-y-auto">
-              {versions.map((v) => (
-                <button
-                  key={v.id}
-                  onClick={() =>
-                    setPreviewVersionId(previewVersionId === v.id ? null : v.id)
-                  }
-                  className={`w-full text-left px-2 py-1.5 rounded text-xs border transition-colors ${
-                    previewVersionId === v.id
-                      ? 'border-accent/50 text-accent bg-accent/5'
-                      : 'border-surface2 text-muted hover:text-text hover:border-accent/30'
-                  }`}
-                >
-                  <p className="font-mono">{v.saved_at.slice(0, 16).replace('T', ' ')}</p>
-                  {v.note && <p className="text-muted/70 truncate mt-0.5">{v.note}</p>}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Version preview panel */}
-      {previewVersionId !== null && previewData && (
-        <div className="mt-4 border border-accent/30 rounded-lg p-4 bg-accent/5">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-mono text-accent uppercase tracking-wider">
-              Version preview
+      <SectionHeader title="Application Settings" />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between max-w-sm bg-surface2 rounded-lg px-4 py-3">
+          <div>
+            <p className="text-sm font-sans text-text">Allow Audit Timestamp Edit</p>
+            <p className="text-xs font-mono text-muted mt-0.5">
+              Enables editing timestamps on system audit log entries
             </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => void handleRestore()}
-                className="text-xs font-mono text-accent border border-accent/40 px-2 py-1 rounded hover:bg-accent/10 transition-colors"
-              >
-                Restore this version
-              </button>
-              <button
-                onClick={() => setPreviewVersionId(null)}
-                className="text-xs font-mono text-muted border border-surface2 px-2 py-1 rounded hover:text-text transition-colors"
-              >
-                Close
-              </button>
-            </div>
           </div>
-          <pre className="text-xs font-mono text-muted whitespace-pre-wrap max-h-64 overflow-y-auto">
-            {previewData.content}
-          </pre>
+          <button
+            onClick={() => void handleToggle('allow_audit_timestamp_edit', auditSetting?.value ?? '0')}
+            disabled={patch.isPending || !auditSetting}
+            className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50 ${
+              auditEnabled ? 'bg-accent' : 'bg-surface'
+            }`}
+            role="switch"
+            aria-checked={auditEnabled}
+          >
+            <span
+              className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform duration-200 ${
+                auditEnabled ? 'translate-x-4' : 'translate-x-0'
+              }`}
+            />
+          </button>
         </div>
-      )}
+        {patchError && <p className="text-xs font-mono text-red">{patchError}</p>}
+      </div>
     </section>
   )
 }
@@ -765,6 +835,10 @@ function InfoSection(): React.JSX.Element {
     <section className="mb-10">
       <SectionHeader title="System Info" />
       <div className="grid grid-cols-2 gap-3 max-w-sm">
+        <div className="bg-surface2 rounded p-3">
+          <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1">Version</p>
+          <p className="font-mono text-sm text-text">{settings.app_version}</p>
+        </div>
         <div className="bg-surface2 rounded p-3">
           <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1">Schema</p>
           <p className="font-mono text-sm text-text">{settings.schema_version}</p>
@@ -784,17 +858,18 @@ function InfoSection(): React.JSX.Element {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'models' | 'system-types' | 'jobsearch' | 'info'
+type Tab = 'app-settings' | 'system-types' | 'models' | 'my-data' | 'info'
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'models', label: 'Models' },
+  { id: 'app-settings', label: 'App Settings' },
   { id: 'system-types', label: 'System Types' },
-  { id: 'jobsearch', label: 'jobsearch.md' },
+  { id: 'models', label: 'Models' },
+  { id: 'my-data', label: 'My Data' },
   { id: 'info', label: 'System Info' },
 ]
 
 export default function Settings(): React.JSX.Element {
-  const [activeTab, setActiveTab] = useState<Tab>('models')
+  const [activeTab, setActiveTab] = useState<Tab>('app-settings')
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -818,9 +893,16 @@ export default function Settings(): React.JSX.Element {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
-        {activeTab === 'models' && <ModelsSection />}
+        {activeTab === 'app-settings' && <AppSettingsSection />}
         {activeTab === 'system-types' && <SystemTypesSection />}
-        {activeTab === 'jobsearch' && <JobsearchSection />}
+        {activeTab === 'models' && <ModelsSection />}
+        {activeTab === 'my-data' && (
+          <>
+            <JobsearchSection />
+            <hr className="border-surface2 my-8" />
+            <ResumeTemplateSection />
+          </>
+        )}
         {activeTab === 'info' && <InfoSection />}
       </div>
     </div>

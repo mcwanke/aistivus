@@ -1408,39 +1408,6 @@ def update_audit_timestamp(audit_id: int, timestamp: str) -> bool:
 # jobsearch.md version history
 # ─────────────────────────────────────────────────────────────
 
-def save_jobsearch_version(content: str, note: str | None = None) -> int:
-    """
-    Save a full-text snapshot of jobsearch.md.
-    Disk is authoritative; this table is for history and rollback only.
-    Returns the new version id.
-    """
-    with get_connection() as conn:
-        conn.execute(
-            "INSERT INTO jobsearch_versions (content, note) VALUES (?, ?)",
-            (content, note)
-        )
-        return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-
-
-def get_jobsearch_versions(limit: int = 20) -> list[sqlite3.Row]:
-    """Return recent jobsearch.md versions (metadata only), newest first."""
-    with get_connection() as conn:
-        return conn.execute(
-            "SELECT id, saved_at, note FROM jobsearch_versions ORDER BY saved_at DESC LIMIT ?",
-            (limit,)
-        ).fetchall()
-
-
-def get_jobsearch_version_content(version_id: int) -> str | None:
-    """Return the full content of a specific jobsearch.md version, or None."""
-    with get_connection() as conn:
-        row = conn.execute(
-            "SELECT content FROM jobsearch_versions WHERE id = ?",
-            (version_id,)
-        ).fetchone()
-        return row["content"] if row else None
-
-
 # ─────────────────────────────────────────────────────────────
 # App settings
 # ─────────────────────────────────────────────────────────────

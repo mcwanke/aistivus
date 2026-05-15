@@ -409,14 +409,22 @@ export default function ApplicationSummary({ applicationId }: ApplicationSummary
               )}
             </div>
           </div>
-          {job && (
+          <div className="flex flex-col gap-2 shrink-0">
+            {job && (
+              <Link
+                to={`/jobs/${job.id}`}
+                className="text-xs text-muted hover:text-accent px-2 py-1 border border-surface2 rounded transition-colors text-right"
+              >
+                View Job →
+              </Link>
+            )}
             <Link
-              to={`/jobs/${job.id}`}
-              className="text-xs text-muted hover:text-accent px-2 py-1 border border-surface2 rounded transition-colors shrink-0"
+              to={`/application-detail/${applicationId}`}
+              className="text-xs text-muted hover:text-accent px-2 py-1 border border-surface2 rounded transition-colors text-right"
             >
-              View Job →
+              View Detail →
             </Link>
-          )}
+          </div>
         </div>
       </section>
 

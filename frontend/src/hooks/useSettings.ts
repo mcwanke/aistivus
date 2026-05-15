@@ -5,7 +5,7 @@ import type {
   SettingsResponse,
   SystemType,
   JobsearchContent,
-  JobsearchVersion,
+  ResumeTemplateContent,
 } from '@/types/api'
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
@@ -65,6 +65,7 @@ export interface UpdateModelPayload {
     endpoint?: string
     model_weight?: number
     estimated_eval_time?: number | null
+    enabled?: number
   }
 }
 
@@ -213,16 +214,6 @@ export function useSaveJobsearch() {
   })
 }
 
-async function fetchJobsearchVersions(): Promise<JobsearchVersion[]> {
-  const res = await fetch('/api/v1/settings/jobsearch/versions')
-  if (!res.ok) throw new Error(`jobsearch versions ${res.status}`)
-  return res.json() as Promise<JobsearchVersion[]>
-}
-
-export function useJobsearchVersions() {
-  return useQuery({ queryKey: ['jobsearch-versions'], queryFn: fetchJobsearchVersions })
-}
-
 export function useJobsearchVersionContent(versionId: number | null) {
   return useQuery({
     queryKey: ['jobsearch-version', versionId],
@@ -232,5 +223,58 @@ export function useJobsearchVersionContent(versionId: number | null) {
       return (res.json() as Promise<JobsearchContent>)
     },
     enabled: versionId !== null,
+  })
+}
+
+export function useJobsearchBackup() {
+  return useQuery({
+    queryKey: ['jobsearch-backup'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/settings/jobsearch/backup')
+      if (!res.ok) throw new Error(`jobsearch backup ${res.status}`)
+      return res.json() as Promise<{ content: string }>
+    },
+    enabled: false,
+  })
+}
+
+export function useResumeTemplate() {
+  return useQuery({
+    queryKey: ['resume-template'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/settings/resume-template')
+      if (!res.ok) throw new Error(`resume-template ${res.status}`)
+      return res.json() as Promise<ResumeTemplateContent>
+    },
+  })
+}
+
+export function useSaveResumeTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: { content: string }) => {
+      const res = await fetch('/api/v1/settings/resume-template', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw new Error(err.detail ?? `save resume-template ${res.status}`)
+      }
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['resume-template'] }),
+  })
+}
+
+export function useResumeTemplateBackup() {
+  return useQuery({
+    queryKey: ['resume-template-backup'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/settings/resume-template/backup')
+      if (!res.ok) throw new Error(`resume-template backup ${res.status}`)
+      return res.json() as Promise<{ content: string }>
+    },
+    enabled: false,
   })
 }

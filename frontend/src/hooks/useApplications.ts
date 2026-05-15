@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { ApplicationListItem, ApplicationDetailResponse } from '@/types/api'
+import type { ApplicationListItem, ApplicationDetailResponse, AppSetting } from '@/types/api'
 
 // ─── Fetchers ─────────────────────────────────────────────────────────────────
 
@@ -38,6 +38,7 @@ interface PatchApplicationPayload {
     apply_date?: string
     end_date?: string
     requested_salary?: string
+    applied?: number
   }
 }
 
@@ -116,6 +117,92 @@ export function useGeneratePrompt() {
     },
     onSuccess: (_data, applicationId) => {
       void qc.invalidateQueries({ queryKey: ['application', applicationId] })
+    },
+  })
+}
+
+interface PatchLogTimestampPayload {
+  applicationId: number
+  logId: number
+  timestamp: string
+}
+
+export function usePatchLogTimestamp() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ applicationId, logId, timestamp }: PatchLogTimestampPayload) => {
+      const res = await fetch(
+        `/api/v1/applications/${applicationId}/logs/${logId}/timestamp`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ timestamp }),
+        },
+      )
+      if (!res.ok) throw new Error(`patch log timestamp ${res.status}`)
+    },
+    onSuccess: (_data, { applicationId }) => {
+      void qc.invalidateQueries({ queryKey: ['application', applicationId] })
+    },
+  })
+}
+
+interface PatchAuditTimestampPayload {
+  applicationId: number
+  auditId: number
+  timestamp: string
+}
+
+export function usePatchAuditTimestamp() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ applicationId, auditId, timestamp }: PatchAuditTimestampPayload) => {
+      const res = await fetch(
+        `/api/v1/applications/${applicationId}/audit/${auditId}/timestamp`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ timestamp }),
+        },
+      )
+      if (!res.ok) throw new Error(`patch audit timestamp ${res.status}`)
+    },
+    onSuccess: (_data, { applicationId }) => {
+      void qc.invalidateQueries({ queryKey: ['application', applicationId] })
+    },
+  })
+}
+
+// ─── App settings ─────────────────────────────────────────────────────────────
+
+async function fetchAppSettings(): Promise<AppSetting[]> {
+  const res = await fetch('/api/v1/settings/app')
+  if (!res.ok) throw new Error(`app settings ${res.status}`)
+  return res.json() as Promise<AppSetting[]>
+}
+
+export function useAppSettings() {
+  return useQuery({ queryKey: ['app-settings'], queryFn: fetchAppSettings })
+}
+
+interface PatchAppSettingPayload {
+  key: string
+  value: string
+}
+
+export function usePatchAppSetting() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ key, value }: PatchAppSettingPayload) => {
+      const res = await fetch(`/api/v1/settings/app/${encodeURIComponent(key)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value }),
+      })
+      if (!res.ok) throw new Error(`patch app setting ${res.status}`)
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['app-settings'] })
     },
   })
 }

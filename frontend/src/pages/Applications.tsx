@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { useApplications } from '@/hooks/useApplications'
 import type { ApplicationListItem, ApplicationStatus } from '@/types/api'
-import ApplicationDetail from '@/pages/ApplicationDetail'
+import ApplicationSummary from '@/pages/ApplicationSummary'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -138,7 +138,7 @@ export default function Applications(): React.JSX.Element {
       {/* ── Right panel ─────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto">
         {selectedId !== undefined ? (
-          <ApplicationDetail applicationId={selectedId} />
+          <ApplicationSummary applicationId={selectedId} />
         ) : (
           <div className="flex items-center justify-center h-full text-muted text-sm">
             Select an application to view details

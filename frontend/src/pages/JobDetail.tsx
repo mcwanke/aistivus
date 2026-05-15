@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { useJobDetail, usePatchJob, useStartApplication, useAddCompanyLog } from '@/hooks/useJobs'
+import { useJobDetail, usePatchJob, useAddCompanyLog } from '@/hooks/useJobs'
 import { useImportEvaluationMutation, useModels, type ImportPayload } from '@/hooks/useEvaluate'
 import type { Evaluation, JobPosting, LlmModel, CompanyLogEntry } from '@/types/api'
 
@@ -495,20 +495,13 @@ interface AppStatusSectionProps {
   postings: JobPosting[]
 }
 
-function AppStatusSection({ jobId, applicationId, status, postings }: AppStatusSectionProps): React.JSX.Element {
-  const navigate = useNavigate()
-  const startApp = useStartApplication()
-  const isActive = status && status !== 'not-started'
+function AppStatusSection({ applicationId, status, postings }: AppStatusSectionProps): React.JSX.Element {
   const applyUrl = postings.find((p) => p.source_url)?.source_url
-
-  async function handleStart(): Promise<void> {
-    await startApp.mutateAsync(jobId)
-  }
 
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-[15%_25%_1fr] gap-4">
-        {/* Col 1: STATUS — 15%, center */}
+        {/* Col 1: STATUS */}
         <div className="flex flex-col items-center">
           <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Status</p>
           {status ? (
@@ -520,28 +513,22 @@ function AppStatusSection({ jobId, applicationId, status, postings }: AppStatusS
           )}
         </div>
 
-        {/* Col 2: APPLICATION — 25%, center */}
+        {/* Col 2: APPLICATION */}
         <div className="flex flex-col items-center">
           <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Application</p>
-          {isActive && applicationId ? (
-            <button
-              onClick={() => navigate(`/applications/${applicationId}`)}
+          {applicationId ? (
+            <Link
+              to={`/application-detail/${applicationId}`}
               className="text-sm px-3 py-1.5 bg-accent text-bg rounded hover:bg-accent/90 transition-colors"
             >
               View Application →
-            </button>
+            </Link>
           ) : (
-            <button
-              onClick={() => void handleStart()}
-              disabled={startApp.isPending}
-              className="text-sm px-3 py-1.5 bg-surface2 text-accent border border-accent/40 rounded hover:bg-accent/10 disabled:opacity-50 transition-colors"
-            >
-              {startApp.isPending ? 'Starting…' : '+ Start Application'}
-            </button>
+            <span className="text-xs text-muted">—</span>
           )}
         </div>
 
-        {/* Col 3: APPLY URL — remaining ~60%, left */}
+        {/* Col 3: APPLY URL */}
         <div>
           <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Apply URL</p>
           {applyUrl ? (
@@ -558,10 +545,6 @@ function AppStatusSection({ jobId, applicationId, status, postings }: AppStatusS
           )}
         </div>
       </div>
-
-      {startApp.isError && (
-        <p className="text-red text-xs">{startApp.error.message}</p>
-      )}
     </div>
   )
 }

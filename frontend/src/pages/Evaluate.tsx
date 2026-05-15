@@ -279,6 +279,7 @@ export default function Evaluate(): React.JSX.Element {
   const [location, setLocation] = useState('')
   const [remoteType, setRemoteType] = useState('')
   const [applyUrl, setApplyUrl] = useState('')
+  const [payBand, setPayBand] = useState('')
   const [jdText, setJdText] = useState('')
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null)
 
@@ -364,6 +365,7 @@ export default function Evaluate(): React.JSX.Element {
       location: location.trim() || null,
       remote_type: remoteType || null,
       apply_url: applyUrl.trim() || null,
+      pay_band: payBand.trim() || null,
       llm_model_id: selectedModelId,
       force: false,
     })
@@ -375,6 +377,7 @@ export default function Evaluate(): React.JSX.Element {
     setLocation('')
     setRemoteType('')
     setApplyUrl('')
+    setPayBand('')
     setJdText('')
     setResult(null)
     setErrorMsg('')
@@ -464,17 +467,30 @@ export default function Evaluate(): React.JSX.Element {
             </div>
           </div>
 
-          {/* Apply URL */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-mono text-muted uppercase tracking-wider">Apply URL</label>
-            <input
-              type="url"
-              value={applyUrl}
-              onChange={(e) => setApplyUrl(e.target.value)}
-              placeholder="https://…"
-              disabled={isRunning}
-              className="bg-surface border border-surface2 rounded px-3 py-2 text-sm font-mono text-text focus:outline-none focus:border-accent/50 disabled:opacity-50"
-            />
+          {/* Apply URL + Pay Band */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-mono text-muted uppercase tracking-wider">Apply URL</label>
+              <input
+                type="url"
+                value={applyUrl}
+                onChange={(e) => setApplyUrl(e.target.value)}
+                placeholder="https://…"
+                disabled={isRunning}
+                className="bg-surface border border-surface2 rounded px-3 py-2 text-sm font-mono text-text focus:outline-none focus:border-accent/50 disabled:opacity-50"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-mono text-muted uppercase tracking-wider">Pay Band</label>
+              <input
+                type="text"
+                value={payBand}
+                onChange={(e) => setPayBand(e.target.value)}
+                placeholder="e.g. $120k–$150k"
+                disabled={isRunning}
+                className="bg-surface border border-surface2 rounded px-3 py-2 text-sm font-mono text-text focus:outline-none focus:border-accent/50 disabled:opacity-50"
+              />
+            </div>
           </div>
 
           {/* Model selector */}

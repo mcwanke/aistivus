@@ -212,6 +212,7 @@ class EvaluateRequest(BaseModel):
     location: str | None = None
     remote_type: str | None = None
     apply_url: str | None = None
+    pay_band: str | None = None
     llm_model_id: int | None = None
     force: bool = False
 
@@ -331,7 +332,10 @@ class CreateSystemTypeRequest(BaseModel):
 
 class SaveJobsearchRequest(BaseModel):
     content: str
-    note: str | None = None
+
+
+class SaveResumeTemplateRequest(BaseModel):
+    content: str
 
 
 # Valid application status values per spec
@@ -446,6 +450,7 @@ async def evaluate_endpoint(request: Request, body: EvaluateRequest):
         location=body.location,
         remote_type=body.remote_type,
         apply_url=body.apply_url,
+        pay_band=body.pay_band,
         llm_model_id=body.llm_model_id,
     )
 
@@ -1138,6 +1143,7 @@ async def get_settings(request: Request):
     """Return runtime settings. API key values are never echoed — boolean presence only."""
     config = _load_config()
     return JSONResponse({
+        "app_version": "1.0.0",
         "schema_version": database.get_schema_version(),
         "anthropic_api_key_configured": bool(os.environ.get("ANTHROPIC_API_KEY")),
         "server": config.get("server", {}),
@@ -1165,40 +1171,77 @@ async def update_settings(request: Request, body: UpdateSettingsRequest):
 async def get_jobsearch(request: Request):
     """Return the current content of jobsearch.md from disk."""
     config = _load_config()
-    path = Path(config.get("evaluation", {}).get("jobsearch_md_path", "jobsearch.md"))
+    path = Path(config.get("evaluation", {}).get("jobsearch_md_path", "my_data/jobsearch.md"))
+    bak = Path(str(path) + ".bak")
     if not path.exists():
-        return JSONResponse({"content": ""})
-    return JSONResponse({"content": path.read_text(encoding="utf-8")})
+        return JSONResponse({"content": "", "has_backup": bak.exists()})
+    return JSONResponse({"content": path.read_text(encoding="utf-8"), "has_backup": bak.exists()})
 
 
 @app.put("/api/v1/settings/jobsearch")
 @limiter.limit("10/minute")
 async def save_jobsearch(request: Request, body: SaveJobsearchRequest):
-    """Write content to jobsearch.md and save a version snapshot."""
+    """Write content to jobsearch.md, backing up the previous version first."""
     config = _load_config()
-    path = Path(config.get("evaluation", {}).get("jobsearch_md_path", "jobsearch.md"))
+    path = Path(config.get("evaluation", {}).get("jobsearch_md_path", "my_data/jobsearch.md"))
+    bak = Path(str(path) + ".bak")
+    if path.exists():
+        bak.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(body.content, encoding="utf-8")
-    version_id = database.save_jobsearch_version(body.content, note=body.note)
-    log.info("jobsearch_saved", extra={"version_id": version_id, "bytes": len(body.content)})
-    return JSONResponse({"success": True, "version_id": version_id})
+    log.info("jobsearch_saved", extra={"bytes": len(body.content)})
+    return JSONResponse({"success": True})
 
 
-@app.get("/api/v1/settings/jobsearch/versions")
+@app.get("/api/v1/settings/jobsearch/backup")
 @limiter.limit("30/minute")
-async def list_jobsearch_versions(request: Request, limit: int = Query(20, ge=1, le=100)):
-    """List saved jobsearch.md version history (id, saved_at, note — no content)."""
-    rows = database.get_jobsearch_versions(limit=limit)
-    return JSONResponse([dict(r) for r in rows])
+async def get_jobsearch_backup(request: Request):
+    """Return the content of the jobsearch.md backup file (.bak), if it exists."""
+    config = _load_config()
+    path = Path(config.get("evaluation", {}).get("jobsearch_md_path", "my_data/jobsearch.md"))
+    bak = Path(str(path) + ".bak")
+    if not bak.exists():
+        raise HTTPException(status_code=404, detail="No backup file found.")
+    return JSONResponse({"content": bak.read_text(encoding="utf-8")})
 
 
-@app.get("/api/v1/settings/jobsearch/versions/{version_id}")
+@app.get("/api/v1/settings/resume-template")
 @limiter.limit("30/minute")
-async def get_jobsearch_version(request: Request, version_id: int):
-    """Return the content of a specific jobsearch.md version."""
-    content = database.get_jobsearch_version_content(version_id)
-    if content is None:
-        raise HTTPException(status_code=404, detail=f"Version {version_id} not found.")
-    return JSONResponse({"content": content})
+async def get_resume_template(request: Request):
+    """Return the current content of the resume template from disk."""
+    config = _load_config()
+    path = Path(config.get("evaluation", {}).get("resume_template_path", "my_data/resume_templates/resume_template.typ"))
+    bak = Path(str(path) + ".bak")
+    if not path.exists():
+        return JSONResponse({"content": "", "has_backup": bak.exists()})
+    return JSONResponse({"content": path.read_text(encoding="utf-8"), "has_backup": bak.exists()})
+
+
+@app.put("/api/v1/settings/resume-template")
+@limiter.limit("10/minute")
+async def save_resume_template(request: Request, body: SaveResumeTemplateRequest):
+    """Write content to the resume template file, backing up the previous version first."""
+    config = _load_config()
+    path = Path(config.get("evaluation", {}).get("resume_template_path", "my_data/resume_templates/resume_template.typ"))
+    bak = Path(str(path) + ".bak")
+    if path.exists():
+        bak.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body.content, encoding="utf-8")
+    log.info("resume_template_saved", extra={"bytes": len(body.content)})
+    return JSONResponse({"success": True})
+
+
+@app.get("/api/v1/settings/resume-template/backup")
+@limiter.limit("30/minute")
+async def get_resume_template_backup(request: Request):
+    """Return the content of the resume template backup file (.bak), if it exists."""
+    config = _load_config()
+    path = Path(config.get("evaluation", {}).get("resume_template_path", "my_data/resume_templates/resume_template.typ"))
+    bak = Path(str(path) + ".bak")
+    if not bak.exists():
+        raise HTTPException(status_code=404, detail="No backup file found.")
+    return JSONResponse({"content": bak.read_text(encoding="utf-8")})
 
 
 @app.get("/api/v1/settings/app")

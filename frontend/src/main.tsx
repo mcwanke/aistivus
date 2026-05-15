@@ -9,6 +9,7 @@ import Dashboard from '@/pages/Dashboard'
 import Jobs from '@/pages/Jobs'
 import Evaluate from '@/pages/Evaluate'
 import Applications from '@/pages/Applications'
+import ApplicationDetailPage from '@/pages/ApplicationDetailPage'
 import Settings from '@/pages/Settings'
 import LLMUsage from '@/pages/LLMUsage'
 import '@/index.css'
@@ -23,6 +24,7 @@ const router = createBrowserRouter([
       { path: '/evaluate',                      element: <Evaluate /> },
       { path: '/applications',                  element: <Applications /> },
       { path: '/applications/:applicationId',   element: <Applications /> },
+      { path: '/application-detail/:applicationId', element: <ApplicationDetailPage /> },
       { path: '/settings',                      element: <Settings /> },
       { path: '/llm-usage',                     element: <LLMUsage /> },
     ],

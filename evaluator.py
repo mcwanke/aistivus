@@ -463,6 +463,7 @@ async def evaluate_jd(
     remote_type: str | None = None,
     apply_url: str | None = None,
     llm_model_id: int | None = None,
+    pay_band: str | None = None,
 ) -> dict:
     """
     Full evaluation pipeline for a single job description.
@@ -543,6 +544,7 @@ async def evaluate_jd(
         location=location,
         remote_type=remote_type,
         description_merged=jd_text,
+        pay_band=pay_band,
     )
 
     # ── Step 4: Insert job_posting ─────────────────────────────

@@ -25,6 +25,7 @@ export interface EvaluatePayload {
   location: string | null
   remote_type: string | null
   apply_url: string | null
+  pay_band: string | null
   llm_model_id: number | null
   force: boolean
 }
