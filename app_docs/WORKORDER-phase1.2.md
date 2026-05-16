@@ -162,7 +162,7 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
   - Do NOT modify any other seed values
   - Do NOT add any other DB changes in this item
 
-- [ ] **3. Verify `jobsearch_versions` table in `database.py`**
+- [x] **3. Verify `jobsearch_versions` table in `database.py`** — Table already present. Added `save_jobsearch_version()`, `get_jobsearch_versions()`, and `get_jobsearch_version_by_id()` to `database.py`.
   - File: `database.py`
   - Confirm the `jobsearch_versions` table CREATE statement exists and has columns:
     `(id, content, saved_at, note)`

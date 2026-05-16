@@ -449,6 +449,41 @@ def _check_jobsearch_staleness() -> None:
 
 
 # ─────────────────────────────────────────────────────────────
+# Jobsearch Versions
+# ─────────────────────────────────────────────────────────────
+
+def save_jobsearch_version(content: str, note: str) -> int:
+    """Insert a snapshot of jobsearch.md content. Returns the new version id."""
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "INSERT INTO jobsearch_versions (content, note) VALUES (?, ?)",
+            (content, note),
+        )
+        return cursor.lastrowid
+
+
+def get_jobsearch_versions(limit: int = 30) -> list[dict]:
+    """Return recent version metadata (no content) ordered newest first."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, saved_at, note FROM jobsearch_versions "
+            "ORDER BY saved_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_jobsearch_version_by_id(version_id: int) -> dict | None:
+    """Return a single version row including full content, or None if not found."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id, content, saved_at, note FROM jobsearch_versions WHERE id = ?",
+            (version_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+# ─────────────────────────────────────────────────────────────
 # System Types
 # ─────────────────────────────────────────────────────────────
 
