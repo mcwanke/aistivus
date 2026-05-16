@@ -449,7 +449,7 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
 ## Priority 6 — TypeScript Types
 *Define all types before building any frontend component.*
 
-- [ ] **10. Create `frontend/src/types/profile.ts`**
+- [x] **10. Create `frontend/src/types/profile.ts`** — Created with all 12 interfaces/types: `SectionHealth`, `ProfileHealth`, `ProfileSection`, `ProfileSections`, `ChatMode`, `ChatMessage`, `ChatRequest`, `ProposedUpdate`, `ProfileVersion`, `SynthesizeInsightsResponse`, `CoherenceCheckResponse`, `LessonChatFinalizeResponse`. Zero TypeScript errors.
 
   Define these interfaces:
 
@@ -532,7 +532,7 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
 ## Priority 7 — Frontend Hooks
 *All server state and streaming logic lives in hooks.*
 
-- [ ] **11. Create profile hooks in `frontend/src/hooks/`**
+- [x] **11. Create profile hooks in `frontend/src/hooks/`** — Created 5 hooks: `useProfileHealth` (React Query, stale 60s), `useProfileSections` + `useUpdateSection` mutation (invalidates sections/health/versions on success), `useProfileVersions` + `useProfileVersionContent` + `useRestoreVersion`, `useProfileChat` (local state + SSE streaming, `sendMessage`/`proposeUpdate`/`clearConversation`), `useLessonChat` (same streaming pattern, `sendMessage`/`finalize`/`clearConversation`). Zero TypeScript errors, no test regressions.
 
   **`useProfileHealth.ts`**
   - Standard React Query hook: `GET /api/v1/profile/health`

@@ -72,8 +72,8 @@ HTML frontend operational (read-only reference — do not modify).
 - [x] SSE streaming chat route (`POST /api/v1/profile/chat`)
 - [x] One-shot routes: synthesize-insights, coherence-check, generate-tailoring-rules
 - [x] Lesson chat route on applications (`POST /api/v1/applications/{id}/lesson-chat`)
-- [ ] TypeScript interfaces in `frontend/src/types/profile.ts`
-- [ ] Profile hooks: `useProfileHealth`, `useProfileSections`, `useProfileVersions`, `useProfileChat`, `useLessonChat`
+- [x] TypeScript interfaces in `frontend/src/types/profile.ts`
+- [x] Profile hooks: `useProfileHealth`, `useProfileSections`, `useProfileVersions`, `useProfileChat`, `useLessonChat`
 - [ ] `JobSearchProfile.tsx` — two-column layout, section cards, AI chat panel, accept/discard flow
 - [ ] Left nav entry: "Job Search Profile"
 - [ ] Dashboard Profile Strength widget
