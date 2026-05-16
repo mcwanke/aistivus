@@ -371,7 +371,7 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
   - `Career changer`: Emphasize translation of prior domain experience; help surface
     transferable skills that wouldn't be obvious in a corporate resume
 
-- [ ] **8. Add one-shot action routes to `profile_routes.py`**
+- [x] **8. Add one-shot action routes to `profile_routes.py`** — Added `POST /api/v1/profile/synthesize-insights` (reads recruiter_call/interview_feedback/lesson_learned/general logs + current insights section → LLM → proposed update), `POST /api/v1/profile/coherence-check` (reads full jobsearch.md → LLM → review text + issues_found count from numbered-item parsing), and `POST /api/v1/profile/generate-tailoring-rules` (reads sections 1–5 → LLM → proposed tailoring_rules content). Added `_call_llm_and_log_async()` and `_format_logs_for_prompt()` helpers. Added `get_application_logs_for_insights()` to `database.py`. 12 tests added across 3 test classes, all passing.
 
   **`POST /api/v1/profile/synthesize-insights`**
   - Read all `application_logs` where `type_id` maps to:
@@ -410,7 +410,7 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
   - Mock LLM client, verify prompt construction includes correct sections
   - Verify response structure
 
-- [ ] **9. Add lesson chat route to application routes**
+- [x] **9. Add lesson chat route to application routes** — Added `POST /api/v1/applications/{application_id}/lesson-chat` to `main.py`. `finalize: false` path returns SSE stream via `_lesson_sse_generator` (logs to `llm_call_log` with `job_id`). `finalize: true` path calls LLM non-streaming for JSON synthesis (`log_entry` + `insights_addition`), writes `application_logs` entry with `lesson_learned` type and `llm_call_log_id`, does NOT auto-write jobsearch.md. Added `LessonChatMessage`, `LessonChatRequest` models and `StreamingResponse` import. 6 tests in `TestLessonChat`, all passing.
 
   **File: routes file that handles application endpoints (wherever they live)**
 

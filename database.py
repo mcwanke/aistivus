@@ -1336,6 +1336,29 @@ def get_application_logs(application_id: int) -> list[sqlite3.Row]:
         ).fetchall()
 
 
+def get_application_logs_for_insights(type_values: list[str]) -> list[sqlite3.Row]:
+    """
+    Return all application_logs matching any of the given type_values, newest first.
+    Joins to jobs to include company_name and title for prompt context.
+    Used by the synthesize-insights profile route.
+    """
+    if not type_values:
+        return []
+    placeholders = ",".join("?" * len(type_values))
+    with get_connection() as conn:
+        return conn.execute(
+            f"""SELECT al.*, st.type_value, j.company_name, j.title
+                FROM application_logs al
+                JOIN system_types st ON st.id = al.type_id
+                JOIN applications ap ON ap.id = al.application_id
+                JOIN jobs j ON j.id = ap.job_id
+                WHERE st.type_name = 'application_log'
+                  AND st.type_value IN ({placeholders})
+                ORDER BY al.log_timestamp DESC""",
+            type_values,
+        ).fetchall()
+
+
 def delete_application_log(log_id: int) -> bool:
     """Delete a single application log entry. Returns True if deleted, False if not found."""
     with get_connection() as conn:

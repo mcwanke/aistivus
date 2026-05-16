@@ -10,10 +10,12 @@ Routes covered:
   POST   /api/v1/applications/{id}/logs
   DELETE /api/v1/applications/{id}/logs/{log_id}
   POST   /api/v1/applications/{id}/generate-prompt
+  POST   /api/v1/applications/{id}/lesson-chat
 """
 
 import pytest
 import database
+import llm_client
 
 
 # ─────────────────────────────────────────────────────────────
@@ -324,3 +326,119 @@ class TestGeneratePrompt:
         logs = database.get_application_logs(seeded_client["app_id"])
         prompt_logs = [l for l in logs if dict(l)["type_value"] == "prompt"]
         assert len(prompt_logs) == 1
+
+
+# ─────────────────────────────────────────────────────────────
+# POST /api/v1/applications/{id}/lesson-chat
+# ─────────────────────────────────────────────────────────────
+
+
+class TestLessonChat:
+    def _mock_stream(self, tokens: list[str]):
+        async def _gen(*args, **kwargs):
+            for t in tokens:
+                yield t
+        return _gen
+
+    def _mock_complete(self, content: str):
+        async def _complete(*args, **kwargs):
+            return {"success": True, "content": content, "error": None}
+        return _complete
+
+    def test_streaming_returns_sse(self, seeded_client, monkeypatch):
+        c = seeded_client["client"]
+        monkeypatch.setattr(llm_client, "complete_stream", self._mock_stream(["Hello", " there"]))
+
+        r = c.post(
+            f"/api/v1/applications/{seeded_client['app_id']}/lesson-chat",
+            json={
+                "messages": [{"role": "user", "content": "What did I learn?"}],
+                "finalize": False,
+            },
+        )
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("text/event-stream")
+        body = r.text
+        assert "data: Hello\n\n" in body
+        assert "data: [DONE]\n\n" in body
+
+    def test_streaming_logs_llm_call(self, seeded_client, monkeypatch):
+        c = seeded_client["client"]
+        monkeypatch.setattr(llm_client, "complete_stream", self._mock_stream(["hi"]))
+
+        c.post(
+            f"/api/v1/applications/{seeded_client['app_id']}/lesson-chat",
+            json={
+                "messages": [{"role": "user", "content": "reflect"}],
+                "finalize": False,
+            },
+        )
+        logs = database.get_llm_call_log(call_type="chat")
+        assert len(logs) == 1
+        assert dict(logs[0])["success"] == 1
+
+    def test_finalize_writes_lesson_learned_log(self, seeded_client, monkeypatch):
+        c = seeded_client["client"]
+        lesson_json = '{"log_entry": "I learned to follow up sooner.", "insights_addition": "Always follow up within 48 hours."}'
+        monkeypatch.setattr(llm_client, "complete", self._mock_complete(lesson_json))
+
+        r = c.post(
+            f"/api/v1/applications/{seeded_client['app_id']}/lesson-chat",
+            json={
+                "messages": [
+                    {"role": "user", "content": "I should have followed up faster."},
+                    {"role": "assistant", "content": "What would you do differently?"},
+                    {"role": "user", "content": "Follow up within 48 hours."},
+                ],
+                "finalize": True,
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["log_entry"] == "I learned to follow up sooner."
+        assert data["insights_addition"] == "Always follow up within 48 hours."
+        assert data["application_id"] == seeded_client["app_id"]
+
+        # Verify the lesson_learned log entry was written to the DB
+        logs = database.get_application_logs(seeded_client["app_id"])
+        lesson_logs = [l for l in logs if dict(l)["type_value"] == "lesson_learned"]
+        assert len(lesson_logs) == 1
+        assert dict(lesson_logs[0])["log"] == "I learned to follow up sooner."
+
+    def test_finalize_links_llm_call_log(self, seeded_client, monkeypatch):
+        c = seeded_client["client"]
+        lesson_json = '{"log_entry": "Good lesson.", "insights_addition": "Apply this next time."}'
+        monkeypatch.setattr(llm_client, "complete", self._mock_complete(lesson_json))
+
+        c.post(
+            f"/api/v1/applications/{seeded_client['app_id']}/lesson-chat",
+            json={
+                "messages": [{"role": "user", "content": "I learned a lot."}],
+                "finalize": True,
+            },
+        )
+
+        logs = database.get_application_logs(seeded_client["app_id"])
+        lesson_log = next(l for l in logs if dict(l)["type_value"] == "lesson_learned")
+        # llm_call_log_id must be set — links the log entry to the LLM call
+        assert dict(lesson_log)["llm_call_log_id"] is not None
+
+    def test_streaming_404_for_unknown_application(self, client, monkeypatch):
+        monkeypatch.setattr(llm_client, "complete_stream", self._mock_stream(["x"]))
+        r = client.post(
+            "/api/v1/applications/9999/lesson-chat",
+            json={"messages": [{"role": "user", "content": "hi"}], "finalize": False},
+        )
+        assert r.status_code == 404
+
+    def test_no_model_returns_503(self, client):
+        """Without a seeded model, lesson-chat must return 503."""
+        # Need a real application to pass the 404 check before model check
+        _, job_id = None, None
+        job_id, _ = database.upsert_job("Corp", "Eng", "eng")
+        app_row = database.get_application_for_job(job_id)
+        r = client.post(
+            f"/api/v1/applications/{app_row['id']}/lesson-chat",
+            json={"messages": [{"role": "user", "content": "hi"}], "finalize": False},
+        )
+        assert r.status_code == 503

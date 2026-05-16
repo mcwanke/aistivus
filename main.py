@@ -32,6 +32,7 @@ API routes:
   PATCH /api/v1/applications/{id}/logs/{log_id}/timestamp
   PATCH /api/v1/applications/{id}/audit/{audit_id}/timestamp
   POST /api/v1/applications/{id}/generate-prompt
+  POST /api/v1/applications/{id}/lesson-chat
   GET  /api/v1/llm-call-log
   GET  /api/v1/system-types
   POST /api/v1/system-types
@@ -54,6 +55,9 @@ API routes:
   POST /api/v1/profile/restore/{version_id}
   POST /api/v1/profile/chat
   POST /api/v1/profile/propose-update
+  POST /api/v1/profile/synthesize-insights
+  POST /api/v1/profile/coherence-check
+  POST /api/v1/profile/generate-tailoring-rules
 
 SPA catch-all (Phase 1.1+):
   GET  /{full_path}  → serves frontend/dist/index.html (React Router handles routing)
@@ -61,15 +65,18 @@ SPA catch-all (Phase 1.1+):
 """
 
 import os
+import re
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import AsyncGenerator
 
 import yaml
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -304,6 +311,16 @@ class AddLogRequest(BaseModel):
     log_timestamp: str | None = None
 
 
+class LessonChatMessage(BaseModel):
+    role: str   # "user" | "assistant"
+    content: str
+
+
+class LessonChatRequest(BaseModel):
+    messages: list[LessonChatMessage]
+    finalize: bool = False
+
+
 class UpdateAppSettingRequest(BaseModel):
     value: str
 
@@ -354,6 +371,57 @@ _VALID_STATUSES = frozenset({
     "not-started", "draft", "applied", "screening", "interview",
     "offer", "rejected", "ghosted", "withdrawn",
 })
+
+
+async def _lesson_sse_generator(
+    prompt: str,
+    system: str,
+    model: str,
+    provider: str,
+    base_url: str,
+    llm_model_id: int,
+    job_id: int | None = None,
+) -> AsyncGenerator[str, None]:
+    """SSE generator for lesson-chat streaming. Logs the call when the stream ends."""
+    start_ms = int(time.time() * 1000)
+    accumulated: list[str] = []
+    had_error = False
+
+    try:
+        async for token in llm_client.complete_stream(
+            prompt=prompt,
+            system=system,
+            model=model,
+            provider=provider,
+            base_url=base_url,
+        ):
+            if token == "[STREAM_ERROR]":
+                had_error = True
+                break
+            accumulated.append(token)
+            yield f"data: {token}\n\n"
+    except Exception as exc:
+        log.warning("lesson_chat_stream_error", extra={"error": str(exc)})
+        had_error = True
+
+    if had_error:
+        yield "data: [STREAM_ERROR]\n\n"
+    else:
+        yield "data: [DONE]\n\n"
+
+    latency_ms = int(time.time() * 1000) - start_ms
+    try:
+        database.insert_llm_call_log(
+            llm_model_id=llm_model_id,
+            call_type="chat",
+            prompt=prompt,
+            raw_response="".join(accumulated) if accumulated else None,
+            latency_ms=latency_ms,
+            success=0 if had_error else 1,
+            job_id=job_id,
+        )
+    except Exception as log_exc:
+        log.warning("lesson_chat_log_error", extra={"error": str(log_exc)})
 
 
 
@@ -1081,6 +1149,152 @@ EVALUATION_JSON_END
         log=prompt,
     )
     return JSONResponse({"success": True, "log_id": log_id, "prompt": prompt})
+
+
+@app.post("/api/v1/applications/{application_id}/lesson-chat")
+@limiter.limit("20/minute")
+async def lesson_chat(
+    request: Request, application_id: int, body: LessonChatRequest
+):
+    """
+    Lesson reflection chat for an application.
+    finalize=false: SSE streaming — coach asks about the application experience.
+    finalize=true:  Non-streaming — synthesize conversation into a lesson log entry
+                    and a proposed Insights & Lessons addition. Writes the log entry
+                    to application_logs (lesson_learned type); does NOT auto-write
+                    to jobsearch.md.
+    """
+    app_row = database.get_application(application_id)
+    if not app_row:
+        raise HTTPException(
+            status_code=404, detail=f"Application {application_id} not found."
+        )
+    app_dict = dict(app_row)
+
+    default_model = database.get_default_llm_model()
+    if not default_model:
+        raise HTTPException(
+            status_code=503, detail="No LLM model configured — add one in Settings."
+        )
+    model_info = dict(default_model)
+    endpoint = model_info.get("endpoint", "")
+    provider = "anthropic" if "anthropic.com" in endpoint else "ollama"
+
+    job = database.get_job(app_dict["job_id"])
+    job_dict = dict(job) if job else {}
+    company_name = job_dict.get("company_name") or "Unknown company"
+    title = job_dict.get("title") or "Unknown role"
+    status = app_dict.get("application_status") or "unknown"
+
+    if not body.finalize:
+        # ── Streaming path ──
+        if not body.messages:
+            raise HTTPException(status_code=400, detail="messages must not be empty.")
+
+        system = (
+            "You are helping the user reflect on a specific job application.\n"
+            "Ask about what happened in the process, what they learned, and what "
+            "they would do differently. Be empathetic and specific. Ask one follow-up "
+            "question at a time.\n"
+            f"Application context: {company_name} — {title} (status: {status})."
+        )
+        prompt = "\n\n".join(
+            f"{'User' if m.role == 'user' else 'Assistant'}: {m.content}"
+            for m in body.messages
+        )
+
+        return StreamingResponse(
+            _lesson_sse_generator(
+                prompt=prompt,
+                system=system,
+                model=model_info["model"],
+                provider=provider,
+                base_url=endpoint,
+                llm_model_id=model_info["id"],
+                job_id=app_dict["job_id"],
+            ),
+            media_type="text/event-stream",
+        )
+
+    else:
+        # ── Finalize path — synthesize and write log entry ──
+        if not body.messages:
+            raise HTTPException(status_code=400, detail="messages must not be empty.")
+
+        conversation_text = "\n\n".join(
+            f"{'User' if m.role == 'user' else 'Assistant'}: {m.content}"
+            for m in body.messages
+        )
+
+        system = (
+            "You are synthesizing a job application reflection conversation into two outputs.\n"
+            "Respond ONLY with valid JSON in exactly this format:\n"
+            '{"log_entry": "...", "insights_addition": "..."}\n\n'
+            "log_entry: A concise 2-4 sentence lesson learned from this application. "
+            "Write in first person, specific and honest.\n"
+            "insights_addition: A formatted entry suitable for adding to an "
+            "'Insights & Lessons Learned' section. Include the company/role context, "
+            "what happened, and what to do differently next time."
+        )
+        finalize_prompt = (
+            f"Application: {company_name} — {title} (status: {status})\n\n"
+            f"Reflection conversation:\n---\n{conversation_text}\n---\n\n"
+            "Synthesize the lesson learned:"
+        )
+
+        start_ms = int(time.time() * 1000)
+        result = await llm_client.complete(
+            prompt=finalize_prompt,
+            system=system,
+            model=model_info["model"],
+            provider=provider,
+            base_url=endpoint,
+        )
+        latency_ms = int(time.time() * 1000) - start_ms
+
+        llm_log_id = database.insert_llm_call_log(
+            llm_model_id=model_info["id"],
+            call_type="chat",
+            prompt=finalize_prompt,
+            raw_response=result.get("content"),
+            latency_ms=latency_ms,
+            success=1 if result.get("success") else 0,
+            error_message=result.get("error"),
+            job_id=app_dict["job_id"],
+        )
+
+        if not result.get("success"):
+            raise HTTPException(
+                status_code=502, detail=f"LLM call failed: {result.get('error')}"
+            )
+
+        raw = result["content"] or ""
+        try:
+            import json as _json
+            parsed_out = _json.loads(raw)
+            log_entry = parsed_out.get("log_entry", raw)
+            insights_addition = parsed_out.get("insights_addition", raw)
+        except Exception:
+            log_entry = raw
+            insights_addition = raw
+
+        lesson_type_id = database.get_system_type_id("application_log", "lesson_learned")
+        if lesson_type_id is None:
+            raise HTTPException(
+                status_code=500, detail="system_types not seeded correctly (lesson_learned missing)."
+            )
+        database.add_application_log(
+            application_id=application_id,
+            type_id=lesson_type_id,
+            log=log_entry,
+            llm_call_log_id=llm_log_id,
+        )
+
+        return JSONResponse({
+            "log_entry": log_entry,
+            "insights_addition": insights_addition,
+            "application_id": application_id,
+        })
 
 
 # ─────────────────────────────────────────────────────────────

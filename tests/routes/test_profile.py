@@ -109,6 +109,18 @@ def profile_seeded_client(profile_client):
     return {**profile_client, "model_id": model_id}
 
 
+@pytest.fixture
+def profile_seeded_client_no_file(profile_client_no_file):
+    """profile_client_no_file with a default LLM model inserted."""
+    model_id = database.insert_llm_model(
+        "test-model",
+        "http://localhost:11434",
+        default_flag=1,
+        available=1,
+    )
+    return {**profile_client_no_file, "model_id": model_id}
+
+
 # ─────────────────────────────────────────────────────────────
 # GET /api/v1/profile/health
 # ─────────────────────────────────────────────────────────────
@@ -520,4 +532,172 @@ class TestProposeUpdate:
                 "section_content": "",
             },
         )
+        assert r.status_code == 503
+
+
+# ─────────────────────────────────────────────────────────────
+# POST /api/v1/profile/synthesize-insights
+# ─────────────────────────────────────────────────────────────
+
+
+class TestSynthesizeInsights:
+    def _mock_complete(self, content: str):
+        async def _complete(*args, **kwargs):
+            return {"success": True, "content": content, "error": None}
+        return _complete
+
+    def test_synthesize_returns_proposed_content(self, profile_seeded_client, monkeypatch):
+        c = profile_seeded_client["client"]
+        proposed = "Key insight: I get more callbacks when applying within 24 hours of posting."
+        monkeypatch.setattr(llm_client, "complete", self._mock_complete(proposed))
+
+        r = c.post("/api/v1/profile/synthesize-insights")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["proposed_content"] == proposed
+        assert data["section_id"] == "insights_lessons"
+
+    def test_synthesize_logs_llm_call(self, profile_seeded_client, monkeypatch):
+        c = profile_seeded_client["client"]
+        monkeypatch.setattr(
+            llm_client, "complete", self._mock_complete("Some insights here.")
+        )
+        c.post("/api/v1/profile/synthesize-insights")
+        logs = database.get_llm_call_log(call_type="chat")
+        assert len(logs) == 1
+
+    def test_synthesize_includes_application_logs_in_prompt(
+        self, profile_seeded_client, monkeypatch
+    ):
+        c = profile_seeded_client["client"]
+        captured_prompts: list[str] = []
+
+        async def _capture_complete(prompt, system, **kwargs):
+            captured_prompts.append(prompt)
+            return {"success": True, "content": "insights here", "error": None}
+
+        monkeypatch.setattr(llm_client, "complete", _capture_complete)
+
+        # Create a job and application log so synthesize-insights has something to read
+        job_id, _ = database.upsert_job("Test Corp", "Engineer", "eng")
+        app_row = database.get_application_for_job(job_id)
+        type_id = database.get_system_type_id("application_log", "recruiter_call")
+        database.add_application_log(
+            application_id=app_row["id"],
+            type_id=type_id,
+            log="Great call with the recruiter, very positive vibes.",
+        )
+
+        c.post("/api/v1/profile/synthesize-insights")
+        assert len(captured_prompts) == 1
+        assert "recruiter_call" in captured_prompts[0]
+        assert "Great call with the recruiter" in captured_prompts[0]
+
+    def test_synthesize_no_model_returns_503(self, profile_client):
+        r = profile_client["client"].post("/api/v1/profile/synthesize-insights")
+        assert r.status_code == 503
+
+
+# ─────────────────────────────────────────────────────────────
+# POST /api/v1/profile/coherence-check
+# ─────────────────────────────────────────────────────────────
+
+
+class TestCoherenceCheck:
+    def _mock_complete(self, content: str):
+        async def _complete(*args, **kwargs):
+            return {"success": True, "content": content, "error": None}
+        return _complete
+
+    def test_coherence_returns_review_and_issues_count(
+        self, profile_seeded_client, monkeypatch
+    ):
+        c = profile_seeded_client["client"]
+        review_text = (
+            "1. Career Narrative says senior IC but Career History shows management roles.\n"
+            "2. Tailoring Rules mention 'B2B SaaS' but Target Role Profile doesn't list it.\n"
+            "3. Skills section still has [FILL] markers."
+        )
+        monkeypatch.setattr(llm_client, "complete", self._mock_complete(review_text))
+
+        r = c.post("/api/v1/profile/coherence-check")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["review"] == review_text
+        assert data["issues_found"] == 3
+
+    def test_coherence_sends_full_file_in_prompt(self, profile_seeded_client, monkeypatch):
+        c = profile_seeded_client["client"]
+        captured: list[str] = []
+
+        async def _capture(prompt, system, **kwargs):
+            captured.append(prompt)
+            return {"success": True, "content": "1. One issue.", "error": None}
+
+        monkeypatch.setattr(llm_client, "complete", _capture)
+        c.post("/api/v1/profile/coherence-check")
+
+        assert len(captured) == 1
+        # Prompt must contain content from the partial fixture (who_i_am section)
+        assert "senior software engineer" in captured[0]
+
+    def test_coherence_404_when_file_missing(self, profile_seeded_client_no_file):
+        r = profile_seeded_client_no_file["client"].post("/api/v1/profile/coherence-check")
+        assert r.status_code == 404
+
+    def test_coherence_no_model_returns_503(self, profile_client):
+        r = profile_client["client"].post("/api/v1/profile/coherence-check")
+        assert r.status_code == 503
+
+
+# ─────────────────────────────────────────────────────────────
+# POST /api/v1/profile/generate-tailoring-rules
+# ─────────────────────────────────────────────────────────────
+
+
+class TestGenerateTailoringRules:
+    def _mock_complete(self, content: str):
+        async def _complete(*args, **kwargs):
+            return {"success": True, "content": content, "error": None}
+        return _complete
+
+    def test_generate_returns_proposed_content(self, profile_seeded_client, monkeypatch):
+        c = profile_seeded_client["client"]
+        proposed = "Always: lead with impact. Never: use passive voice. Voice: direct and confident."
+        monkeypatch.setattr(llm_client, "complete", self._mock_complete(proposed))
+
+        r = c.post("/api/v1/profile/generate-tailoring-rules")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["proposed_content"] == proposed
+        assert data["section_id"] == "tailoring_rules"
+
+    def test_generate_sends_sections_1_through_5_in_prompt(
+        self, profile_seeded_client, monkeypatch
+    ):
+        c = profile_seeded_client["client"]
+        captured: list[str] = []
+
+        async def _capture(prompt, system, **kwargs):
+            captured.append(prompt)
+            return {"success": True, "content": "Always: lead with impact.", "error": None}
+
+        monkeypatch.setattr(llm_client, "complete", _capture)
+        c.post("/api/v1/profile/generate-tailoring-rules")
+
+        assert len(captured) == 1
+        prompt = captured[0]
+        # Must include all 5 source sections by name
+        assert "Who I Am" in prompt
+        assert "Career Narrative" in prompt
+        assert "Career History" in prompt
+        assert "Skills" in prompt
+        assert "Target Role" in prompt
+
+    def test_generate_404_when_file_missing(self, profile_seeded_client_no_file):
+        r = profile_seeded_client_no_file["client"].post("/api/v1/profile/generate-tailoring-rules")
+        assert r.status_code == 404
+
+    def test_generate_no_model_returns_503(self, profile_client):
+        r = profile_client["client"].post("/api/v1/profile/generate-tailoring-rules")
         assert r.status_code == 503

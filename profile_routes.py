@@ -14,8 +14,12 @@ Routes:
   POST  /api/v1/profile/restore/{version_id}
   POST  /api/v1/profile/chat               (SSE streaming)
   POST  /api/v1/profile/propose-update
+  POST  /api/v1/profile/synthesize-insights
+  POST  /api/v1/profile/coherence-check
+  POST  /api/v1/profile/generate-tailoring-rules
 """
 
+import re
 import time
 from pathlib import Path
 from typing import AsyncGenerator
@@ -608,4 +612,208 @@ async def propose_update(request: Request, body: ProposeUpdateRequest) -> JSONRe
     return JSONResponse({
         "proposed_content": result["content"],
         "section_id": body.section_id,
+    })
+
+
+# ─────────────────────────────────────────────────────────────
+# Routes — One-shot actions
+# ─────────────────────────────────────────────────────────────
+
+
+async def _call_llm_and_log_async(
+    model_info: dict,
+    prompt: str,
+    system: str,
+) -> dict:
+    """Async version of LLM call + log. Returns the result dict."""
+    start_ms = int(time.time() * 1000)
+    result = await llm_client.complete(
+        prompt=prompt,
+        system=system,
+        model=model_info["model"],
+        provider=model_info["provider"],
+        base_url=model_info["endpoint"],
+    )
+    latency_ms = int(time.time() * 1000) - start_ms
+    database.insert_llm_call_log(
+        llm_model_id=model_info["id"],
+        call_type="chat",
+        prompt=prompt,
+        raw_response=result.get("content"),
+        latency_ms=latency_ms,
+        success=1 if result.get("success") else 0,
+        error_message=result.get("error"),
+    )
+    return result
+
+
+def _format_logs_for_prompt(logs: list) -> str:
+    """Format application log rows into a readable block for LLM prompts."""
+    if not logs:
+        return "No relevant logs found."
+    lines: list[str] = []
+    for row in logs:
+        d = dict(row)
+        date = (d.get("log_timestamp") or "")[:10]
+        company = d.get("company_name") or "Unknown company"
+        title = d.get("title") or "Unknown role"
+        type_val = d.get("type_value") or ""
+        content = d.get("log") or ""
+        lines.append(f"[{date}] {company} — {title} ({type_val}):\n{content}")
+    return "\n\n".join(lines)
+
+
+@router.post("/profile/synthesize-insights")
+@limiter.limit("5/minute")
+async def synthesize_insights(request: Request) -> JSONResponse:
+    """
+    One-shot: read application logs and current insights section, synthesize with LLM.
+    Returns a proposed update to the insights_lessons section.
+    """
+    model_info = _resolve_default_model()
+    if not model_info:
+        raise HTTPException(
+            status_code=503, detail="No LLM model configured — add one in Settings."
+        )
+
+    js_path = _get_jobsearch_path()
+    current_insights = ""
+    if js_path.exists():
+        content = js_path.read_text(encoding="utf-8")
+        parsed = database.parse_jobsearch_sections(content)
+        current_insights = parsed.get("insights_lessons", "")
+
+    log_types = ["recruiter_call", "interview_feedback", "lesson_learned", "general"]
+    logs = database.get_application_logs_for_insights(log_types)
+    logs_text = _format_logs_for_prompt(logs)
+
+    system = (
+        "You are synthesizing job search lessons from interview logs and application history.\n"
+        "Identify patterns: what's working, what isn't, what feedback recurs.\n"
+        "Write the complete updated 'Insights & Lessons Learned' section content based on "
+        "the logs and current section content provided.\n"
+        "Return ONLY the section content — no headers, no preamble."
+    )
+
+    current_block = (
+        f"Current section content:\n---\n{current_insights.strip()}\n---\n\n"
+        if current_insights.strip()
+        else ""
+    )
+    prompt = (
+        f"{current_block}"
+        f"Application logs:\n---\n{logs_text}\n---\n\n"
+        "Write the complete updated Insights & Lessons Learned section:"
+    )
+
+    result = await _call_llm_and_log_async(model_info, prompt, system)
+
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=502, detail=f"LLM call failed: {result.get('error')}"
+        )
+
+    return JSONResponse({
+        "proposed_content": result["content"],
+        "section_id": "insights_lessons",
+    })
+
+
+@router.post("/profile/coherence-check")
+@limiter.limit("5/minute")
+async def coherence_check(request: Request) -> JSONResponse:
+    """
+    One-shot: read full jobsearch.md and ask LLM to find internal inconsistencies.
+    Returns review text and a count of issues found.
+    """
+    model_info = _resolve_default_model()
+    if not model_info:
+        raise HTTPException(
+            status_code=503, detail="No LLM model configured — add one in Settings."
+        )
+
+    js_path = _get_jobsearch_path()
+    if not js_path.exists():
+        raise HTTPException(status_code=404, detail="jobsearch.md not found.")
+
+    content = js_path.read_text(encoding="utf-8")
+
+    system = (
+        "You are reviewing a job search profile for internal consistency.\n"
+        "Check: Does the Career Narrative match Career History? Do Tailoring Rules support "
+        "the Target Role Profile? Are there gaps between stated skills and target roles? "
+        "Are any [FILL] markers still present?\n"
+        "Return a structured review with specific findings and suggested fixes.\n"
+        "Format each distinct issue as a numbered item (1. 2. 3. etc.)."
+    )
+
+    prompt = (
+        f"Review this job search profile for internal consistency:\n\n"
+        f"---\n{content}\n---\n\n"
+        "List all issues found as numbered items, then provide suggested fixes:"
+    )
+
+    result = await _call_llm_and_log_async(model_info, prompt, system)
+
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=502, detail=f"LLM call failed: {result.get('error')}"
+        )
+
+    review_text = result["content"] or ""
+    issues_found = len(re.findall(r"^\s*\d+\.\s+\S", review_text, re.MULTILINE))
+
+    return JSONResponse({"review": review_text, "issues_found": issues_found})
+
+
+@router.post("/profile/generate-tailoring-rules")
+@limiter.limit("5/minute")
+async def generate_tailoring_rules(request: Request) -> JSONResponse:
+    """
+    One-shot: read sections 1–5 and generate tailoring rules with LLM.
+    Returns proposed content for the tailoring_rules section.
+    """
+    model_info = _resolve_default_model()
+    if not model_info:
+        raise HTTPException(
+            status_code=503, detail="No LLM model configured — add one in Settings."
+        )
+
+    js_path = _get_jobsearch_path()
+    if not js_path.exists():
+        raise HTTPException(status_code=404, detail="jobsearch.md not found.")
+
+    content = js_path.read_text(encoding="utf-8")
+    parsed = database.parse_jobsearch_sections(content)
+
+    source_ids = ["who_i_am", "career_narrative", "career_history", "skills_strengths", "target_role"]
+    sections_text = "\n\n".join(
+        f"### {_SECTION_NAMES[sid]}\n{parsed.get(sid, '[empty]').strip()}"
+        for sid in source_ids
+    )
+
+    system = (
+        "You are generating resume and cover letter tailoring rules for a specific person.\n"
+        "Based on their background and target roles, produce a set of Always/Never/Voice rules "
+        "they should apply when tailoring materials.\n"
+        "Format: use 'Always:', 'Never:', and 'Voice & Tone:' subsections with bullet points.\n"
+        "Return ONLY the section content — no headers like 'Tailoring Rules', no preamble."
+    )
+
+    prompt = (
+        f"Generate tailoring rules based on this person's profile:\n\n"
+        f"---\n{sections_text}\n---\n\n"
+        "Write the complete Tailoring Rules section content:"
+    )
+
+    result = await _call_llm_and_log_async(model_info, prompt, system)
+
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=502, detail=f"LLM call failed: {result.get('error')}"
+        )
+
+    return JSONResponse({
+        "proposed_content": result["content"],
+        "section_id": "tailoring_rules",
     })
