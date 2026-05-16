@@ -46,6 +46,14 @@ API routes:
   GET  /api/v1/settings/jobsearch/versions/{id}
   GET  /api/v1/inbox/files
   POST /api/v1/inbox/process
+  GET  /api/v1/profile/health
+  GET  /api/v1/profile/sections
+  PATCH /api/v1/profile/sections/{section_id}
+  GET  /api/v1/profile/versions
+  GET  /api/v1/profile/versions/{version_id}
+  POST /api/v1/profile/restore/{version_id}
+  POST /api/v1/profile/chat
+  POST /api/v1/profile/propose-update
 
 SPA catch-all (Phase 1.1+):
   GET  /{full_path}  → serves frontend/dist/index.html (React Router handles routing)
@@ -72,6 +80,7 @@ import database
 import evaluate
 import evaluator
 import llm_client
+import profile_routes
 from logger import get_logger
 
 load_dotenv()
@@ -195,6 +204,8 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
     allow_headers=["Content-Type"],
 )
+
+app.include_router(profile_routes.router, prefix="/api/v1")
 
 _frontend_assets = Path("frontend/dist/assets")
 if _frontend_assets.exists():

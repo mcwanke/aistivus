@@ -68,8 +68,8 @@ HTML frontend operational (read-only reference — do not modify).
 - [x] `jobsearch_versions` table-based approach verified/restored in `database.py`
 - [x] Streaming support (`complete_stream()`) added to `llm_client.py`
 - [x] Profile section parser utility in `database.py`
-- [ ] `profile_routes.py` with all profile API routes registered in `main.py`
-- [ ] SSE streaming chat route (`POST /api/v1/profile/chat`)
+- [x] `profile_routes.py` with all profile API routes registered in `main.py`
+- [x] SSE streaming chat route (`POST /api/v1/profile/chat`)
 - [ ] One-shot routes: synthesize-insights, coherence-check, generate-tailoring-rules
 - [ ] Lesson chat route on applications (`POST /api/v1/applications/{id}/lesson-chat`)
 - [ ] TypeScript interfaces in `frontend/src/types/profile.ts`

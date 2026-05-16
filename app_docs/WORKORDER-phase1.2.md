@@ -256,7 +256,7 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
 ## Priority 5 — Backend: Profile API Routes
 *New file `profile_routes.py`. Registered in `main.py`.*
 
-- [ ] **6. Create `profile_routes.py` and register in `main.py`**
+- [x] **6. Create `profile_routes.py` and register in `main.py`** — Created with 6 CRUD routes (health, sections, patch section, versions list, version by id, restore). Router registered in `main.py` via `app.include_router()`. Tests in `tests/routes/test_profile.py` (19 tests, all passing).
 
   **File: `profile_routes.py`** — create new file with these routes:
 
@@ -314,7 +314,7 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
   - Test `PATCH /api/v1/profile/sections/{section_id}` — happy path, invalid section_id
   - Test version snapshot is created on section update
 
-- [ ] **7. Add profile chat route (SSE streaming) to `profile_routes.py`**
+- [x] **7. Add profile chat route (SSE streaming) to `profile_routes.py`** — Added `POST /api/v1/profile/chat` (SSE with `_sse_generator`, logs to `llm_call_log`) and `POST /api/v1/profile/propose-update` (non-streaming synthesis). Section prompt map with Socratic/Directive focus per section. Experience level adjustments for New grad and Career changer. 10 tests added (chat + propose-update), all passing.
 
   **`POST /api/v1/profile/chat`**
   - Request body:
