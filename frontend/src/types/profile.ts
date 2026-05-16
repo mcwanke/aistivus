@@ -18,7 +18,7 @@ export interface ProfileSection {
   name: string
   content: string
   complete: boolean
-  recommended_mode: 'socratic' | 'directive' | 'generate' | 'edit_only'
+  recommended_mode: 'socratic' | 'directive' | 'generate' | 'edit_only' | 'either' | 'synthesize'
 }
 
 export interface ProfileSections {

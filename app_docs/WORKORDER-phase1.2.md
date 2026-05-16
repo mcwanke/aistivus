@@ -587,7 +587,7 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
 ## Priority 8 — Frontend: Job Search Profile Page
 *New page. Two-column layout matching the evaluate/jobs page pattern.*
 
-- [ ] **12. Build `frontend/src/pages/JobSearchProfile.tsx`**
+- [x] **12. Build `frontend/src/pages/JobSearchProfile.tsx`** — Two-column layout: left scrollable section cards (StatusBadge, SectionCard with auto-grow textarea, Save/Edit with AI/Generate Rules/Synthesize buttons, special handling per section), right ChatPanel (mode toggle, streaming message thread, Propose Update flow, Accept/Discard card). CoherenceModal for "Review Profile". `key={activeSectionId}` forces ChatPanel remount on section switch. Nav entry "JS Profile" added to Layout.tsx, `/profile` route added to main.tsx. TypeScript type for `recommended_mode` updated to include `'either'` and `'synthesize'` (backend returns both).
 
   **Overall layout:**
   ```
@@ -661,7 +661,7 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
 
 ## Priority 9 — Frontend: Dashboard Update
 
-- [ ] **13. Add Profile Strength widget to `frontend/src/pages/Dashboard.tsx`**
+- [x] **13. Add Profile Strength widget to `frontend/src/pages/Dashboard.tsx`** — `ProfileStrengthWidget` component added using `useProfileHealth`. Shows segmented progress bar (one pip per section), "X of 9 sections complete" count, link to `/profile`. Handles: file_exists=false ("not set up" state), completion_pct=100 (green "Complete ✓"). Placed in new "Profile" section between Overview and Models on the Dashboard.
   - Use `useProfileHealth` hook (already defined in item 11)
   - Add a widget card in the Dashboard grid showing:
     ```

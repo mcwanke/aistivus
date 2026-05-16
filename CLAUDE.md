@@ -74,9 +74,9 @@ HTML frontend operational (read-only reference — do not modify).
 - [x] Lesson chat route on applications (`POST /api/v1/applications/{id}/lesson-chat`)
 - [x] TypeScript interfaces in `frontend/src/types/profile.ts`
 - [x] Profile hooks: `useProfileHealth`, `useProfileSections`, `useProfileVersions`, `useProfileChat`, `useLessonChat`
-- [ ] `JobSearchProfile.tsx` — two-column layout, section cards, AI chat panel, accept/discard flow
-- [ ] Left nav entry: "Job Search Profile"
-- [ ] Dashboard Profile Strength widget
+- [x] `JobSearchProfile.tsx` — two-column layout, section cards, AI chat panel, accept/discard flow
+- [x] Left nav entry: "Job Search Profile" (label: "JS Profile")
+- [x] Dashboard Profile Strength widget
 - [ ] ApplicationDetail "Capture a lesson" feature
 - [ ] Settings My Data: version history with preview + restore
 - [ ] Backend tests for all profile routes

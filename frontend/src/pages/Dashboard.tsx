@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import type { StatsResponse, HealthResponse } from '@/types/api'
+import { useProfileHealth } from '@/hooks/useProfileHealth'
 
 // ─── Data fetchers ────────────────────────────────────────────────────────────
 
@@ -59,6 +60,63 @@ function ModelBadge({ model, available }: { model: string; available: boolean })
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+function ProfileStrengthWidget(): React.JSX.Element {
+  const { data, isLoading } = useProfileHealth()
+
+  if (isLoading) {
+    return (
+      <div className="bg-surface rounded p-5">
+        <p className="text-muted text-sm font-mono uppercase tracking-widest text-xs mb-2">Job Search Profile</p>
+        <p className="text-muted text-sm">Loading…</p>
+      </div>
+    )
+  }
+
+  if (!data || !data.file_exists) {
+    return (
+      <div className="bg-surface rounded p-5">
+        <p className="text-muted font-mono uppercase tracking-widest text-xs mb-2">Job Search Profile</p>
+        <Link to="/profile" className="text-sm text-accent hover:underline">
+          Profile not set up — start here →
+        </Link>
+      </div>
+    )
+  }
+
+  const { completed_sections, total_sections, completion_pct } = data
+  const isComplete = completion_pct === 100
+
+  return (
+    <div className="bg-surface rounded p-5 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-muted font-mono uppercase tracking-widest text-xs">Job Search Profile</p>
+        {isComplete && (
+          <span className="text-xs font-mono text-green">Complete ✓</span>
+        )}
+      </div>
+      {/* Progress bar */}
+      <div className="flex gap-1">
+        {Array.from({ length: total_sections }).map((_, i) => (
+          <div
+            key={i}
+            className={`h-1.5 flex-1 rounded-full transition-colors ${
+              i < completed_sections ? 'bg-accent' : 'bg-surface2'
+            }`}
+          />
+        ))}
+      </div>
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted">
+          {completed_sections} of {total_sections} sections complete
+        </p>
+        <Link to="/profile" className="text-xs font-mono text-muted hover:text-accent transition-colors">
+          {isComplete ? 'View →' : 'Complete your profile →'}
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard(): React.JSX.Element {
   const stats = useQuery({ queryKey: ['stats'], queryFn: fetchStats })
   const health = useQuery({ queryKey: ['health'], queryFn: fetchHealth })
@@ -84,6 +142,12 @@ export default function Dashboard(): React.JSX.Element {
             <StatCard label="LLM Calls"    value={stats.data.llm_calls} to="/llm-usage" />
           </div>
         )}
+      </section>
+
+      {/* Profile strength */}
+      <section>
+        <h2 className="text-muted text-xs font-mono uppercase tracking-widest mb-3">Profile</h2>
+        <ProfileStrengthWidget />
       </section>
 
       {/* Model health */}

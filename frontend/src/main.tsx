@@ -12,6 +12,7 @@ import Applications from '@/pages/Applications'
 import ApplicationDetailPage from '@/pages/ApplicationDetailPage'
 import Settings from '@/pages/Settings'
 import LLMUsage from '@/pages/LLMUsage'
+import JobSearchProfile from '@/pages/JobSearchProfile'
 import '@/index.css'
 
 const router = createBrowserRouter([
@@ -27,6 +28,7 @@ const router = createBrowserRouter([
       { path: '/application-detail/:applicationId', element: <ApplicationDetailPage /> },
       { path: '/settings',                      element: <Settings /> },
       { path: '/llm-usage',                     element: <LLMUsage /> },
+      { path: '/profile',                       element: <JobSearchProfile /> },
     ],
   },
 ])
