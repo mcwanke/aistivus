@@ -63,8 +63,8 @@ HTML frontend operational (read-only reference — do not modify).
 - [x] Vitest + React Testing Library, 70% coverage
 
 ### Phase 1.2 Checklist 🔲
-- [ ] Revised `JOBSEARCH_TEMPLATE.md` (Career Narrative, Experience Level, new-grad sections, merged Model Behavior Rules)
-- [ ] `lesson_learned` added to `system_types` seed in `database.py`
+- [x] Revised `JOBSEARCH_TEMPLATE.md` (Career Narrative, Experience Level, new-grad sections, merged Model Behavior Rules)
+- [x] `lesson_learned` added to `system_types` seed in `database.py`
 - [ ] `jobsearch_versions` table-based approach verified/restored in `database.py`
 - [ ] Streaming support (`complete_stream()`) added to `llm_client.py`
 - [ ] Profile section parser utility in `database.py`

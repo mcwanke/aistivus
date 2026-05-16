@@ -19,6 +19,8 @@
   Application tracking has moved to the database — no need to maintain
   a manual log here. Use the Evaluations and Applications pages in the
   web interface instead.
+
+  Standing model instructions are in Section [9]. Do not delete that section.
 -->
 
 ---
@@ -31,14 +33,39 @@
 **Years of experience:** [FILL]
 **Location / work preference:** [FILL — e.g. Remote-first, open to hybrid in [city]]
 **Portfolio / online presence:** [FILL — e.g. yoursite.com | github.com/yourhandle]
+**Experience level:** [New grad / Early career (1-5 yrs) / Mid-career / Senior / Career changer]
 
 **Professional summary (2-3 sentences):**
 [FILL — distill your bio here. What you've built, at what scale, how you lead.]
 
 ---
 
-## 2. Career History (Reverse Chronological)
-<!-- Enough detail for the model to map your experience to a JD. Be specific. -->
+## 2. Career Narrative
+<!--
+  2-3 sentences on why you've made the transitions you've made.
+  This is the answer to "tell me about yourself / walk me through your career."
+  Interviewers ask this in every first conversation. The model uses it for
+  culture fit scoring and for tailoring cover letter openers.
+-->
+
+[FILL — e.g. "I started as a backend engineer, moved into tech lead roles because
+I found the organizational problems more interesting than the technical ones, and
+have spent the last five years building and scaling engineering teams at growth-stage
+companies. I'm now looking for a VP-level role where I can own both the engineering
+org and the product roadmap."]
+
+---
+
+## 3. Career History (Reverse Chronological)
+<!--
+  Enough detail for the model to map your experience to a JD. Be specific.
+
+  For new grads and early-career candidates, include:
+  - Education (degree, institution, graduation year, relevant coursework, GPA if strong)
+  - Projects (class, personal, open source — same bullet format as work history)
+  - Internships and part-time roles (use the same role entry format below)
+  - Non-work leadership (clubs, volunteer orgs, anything with responsibility and outcome)
+-->
 
 ### [FILL — Most Recent Role Title] @ [Company]
 - **Dates:** [FILL]
@@ -54,9 +81,20 @@
 
 <!-- Repeat as needed. Go back ~10-15 years max. -->
 
+### Education — [Degree] @ [Institution]
+- **Graduated:** [FILL]
+- **Relevant coursework / focus areas:** [FILL]
+- **Notable projects or thesis:** [FILL]
+
+### Project — [Project Name]
+- **Context:** [FILL — class project / side project / open source]
+- **What you built:** [FILL]
+- **Outcome / impact:** [FILL]
+- **Tech / tools:** [FILL]
+
 ---
 
-## 3. Skills & Strengths
+## 4. Skills & Strengths
 
 **Technical:**
 [FILL — e.g. Python, distributed systems, cloud infra, etc.]
@@ -72,7 +110,7 @@
 
 ---
 
-## 4. Target Role Profile
+## 5. Target Role Profile
 
 **Titles I'm targeting:**
 [FILL — e.g. Engineering Manager, Director of Engineering, Staff Engineer]
@@ -112,7 +150,7 @@
 
 ---
 
-## 5. Resume Master Copy
+## 6. Resume Master Copy
 <!--
   Paste your full resume text here in plain text or markdown.
   This is the source of truth the model tailors FROM.
@@ -123,7 +161,7 @@
 
 ---
 
-## 6. Tailoring Rules
+## 7. Tailoring Rules
 <!--
   Rules the model must follow when generating tailored resumes or cover letters.
   Generate initial content from existing Claude threads, update as you learn
@@ -142,40 +180,6 @@
 
 **Cover letter voice:**
 [AUTO — e.g. Warm, direct, specific. No hollow openers like "I am excited to apply..."]
-
----
-
-## 7. JD Evaluation Framework
-<!--
-  When a JD is pasted, the model evaluates it against this framework.
-  Scores and output format are used to generate the structured evaluation.
--->
-
-### Scoring criteria (rate each 1-5):
-- **Role fit** — Does the title/level match my target profile?
-- **Scope fit** — Is the team size, ownership, and complexity a match?
-- **Culture signals** — Does the JD language suggest a place I'd thrive?
-- **Comp signals** — Any listed range? Does it likely meet my floor?
-- **Red flags** — List any concerns explicitly: deal-breaker language, interview process conflicts, scope mismatches, title inflation
-
-### Role archetype classifier:
-Classify as one of: People Leader / Hybrid / Technical Specialist / Functional Leader.
-Flag if the archetype conflicts with my target profile.
-
-### Fit type:
-Classify as one of: Core Fit / Stretch / Mismatch.
-One sentence explaining which and why.
-
-### Output format for JD evaluation:
-1. **Dimension scores** — Rate each 1-5: Role fit / Scope fit / Culture signals / Comp signals
-2. **Overall score** (1-10) and one-sentence verdict
-3. **Fit type** — Core Fit / Stretch / Mismatch with reasoning
-4. **Role archetype**
-5. **Strengths of this match** (bullets)
-6. **Gaps or concerns** (bullets)
-7. **Interview process analysis** — If the JD includes an interview process, flag any stage that conflicts with known gaps or deal-breakers from Section 4
-8. **Recommended action:** Apply / Apply with modifications / Skip
-9. **Keywords** — 25-35 comma-separated keywords from the JD relevant to ATS matching and resume tailoring. Separately list any JD keywords absent from both this list and the master resume — these are tailoring targets.
 
 ---
 
@@ -200,19 +204,26 @@ One sentence explaining which and why.
 
 ---
 
-## 9. Session Instructions
+## 9. Model Behavior Rules
 <!--
-  Standing instructions for the model in every session.
-  These are followed automatically — you don't need to repeat them.
+  Standing instructions the model follows in every session.
+  These apply to both in-app evaluation and standalone Claude sessions.
+  Edit as you learn what works. Do not delete — the model reads this section.
 -->
 
+### Evaluation behavior
 - Evaluate every JD before generating any materials — do not skip straight to tailoring
 - Ask one clarifying question if something about the role is ambiguous before proceeding
-- When tailoring, show me the delta from the master resume — don't reprint the whole thing unless asked
+- If a role scores below 6/10, explain why before asking if I want to proceed
+
+### Generation behavior
+- When tailoring, show me the delta from the master resume — do not reprint the whole thing unless asked
 - Flag any claims in tailored materials that could be challenged in an interview
 - Keep cover letters to 4-6 paragraphs unless asked otherwise
-- If a role scores below 6/10, explain why before asking if I want to proceed
-- Do NOT generate resume or cover letter materials in the same response as a JD evaluation — wait for explicit instruction to proceed
-- When tailoring, apply all Always and Never rules from Section 6 without exception — flag any conflicts explicitly
-- When a JD includes an interview process description, analyze each stage for conflicts with known gaps or deal-breakers from Section 4 — surface this in the evaluation, not after
-- After delivering tailored resume changes, offer cover letter as a separate optional next step — do not generate it automatically
+- Do NOT generate resume or cover letter materials in the same response as a JD evaluation
+- After delivering tailored resume changes, offer cover letter as optional next step — do not generate automatically
+- Apply all Always and Never rules from Section 7 without exception — flag conflicts explicitly
+
+### Interview process
+- When a JD includes an interview process description, analyze each stage for conflicts
+  with known gaps or deal-breakers from Section 5 — surface in the evaluation, not after

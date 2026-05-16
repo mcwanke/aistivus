@@ -71,7 +71,7 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
 ## Priority 1 — Template Revision
 *No code. Low risk. Must be done first — section IDs and structure drive everything else.*
 
-- [ ] **1. Revise `templates/JOBSEARCH_TEMPLATE.md`**
+- [x] **1. Revise `templates/JOBSEARCH_TEMPLATE.md`** — Added Experience Level field, new Career Narrative section (§2), renumbered §3–8, expanded Career History with new-grad examples, removed old §7 and §9, added new Model Behavior Rules §9.
   - **Section 1 — Who I Am:** Add this field after `**Portfolio / online presence:**`:
     ```
     **Experience level:** [New grad / Early career (1-5 yrs) / Mid-career / Senior / Career changer]
@@ -151,7 +151,7 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
 ## Priority 2 — Database
 *Minimal schema change. Safe to run against existing DB.*
 
-- [ ] **2. Add `lesson_learned` to `system_types` seed in `database.py`**
+- [x] **2. Add `lesson_learned` to `system_types` seed in `database.py`**
   - File: `database.py`
   - In the `init_db()` function, find the `system_types` seed block
   - Add one new entry to the INSERT list:

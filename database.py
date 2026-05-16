@@ -353,6 +353,7 @@ _SYSTEM_TYPES_SEED: list[tuple[str, str]] = [
     ("application_log", "general"),
     ("application_log", "repost_alert"),
     ("application_log", "prompt"),
+    ("application_log", "lesson_learned"),
     ("company_info", "website"),
     ("company_info", "careerpage"),
     ("company_info", "culturepage"),
