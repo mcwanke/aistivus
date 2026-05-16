@@ -13,8 +13,9 @@ Rules (from CLAUDE.md):
   are handled internally — callers get a clean string back.
 """
 
+import json
 import time
-from typing import Any
+from typing import Any, AsyncGenerator
 
 import httpx
 
@@ -90,6 +91,118 @@ async def complete(
         model=model,
         error=f"Provider '{provider}' not yet implemented.",
     )
+
+
+# ─────────────────────────────────────────────────────────────
+# Streaming interface
+# ─────────────────────────────────────────────────────────────
+
+async def complete_stream(
+    prompt: str,
+    system: str,
+    model: str,
+    provider: str = PROVIDER_OLLAMA,
+    base_url: str = "http://localhost:11434",
+    max_tokens: int = 2000,
+    timeout: float = 300.0,
+) -> AsyncGenerator[str, None]:
+    """
+    Stream tokens from the configured LLM provider.
+
+    Yields individual token strings as they arrive. On any unrecoverable error,
+    yields the sentinel string "[STREAM_ERROR]" and stops — callers must check for it.
+    """
+    if provider == PROVIDER_OLLAMA:
+        async for token in _stream_ollama(
+            prompt=prompt,
+            system=system,
+            model=model,
+            base_url=base_url,
+            max_tokens=max_tokens,
+            timeout=timeout,
+        ):
+            yield token
+    elif provider == PROVIDER_ANTHROPIC:
+        async for token in _stream_anthropic(
+            prompt=prompt,
+            system=system,
+            model=model,
+            max_tokens=max_tokens,
+        ):
+            yield token
+    else:
+        yield "[STREAM_ERROR]"
+
+
+async def _stream_ollama(
+    prompt: str,
+    system: str,
+    model: str,
+    base_url: str,
+    max_tokens: int,
+    timeout: float,
+) -> AsyncGenerator[str, None]:
+    """Stream tokens from Ollama /api/chat with stream=true."""
+    url = f"{base_url.rstrip('/')}/api/chat"
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ],
+        "stream": True,
+        "options": {
+            "num_predict": max_tokens,
+            "num_ctx": 4096,
+        },
+    }
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            async with client.stream("POST", url, json=payload) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line.strip():
+                        continue
+                    try:
+                        chunk = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    content = chunk.get("message", {}).get("content", "")
+                    if content:
+                        yield content
+                    if chunk.get("done"):
+                        return
+    except Exception:
+        yield "[STREAM_ERROR]"
+
+
+async def _stream_anthropic(
+    prompt: str,
+    system: str,
+    model: str,
+    max_tokens: int,
+) -> AsyncGenerator[str, None]:
+    """Stream tokens from Anthropic using the async messages.stream() context manager."""
+    import os
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        yield "[STREAM_ERROR]"
+        return
+
+    import anthropic as anthropic_sdk
+    try:
+        client = anthropic_sdk.AsyncAnthropic(api_key=api_key)
+        async with client.messages.stream(
+            model=model,
+            max_tokens=max_tokens,
+            system=system,
+            messages=[{"role": "user", "content": prompt}],
+        ) as stream:
+            async for text in stream.text_stream:
+                if text:
+                    yield text
+    except Exception:
+        yield "[STREAM_ERROR]"
 
 
 # ─────────────────────────────────────────────────────────────

@@ -180,7 +180,7 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
 ## Priority 3 — LLM Client Streaming
 *New capability in `llm_client.py`. Does not change existing `complete()` interface.*
 
-- [ ] **4. Add streaming support to `llm_client.py`**
+- [x] **4. Add streaming support to `llm_client.py`** — Added `complete_stream()` async generator, `_stream_ollama()` (httpx streaming with `stream=true`), and `_stream_anthropic()` (AsyncAnthropic `messages.stream()`). Sentinel `[STREAM_ERROR]` on any failure. Existing `complete()` unchanged. 6 unit tests added in `tests/test_llm_client.py`.
   - File: `llm_client.py`
   - Add a new async generator method `complete_stream()` with this signature:
     ```python

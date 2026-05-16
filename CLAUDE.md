@@ -66,7 +66,7 @@ HTML frontend operational (read-only reference — do not modify).
 - [x] Revised `JOBSEARCH_TEMPLATE.md` (Career Narrative, Experience Level, new-grad sections, merged Model Behavior Rules)
 - [x] `lesson_learned` added to `system_types` seed in `database.py`
 - [x] `jobsearch_versions` table-based approach verified/restored in `database.py`
-- [ ] Streaming support (`complete_stream()`) added to `llm_client.py`
+- [x] Streaming support (`complete_stream()`) added to `llm_client.py`
 - [ ] Profile section parser utility in `database.py`
 - [ ] `profile_routes.py` with all profile API routes registered in `main.py`
 - [ ] SSE streaming chat route (`POST /api/v1/profile/chat`)
