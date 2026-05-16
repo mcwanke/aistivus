@@ -19,6 +19,7 @@ Schema version: 1.0
 
 import hashlib
 import json
+import re
 import shutil
 import sqlite3
 from contextlib import contextmanager
@@ -1652,6 +1653,89 @@ def check_file_integrity() -> list[dict]:
                     "path": row["file_path"],
                 })
     return broken
+
+
+# ─────────────────────────────────────────────────────────────
+# Job Search Profile Utilities
+# ─────────────────────────────────────────────────────────────
+
+# Keys are lowercase partial matches against section header text.
+# Values are the stable section IDs used in API routes and frontend state.
+SECTION_ID_MAP: dict[str, str] = {
+    "who i am": "who_i_am",
+    "career narrative": "career_narrative",
+    "career history": "career_history",
+    "skills": "skills_strengths",
+    "target role": "target_role",
+    "resume master": "resume_master",
+    "tailoring rules": "tailoring_rules",
+    "insights": "insights_lessons",
+    "model behavior": "model_behavior",
+}
+
+_KNOWN_SECTION_IDS: frozenset[str] = frozenset(SECTION_ID_MAP.values())
+
+
+def _header_to_section_id(header_line: str) -> str | None:
+    """Map a '## N. Section Name' header to a section ID, or None if unrecognized."""
+    text = re.sub(r"^##\s+\d+\.\s*", "", header_line).strip().lower()
+    for key, section_id in SECTION_ID_MAP.items():
+        if key in text:
+            return section_id
+    return None
+
+
+def parse_jobsearch_sections(content: str) -> dict[str, str]:
+    """
+    Parse jobsearch.md content into a dict keyed by section ID.
+
+    All 9 known section IDs are present in the result; missing sections get "".
+    Values contain all body text under the ## header — the header line is excluded.
+    Handles both old and new section numbering via partial-match on header text.
+    """
+    result: dict[str, str] = {sid: "" for sid in _KNOWN_SECTION_IDS}
+    parts = re.split(r"(?m)^(?=## )", content)
+    for part in parts:
+        if not part.startswith("## "):
+            continue
+        header_line, _, body = part.partition("\n")
+        section_id = _header_to_section_id(header_line)
+        if section_id:
+            result[section_id] = body
+    return result
+
+
+def rebuild_jobsearch_from_sections(
+    sections: dict[str, str], original_content: str
+) -> str:
+    """
+    Rebuild jobsearch.md by replacing section bodies for IDs present in `sections`.
+
+    Preserves the original ## header lines, any preamble before the first ## header,
+    section separators (---), and bodies for sections not present in `sections`.
+    """
+    parts = re.split(r"(?m)^(?=## )", original_content)
+    rebuilt: list[str] = []
+    for part in parts:
+        if not part.startswith("## "):
+            rebuilt.append(part)
+            continue
+        header_line, _, old_body = part.partition("\n")
+        section_id = _header_to_section_id(header_line)
+        if section_id and section_id in sections:
+            new_body = sections[section_id]
+            if new_body and not new_body.endswith("\n"):
+                new_body += "\n"
+            rebuilt.append(header_line + "\n" + new_body)
+        else:
+            rebuilt.append(part)
+    return "".join(rebuilt)
+
+
+def is_section_complete(section_content: str) -> bool:
+    """Returns True if section has no [FILL] markers and has substantive content (>50 chars)."""
+    stripped = section_content.strip()
+    return "[FILL" not in stripped and len(stripped) > 50
 
 
 # ─────────────────────────────────────────────────────────────

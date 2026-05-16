@@ -848,3 +848,163 @@ class TestUtilities:
         assert "tables" in result
         assert "system_types" in result["tables"]
         assert len(result["tables"]["system_types"]) == 14
+
+
+# ─────────────────────────────────────────────────────────────
+# Profile Section Parser
+# ─────────────────────────────────────────────────────────────
+
+_SAMPLE_PROFILE = """\
+# Job Search Context
+
+---
+
+## 1. Who I Am
+Name: Jane Smith
+Experience level: Senior
+
+---
+
+## 2. Career Narrative
+I started as a backend engineer and moved into tech lead roles.
+
+---
+
+## 3. Career History (Reverse Chronological)
+### Role @ Company
+- Did things
+
+---
+
+## 4. Skills & Strengths
+Python, Go, leadership
+
+---
+
+## 5. Target Role Profile
+Looking for a VP of Engineering role.
+
+---
+
+## 6. Resume Master Copy
+[FILL — paste your master resume here]
+
+---
+
+## 7. Tailoring Rules
+Always: highlight distributed systems experience.
+
+---
+
+## 8. Insights & Lessons
+[FILL]
+
+---
+
+## 9. Model Behavior Rules
+Evaluate every JD before generating materials.
+"""
+
+
+class TestProfileParser:
+    def test_parse_returns_all_nine_section_ids(self):
+        sections = database.parse_jobsearch_sections(_SAMPLE_PROFILE)
+        expected_ids = {
+            "who_i_am", "career_narrative", "career_history", "skills_strengths",
+            "target_role", "resume_master", "tailoring_rules", "insights_lessons",
+            "model_behavior",
+        }
+        assert set(sections.keys()) == expected_ids
+
+    def test_parse_extracts_section_body_without_header(self):
+        sections = database.parse_jobsearch_sections(_SAMPLE_PROFILE)
+        assert "## 1." not in sections["who_i_am"]
+        assert "Jane Smith" in sections["who_i_am"]
+
+    def test_parse_all_present_sections_have_content(self):
+        sections = database.parse_jobsearch_sections(_SAMPLE_PROFILE)
+        assert sections["career_narrative"].strip() != ""
+        assert sections["target_role"].strip() != ""
+        assert sections["model_behavior"].strip() != ""
+
+    def test_parse_missing_section_returns_empty_string(self):
+        content = "## 1. Who I Am\nJane Smith\n"
+        sections = database.parse_jobsearch_sections(content)
+        assert sections["career_narrative"] == ""
+        assert sections["insights_lessons"] == ""
+
+    def test_parse_empty_content_returns_all_empty(self):
+        sections = database.parse_jobsearch_sections("")
+        assert all(v == "" for v in sections.values())
+
+    def test_parse_case_insensitive_header_matching(self):
+        content = "## 1. WHO I AM\nSome content\n"
+        sections = database.parse_jobsearch_sections(content)
+        assert "Some content" in sections["who_i_am"]
+
+    def test_parse_partial_header_match_skills(self):
+        content = "## 4. Skills & Strengths\nPython, Go\n"
+        sections = database.parse_jobsearch_sections(content)
+        assert "Python" in sections["skills_strengths"]
+
+    def test_parse_insights_partial_match(self):
+        content = "## 8. Insights & Lessons\nLesson one.\n"
+        sections = database.parse_jobsearch_sections(content)
+        assert "Lesson one." in sections["insights_lessons"]
+
+    def test_rebuild_replaces_target_section_body(self):
+        new_body = "New career history content.\n"
+        rebuilt = database.rebuild_jobsearch_from_sections(
+            {"career_history": new_body}, _SAMPLE_PROFILE
+        )
+        assert "New career history content." in rebuilt
+        assert "Did things" not in rebuilt
+
+    def test_rebuild_preserves_header_line(self):
+        rebuilt = database.rebuild_jobsearch_from_sections(
+            {"who_i_am": "New content.\n"}, _SAMPLE_PROFILE
+        )
+        assert "## 1. Who I Am" in rebuilt
+
+    def test_rebuild_preserves_untouched_sections(self):
+        rebuilt = database.rebuild_jobsearch_from_sections(
+            {"career_history": "New history.\n"}, _SAMPLE_PROFILE
+        )
+        assert "Always: highlight distributed systems experience." in rebuilt
+        assert "Evaluate every JD before generating materials." in rebuilt
+
+    def test_rebuild_preserves_preamble(self):
+        rebuilt = database.rebuild_jobsearch_from_sections(
+            {"who_i_am": "Updated.\n"}, _SAMPLE_PROFILE
+        )
+        assert rebuilt.startswith("# Job Search Context")
+
+    def test_rebuild_roundtrip_parse_modify_reparse(self):
+        sections = database.parse_jobsearch_sections(_SAMPLE_PROFILE)
+        sections["target_role"] = "New target: Staff Engineer.\n"
+        rebuilt = database.rebuild_jobsearch_from_sections(sections, _SAMPLE_PROFILE)
+        reparsed = database.parse_jobsearch_sections(rebuilt)
+        assert "New target: Staff Engineer." in reparsed["target_role"]
+        assert "Jane Smith" in reparsed["who_i_am"]
+
+    def test_rebuild_empty_sections_dict_returns_original(self):
+        rebuilt = database.rebuild_jobsearch_from_sections({}, _SAMPLE_PROFILE)
+        assert rebuilt == _SAMPLE_PROFILE
+
+    def test_is_section_complete_true_for_substantive_content(self):
+        content = "I started as a backend engineer and moved into tech lead roles at multiple companies."
+        assert database.is_section_complete(content) is True
+
+    def test_is_section_complete_false_when_fill_present(self):
+        content = "[FILL — paste your master resume here and add lots more content to exceed 50 chars long]"
+        assert database.is_section_complete(content) is False
+
+    def test_is_section_complete_false_when_too_short(self):
+        assert database.is_section_complete("Short.") is False
+
+    def test_is_section_complete_false_for_empty(self):
+        assert database.is_section_complete("") is False
+
+    def test_is_section_complete_false_fill_with_long_content(self):
+        content = "This section has a lot of text but still contains a [FILL] marker somewhere in it."
+        assert database.is_section_complete(content) is False

@@ -211,7 +211,7 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
 ## Priority 4 — Backend: Profile Parser Utility
 *Pure utility, no routes. Used by all profile API routes.*
 
-- [ ] **5. Add profile section parser to `database.py`**
+- [x] **5. Add profile section parser to `database.py`** — Added `SECTION_ID_MAP` constant, `parse_jobsearch_sections()`, `rebuild_jobsearch_from_sections()`, and `is_section_complete()` to `database.py`. `[FILL` prefix check catches all template marker variants. 19 unit tests added in `TestProfileParser` class.
   - File: `database.py`
   - Add a utility function `parse_jobsearch_sections(content: str) -> dict[str, str]`
     that parses the jobsearch.md content and returns a dict keyed by section ID:
