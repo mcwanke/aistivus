@@ -713,7 +713,7 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
 
 - [ ] **16. Profile page UX enhancements, quality audit route, and jobsearch.md cleanup**
   - [x] **Part A — `profile_routes.py`** — Narrowed coherence-check prompt to cross-section consistency only (removed [FILL] marker instruction). Added `POST /api/v1/profile/quality-audit` (per-section completeness audit: empty/stub sections, weak Career History bullets, time gaps, Resume Master and Tailoring Rules stubs; numbered list output; logs to llm_call_log). Added `_resolve_model(model_id)` helper and optional `model_id: int | None = None` to request bodies for chat, propose-update, synthesize-insights, coherence-check, quality-audit, generate-tailoring-rules. Lesson-chat route excluded per spec.
-  - [ ] **Part B — `frontend/src/pages/JobSearchProfile.tsx`**
+  - [x] **Part B — `frontend/src/pages/JobSearchProfile.tsx`** — Renamed "Review Profile" → "Review · Alignment"; added "Review · Quality" button (calls quality-audit, opens ReviewModal); generalized CoherenceModal → ReviewModal with title prop. Section cards collapsed by default; clicking header toggles; active section auto-expands via useEffect. Per-section `<details>` hint block (9 entries). View/edit toggle: styled ViewContent div (bold labels muted, [FILL]/[AUTO] in accent, --- stripped from display) with pencil icon to enter edit mode; Cancel reverts, Save calls onSave. Page-scoped model selector (useLlmModels) in header; model_id threaded through all profile fetch calls. useProfileChat extended with optional modelId prop.
   - [ ] **Part C — `my_data/jobsearch.md`**
   - [ ] **Part D — `templates/JOBSEARCH_TEMPLATE.md`**
 

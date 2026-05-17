@@ -6,6 +6,7 @@ interface UseProfileChatOptions {
   mode: ChatMode
   sectionContent: string
   experienceLevel?: string
+  modelId?: number | null
 }
 
 interface UseProfileChatReturn {
@@ -23,6 +24,7 @@ export function useProfileChat({
   mode,
   sectionContent,
   experienceLevel,
+  modelId,
 }: UseProfileChatOptions): UseProfileChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [streamingContent, setStreamingContent] = useState('')
@@ -51,6 +53,7 @@ export function useProfileChat({
               messages: nextMessages,
               section_content: sectionContent,
               experience_level: experienceLevel,
+              model_id: modelId ?? null,
             }),
           })
 
@@ -113,7 +116,7 @@ export function useProfileChat({
         }
       })()
     },
-    [isStreaming, messages, sectionId, mode, sectionContent, experienceLevel],
+    [isStreaming, messages, sectionId, mode, sectionContent, experienceLevel, modelId],
   )
 
   const proposeUpdate = useCallback(async (): Promise<ProposedUpdate> => {
@@ -126,6 +129,7 @@ export function useProfileChat({
         messages,
         section_content: sectionContent,
         experience_level: experienceLevel,
+        model_id: modelId ?? null,
       }),
     })
     if (!res.ok) {
@@ -133,7 +137,7 @@ export function useProfileChat({
       throw new Error(err.detail ?? `propose update ${res.status}`)
     }
     return res.json() as Promise<ProposedUpdate>
-  }, [sectionId, mode, messages, sectionContent, experienceLevel])
+  }, [sectionId, mode, messages, sectionContent, experienceLevel, modelId])
 
   const clearConversation = useCallback(() => {
     setMessages([])
