@@ -15,6 +15,7 @@ import type {
   LlmCallLogEntry,
   EvaluateResponse,
 } from '@/types/api'
+import type { ProfileHealth, ProfileSections, CoherenceCheckResponse, ProposedUpdate } from '@/types/profile'
 
 // ─── Fixture data ─────────────────────────────────────────────────────────────
 
@@ -193,6 +194,49 @@ export const MOCK_EVALUATE_RESPONSE: EvaluateResponse = {
   existing_jobs: null,
 }
 
+export const MOCK_PROFILE_HEALTH: ProfileHealth = {
+  total_sections: 9,
+  completed_sections: 2,
+  completion_pct: 22,
+  file_exists: true,
+  token_estimate: 500,
+  sections: [
+    { id: 'who_i_am', name: 'Who I Am', complete: true },
+    { id: 'career_narrative', name: 'Career Narrative', complete: true },
+    { id: 'career_history', name: 'Career History', complete: false },
+    { id: 'skills_strengths', name: 'Skills & Strengths', complete: false },
+    { id: 'target_role', name: 'Target Role Profile', complete: false },
+    { id: 'resume_master', name: 'Resume Master Copy', complete: false },
+    { id: 'tailoring_rules', name: 'Tailoring Rules', complete: false },
+    { id: 'insights_lessons', name: 'Insights & Lessons', complete: false },
+    { id: 'model_behavior', name: 'Model Behavior Rules', complete: false },
+  ],
+}
+
+export const MOCK_PROFILE_SECTIONS: ProfileSections = {
+  sections: [
+    { id: 'who_i_am', name: 'Who I Am', content: '**Name:** Jane Doe\n**Experience level:** Mid-career', complete: true, recommended_mode: 'either' },
+    { id: 'career_narrative', name: 'Career Narrative', content: 'I started as a backend engineer.', complete: true, recommended_mode: 'socratic' },
+    { id: 'career_history', name: 'Career History', content: '', complete: false, recommended_mode: 'socratic' },
+    { id: 'skills_strengths', name: 'Skills & Strengths', content: '', complete: false, recommended_mode: 'directive' },
+    { id: 'target_role', name: 'Target Role Profile', content: '', complete: false, recommended_mode: 'either' },
+    { id: 'resume_master', name: 'Resume Master Copy', content: '', complete: false, recommended_mode: 'either' },
+    { id: 'tailoring_rules', name: 'Tailoring Rules', content: '[AUTO]', complete: false, recommended_mode: 'generate' },
+    { id: 'insights_lessons', name: 'Insights & Lessons', content: '', complete: false, recommended_mode: 'synthesize' },
+    { id: 'model_behavior', name: 'Model Behavior Rules', content: 'Always ask clarifying questions.', complete: true, recommended_mode: 'edit_only' },
+  ],
+}
+
+export const MOCK_COHERENCE_RESULT: CoherenceCheckResponse = {
+  review: '1. Career Narrative does not align with Career History.\n2. Tailoring Rules are still placeholders.',
+  issues_found: 2,
+}
+
+export const MOCK_PROPOSED_UPDATE: ProposedUpdate = {
+  proposed_content: 'Updated section content from AI.',
+  section_id: 'career_history',
+}
+
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
 export const handlers = [
@@ -227,4 +271,12 @@ export const handlers = [
   http.get('/api/v1/llm-call-log', () => HttpResponse.json(MOCK_LLM_LOG)),
   http.post('/api/v1/evaluate', () => HttpResponse.json(MOCK_EVALUATE_RESPONSE)),
   http.post('/api/v1/evaluations/import', () => HttpResponse.json({ success: true, evaluation_id: 1 })),
+  http.get('/api/v1/profile/health', () => HttpResponse.json(MOCK_PROFILE_HEALTH)),
+  http.get('/api/v1/profile/sections', () => HttpResponse.json(MOCK_PROFILE_SECTIONS)),
+  http.patch('/api/v1/profile/sections/:id', () => HttpResponse.json({ success: true, version_id: 1 })),
+  http.post('/api/v1/profile/coherence-check', () => HttpResponse.json(MOCK_COHERENCE_RESULT)),
+  http.post('/api/v1/profile/quality-audit', () => HttpResponse.json(MOCK_COHERENCE_RESULT)),
+  http.post('/api/v1/profile/generate-tailoring-rules', () => HttpResponse.json(MOCK_PROPOSED_UPDATE)),
+  http.post('/api/v1/profile/synthesize-insights', () => HttpResponse.json(MOCK_PROPOSED_UPDATE)),
+  http.post('/api/v1/profile/propose-update', () => HttpResponse.json(MOCK_PROPOSED_UPDATE)),
 ]

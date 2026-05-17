@@ -869,7 +869,7 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
     - `POST /api/v1/applications/{id}/lesson-chat` with `finalize: true` —
       verify `application_logs` entry created with `lesson_learned` type
 
-- [ ] **18. Frontend tests for Job Search Profile page**
+- [x] **18. Frontend tests for Job Search Profile page** — Created `frontend/src/pages/JobSearchProfile.test.tsx` with 18 tests (all passing). Added profile fixture data and MSW handlers (`MOCK_PROFILE_HEALTH`, `MOCK_PROFILE_SECTIONS`, `MOCK_COHERENCE_RESULT`, `MOCK_PROPOSED_UPDATE`) to `test/mocks/handlers.ts`. Stubbed `scrollIntoView` globally in `test/setup.ts`. Coverage: loading state, all 9 section names render, status badges, profile strength count, idle right panel, Edit with AI activates panel, mode toggle, edit_only hides AI button, Generate Rules / Synthesize from Logs special buttons, Review · Alignment modal (text + close), Review · Quality modal, Accept proposal calls PATCH on correct section, Discard clears proposal, error state, no-file warning, review buttons disabled when no file.
   - File: `frontend/src/pages/JobSearchProfile.test.tsx`
   - Test: sections render correctly, status badges correct based on mock data
   - Test: clicking "Edit with AI" activates right panel for correct section

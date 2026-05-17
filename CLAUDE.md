@@ -81,7 +81,7 @@ HTML frontend operational (read-only reference — do not modify).
 - [x] Settings My Data: version history with preview + restore
 - [x] Profile page UX enhancements + quality audit — all parts complete (A: backend, B: frontend, C: jobsearch.md, D: template)
 - [x] Backend tests for all profile routes
-- [ ] Frontend tests for Job Search Profile page
+- [x] Frontend tests for Job Search Profile page
 
 ### Phase 1.3 Checklist 🔲
 - [ ] Typst binary startup validation (graceful degradation)
