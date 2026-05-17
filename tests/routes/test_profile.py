@@ -701,3 +701,130 @@ class TestGenerateTailoringRules:
     def test_generate_no_model_returns_503(self, profile_client):
         r = profile_client["client"].post("/api/v1/profile/generate-tailoring-rules")
         assert r.status_code == 503
+
+
+# ─────────────────────────────────────────────────────────────
+# GET /api/v1/profile/health — edge cases: empty file, complete file
+# ─────────────────────────────────────────────────────────────
+
+
+_COMPLETE_JOBSEARCH = "\n\n".join(
+    f"## {i}. {name}\n" + (
+        "I am a senior software engineer with over a decade of experience building "
+        "distributed systems, leading platform teams, and delivering measurable outcomes "
+        "at growth-stage and enterprise companies. My defining strengths are systems design, "
+        "technical leadership, and cross-functional collaboration across product and business "
+        "stakeholders. I thrive in high-autonomy environments where engineering quality matters."
+    )
+    for i, name in [
+        (1, "Who I Am"),
+        (2, "Career Narrative"),
+        (3, "Career History"),
+        (4, "Skills & Strengths"),
+        (5, "Target Role Profile"),
+        (6, "Resume Master Copy"),
+        (7, "Tailoring Rules"),
+        (8, "Insights & Lessons"),
+        (9, "Model Behavior Rules"),
+    ]
+)
+
+
+class TestProfileHealthEdgeCases:
+    def test_health_empty_file(self, client, tmp_path, monkeypatch):
+        js_path = tmp_path / "jobsearch.md"
+        js_path.write_text("", encoding="utf-8")
+        monkeypatch.setattr(
+            profile_routes,
+            "_load_config",
+            lambda: {"evaluation": {"jobsearch_md_path": str(js_path)}},
+        )
+        r = client.get("/api/v1/profile/health")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["file_exists"] is True
+        assert data["completed_sections"] == 0
+        assert data["completion_pct"] == 0
+        assert len(data["sections"]) == 9
+        assert all(not s["complete"] for s in data["sections"])
+
+    def test_health_complete_file(self, client, tmp_path, monkeypatch):
+        js_path = tmp_path / "jobsearch.md"
+        js_path.write_text(_COMPLETE_JOBSEARCH, encoding="utf-8")
+        monkeypatch.setattr(
+            profile_routes,
+            "_load_config",
+            lambda: {"evaluation": {"jobsearch_md_path": str(js_path)}},
+        )
+        r = client.get("/api/v1/profile/health")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["file_exists"] is True
+        assert data["completed_sections"] == 9
+        assert data["completion_pct"] == 100
+        assert all(s["complete"] for s in data["sections"])
+
+
+# ─────────────────────────────────────────────────────────────
+# POST /api/v1/profile/quality-audit
+# ─────────────────────────────────────────────────────────────
+
+
+class TestQualityAudit:
+    def _mock_complete(self, content: str):
+        async def _complete(*args, **kwargs):
+            return {"success": True, "content": content, "error": None}
+        return _complete
+
+    def test_audit_returns_review_and_issues_count(
+        self, profile_seeded_client, monkeypatch
+    ):
+        c = profile_seeded_client["client"]
+        review_text = (
+            "1. Career History: Role at Acme Corp has only 1 achievement bullet.\n"
+            "2. Resume Master Copy: section appears to be a placeholder.\n"
+            "3. Tailoring Rules: all entries are still [AUTO] markers.\n"
+        )
+        monkeypatch.setattr(llm_client, "complete", self._mock_complete(review_text))
+
+        r = c.post("/api/v1/profile/quality-audit")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["review"] == review_text
+        assert data["issues_found"] == 3
+
+    def test_audit_sends_full_file_in_prompt(self, profile_seeded_client, monkeypatch):
+        c = profile_seeded_client["client"]
+        captured: list[str] = []
+
+        async def _capture(prompt, system, **kwargs):
+            captured.append(prompt)
+            return {"success": True, "content": "1. One issue.", "error": None}
+
+        monkeypatch.setattr(llm_client, "complete", _capture)
+        c.post("/api/v1/profile/quality-audit")
+
+        assert len(captured) == 1
+        # Prompt must contain content from the partial fixture (who_i_am section is complete)
+        assert "senior software engineer" in captured[0]
+
+    def test_audit_zero_issues_when_no_numbered_list(
+        self, profile_seeded_client, monkeypatch
+    ):
+        c = profile_seeded_client["client"]
+        monkeypatch.setattr(
+            llm_client,
+            "complete",
+            self._mock_complete("No issues found. The profile looks complete."),
+        )
+        r = c.post("/api/v1/profile/quality-audit")
+        assert r.status_code == 200
+        assert r.json()["issues_found"] == 0
+
+    def test_audit_404_when_file_missing(self, profile_seeded_client_no_file):
+        r = profile_seeded_client_no_file["client"].post("/api/v1/profile/quality-audit")
+        assert r.status_code == 404
+
+    def test_audit_no_model_returns_503(self, profile_client):
+        r = profile_client["client"].post("/api/v1/profile/quality-audit")
+        assert r.status_code == 503

@@ -856,7 +856,7 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
 ## Priority 13 — Tests
 *Backend tests alongside the routes. Frontend tests alongside the components.*
 
-- [ ] **17. Backend tests for profile routes**
+- [x] **17. Backend tests for profile routes** — All coverage complete. Items 6–9 had already written tests for health (missing/partial), sections, patch, versions, restore, chat, propose-update, synthesize-insights, coherence-check, generate-tailoring-rules, and lesson-chat finalize. Added in this session: `TestProfileHealthEdgeCases` (empty file, all-complete file) and `TestQualityAudit` (returns review + issues_found, sends full file in prompt, zero issues when no numbered list, 404 when file missing, 503 when no model). 48 tests in `test_profile.py`, all passing.
   - File: `tests/routes/test_profile.py` (should exist from item 6 — add remaining tests)
   - Test coverage for:
     - `GET /api/v1/profile/health` — file missing, empty, partial, complete
