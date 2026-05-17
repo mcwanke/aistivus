@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useLayoutEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   useApplicationDetail,
   usePatchApplication,
@@ -10,6 +11,8 @@ import {
   usePatchAuditTimestamp,
   useAppSettings,
 } from '@/hooks/useApplications'
+import { useLessonChat } from '@/hooks/useLessonChat'
+import type { LessonChatFinalizeResponse } from '@/types/profile'
 import type { ApplicationStatus } from '@/types/api'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -276,6 +279,210 @@ function LogRow({ item, applicationId, onEditTimestamp }: LogRowProps): React.JS
   )
 }
 
+// ─── Lesson capture panel ─────────────────────────────────────────────────────
+
+const LESSON_OPENER =
+  'Tell me about your experience with this role so far. What happened, and what are you taking away from it?'
+
+interface LessonCapturePanelProps {
+  applicationId: number
+  jobTitle?: string
+  companyName?: string
+  onFinalized: () => void
+}
+
+function LessonCapturePanel({
+  applicationId,
+  jobTitle,
+  companyName,
+  onFinalized,
+}: LessonCapturePanelProps): React.JSX.Element {
+  const { messages, streamingContent, isStreaming, error, sendMessage, finalize, clearConversation } =
+    useLessonChat({ applicationId })
+  const [input, setInput] = useState('')
+  const [finalizing, setFinalizing] = useState(false)
+  const [finalizedResult, setFinalizedResult] = useState<LessonChatFinalizeResponse | null>(null)
+  const [insightsChecked, setInsightsChecked] = useState(true)
+  const [finalizeError, setFinalizeError] = useState('')
+  const [successBanner, setSuccessBanner] = useState<{ withInsights: boolean } | null>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  const msgCount = messages.length + (streamingContent ? 1 : 0)
+  useLayoutEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [msgCount, streamingContent])
+
+  function handleSend(): void {
+    const text = input.trim()
+    if (!text || isStreaming) return
+    setInput('')
+    sendMessage(text)
+  }
+
+  async function handleFinalize(): Promise<void> {
+    setFinalizing(true)
+    setFinalizeError('')
+    try {
+      const result = await finalize()
+      setFinalizedResult(result)
+      onFinalized()
+    } catch (e) {
+      setFinalizeError(e instanceof Error ? e.message : 'Finalize failed')
+    } finally {
+      setFinalizing(false)
+    }
+  }
+
+  function handleDone(): void {
+    const withInsights = insightsChecked
+    setFinalizedResult(null)
+    setInsightsChecked(true)
+    clearConversation()
+    setSuccessBanner({ withInsights })
+  }
+
+  const contextLabel = [companyName, jobTitle].filter(Boolean).join(' — ')
+
+  return (
+    <div className="flex flex-col gap-3">
+      {contextLabel && (
+        <p className="text-[10px] font-mono text-muted uppercase tracking-widest">{contextLabel}</p>
+      )}
+
+      {/* Success banner */}
+      {successBanner && (
+        <div className="bg-green/10 border border-green/20 rounded p-3 flex items-start justify-between gap-2">
+          <div className="space-y-0.5">
+            <p className="text-xs font-mono text-green">Lesson added to application log.</p>
+            {successBanner.withInsights && (
+              <Link to="/profile" className="text-xs text-accent hover:underline block">
+                Review in Profile Insights →
+              </Link>
+            )}
+          </div>
+          <button
+            onClick={() => setSuccessBanner(null)}
+            className="text-muted hover:text-text text-xs shrink-0"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Chat thread */}
+      <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+        {/* Static opener from assistant */}
+        <div className="flex justify-start">
+          <div className="max-w-[90%] bg-surface2 rounded px-3 py-2 text-sm text-muted leading-relaxed whitespace-pre-wrap">
+            {LESSON_OPENER}
+          </div>
+        </div>
+        {messages.map((msg, i) => {
+          const isUser = msg.role === 'user'
+          return (
+            <div key={i} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`max-w-[90%] rounded px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap ${
+                  isUser ? 'bg-accent/20 text-text' : 'bg-surface2 text-muted'
+                }`}
+              >
+                {msg.content}
+              </div>
+            </div>
+          )
+        })}
+        {streamingContent && (
+          <div className="flex justify-start">
+            <div className="max-w-[90%] bg-surface2 rounded px-3 py-2 text-sm text-muted whitespace-pre-wrap leading-relaxed">
+              {streamingContent}
+              <span className="inline-block w-1.5 h-3.5 bg-accent/60 ml-0.5 animate-pulse align-text-bottom" />
+            </div>
+          </div>
+        )}
+        {error && <p className="text-xs font-mono text-red">{error}</p>}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Finalize result card */}
+      {finalizedResult && (
+        <div className="border border-accent/30 rounded p-4 space-y-3 bg-accent/5">
+          <p className="text-[10px] font-mono text-accent uppercase tracking-wider">Lesson captured</p>
+          <p className="text-xs font-mono text-muted leading-relaxed line-clamp-4">
+            {finalizedResult.log_entry}
+          </p>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={insightsChecked}
+              onChange={(e) => setInsightsChecked(e.target.checked)}
+              className="accent-[#c8a96e]"
+            />
+            <span className="text-xs font-sans text-text">Add to Profile Insights &amp; Lessons</span>
+          </label>
+          <button
+            onClick={handleDone}
+            className="px-3 py-1.5 text-xs font-sans bg-accent text-bg rounded hover:bg-accent/90 transition-colors"
+          >
+            Done
+          </button>
+        </div>
+      )}
+
+      {/* Input */}
+      {!finalizedResult && (
+        <div className="space-y-2">
+          <div className="flex gap-2 items-end">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSend()
+                }
+              }}
+              placeholder="Message… (Enter to send, Shift+Enter for newline)"
+              rows={2}
+              disabled={isStreaming}
+              className="flex-1 bg-surface border border-surface2 rounded px-3 py-2 text-sm font-sans text-text placeholder-muted/50 focus:outline-none focus:border-accent/50 resize-none disabled:opacity-50"
+            />
+            <button
+              onClick={handleSend}
+              disabled={isStreaming || !input.trim()}
+              className="px-3 py-2 bg-accent text-bg text-sm font-sans rounded hover:bg-accent/90 transition-colors disabled:opacity-50 self-end"
+            >
+              Send
+            </button>
+          </div>
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => void handleFinalize()}
+              disabled={isStreaming || messages.length === 0 || finalizing}
+              className="text-xs font-mono text-muted hover:text-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {finalizing ? 'Saving…' : 'Save lesson ↑'}
+            </button>
+            {(messages.length > 0 || successBanner) && (
+              <button
+                onClick={() => {
+                  clearConversation()
+                  setFinalizedResult(null)
+                  setSuccessBanner(null)
+                }}
+                disabled={isStreaming}
+                className="text-xs font-mono text-muted/60 hover:text-muted transition-colors"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          {finalizeError && <p className="text-xs font-mono text-red">{finalizeError}</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Application detail panel (left column) ───────────────────────────────────
 
 interface DetailPanelProps {
@@ -287,11 +494,13 @@ function ApplicationDetailPanel({ applicationId }: DetailPanelProps): React.JSX.
   const patch = usePatchApplication()
   const addLog = useAddLog()
   const generatePrompt = useGeneratePrompt()
+  const [leftTab, setLeftTab] = useState<'details' | 'add-log' | 'add-lesson'>('details')
   const [promptText, setPromptText] = useState<string | null>(null)
   const [salaryDraft, setSalaryDraft] = useState<string | null>(null)
   const [logType, setLogType] = useState('general')
   const [logText, setLogText] = useState('')
   const [logUrl, setLogUrl] = useState('')
+  const qc = useQueryClient()
 
   if (isLoading) return <div className="p-6 text-muted text-sm font-mono">Loading…</div>
   if (isError || !data) return <div className="p-6 text-red text-sm font-mono">Failed to load.</div>
@@ -403,111 +612,133 @@ function ApplicationDetailPanel({ applicationId }: DetailPanelProps): React.JSX.
 
         <hr className="border-surface2" />
 
-        {/* ── Details ─────────────────────────────────────────── */}
-        <section className="space-y-3">
-          <p className="text-muted text-[10px] font-mono uppercase tracking-widest">Details</p>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className="text-muted text-[10px] font-mono uppercase tracking-widest">Status</span>
-              <select
-                className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-                value={status}
-                onChange={(e) => handleStatusChange(e.target.value)}
-                disabled={patch.isPending}
+        {/* ── Tabs: Details / Add Log / Add Lesson ─────────────── */}
+        <div>
+          <div className="flex gap-0 border-b border-surface2 mb-4">
+            {(['details', 'add-log', 'add-lesson'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setLeftTab(tab)}
+                className={`px-3 py-1.5 text-xs font-mono border-b-2 transition-colors ${
+                  leftTab === tab
+                    ? 'border-accent text-accent -mb-px'
+                    : 'border-transparent text-muted hover:text-text'
+                }`}
               >
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
+                {tab === 'details' ? 'Details' : tab === 'add-log' ? 'Add Log' : 'Add Lesson'}
+              </button>
+            ))}
+          </div>
+
+          {leftTab === 'details' && (
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="text-muted text-[10px] font-mono uppercase tracking-widest">Status</span>
+                <select
+                  className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+                  value={status}
+                  onChange={(e) => handleStatusChange(e.target.value)}
+                  disabled={patch.isPending}
+                >
+                  {STATUSES.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-muted text-[10px] font-mono uppercase tracking-widest">Apply Date</span>
+                <input
+                  type="date"
+                  className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+                  defaultValue={application.apply_date ?? ''}
+                  onBlur={(e) => {
+                    const val = e.target.value
+                    if (val !== (application.apply_date ?? '')) {
+                      patch.mutate({ applicationId, updates: { apply_date: val || undefined } })
+                    }
+                  }}
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-muted text-[10px] font-mono uppercase tracking-widest">End Date</span>
+                <input
+                  type="date"
+                  className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+                  defaultValue={application.end_date ?? ''}
+                  onBlur={(e) => {
+                    const val = e.target.value
+                    if (val !== (application.end_date ?? '')) {
+                      patch.mutate({ applicationId, updates: { end_date: val || undefined } })
+                    }
+                  }}
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-muted text-[10px] font-mono uppercase tracking-widest">Requested Salary</span>
+                <input
+                  type="text"
+                  className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
+                  placeholder="e.g. $120k"
+                  value={salaryDraft ?? (application.requested_salary ?? '')}
+                  onChange={(e) => setSalaryDraft(e.target.value)}
+                  onBlur={handleSalarySave}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSalarySave() }}
+                />
+              </label>
+            </div>
+          )}
+
+          {leftTab === 'add-log' && (
+            <form onSubmit={(e) => void handleAddLog(e)} className="space-y-2">
+              <select
+                className="w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+                value={logType}
+                onChange={(e) => setLogType(e.target.value)}
+              >
+                {LOG_TYPE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
-            </label>
-
-            <label className="block">
-              <span className="text-muted text-[10px] font-mono uppercase tracking-widest">Apply Date</span>
-              <input
-                type="date"
-                className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-                defaultValue={application.apply_date ?? ''}
-                onBlur={(e) => {
-                  const val = e.target.value
-                  if (val !== (application.apply_date ?? '')) {
-                    patch.mutate({ applicationId, updates: { apply_date: val || undefined } })
-                  }
-                }}
+              <textarea
+                className="w-full h-20 bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent resize-y"
+                placeholder="Log entry…"
+                value={logText}
+                onChange={(e) => setLogText(e.target.value)}
               />
-            </label>
-
-            <label className="block">
-              <span className="text-muted text-[10px] font-mono uppercase tracking-widest">End Date</span>
               <input
-                type="date"
-                className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-                defaultValue={application.end_date ?? ''}
-                onBlur={(e) => {
-                  const val = e.target.value
-                  if (val !== (application.end_date ?? '')) {
-                    patch.mutate({ applicationId, updates: { end_date: val || undefined } })
-                  }
-                }}
+                type="url"
+                className="w-full bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
+                placeholder="URL (optional)"
+                value={logUrl}
+                onChange={(e) => setLogUrl(e.target.value)}
               />
-            </label>
+              <div className="flex items-center justify-between">
+                {addLog.isError && (
+                  <p className="text-red text-xs">{addLog.error.message}</p>
+                )}
+                <button
+                  type="submit"
+                  disabled={addLog.isPending || !logText.trim()}
+                  className="ml-auto text-sm px-3 py-1.5 bg-surface2 text-accent border border-accent/40 rounded hover:bg-accent/10 disabled:opacity-50 transition-colors"
+                >
+                  {addLog.isPending ? 'Adding…' : '+ Add Log'}
+                </button>
+              </div>
+            </form>
+          )}
 
-            <label className="block">
-              <span className="text-muted text-[10px] font-mono uppercase tracking-widest">Requested Salary</span>
-              <input
-                type="text"
-                className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
-                placeholder="e.g. $120k"
-                value={salaryDraft ?? (application.requested_salary ?? '')}
-                onChange={(e) => setSalaryDraft(e.target.value)}
-                onBlur={handleSalarySave}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSalarySave() }}
-              />
-            </label>
-          </div>
-        </section>
-
-        <hr className="border-surface2" />
-
-        {/* ── Add Application Logs ─────────────────────────────── */}
-        <section className="space-y-3">
-          <p className="text-muted text-[10px] font-mono uppercase tracking-widest">Add Application Log</p>
-          <form onSubmit={(e) => void handleAddLog(e)} className="space-y-2">
-            <select
-              className="w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-              value={logType}
-              onChange={(e) => setLogType(e.target.value)}
-            >
-              {LOG_TYPE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-            <textarea
-              className="w-full h-20 bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent resize-y"
-              placeholder="Log entry…"
-              value={logText}
-              onChange={(e) => setLogText(e.target.value)}
+          {leftTab === 'add-lesson' && (
+            <LessonCapturePanel
+              applicationId={applicationId}
+              jobTitle={job?.title}
+              companyName={job?.company_name}
+              onFinalized={() => void qc.invalidateQueries({ queryKey: ['application', applicationId] })}
             />
-            <input
-              type="url"
-              className="w-full bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
-              placeholder="URL (optional)"
-              value={logUrl}
-              onChange={(e) => setLogUrl(e.target.value)}
-            />
-            <div className="flex items-center justify-between">
-              {addLog.isError && (
-                <p className="text-red text-xs">{addLog.error.message}</p>
-              )}
-              <button
-                type="submit"
-                disabled={addLog.isPending || !logText.trim()}
-                className="ml-auto text-sm px-3 py-1.5 bg-surface2 text-accent border border-accent/40 rounded hover:bg-accent/10 disabled:opacity-50 transition-colors"
-              >
-                {addLog.isPending ? 'Adding…' : '+ Add Log'}
-              </button>
-            </div>
-          </form>
-        </section>
+          )}
+        </div>
       </div>
 
       {promptText !== null && (

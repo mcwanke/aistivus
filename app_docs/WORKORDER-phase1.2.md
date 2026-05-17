@@ -681,7 +681,7 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
 
 ## Priority 10 — Frontend: ApplicationDetail Update
 
-- [ ] **14. Add "Capture a lesson" feature to `frontend/src/pages/ApplicationDetail.tsx`**
+- [x] **14. Add "Capture a lesson" feature to `frontend/src/pages/ApplicationDetailPage.tsx`** — Added `LessonCapturePanel` component using `useLessonChat`. Left panel converted to 3-tab layout (Details / Add Log / Add Lesson); header and Actions remain always visible. Chat thread with static opener, streaming messages, `finalize()` flow writes log server-side and shows confirm card with optional "Add to Profile Insights & Lessons" checkbox. Done triggers query invalidation and shows success banner with "Review in Profile →" link if insights checked.
   - Use `useLessonChat` hook
   - Add a "Capture a lesson from this application" button in the logs section
     (near the bottom of the logs card, or as its own card)
@@ -705,22 +705,7 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
 
 ## Priority 11 — Settings Update
 
-- [ ] **15. Add version history to Settings My Data section**
-  - File: `frontend/src/pages/Settings.tsx` (My Data / jobsearch.md section)
-  - Use `useProfileVersions` hook
-  - Below the jobsearch.md text editor, add a collapsible "Version History" section:
-    ```
-    Version History (last 30)
-    ─────────────────────────
-    [2026-05-15 14:32]  AI edit — Career History        [Preview] [Restore]
-    [2026-05-15 09:15]  Manual edit via Settings        [Preview] [Restore]
-    [2026-05-14 20:41]  AI edit — Insights & Lessons    [Preview] [Restore]
-    ```
-  - "Preview": opens a modal with the full content of that version (read-only)
-  - "Restore": shows confirmation dialog → calls `restoreVersion(id)` mutation →
-    refreshes the editor with restored content + shows toast "Restored to [timestamp]"
-  - Collapsed by default; shows "X versions" count in the collapsed header
-  - Do NOT change any other Settings behavior
+- [x] **15. Add version history to Settings My Data section** — Added `VersionHistorySection` component to `Settings.tsx`. Collapsible (default collapsed, header shows count). Expanded view lists versions with timestamp + note; [Preview] opens read-only modal via `useProfileVersionContent`; [Restore] shows inline confirm → calls `useRestoreVersion` mutation, additionally invalidates `['jobsearch']` so the editor textarea refreshes, shows 4s toast. No other Settings behavior changed.
 
 ---
 

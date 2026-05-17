@@ -77,8 +77,8 @@ HTML frontend operational (read-only reference — do not modify).
 - [x] `JobSearchProfile.tsx` — two-column layout, section cards, AI chat panel, accept/discard flow
 - [x] Left nav entry: "Job Search Profile" (label: "JS Profile")
 - [x] Dashboard Profile Strength widget
-- [ ] ApplicationDetail "Capture a lesson" feature
-- [ ] Settings My Data: version history with preview + restore
+- [x] ApplicationDetail "Capture a lesson" feature
+- [x] Settings My Data: version history with preview + restore
 - [ ] Backend tests for all profile routes
 - [ ] Frontend tests for Job Search Profile page
 

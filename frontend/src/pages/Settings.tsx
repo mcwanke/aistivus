@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { LlmModel, SystemType } from '@/types/api'
 import {
   useSettings,
@@ -20,6 +21,11 @@ import {
   type CreateModelPayload,
 } from '@/hooks/useSettings'
 import { useAppSettings, usePatchAppSetting } from '@/hooks/useApplications'
+import {
+  useProfileVersions,
+  useProfileVersionContent,
+  useRestoreVersion,
+} from '@/hooks/useProfileVersions'
 
 // ─── Section header ───────────────────────────────────────────────────────────
 
@@ -633,6 +639,134 @@ function SystemTypesSection(): React.JSX.Element {
   )
 }
 
+// ─── Version history ─────────────────────────────────────────────────────────
+
+function VersionHistorySection(): React.JSX.Element {
+  const qc = useQueryClient()
+  const { data: versions = [], isLoading } = useProfileVersions()
+  const restoreVersion = useRestoreVersion()
+  const [expanded, setExpanded] = useState(false)
+  const [previewId, setPreviewId] = useState<number | null>(null)
+  const [confirmRestoreId, setConfirmRestoreId] = useState<number | null>(null)
+  const [restoreToast, setRestoreToast] = useState('')
+  const [restoreError, setRestoreError] = useState('')
+
+  const previewContent = useProfileVersionContent(previewId)
+
+  async function handleRestore(versionId: number, savedAt: string): Promise<void> {
+    setRestoreError('')
+    try {
+      await restoreVersion.mutateAsync(versionId)
+      void qc.invalidateQueries({ queryKey: ['jobsearch'] })
+      setConfirmRestoreId(null)
+      const ts = savedAt.slice(0, 16).replace('T', ' ')
+      setRestoreToast(`Restored to ${ts}`)
+      setTimeout(() => setRestoreToast(''), 4000)
+    } catch (e) {
+      setRestoreError(e instanceof Error ? e.message : 'Restore failed')
+    }
+  }
+
+  if (isLoading) return <p className="text-xs font-mono text-muted">Loading version history…</p>
+
+  return (
+    <div className="border border-surface2 rounded-lg overflow-hidden">
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        className="w-full flex items-center justify-between px-4 py-3 text-sm font-sans text-text hover:bg-surface2/40 transition-colors"
+      >
+        <span>Version History</span>
+        <span className="text-xs font-mono text-muted">
+          {expanded ? '▲' : `${versions.length} version${versions.length !== 1 ? 's' : ''} ▼`}
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-surface2">
+          {restoreToast && (
+            <p className="text-xs font-mono text-green px-4 py-2 border-b border-surface2">{restoreToast}</p>
+          )}
+          {restoreError && (
+            <p className="text-xs font-mono text-red px-4 py-2 border-b border-surface2">{restoreError}</p>
+          )}
+          {versions.length === 0 ? (
+            <p className="text-xs font-mono text-muted px-4 py-4">No versions saved yet.</p>
+          ) : (
+            <div className="divide-y divide-surface2 max-h-72 overflow-y-auto">
+              {versions.map((v) => (
+                <div key={v.id} className="px-4 py-2.5 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-mono text-muted">
+                      {v.saved_at.slice(0, 16).replace('T', ' ')}
+                    </p>
+                    <p className="text-xs font-sans text-text truncate">{v.note || '—'}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => setPreviewId(v.id)}
+                      className="text-xs font-mono px-2 py-0.5 border border-surface2 rounded text-muted hover:text-accent hover:border-accent/40 transition-colors"
+                    >
+                      Preview
+                    </button>
+                    {confirmRestoreId === v.id ? (
+                      <>
+                        <button
+                          onClick={() => void handleRestore(v.id, v.saved_at)}
+                          disabled={restoreVersion.isPending}
+                          className="text-xs font-mono px-2 py-0.5 border border-accent/40 rounded text-accent hover:bg-accent/10 transition-colors disabled:opacity-50"
+                        >
+                          {restoreVersion.isPending ? '…' : 'Confirm'}
+                        </button>
+                        <button
+                          onClick={() => setConfirmRestoreId(null)}
+                          className="text-xs font-mono px-2 py-0.5 border border-surface2 rounded text-muted hover:text-text transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmRestoreId(v.id)}
+                        className="text-xs font-mono px-2 py-0.5 border border-surface2 rounded text-muted hover:text-text hover:border-accent/40 transition-colors"
+                      >
+                        Restore
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Preview modal */}
+      {previewId !== null && (
+        <div className="fixed inset-0 bg-bg/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface border border-surface2 rounded-lg w-full max-w-2xl flex flex-col gap-4 max-h-[80vh] p-6">
+            <div className="flex items-center justify-between">
+              <p className="font-serif text-accent text-base">Version Preview</p>
+              <button
+                onClick={() => setPreviewId(null)}
+                className="text-xs font-mono text-muted hover:text-text px-2 py-0.5 border border-surface2 rounded hover:border-accent/40 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+            {previewContent.isLoading ? (
+              <p className="text-xs font-mono text-muted">Loading…</p>
+            ) : (
+              <pre className="flex-1 overflow-y-auto text-xs font-mono text-text bg-surface2 rounded p-4 whitespace-pre-wrap break-words leading-relaxed">
+                {previewContent.data?.content ?? ''}
+              </pre>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── My Data editors ─────────────────────────────────────────────────────────
 
 function JobsearchSection(): React.JSX.Element {
@@ -697,6 +831,7 @@ function JobsearchSection(): React.JSX.Element {
           {savedMsg && <span className="text-xs font-mono text-green">Saved.</span>}
           {saveError && <span className="text-xs font-mono text-red">{saveError}</span>}
         </div>
+        <VersionHistorySection />
       </div>
     </section>
   )
