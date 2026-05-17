@@ -709,10 +709,150 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
 
 ---
 
-## Priority 12 — Tests
+## Priority 12 — Profile Page UX Enhancements + Quality Audit
+
+- [ ] **16. Profile page UX enhancements, quality audit route, and jobsearch.md cleanup**
+
+  ### Files touched
+  - `profile_routes.py`
+  - `frontend/src/pages/JobSearchProfile.tsx`
+  - `my_data/jobsearch.md`
+  - `templates/JOBSEARCH_TEMPLATE.md`
+
+  ---
+
+  ### Part A — `profile_routes.py`
+
+  **Tweak existing `POST /api/v1/profile/coherence-check`**
+  - Scope the prompt strictly to cross-section consistency. Remove any instruction to flag
+    `[FILL]`/`[AUTO]` markers or stub content — those move to the quality audit.
+  - Prompt focus: Does Career Narrative match Career History? Do Tailoring Rules support
+    Target Role Profile? Are there gaps or contradictions between Skills and Target Role?
+    Is Model Behavior consistent with stated search strategy?
+  - Output format instruction to LLM: "Return a numbered list of specific findings.
+    Each finding is one concise sentence identifying the inconsistency. Do not explain
+    how to fix it in detail. Maximum one sentence per finding."
+  - Response shape unchanged: `{ "review": "...", "issues_found": N }`
+
+  **Add `POST /api/v1/profile/quality-audit`**
+  - Read full `jobsearch.md` via `parse_jobsearch_sections()`
+  - Send to LLM (NOT streaming) with this prompt focus:
+    - Flag any section that is empty or contains only `[FILL]`/`[AUTO]` placeholders
+    - Flag any section under 50 characters of real content (stub)
+    - In Career History: flag any role entry with fewer than 3 achievement bullets,
+      unless it appears to be an older (10+ years ago) or minor role; exempt Education
+      and Project entries from bullet count check
+    - In Career History: flag any apparent time gaps greater than 6 months between roles
+      where no explanation is present
+    - Flag Resume Master Copy if it appears to be empty, a placeholder, or very short
+    - Flag Tailoring Rules if all entries are still `[AUTO]` markers
+    - Do NOT check cross-section consistency — that belongs to coherence-check
+  - Output format instruction to LLM: "Return a numbered list. Each item is one concise
+    sentence naming the section and the specific issue. Do not repeat the section's
+    instructions or explain how to fill it in. Todo-list style only."
+  - Return: `{ "review": "...", "issues_found": N }` — same shape as coherence-check
+  - Log to `llm_call_log` with `call_type='chat'`
+
+  **Model selector support — both review routes + all existing profile routes**
+  - Add optional `model_id: int | None = None` to request bodies for:
+    `POST /api/v1/profile/chat`, `POST /api/v1/profile/propose-update`,
+    `POST /api/v1/profile/synthesize-insights`, `POST /api/v1/profile/coherence-check`,
+    `POST /api/v1/profile/quality-audit`, `POST /api/v1/profile/generate-tailoring-rules`
+  - If `model_id` is provided, look up that model from `llm_models` table and use it
+    instead of the default. If not found or not available, fall back to default.
+  - Do NOT add `model_id` to the lesson-chat route in `main.py` — that stays page-less.
+
+  ---
+
+  ### Part B — `frontend/src/pages/JobSearchProfile.tsx`
+
+  **Rename + add Review buttons**
+  - Rename existing "Review Profile" button → "Review · Alignment"
+  - Add new "Review · Quality" button next to it in the page header
+  - Both buttons show a spinner (replace button label with a loading indicator) while
+    their respective fetches are in flight
+  - "Review · Quality" calls `POST /api/v1/profile/quality-audit` and opens a modal
+    displaying the result — use the same modal component/pattern as the existing
+    Alignment modal (title: "Profile Quality Audit", shows review text + issues count)
+
+  **Section cards — collapsed by default**
+  - Each `SectionCard` starts collapsed; only the section header, status badge, and
+    expand chevron are visible when collapsed
+  - Clicking the header row toggles expand/collapse
+  - The active section (the one currently selected for AI chat in the right panel)
+    auto-expands when activated and stays expanded while active
+  - Collapsed state still shows the status badge so the user can scan completion at a glance
+
+  **Per-section collapsible hint block**
+  - Add a `<details><summary>About this section</summary>...</details>` element inside
+    each expanded card, above the content area, closed by default
+  - Hint text per section (render as plain text, no markdown):
+
+    | section_id | Hint text |
+    |---|---|
+    | `who_i_am` | The model's first impression of you and the lens for every evaluation. Seniority and experience level are especially important: they change how the model frames questions and what it considers a good JD fit. |
+    | `career_narrative` | The answer to "tell me about yourself." Every recruiter asks this in the first call. A strong narrative explains your transitions without the reader having to connect the dots. The model uses this for culture fit scoring and cover letter openers. |
+    | `career_history` | The model's primary evidence base. More specific detail means better evaluation accuracy. Include metrics where you have them. New grads: include projects, coursework, and internships — this section supports all backgrounds. |
+    | `skills_strengths` | Used to calculate domain match and identify keyword gaps against job descriptions. Be specific — "Python" is more useful than "programming." Include leadership scope and domain areas alongside technical skills. |
+    | `target_role` | Defines what "a good fit" looks like for you. Must-haves and deal-breakers are used to flag mismatches in evaluations. The more precise this is, the fewer irrelevant recommendations you'll see. |
+    | `resume_master` | The source the model tailors from. Paste your full resume here. Don't summarize or try to fit this to length — more data helps produce better resumes and tailoring. Update it whenever your actual resume changes. |
+    | `tailoring_rules` | Standing rules the model follows every time it generates or edits application materials. Use the Generate Rules button to build an initial set from your profile, then refine over time based on what you observe in real applications. |
+    | `insights_lessons` | A running record of what's working and what isn't across your search. The model reads this to calibrate its advice. Use Synthesize from Logs to build from your application history, or add entries manually after interviews. |
+    | `model_behavior` | Instructions the model follows in every session, both in-app and in standalone Claude sessions. Edit these as you learn what works. Do not delete this section — it is read on every evaluation. |
+
+  **View/edit toggle per section**
+  - Default (view mode): render section content as a styled `div`, not a textarea
+    - Text matching `**Label:**` patterns (markdown bold labels) renders in muted color (`text-muted`)
+    - Text matching `[FILL...]` or `[AUTO...]` placeholder markers renders in amber (`text-accent`)
+    - All other text renders in standard body color
+    - A pencil icon button in the card header switches to edit mode
+  - Edit mode: replace the styled div with a plain auto-grow `<textarea>` pre-filled with
+    the raw markdown content. Show Save and Cancel buttons. Cancel reverts to view mode
+    with no changes. Save calls `updateSection` mutation then returns to view mode.
+  - `---` section dividers: strip from content before displaying in either mode.
+    Do NOT strip from the file on disk — the parser uses `## N.` headers, not `---`, as
+    delimiters, so this is display-only. Do not add `---` back when saving a section.
+
+  **Page-scoped model selector**
+  - Add a model selector dropdown in the profile page header (near the Review buttons)
+  - Fetch available models from the existing models API endpoint
+  - Store selected `model_id` as page-level state (default: null, meaning use server default)
+  - Pass `model_id` in the request body of all profile fetch/mutation calls:
+    chat, propose-update, synthesize-insights, coherence-check, quality-audit,
+    generate-tailoring-rules
+  - Display format: model name only. If only one model exists, still show the selector
+    (allows future models to be added without UI change)
+
+  ---
+
+  ### Part C — `my_data/jobsearch.md`
+
+  - Before making any changes: call `POST /api/v1/profile/restore` is NOT right —
+    instead, directly call `save_jobsearch_version()` (or `POST /api/v1/profile/sections`
+    patch with no content change won't work either). The correct approach: add a one-time
+    migration script or do it manually via the Settings version history "save" action
+    before running this item. **Instruction: snapshot the file via the Settings My Data
+    page before editing.**
+  - Remove all per-section `<!-- ... -->` comment blocks from the file.
+    The top-level `<!-- HOW TO USE THIS FILE ... -->` block at the top of the file stays.
+  - Do not remove or alter any section headers, content, or `---` dividers.
+
+  ---
+
+  ### Part D — `templates/JOBSEARCH_TEMPLATE.md`
+
+  - Remove all per-section `<!-- ... -->` comment blocks.
+  - The top-level `<!-- HOW TO USE THIS FILE ... -->` block stays — it is the authoritative
+    manual setup reference and should be kept intact.
+  - Do not remove or alter any section headers, placeholder text (`[FILL]`, `[AUTO]`),
+    or `---` dividers.
+
+---
+
+## Priority 13 — Tests
 *Backend tests alongside the routes. Frontend tests alongside the components.*
 
-- [ ] **16. Backend tests for profile routes**
+- [ ] **17. Backend tests for profile routes**
   - File: `tests/routes/test_profile.py` (should exist from item 6 — add remaining tests)
   - Test coverage for:
     - `GET /api/v1/profile/health` — file missing, empty, partial, complete
@@ -725,7 +865,7 @@ Used in `PATCH /api/v1/profile/sections/{section_id}` and chat requests.
     - `POST /api/v1/applications/{id}/lesson-chat` with `finalize: true` —
       verify `application_logs` entry created with `lesson_learned` type
 
-- [ ] **17. Frontend tests for Job Search Profile page**
+- [ ] **18. Frontend tests for Job Search Profile page**
   - File: `frontend/src/pages/JobSearchProfile.test.tsx`
   - Test: sections render correctly, status badges correct based on mock data
   - Test: clicking "Edit with AI" activates right panel for correct section

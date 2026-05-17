@@ -800,14 +800,16 @@ Deliverables:
 - `profile_routes.py` — all profile API routes; registered in `main.py`
 - SSE streaming chat route (`POST /api/v1/profile/chat`) with Socratic / Directive modes
 - Propose-update endpoint (non-streaming synthesis of conversation → section draft)
-- One-shot routes: synthesize-insights (from app logs), coherence-check, generate-tailoring-rules
+- One-shot routes: synthesize-insights (from app logs), coherence-check (cross-section alignment), quality-audit (per-section completeness + strength), generate-tailoring-rules
 - Lesson chat route on applications (`POST /api/v1/applications/{id}/lesson-chat`)
 - TypeScript interfaces in `frontend/src/types/profile.ts`
 - Custom hooks: `useProfileHealth`, `useProfileSections`, `useProfileVersions`,
   `useProfileChat` (streaming), `useLessonChat` (streaming)
 - `JobSearchProfile.tsx` — two-column layout (section cards left, chat panel right)
-  with per-section status badges, direct editing, AI chat, Socratic/Directive toggle,
-  proposed-update Accept/Discard flow, special handling for paste-only and generate-button sections
+  with per-section status badges, collapsible section cards, view/edit toggle (styled div → textarea),
+  AI chat, Socratic/Directive toggle, proposed-update Accept/Discard flow, special handling for
+  paste-only and generate-button sections, page-scoped model selector, Review · Alignment and
+  Review · Quality buttons (both with loading animation and modal output)
 - Left nav entry: "Job Search Profile"
 - Dashboard: Profile Strength widget (completion % + link to profile page)
 - ApplicationDetail: "Capture a lesson" button → lesson chat → saves to `application_logs`
