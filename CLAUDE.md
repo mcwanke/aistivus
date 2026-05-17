@@ -84,13 +84,19 @@ HTML frontend operational (read-only reference — do not modify).
 - [x] Frontend tests for Job Search Profile page
 
 ### Phase 1.3 Checklist 🔲
-- [ ] Typst binary startup validation (graceful degradation)
-- [ ] Document upload/list/delete routes (`/api/v1/applications/{id}/documents`)
-- [ ] Compile endpoint (`typst compile` server-side)
-- [ ] PDF view (new browser tab)
-- [ ] Document section on ApplicationDetail
-- [ ] Two bundled Typst templates in `templates/typst/`
-- [ ] Settings: Typst binary path + disk usage
+- [ ] Config: `typst:` section in `CONFIG_TEMPLATE.yaml` (`binary_path`, `generated_dir`; moved from `output:`)
+- [ ] DB: `application_info` system_type seed; `get_document_by_id()`; `get_document_by_file_path()`
+- [ ] Startup: Typst binary check → `app.state.typst_available`; create `generated/` on startup; extend health endpoint with `typst_available`
+- [ ] `document_routes.py`: upload (3 types, 5MB/.typ 20MB/.pdf, sanitize, audit log), list, delete (file + record + audit log), file serve route
+- [ ] Compile route: Option A naming convention, 30s timeout, replace-on-compile, 503 if unavailable
+- [ ] `GET /api/v1/settings/documents-storage` endpoint (disk usage + Typst status)
+- [ ] Two bundled Typst templates in `templates/typst/` (modern-cv, simple-technical-resume — MIT)
+- [ ] TypeScript interfaces in `frontend/src/types/documents.ts`
+- [ ] React hooks: `useApplicationDocuments`, `useUploadDocument`, `useDeleteDocument`, `useCompileDocument`, `useDocumentsStorage`
+- [ ] Document section on ApplicationDetail (4th tab: file list, type-selector upload, compile/open/delete, Typst-unavailable banner)
+- [ ] Settings: Document Storage card (Typst status + `generated/` disk usage)
+- [ ] Backend tests for all document routes
+- [ ] Frontend tests for Document tab on ApplicationDetail
 
 ### Phase 1.4 Checklist 🔲
 - [ ] Dockerfile
