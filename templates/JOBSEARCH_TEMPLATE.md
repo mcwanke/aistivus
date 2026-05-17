@@ -26,7 +26,6 @@
 ---
 
 ## 1. Who I Am
-<!-- One tight paragraph. Background, seniority level, defining strengths. -->
 
 **Name:** [FILL]
 **Current status:** Actively job searching as of [FILL — month/year]
@@ -41,12 +40,6 @@
 ---
 
 ## 2. Career Narrative
-<!--
-  2-3 sentences on why you've made the transitions you've made.
-  This is the answer to "tell me about yourself / walk me through your career."
-  Interviewers ask this in every first conversation. The model uses it for
-  culture fit scoring and for tailoring cover letter openers.
--->
 
 [FILL — e.g. "I started as a backend engineer, moved into tech lead roles because
 I found the organizational problems more interesting than the technical ones, and
@@ -57,15 +50,6 @@ org and the product roadmap."]
 ---
 
 ## 3. Career History (Reverse Chronological)
-<!--
-  Enough detail for the model to map your experience to a JD. Be specific.
-
-  For new grads and early-career candidates, include:
-  - Education (degree, institution, graduation year, relevant coursework, GPA if strong)
-  - Projects (class, personal, open source — same bullet format as work history)
-  - Internships and part-time roles (use the same role entry format below)
-  - Non-work leadership (clubs, volunteer orgs, anything with responsibility and outcome)
--->
 
 ### [FILL — Most Recent Role Title] @ [Company]
 - **Dates:** [FILL]
@@ -78,8 +62,6 @@ org and the product roadmap."]
 - **Team size / scope:** [FILL]
 - **Key achievements:** [FILL]
 - **Tech / tools:** [FILL]
-
-<!-- Repeat as needed. Go back ~10-15 years max. -->
 
 ### Education — [Degree] @ [Institution]
 - **Graduated:** [FILL]
@@ -151,22 +133,12 @@ org and the product roadmap."]
 ---
 
 ## 6. Resume Master Copy
-<!--
-  Paste your full resume text here in plain text or markdown.
-  This is the source of truth the model tailors FROM.
-  Update this section whenever you update your actual resume.
--->
 
 [FILL — paste full resume here]
 
 ---
 
 ## 7. Tailoring Rules
-<!--
-  Rules the model must follow when generating tailored resumes or cover letters.
-  Generate initial content from existing Claude threads, update as you learn
-  what works and what doesn't.
--->
 
 **Always:**
 - [AUTO — e.g. Lead with people impact before technical detail]
@@ -184,11 +156,6 @@ org and the product roadmap."]
 ---
 
 ## 8. Insights & Lessons Learned
-<!--
-  What's working. What isn't. Patterns across applications. [EVOLVING]
-  Generate initial content from existing Claude threads.
-  Update regularly as your search progresses.
--->
 
 **What's resonating with recruiters/hiring managers:**
 [AUTO]
@@ -205,11 +172,6 @@ org and the product roadmap."]
 ---
 
 ## 9. Model Behavior Rules
-<!--
-  Standing instructions the model follows in every session.
-  These apply to both in-app evaluation and standalone Claude sessions.
-  Edit as you learn what works. Do not delete — the model reads this section.
--->
 
 ### Evaluation behavior
 - Evaluate every JD before generating any materials — do not skip straight to tailoring

@@ -79,7 +79,7 @@ HTML frontend operational (read-only reference — do not modify).
 - [x] Dashboard Profile Strength widget
 - [x] ApplicationDetail "Capture a lesson" feature
 - [x] Settings My Data: version history with preview + restore
-- [x] Profile page UX enhancements + quality audit — Parts A (backend) and B (frontend) complete; Parts C/D (jobsearch.md + template comment cleanup) pending
+- [x] Profile page UX enhancements + quality audit — all parts complete (A: backend, B: frontend, C: jobsearch.md, D: template)
 - [ ] Backend tests for all profile routes
 - [ ] Frontend tests for Job Search Profile page
 
