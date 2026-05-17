@@ -16,6 +16,7 @@ Routes:
   POST  /api/v1/profile/propose-update
   POST  /api/v1/profile/synthesize-insights
   POST  /api/v1/profile/coherence-check
+  POST  /api/v1/profile/quality-audit
   POST  /api/v1/profile/generate-tailoring-rules
 """
 
@@ -183,6 +184,7 @@ class ChatRequest(BaseModel):
     messages: list[ChatMessage]
     section_content: str = ""
     experience_level: str | None = None
+    model_id: int | None = None
 
 
 class ProposeUpdateRequest(BaseModel):
@@ -191,6 +193,11 @@ class ProposeUpdateRequest(BaseModel):
     messages: list[ChatMessage]
     section_content: str = ""
     experience_level: str | None = None
+    model_id: int | None = None
+
+
+class OneShotRequest(BaseModel):
+    model_id: int | None = None
 
 
 # ─────────────────────────────────────────────────────────────
@@ -225,6 +232,23 @@ def _resolve_default_model() -> dict | None:
         "endpoint": endpoint,
         "provider": provider,
     }
+
+
+def _resolve_model(model_id: int | None) -> dict | None:
+    """Return model info dict for model_id if provided and available, else the default model."""
+    if model_id is not None:
+        row = database.get_llm_model(model_id)
+        if row:
+            d = dict(row)
+            endpoint = d.get("endpoint", "")
+            provider = "anthropic" if "anthropic.com" in endpoint else "ollama"
+            return {
+                "id": d["id"],
+                "model": d["model"],
+                "endpoint": endpoint,
+                "provider": provider,
+            }
+    return _resolve_default_model()
 
 
 def _build_system_prompt(
@@ -522,7 +546,7 @@ async def profile_chat(request: Request, body: ChatRequest) -> StreamingResponse
     if not body.messages:
         raise HTTPException(status_code=400, detail="messages must not be empty.")
 
-    model_info = _resolve_default_model()
+    model_info = _resolve_model(body.model_id)
     if not model_info:
         raise HTTPException(
             status_code=503, detail="No LLM model configured — add one in Settings."
@@ -563,7 +587,7 @@ async def propose_update(request: Request, body: ProposeUpdateRequest) -> JSONRe
     if not body.messages:
         raise HTTPException(status_code=400, detail="messages must not be empty.")
 
-    model_info = _resolve_default_model()
+    model_info = _resolve_model(body.model_id)
     if not model_info:
         raise HTTPException(
             status_code=503, detail="No LLM model configured — add one in Settings."
@@ -665,12 +689,12 @@ def _format_logs_for_prompt(logs: list) -> str:
 
 @router.post("/profile/synthesize-insights")
 @limiter.limit("5/minute")
-async def synthesize_insights(request: Request) -> JSONResponse:
+async def synthesize_insights(request: Request, body: OneShotRequest = OneShotRequest()) -> JSONResponse:
     """
     One-shot: read application logs and current insights section, synthesize with LLM.
     Returns a proposed update to the insights_lessons section.
     """
-    model_info = _resolve_default_model()
+    model_info = _resolve_model(body.model_id)
     if not model_info:
         raise HTTPException(
             status_code=503, detail="No LLM model configured — add one in Settings."
@@ -721,12 +745,14 @@ async def synthesize_insights(request: Request) -> JSONResponse:
 
 @router.post("/profile/coherence-check")
 @limiter.limit("5/minute")
-async def coherence_check(request: Request) -> JSONResponse:
+async def coherence_check(request: Request, body: OneShotRequest = OneShotRequest()) -> JSONResponse:
     """
-    One-shot: read full jobsearch.md and ask LLM to find internal inconsistencies.
+    One-shot: check cross-section consistency in jobsearch.md.
+    Scoped strictly to contradictions and misalignments between sections —
+    completeness issues belong to quality-audit.
     Returns review text and a count of issues found.
     """
-    model_info = _resolve_default_model()
+    model_info = _resolve_model(body.model_id)
     if not model_info:
         raise HTTPException(
             status_code=503, detail="No LLM model configured — add one in Settings."
@@ -739,18 +765,23 @@ async def coherence_check(request: Request) -> JSONResponse:
     content = js_path.read_text(encoding="utf-8")
 
     system = (
-        "You are reviewing a job search profile for internal consistency.\n"
-        "Check: Does the Career Narrative match Career History? Do Tailoring Rules support "
-        "the Target Role Profile? Are there gaps between stated skills and target roles? "
-        "Are any [FILL] markers still present?\n"
-        "Return a structured review with specific findings and suggested fixes.\n"
-        "Format each distinct issue as a numbered item (1. 2. 3. etc.)."
+        "You are reviewing a job search profile for cross-section consistency.\n"
+        "Check only for contradictions and misalignments between sections:\n"
+        "- Does the Career Narrative match Career History?\n"
+        "- Do Tailoring Rules support the Target Role Profile?\n"
+        "- Are there gaps or contradictions between Skills & Strengths and Target Role?\n"
+        "- Is the Model Behavior Rules section consistent with the stated search strategy?\n"
+        "Do NOT flag incomplete sections, [FILL] markers, or stub content — those are "
+        "completeness issues, not consistency issues.\n"
+        "Return a numbered list of findings. Each item is one concise sentence identifying "
+        "the specific inconsistency. Do not explain how to fix it in detail. "
+        "Maximum one sentence per finding."
     )
 
     prompt = (
-        f"Review this job search profile for internal consistency:\n\n"
+        f"Review this job search profile for cross-section consistency:\n\n"
         f"---\n{content}\n---\n\n"
-        "List all issues found as numbered items, then provide suggested fixes:"
+        "List each inconsistency as a numbered item (one sentence each):"
     )
 
     result = await _call_llm_and_log_async(model_info, prompt, system)
@@ -766,14 +797,73 @@ async def coherence_check(request: Request) -> JSONResponse:
     return JSONResponse({"review": review_text, "issues_found": issues_found})
 
 
+@router.post("/profile/quality-audit")
+@limiter.limit("5/minute")
+async def quality_audit(request: Request, body: OneShotRequest = OneShotRequest()) -> JSONResponse:
+    """
+    One-shot: per-section completeness and strength audit of jobsearch.md.
+    Flags empty sections, stubs, weak Career History entries, and time gaps.
+    Does NOT check cross-section consistency — that belongs to coherence-check.
+    Returns review text and a count of issues found.
+    """
+    model_info = _resolve_model(body.model_id)
+    if not model_info:
+        raise HTTPException(
+            status_code=503, detail="No LLM model configured — add one in Settings."
+        )
+
+    js_path = _get_jobsearch_path()
+    if not js_path.exists():
+        raise HTTPException(status_code=404, detail="jobsearch.md not found.")
+
+    content = js_path.read_text(encoding="utf-8")
+
+    system = (
+        "You are auditing a job search profile for completeness and content quality.\n"
+        "Check each section for these specific issues:\n"
+        "- Any section that is empty or contains only [FILL] or [AUTO] placeholders\n"
+        "- Any section under 50 characters of real content (a stub)\n"
+        "- In Career History: any role entry with fewer than 3 achievement bullets, "
+        "unless it appears to be an older (10+ years ago) or minor role; "
+        "Education and Project entries are exempt from the bullet count check\n"
+        "- In Career History: any apparent time gap greater than 6 months between roles "
+        "where no explanation is present\n"
+        "- Resume Master Copy if it appears empty, is a placeholder, or is very short\n"
+        "- Tailoring Rules if all entries are still [AUTO] markers\n"
+        "Do NOT check cross-section consistency — that is a separate review.\n"
+        "Return a numbered list. Each item is one concise sentence naming the section and "
+        "the specific issue. Do not repeat the section's instructions or explain how to "
+        "fill it in. Todo-list style only."
+    )
+
+    prompt = (
+        f"Audit this job search profile for completeness and content quality:\n\n"
+        f"---\n{content}\n---\n\n"
+        "List each issue as a numbered item (one sentence each, section name first):"
+    )
+
+    result = await _call_llm_and_log_async(model_info, prompt, system)
+
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=502, detail=f"LLM call failed: {result.get('error')}"
+        )
+
+    review_text = result["content"] or ""
+    issues_found = len(re.findall(r"^\s*\d+\.\s+\S", review_text, re.MULTILINE))
+
+    log.info("profile_quality_audit_complete", extra={"issues_found": issues_found})
+    return JSONResponse({"review": review_text, "issues_found": issues_found})
+
+
 @router.post("/profile/generate-tailoring-rules")
 @limiter.limit("5/minute")
-async def generate_tailoring_rules(request: Request) -> JSONResponse:
+async def generate_tailoring_rules(request: Request, body: OneShotRequest = OneShotRequest()) -> JSONResponse:
     """
     One-shot: read sections 1–5 and generate tailoring rules with LLM.
     Returns proposed content for the tailoring_rules section.
     """
-    model_info = _resolve_default_model()
+    model_info = _resolve_model(body.model_id)
     if not model_info:
         raise HTTPException(
             status_code=503, detail="No LLM model configured — add one in Settings."
