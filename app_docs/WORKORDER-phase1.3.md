@@ -113,7 +113,7 @@ needed. All existing model config must be re-entered in Settings after the upgra
 
 *Schema changes. Wipe and rebuild the database after this item.*
 
-- [ ] **1. Update `database.py` — add `llm_servers` table and update `llm_models`**
+- [x] **1. Update `database.py` — add `llm_servers` table and update `llm_models`** — schema v1.3; llm_servers table + 6 CRUD functions; llm_models updated (server_id FK, no endpoint/enabled); all queries JOIN llm_servers; seed creates server first; conftest and route tests updated to new API
 
   **Files:** `database.py`
 
@@ -203,7 +203,7 @@ needed. All existing model config must be re-entered in Settings after the upgra
 
 *No schema changes. Adds startup read and a write utility for Anthropic API key.*
 
-- [ ] **2. Add `.env` read/write support for `ANTHROPIC_API_KEY`**
+- [x] **2. Add `.env` read/write support for `ANTHROPIC_API_KEY`** — env_utils.py created (load_dotenv, get_env_key); main.py lifespan sets app.state.anthropic_key_present; direct dotenv import in main.py replaced with env_utils
 
   **Files:** `main.py` (startup), `database.py` or a new `env_utils.py`
 

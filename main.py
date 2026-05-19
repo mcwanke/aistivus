@@ -73,7 +73,6 @@ from pathlib import Path
 from typing import AsyncGenerator
 
 import yaml
-from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
@@ -88,6 +87,7 @@ import evaluate
 import evaluator
 import llm_client
 import profile_routes
+from env_utils import get_env_key, load_dotenv
 from logger import get_logger
 
 load_dotenv()
@@ -170,6 +170,10 @@ async def lifespan(app: FastAPI):
     log.info("aistivus_starting")
 
     database.init_db()
+
+    anthropic_key = get_env_key("ANTHROPIC_API_KEY")
+    app.state.anthropic_key_present = bool(anthropic_key)
+
     await _update_model_availability()
 
     jobsearch_path = Path("jobsearch.md")

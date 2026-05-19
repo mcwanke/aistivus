@@ -91,16 +91,24 @@ CREATE TABLE IF NOT EXISTS system_types (
     UNIQUE (type_name, type_value)
 );
 
+CREATE TABLE IF NOT EXISTS llm_servers (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    server_name TEXT NOT NULL,
+    endpoint    TEXT,
+    server_type TEXT NOT NULL DEFAULT 'local',
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS llm_models (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     model               TEXT NOT NULL,
-    endpoint            TEXT NOT NULL,
+    server_id           INTEGER NOT NULL,
     estimated_eval_time INTEGER,
     available           INTEGER NOT NULL DEFAULT 0,
     default_flag        INTEGER NOT NULL DEFAULT 0,
     model_weight        INTEGER NOT NULL DEFAULT 1,
-    enabled             INTEGER NOT NULL DEFAULT 1,
-    created_at          TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (server_id) REFERENCES llm_servers(id)
 );
 
 CREATE TABLE IF NOT EXISTS jobs (
@@ -333,15 +341,16 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_jobs_company_name      ON jobs(company_name);
-CREATE INDEX IF NOT EXISTS idx_evaluations_job_id     ON evaluations(job_id);
-CREATE INDEX IF NOT EXISTS idx_applications_job_id    ON applications(job_id);
-CREATE INDEX IF NOT EXISTS idx_llm_call_log_job_id    ON llm_call_log(job_id);
-CREATE INDEX IF NOT EXISTS idx_app_logs_app_id        ON application_logs(application_id);
-CREATE INDEX IF NOT EXISTS idx_job_company_log_job_id ON job_company_log(job_id);
+CREATE INDEX IF NOT EXISTS idx_jobs_company_name       ON jobs(company_name);
+CREATE INDEX IF NOT EXISTS idx_evaluations_job_id      ON evaluations(job_id);
+CREATE INDEX IF NOT EXISTS idx_applications_job_id     ON applications(job_id);
+CREATE INDEX IF NOT EXISTS idx_llm_call_log_job_id     ON llm_call_log(job_id);
+CREATE INDEX IF NOT EXISTS idx_app_logs_app_id         ON application_logs(application_id);
+CREATE INDEX IF NOT EXISTS idx_job_company_log_job_id  ON job_company_log(job_id);
+CREATE INDEX IF NOT EXISTS idx_llm_models_server_id    ON llm_models(server_id);
 """
 
-CURRENT_SCHEMA_VERSION = "1.1"
+CURRENT_SCHEMA_VERSION = "1.3"
 
 _APP_SETTINGS_SEED: list[tuple[str, str]] = [
     ("allow_audit_timestamp_edit", "0"),
@@ -405,7 +414,7 @@ def init_db() -> None:
         if not existing_version:
             conn.execute(
                 "INSERT INTO schema_versions (version, description) VALUES (?, ?)",
-                (CURRENT_SCHEMA_VERSION, "Schema v1.1 — app_settings table; applied column on applications")
+                (CURRENT_SCHEMA_VERSION, "Schema v1.3 — llm_servers table; llm_models.server_id FK replaces endpoint")
             )
 
     seed_llm_models_from_config()
@@ -556,40 +565,100 @@ def delete_system_type(type_id: int) -> bool:
 
 
 # ─────────────────────────────────────────────────────────────
+# LLM Servers
+# ─────────────────────────────────────────────────────────────
+
+def get_all_servers() -> list[sqlite3.Row]:
+    """Return all llm_servers rows, ordered by server_name."""
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT * FROM llm_servers ORDER BY server_name"
+        ).fetchall()
+
+
+def get_server_by_id(server_id: int) -> sqlite3.Row | None:
+    """Return a single llm_servers row, or None."""
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT * FROM llm_servers WHERE id = ?", (server_id,)
+        ).fetchone()
+
+
+def create_server(server_name: str, endpoint: str | None, server_type: str) -> int:
+    """Insert a new llm_servers record. Returns new id."""
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT INTO llm_servers (server_name, endpoint, server_type) VALUES (?, ?, ?)",
+            (server_name, endpoint, server_type),
+        )
+        return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def update_server(server_id: int, server_name: str, endpoint: str | None) -> None:
+    """Update server_name and endpoint for an existing server. server_type is immutable."""
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE llm_servers SET server_name = ?, endpoint = ? WHERE id = ?",
+            (server_name, endpoint, server_id),
+        )
+
+
+def delete_server(server_id: int) -> None:
+    """Delete a server. Caller must verify no models reference it first."""
+    with get_connection() as conn:
+        conn.execute("DELETE FROM llm_servers WHERE id = ?", (server_id,))
+
+
+def get_model_count_for_server(server_id: int) -> int:
+    """Return count of llm_models rows with this server_id."""
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT COUNT(*) FROM llm_models WHERE server_id = ?", (server_id,)
+        ).fetchone()[0]
+
+
+# ─────────────────────────────────────────────────────────────
 # LLM Models
 # ─────────────────────────────────────────────────────────────
 
+_LLM_MODEL_JOIN = """
+    SELECT lm.*, ls.server_name, ls.endpoint, ls.server_type
+    FROM llm_models lm
+    JOIN llm_servers ls ON ls.id = lm.server_id
+"""
+
+
 def get_all_llm_models() -> list[sqlite3.Row]:
-    """Return all LLM model records ordered by default_flag desc, then name."""
+    """Return all LLM model records with server info, ordered by server name then model name."""
     with get_connection() as conn:
         return conn.execute(
-            "SELECT * FROM llm_models ORDER BY default_flag DESC, model"
+            f"{_LLM_MODEL_JOIN} ORDER BY ls.server_name, lm.model"
         ).fetchall()
 
 
 def get_llm_model(model_id: int) -> sqlite3.Row | None:
-    """Return a single LLM model record by id, or None."""
+    """Return a single LLM model record with server info by id, or None."""
     with get_connection() as conn:
         return conn.execute(
-            "SELECT * FROM llm_models WHERE id = ?", (model_id,)
+            f"{_LLM_MODEL_JOIN} WHERE lm.id = ?", (model_id,)
         ).fetchone()
 
 
 def get_default_llm_model() -> sqlite3.Row | None:
-    """Return the model with default_flag = 1, or None."""
+    """Return the model with default_flag = 1 with server info, or None."""
     with get_connection() as conn:
         return conn.execute(
-            "SELECT * FROM llm_models WHERE default_flag = 1 LIMIT 1"
+            f"{_LLM_MODEL_JOIN} WHERE lm.default_flag = 1 LIMIT 1"
         ).fetchone()
 
 
-def insert_llm_model(model: str, endpoint: str, **kwargs) -> int:
+def insert_llm_model(model: str, server_id: int, **kwargs) -> int:
     """
     Insert a new LLM model record.
     If default_flag=1, clears default_flag on all existing records first.
     Returns the new model id.
     """
-    allowed = {"estimated_eval_time", "available", "default_flag", "model_weight", "enabled"}
+    allowed = {"estimated_eval_time", "available", "default_flag", "model_weight"}
     params = {k: v for k, v in kwargs.items() if k in allowed}
     default_flag = params.get("default_flag", 0)
 
@@ -599,16 +668,15 @@ def insert_llm_model(model: str, endpoint: str, **kwargs) -> int:
 
         conn.execute(
             """INSERT INTO llm_models
-               (model, endpoint, estimated_eval_time, available, default_flag, model_weight, enabled)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+               (model, server_id, estimated_eval_time, available, default_flag, model_weight)
+               VALUES (?, ?, ?, ?, ?, ?)""",
             (
                 model,
-                endpoint,
+                server_id,
                 params.get("estimated_eval_time"),
                 params.get("available", 0),
                 default_flag,
                 params.get("model_weight", 1),
-                params.get("enabled", 1),
             )
         )
         return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -619,8 +687,7 @@ def update_llm_model(model_id: int, **kwargs) -> bool:
     Update LLM model fields. If setting default_flag=1, clears all others first.
     Returns True if a row was updated, False if model not found.
     """
-    allowed = {"model", "endpoint", "estimated_eval_time", "available",
-               "default_flag", "model_weight", "enabled"}
+    allowed = {"model", "estimated_eval_time", "available", "default_flag", "model_weight"}
     updates = {k: v for k, v in kwargs.items() if k in allowed}
     if not updates:
         return False
@@ -681,8 +748,9 @@ def delete_llm_model(model_id: int) -> bool:
 
 def seed_llm_models_from_config() -> bool:
     """
-    Auto-seed llm_models from config.yaml if the table is currently empty.
+    Auto-seed llm_servers and llm_models from config.yaml if both tables are empty.
     Reads ollama.base_url and ollama.default_model from config.
+    Creates the server record first, then the model pointing to it.
     Returns True if seeded, False otherwise.
     """
     config = _load_config()
@@ -694,16 +762,23 @@ def seed_llm_models_from_config() -> bool:
         return False
 
     with get_connection() as conn:
-        count = conn.execute("SELECT COUNT(*) FROM llm_models").fetchone()[0]
-        if count > 0:
+        server_count = conn.execute("SELECT COUNT(*) FROM llm_servers").fetchone()[0]
+        model_count = conn.execute("SELECT COUNT(*) FROM llm_models").fetchone()[0]
+        if server_count > 0 or model_count > 0:
             return False
 
         conn.execute(
-            "INSERT INTO llm_models (model, endpoint, default_flag, available) VALUES (?, ?, 1, 0)",
-            (default_model, base_url)
+            "INSERT INTO llm_servers (server_name, endpoint, server_type) VALUES (?, ?, 'local')",
+            ("Local Ollama", base_url),
+        )
+        server_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        conn.execute(
+            "INSERT INTO llm_models (model, server_id, default_flag, available) VALUES (?, ?, 1, 0)",
+            (default_model, server_id),
         )
 
-    print("Model config seeded from config.yaml — manage models in Settings.")
+    print("Auto-seeded default server and model from config.yaml — manage in Settings.")
     return True
 
 
@@ -1589,7 +1664,7 @@ def compute_sha256(content: str) -> str:
 
 
 _EXPORT_TABLES = [
-    "system_types", "llm_models", "jobs", "job_company_log", "job_postings",
+    "system_types", "llm_servers", "llm_models", "jobs", "job_company_log", "job_postings",
     "evaluations", "llm_call_log", "applications", "application_logs",
     "application_documents", "application_audit", "job_posting_audit",
     "jobsearch_versions", "resume_info", "search_runs", "search_run_errors",

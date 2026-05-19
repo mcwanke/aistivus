@@ -84,15 +84,15 @@ Job Search Profile all working end-to-end.
 - [x] Frontend tests for Job Search Profile page
 
 ### Phase 1.3 Checklist 🔲
-- [ ] `llm_servers` table in `database.py` (`init_db()`) with CRUD functions
-- [ ] `llm_models` table: `endpoint` column removed, `server_id` FK added; all DB functions updated
+- [x] `llm_servers` table in `database.py` (`init_db()`) with CRUD functions
+- [x] `llm_models` table: `endpoint` column removed, `server_id` FK added; all DB functions updated
 - [ ] `estimated_eval_time` removed from user-facing forms; auto-updated from `llm_call_log` after each call
-- [ ] `env_utils.py` — `.env` read/write utility (`python-dotenv` already in requirements.txt; use it for `load_dotenv()`)
-- [ ] Startup: `load_dotenv()` called; `app.state.anthropic_key_present` set
+- [x] `env_utils.py` — `.env` read/write utility (`python-dotenv` already in requirements.txt; use it for `load_dotenv()`)
+- [x] Startup: `load_dotenv()` called; `app.state.anthropic_key_present` set
 - [ ] Server management routes (list, create, update, delete, test, available-models)
 - [ ] Anthropic key route (`GET /api/v1/settings/anthropic-key` — boolean presence only; no write route)
 - [ ] Model routes updated: `endpoint` removed, `server_id` added, `default_flag` on create/edit
-- [ ] Auto-seed updated: creates `llm_servers` record before `llm_models` on first run
+- [x] Auto-seed updated: creates `llm_servers` record before `llm_models` on first run
 - [ ] Startup availability check updated: checks per-server type (`local` → Ollama ping, `anthropic` → key present)
 - [ ] `estimated_eval_time` auto-update after each successful LLM call (`evaluator.py`)
 - [ ] Fix "Query Endpoint" availability check bug (now handled via per-server test route)

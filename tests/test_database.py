@@ -129,37 +129,46 @@ class TestSystemTypes:
 # ─────────────────────────────────────────────────────────────
 
 class TestLlmModels:
+    def _make_server(self) -> int:
+        return database.create_server("Local Ollama", "http://localhost:11434", "local")
+
     def test_insert_returns_id(self, tmp_db):
-        mid = database.insert_llm_model("qwen3:14b", "http://localhost:11434")
+        sid = self._make_server()
+        mid = database.insert_llm_model("qwen3:14b", sid)
         assert isinstance(mid, int)
         assert mid > 0
 
     def test_insert_sets_defaults(self, tmp_db):
-        mid = database.insert_llm_model("test-model", "http://localhost:11434")
+        sid = self._make_server()
+        mid = database.insert_llm_model("test-model", sid)
         model = database.get_llm_model(mid)
         assert model["available"] == 0
         assert model["default_flag"] == 0
         assert model["model_weight"] == 1
 
     def test_insert_with_default_flag_clears_others(self, tmp_db):
-        id1 = database.insert_llm_model("model-a", "http://host:11434", default_flag=1)
-        id2 = database.insert_llm_model("model-b", "http://host:11434", default_flag=1)
+        sid = self._make_server()
+        id1 = database.insert_llm_model("model-a", sid, default_flag=1)
+        id2 = database.insert_llm_model("model-b", sid, default_flag=1)
         assert database.get_llm_model(id1)["default_flag"] == 0
         assert database.get_llm_model(id2)["default_flag"] == 1
 
     def test_get_default_llm_model(self, tmp_db):
-        database.insert_llm_model("model-a", "http://host:11434")
-        mid = database.insert_llm_model("model-b", "http://host:11434", default_flag=1)
+        sid = self._make_server()
+        database.insert_llm_model("model-a", sid)
+        mid = database.insert_llm_model("model-b", sid, default_flag=1)
         default = database.get_default_llm_model()
         assert default["id"] == mid
 
     def test_get_default_returns_none_when_none_set(self, tmp_db):
-        database.insert_llm_model("model-a", "http://host:11434")
+        sid = self._make_server()
+        database.insert_llm_model("model-a", sid)
         assert database.get_default_llm_model() is None
 
     def test_set_llm_model_default(self, tmp_db):
-        id1 = database.insert_llm_model("model-a", "http://host:11434", default_flag=1)
-        id2 = database.insert_llm_model("model-b", "http://host:11434")
+        sid = self._make_server()
+        id1 = database.insert_llm_model("model-a", sid, default_flag=1)
+        id2 = database.insert_llm_model("model-b", sid)
         database.set_llm_model_default(id2)
         assert database.get_llm_model(id1)["default_flag"] == 0
         assert database.get_llm_model(id2)["default_flag"] == 1
@@ -190,7 +199,8 @@ class TestLlmModels:
         assert result is False
 
     def test_delete_llm_model(self, tmp_db):
-        mid = database.insert_llm_model("temp-model", "http://host:11434")
+        sid = self._make_server()
+        mid = database.insert_llm_model("temp-model", sid)
         result = database.delete_llm_model(mid)
         assert result is True
         assert database.get_llm_model(mid) is None
@@ -200,10 +210,19 @@ class TestLlmModels:
         assert result is False
 
     def test_get_all_llm_models(self, tmp_db):
-        database.insert_llm_model("model-a", "http://host:11434")
-        database.insert_llm_model("model-b", "http://host:11434")
+        sid = self._make_server()
+        database.insert_llm_model("model-a", sid)
+        database.insert_llm_model("model-b", sid)
         models = database.get_all_llm_models()
         assert len(models) == 2
+
+    def test_get_all_llm_models_includes_server_info(self, tmp_db):
+        sid = self._make_server()
+        database.insert_llm_model("model-a", sid)
+        model = database.get_all_llm_models()[0]
+        assert model["server_name"] == "Local Ollama"
+        assert model["server_type"] == "local"
+        assert model["endpoint"] == "http://localhost:11434"
 
     def test_seed_from_config_with_valid_config(self, tmp_db, monkeypatch):
         monkeypatch.setattr(database, "_load_config", lambda: {
@@ -216,6 +235,16 @@ class TestLlmModels:
         assert models[0]["model"] == "qwen3:14b"
         assert models[0]["default_flag"] == 1
         assert models[0]["available"] == 0
+
+    def test_seed_from_config_creates_server_record(self, tmp_db, monkeypatch):
+        monkeypatch.setattr(database, "_load_config", lambda: {
+            "ollama": {"base_url": "http://localhost:11434", "default_model": "qwen3:14b"}
+        })
+        database.seed_llm_models_from_config()
+        servers = database.get_all_servers()
+        assert len(servers) == 1
+        assert servers[0]["server_name"] == "Local Ollama"
+        assert servers[0]["server_type"] == "local"
 
     def test_seed_from_config_skips_if_not_empty(self, tmp_db, model_id, monkeypatch):
         monkeypatch.setattr(database, "_load_config", lambda: {
