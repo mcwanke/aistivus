@@ -15,9 +15,10 @@ application, evaluation, and document generation.
 **Design philosophy:** Ship working software first. Every phase must produce something immediately
 useful. Architecture serves the user, not the other way around.
 
-**Primary goal (Phases 1.0–1.3):** A working personal job search tool the primary developer can
-use daily. Evaluations, job tracking tied to applications, Typst-based resume/document generation,
-a redesigned jobs UI, and Docker deployment. Everything else is future work.
+**Primary goal (Phases 1.0–1.5):** A working personal job search tool the primary developer can
+use daily. Evaluations, job tracking tied to applications, multi-server LLM management,
+Typst-based resume/document generation, a redesigned jobs UI, and Docker deployment.
+Everything else is future work.
 
 ---
 
@@ -34,9 +35,10 @@ Job seekers conducting active, high-volume searches face a fragmented workflow:
 
 ## 3. Goals
 
-### Primary Goals (Phases 1.0–1.3)
+### Primary Goals (Phases 1.0–1.5)
 - Working evaluation pipeline with local (Ollama) and cloud (Anthropic) models
 - Job and application tracking with full audit history
+- Multi-server LLM management (multiple Ollama instances, Anthropic API)
 - Typst-based document generation (import, compile, view)
 - Redesigned React/TypeScript frontend
 - Docker deployment for consistent local use
@@ -70,7 +72,7 @@ running a local development environment.
 | Linux | ✅ Fully supported |
 | Windows (native) | ❌ Not supported |
 | Windows (WSL2) | ⚠️ Community supported — use Linux tooling within WSL2 |
-| Windows (Docker) | ✅ Supported via Docker — Phase 1.3 |
+| Windows (Docker) | ✅ Supported via Docker — Phase 1.5 |
 
 **Technical requirements:**
 - Python 3.11+
@@ -103,7 +105,7 @@ evaluator.py │ llm_client.py │ database.py │ logger.py
     jobs.db (SQLite)      /reports/    /generated/    /logs/
 ```
 
-### Phase 1.3+ (Docker)
+### Phase 1.5+ (Docker)
 ```
 docker-compose
   └── aistivus container
@@ -123,12 +125,12 @@ docker-compose
 | Styling | Minimal inline CSS | Tailwind CSS |
 | Database | SQLite via `sqlite3` | Same |
 | LLM (local) | Ollama REST API | Same |
-| LLM (cloud) | Anthropic (Phase 0.4) | Anthropic + OpenAI |
-| Model config | config.yaml | `llm_models` table (DB) |
-| Document gen | None | Typst binary (Phase 1.2) |
+| LLM (cloud) | Anthropic (Phase 0.4) | Anthropic (Phase 1.3); OpenAI future |
+| Model config | config.yaml | `llm_models` + `llm_servers` tables (Phase 1.3) |
+| Document gen | None | Typst binary (Phase 1.4) |
 | Logging | stdout | Python stdlib logging, structured JSON (Phase 1.0) |
 | Testing | Manual | pytest + Vitest (Phase 1.0) |
-| Deployment | Direct uvicorn | Docker + docker-compose (Phase 1.3) |
+| Deployment | Direct uvicorn | Docker + docker-compose (Phase 1.5) |
 
 ---
 
@@ -153,20 +155,37 @@ system_types (
 -- Seeded at init_db(). See Section 7 for seed values.
 
 -- ─────────────────────────────────────────
--- LLM model registry — ACTIVE PHASE 1.0
+-- LLM server registry — ACTIVE PHASE 1.3
+-- ─────────────────────────────────────────
+llm_servers (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    server_name TEXT NOT NULL,
+    endpoint    TEXT,                     -- required for 'local'; NULL for 'anthropic' (URL hardcoded)
+    server_type TEXT NOT NULL DEFAULT 'local',  -- 'local' | 'anthropic'
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+)
+-- On first startup with empty tables: auto-seed "Local Ollama" from config.yaml if present.
+-- Anthropic base URL is hardcoded in llm_client.py; not stored here.
+-- API key for Anthropic lives in .env as ANTHROPIC_API_KEY — never in DB.
+
+-- ─────────────────────────────────────────
+-- LLM model registry — ACTIVE PHASE 1.0, updated Phase 1.3
 -- ─────────────────────────────────────────
 llm_models (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     model               TEXT NOT NULL,
-    endpoint            TEXT NOT NULL,    -- Ollama: http://localhost:11434 | Anthropic: https://api.anthropic.com
-    estimated_eval_time INTEGER,          -- seconds, calculated average; NULL until first run completes
+    server_id           INTEGER NOT NULL,   -- FK to llm_servers; replaces endpoint TEXT column
+    estimated_eval_time INTEGER,            -- seconds, rolling average from llm_call_log; auto-updated
     available           INTEGER NOT NULL DEFAULT 0,   -- 0/1 flag; set at startup by health check
     default_flag        INTEGER NOT NULL DEFAULT 0,   -- 0/1 flag; only ONE record may have default_flag = 1
     model_weight        INTEGER NOT NULL DEFAULT 1,   -- for future weighted scoring; default 1
-    created_at          TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (server_id) REFERENCES llm_servers(id)
 )
--- On startup: re-query availability for each model, update available flag.
--- On first startup with empty table: auto-seed from config.yaml if ollama config present.
+-- endpoint column removed in Phase 1.3; now on llm_servers via server_id FK.
+-- estimated_eval_time is no longer user-entered; auto-updated after each successful LLM call.
+-- On startup: re-query availability for each model via its server (local: Ollama ping; anthropic: key present).
+-- On first startup with empty tables: auto-seed from config.yaml if ollama config present.
 -- default_flag uniqueness enforced in application layer, not DB constraint.
 
 -- ─────────────────────────────────────────
@@ -386,9 +405,15 @@ flexible, no column additions needed as new detail types are introduced.
 Types are append/delete only (never edited). Delete blocked if referencing records exist.
 `type_name` = category, `type_value` = code-friendly value (underscores, no spaces).
 
-**`llm_models` replaces config.yaml model config.** On first startup with empty table,
-auto-seed from `config.yaml` if Ollama config present. After seeding, DB is authoritative.
-`default_flag` uniqueness enforced in application layer.
+**`llm_servers` is a new first-class entity (Phase 1.3).** Named endpoints replace the
+`endpoint` TEXT column on `llm_models`. Each server has a `server_type` (`'local'` |
+`'anthropic'`). Multiple local Ollama instances are supported. Anthropic's base URL is
+hardcoded in `llm_client.py`; only the API key is user-supplied (via `.env`).
+
+**`llm_models` replaces config.yaml model config.** On first startup with empty tables,
+auto-seed from `config.yaml` if Ollama config present (creates server record first). After
+seeding, DB is authoritative. `default_flag` uniqueness enforced in application layer.
+`estimated_eval_time` is auto-updated from `llm_call_log` after each call — not user-entered.
 
 **`prompt_hash` and `raw_response` moved to `llm_call_log`.** Evaluations link via
 `llm_call_log_id` FK. This keeps the call record complete in one place and supports
@@ -435,15 +460,27 @@ Seeded at `init_db()`. Users may add types via Settings UI; seed values must alw
 
 ---
 
-## 8. LLM Models — Configuration & Migration
+## 8. LLM Models — Configuration
 
-### Startup Behavior
-1. Run availability check on all `llm_models` records; update `available` flag.
-2. If `llm_models` table is empty and `config.yaml` has `ollama.base_url` + `ollama.default_model`:
-   - Auto-insert one record: `model = default_model`, `endpoint = base_url`, `default_flag = 1`
-   - Log: `"Model config migrated from config.yaml — manage models in Settings."`
-3. If no default model exists after startup, log a clear error and degrade gracefully
+### Startup Behavior (Phase 1.3+)
+1. If BOTH `llm_servers` and `llm_models` tables are empty AND `config.yaml` has
+   `ollama.base_url` + `ollama.default_model`:
+   - Auto-insert one `llm_servers` record: `server_name = "Local Ollama"`, `endpoint = base_url`,
+     `server_type = 'local'`
+   - Auto-insert one `llm_models` record: `model = default_model`, `server_id = <new>`,
+     `default_flag = 1`
+   - Log: `"Auto-seeded default server and model from config.yaml — manage in Settings."`
+2. Run availability check on all `llm_models` records via their server:
+   - `server_type = 'local'`: `GET {server.endpoint}/api/tags` — check if model appears in list
+   - `server_type = 'anthropic'`: set `available = 1` if `ANTHROPIC_API_KEY` present in `.env`
+3. Load `.env` at startup (`env_utils.load_dotenv()`); set `app.state.anthropic_key_present`
+4. If no default model exists after startup, log a clear error and degrade gracefully
    (evaluation UI shows "no model configured" warning).
+
+### Schema Wipe Policy
+All breaking schema changes result in a wipe-and-rebuild. No migration scripts are written
+or maintained until this policy is explicitly changed. Users re-enter model configuration
+via Settings after any schema-breaking upgrade.
 
 ### config.yaml Responsibility Split
 
@@ -455,10 +492,12 @@ Seeded at `init_db()`. Users may add types via Settings UI; seed values must alw
 - `logging.*`
 - `llm_call_log_retention_days`
 
-**`llm_models` table owns (all model config):**
-- Model name, endpoint URL, availability, default flag, weight, estimated eval time
+**`llm_servers` + `llm_models` tables own (all model/server config):**
+- Server names, endpoints, types, availability
+- Model names, server assignments, default flag, weight, estimated eval time
 
-API keys remain in `.env` (never in DB, never in config.yaml at rest).
+**`.env` owns (secrets only):**
+- `ANTHROPIC_API_KEY` — never in DB, never in config.yaml, never logged or returned to client
 
 ---
 
@@ -818,12 +857,38 @@ Deliverables:
 - Backend tests: all profile routes (80% coverage)
 - Frontend tests: Job Search Profile page (70% coverage)
 
-**Multi-user note:** Each user gets a separate Docker container (Phase 1.4).
+**Multi-user note:** Each user gets a separate Docker container (Phase 1.5).
 No multi-profile switching needed in this phase.
 
 **See:** `app_docs/WORKORDER-phase1.2.md` for full item-by-item build spec.
 
-### Phase 1.3 — Typst / Documents 🔲
+### Phase 1.3 — Multi-Server LLM Management + Dashboard Redesign 🔲
+**Goal: Named server records replace raw endpoint strings. Support multiple Ollama instances
+and Anthropic cloud from the Settings page. Redesign the Dashboard with the original
+top-header + tile layout from the HTML prototype.**
+
+Deliverables:
+- `llm_servers` table with CRUD routes and Settings UI
+- Anthropic API key read from `.env` at startup; Settings shows key-present status only (no UI write path)
+- "Add AI/Server" popup: Local (Ollama) and Remote (Anthropic) flows
+- Per-server "Test Connection" button; fix existing availability check bug
+- Auto-import model list from Ollama servers; pre-populated Claude model list for Anthropic
+- `estimated_eval_time` auto-updated from actual call latencies (no longer user-entered)
+- Model selectors throughout app use `<optgroup>` to group by server name
+- Settings model row: server name displayed in place of endpoint (endpoint removed from model record)
+- Fix `_call_anthropic()` in `llm_client.py` to use `AsyncAnthropic` (align with streaming path)
+- Anthropic connection test explicitly handles `AuthenticationError` with clear user message
+- `AppHeader.tsx` — reusable top-header component (wordmark, tagline, Settings link)
+- Dashboard: standalone route outside sidebar Layout; full redesign with header, hero, stats bar, nav tiles
+
+**Note on Claude Pro vs. Anthropic API:** AIstivus calls Claude programmatically via the
+Anthropic API SDK, which requires a paid API key (`ANTHROPIC_API_KEY` in `.env`). Claude Pro
+($20/month) is a consumer web product — there is no way to use it for programmatic server-side
+calls. These are separate Anthropic products with separate auth. The manual "copy prompt →
+paste into Claude.ai → import JSON" workflow from Phase 0 is the only path for Claude Pro users
+and is preserved via the import modal on the Evaluate page.
+
+### Phase 1.4 — Typst / Documents 🔲
 **Goal: Import, compile, and view Typst resume files within the app.**
 
 Deliverables:
@@ -835,7 +900,7 @@ Deliverables:
 - At least two bundled Typst resume templates in `templates/typst/`
 - Settings: Typst binary path configuration, generated files disk usage
 
-### Phase 1.4 — Docker 🔲
+### Phase 1.5 — Docker 🔲
 **Goal: Consistent, portable local deployment. One container per user for family/multi-user use.**
 
 Deliverables:
@@ -955,7 +1020,7 @@ frontend/src/
     └── JobSearchProfile.tsx
 ```
 
-### Phase 1.4 Additions
+### Phase 1.5 Additions
 ```
 aistivus/
 ├── Dockerfile
@@ -1074,7 +1139,102 @@ The section system prompts adjust question framing:
 
 ---
 
-## 20. Known Risks and Mitigations
+## 20. Dashboard Specification (Phase 1.3)
+
+### Layout
+
+Dashboard is a **standalone full-page route** — it is NOT wrapped in `Layout.tsx` (no sidebar).
+Other pages keep the sidebar. This is the first step toward a top-header navigation model;
+future phases may extend the header to other pages.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ AIstivus   AI JOB SEARCH HELPER FOR THE REST OF US  Settings │  ← AppHeader
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  PHASE 1.X — ...                           ← hero eyebrow   │
+│  Because companies use AI                                    │
+│  to filter you.                            ← hero headline   │
+│                                                              │
+│  A local, private job search command center...  ← sub       │
+│                                                              │
+├──────────┬──────────┬──────────┬──────────┤
+│  Jobs    │ Evals    │ Apps     │ LLM Calls│  ← stats bar
+├──────────┴──────────┴──────────┴──────────┤
+│ TOOLS                                      │
+│ ┌──────────┐ ┌──────────┐ ┌──────────┐   │
+│ │ ⚡       │ │ 💼       │ │ 📁       │   │  ← nav tiles
+│ │ Evaluate │ │ Jobs     │ │ Applicat.│   │
+│ └──────────┘ └──────────┘ └──────────┘   │
+│ ┌──────────┐ ┌──────────┐                │
+│ │ JS Prof. │ │ LLM Usage│                │
+│ └──────────┘ └──────────┘                │
+│                                           │
+│  Profile Strength widget                  │
+│  Model Health widget                      │
+└───────────────────────────────────────────┘
+```
+
+### AppHeader Component (`frontend/src/components/AppHeader.tsx`)
+
+Reusable component placed at the top of Dashboard (and future pages as they adopt
+the header-first layout). Contains:
+- **Wordmark:** "AIstivus" — DM Serif Display, accent color (`#c8a96e`)
+- **Tagline:** "AI Job Search Helper for the Rest of Us" — small, muted, DM Mono, uppercase
+- **Settings link:** right-aligned, DM Mono, muted, links to `/settings`
+- Bottom border using `border-border` token
+
+### Hero Block
+
+Static copy, matching the HTML prototype:
+- **Eyebrow:** small DM Mono uppercase text in accent-dim (e.g., the current phase label)
+- **Headline:** "Because companies use AI to filter *you.*" — DM Serif Display, ~3rem,
+  `you.` in accent italic
+- **Subtitle:** "A local, private job search command center. Evaluate roles against your background,
+  track applications, and build tailored resumes — powered by models running on your own machine."
+  — muted body text
+
+### Stats Bar
+
+Four stats displayed in a horizontal bordered row (same pattern as `index.html` `.stats-bar`):
+| Stat | Source | Links to |
+|---|---|---|
+| Jobs | `stats.jobs` | `/jobs` |
+| Evaluations | `stats.evaluations` | — |
+| Applications | `stats.applications` | `/applications` |
+| LLM Calls | `stats.llm_calls` | `/llm-usage` |
+
+Each cell: large serif accent number, small mono uppercase label.
+
+### Nav Tiles
+
+"Tools" section label + grid of nav cards (active pages only — no disabled/future tiles):
+
+| Tile | Icon | Route |
+|---|---|---|
+| Evaluate | ⚡ | `/evaluate` |
+| Jobs | 💼 | `/jobs` |
+| Applications | 📁 | `/applications` |
+| JS Profile | 📋 | `/profile` |
+| LLM Usage | 📊 | `/llm-usage` |
+
+Each card: icon, serif title, short description, "● Active" status line in green.
+Cards link to their routes. Hover: slight lift + border highlight.
+
+### Retained Widgets
+
+Profile Strength widget and Model Health widget are kept from the current Dashboard
+but restyled to fit the full-width (no-sidebar) layout. They appear below the nav tiles.
+
+### Routing Change
+
+`Dashboard` route moves outside the `<Layout>` wrapper in the app router.
+All other routes remain wrapped in `<Layout>` (sidebar visible). This is a small
+structural change to the router setup in `main.tsx` or `App.tsx`.
+
+---
+
+## 21. Known Risks and Mitigations
 
 | Risk | Severity | Mitigation |
 |---|---|---|
@@ -1083,7 +1243,7 @@ The section system prompts adjust question framing:
 | LLM evaluation parse failure | Medium | Retry once; write NULL record; surface raw response |
 | Local LLM quality on complex roles | Medium | Cloud LLM (Anthropic) available |
 | Inbound API abuse (WSL2/VM) | Low/Medium | slowapi rate limiting Phase 1.0 |
-| Typst compile with malicious .typ | Low/Medium | Phase 1.3: validate file extension, size limit, sandboxed process |
+| Typst compile with malicious .typ | Low/Medium | Phase 1.4: validate file extension, size limit, sandboxed process |
 | Chat prompt injection via profile content | Low | Profile content is user-supplied and never used as a JD — lower risk than evaluation; no delimiter wrapping required |
 | SSE stream abandoned mid-response | Low | Client disconnect handled by FastAPI StreamingResponse; partial LLM call logged to llm_call_log with success=0 |
 | Token cost surprise on cloud eval | Low | Estimate shown before confirmation; explicit user approval |
@@ -1096,7 +1256,7 @@ The section system prompts adjust question framing:
 
 ---
 
-## 21. `jobsearch.md` Specification
+## 22. `jobsearch.md` Specification
 
 Full template in `templates/JOBSEARCH_TEMPLATE.md`.
 
@@ -1160,3 +1320,10 @@ This is computed server-side in `is_section_complete()` and returned by
   lesson_learned system_type added. jobsearch_versions restored to table-based approach.
   JOBSEARCH_TEMPLATE.md revised: Career Narrative section added, Sections 7+9 merged into
   Model Behavior Rules, Experience Level field, new-grad Career History subsections.
+- **v2.2** — New Phase 1.3: Multi-Server LLM Management (llm_servers table, Anthropic API
+  key via .env, server-aware Settings UI, optgroup model selectors). Typst → Phase 1.4.
+  Docker → Phase 1.5. Schema wipe policy documented.
+- **v2.3** — Phase 1.3 extended: Dashboard redesign (top-header layout, hero, stats bar, nav
+  tiles; standalone route outside sidebar Layout). AppHeader.tsx component added. Settings
+  model row shows server name in place of endpoint. Dashboard spec added as Section 20;
+  prior sections 20–21 renumbered.

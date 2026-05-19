@@ -1,4 +1,4 @@
-# AIstivus — Phase 1.3 Work Order: Typst / Document Management
+# AIstivus — Phase 1.3 Work Order: Multi-Server LLM Management
 
 ## How to Use This File
 
@@ -22,761 +22,1043 @@ This file defines what to build and in what order for Phase 1.3.
 
 ## Phase 1.3 Goal
 
-Enable users to associate Typst resume files with job applications, compile them
-to PDF server-side, and view or download the results. Phase 1.3 is purely
-**upload → compile → view** — no AI-assisted content generation (that is Phase 2).
-The user brings their own customized `.typ` file; this phase provides the
-infrastructure to manage, compile, and track those files per application.
+Give users clear, explicit control over which AI servers and models are in use.
+Today the app assumes one Ollama instance; this phase adds support for multiple local
+Ollama servers (e.g., different PCs on a home network) and the Anthropic cloud API,
+all managed from the Settings page. Every model selection in the app shows which server
+a model lives on so the user always knows what they're calling.
 
 ### What's New in Phase 1.3
-- Typst binary startup validation with graceful degradation
-- Document upload, list, delete per application (`.typ` and `.pdf`)
-- Server-side `typst compile` with replace-on-compile behavior
-- PDF viewing in a new browser tab
-- Application audit records for document actions
-- Document section (4th tab) on ApplicationDetail page
-- Document storage widget in Settings
-- Two bundled Typst resume templates
+- `llm_servers` table — named endpoints as first-class entities
+- Anthropic API key support via `.env`, managed through Settings UI
+- Settings: "Add AI/Server" popup (Local / Remote flows)
+- Settings: updated "Add Model" and "Edit Model" popups (server dropdown, default checkbox)
+- Settings: remove standalone "Query Endpoint" section; connection testing moves into server popup
+- Fix: availability check bug (currently reports "not found" for reachable Ollama endpoints)
+- Auto-import model list from Ollama servers and pre-populated Claude model list for Anthropic
+- `estimated_eval_time` auto-updated from actual call latencies (no longer user-entered)
+- All model dropdowns throughout the app display "Server Name — Model Name" grouped by server
 
 ### What's NOT in Phase 1.3
-- AI-assisted resume generation from `jobsearch.md` content (Phase 2)
-- In-app `.typ` editor (users edit in their own text editor)
-- Per-application file count or size quotas
-- Automatic disk cleanup (user manages via Settings disk usage display)
-- Docker deployment (Phase 1.4)
+- OpenAI / other cloud provider support (future phase)
+- Per-server rate limiting or concurrency controls
+- Model capability metadata (context window, token limits)
+- Typst / document management (Phase 1.4)
+- Docker deployment (Phase 1.5)
 
 ---
 
 ## Design Decisions
 
-### Compile behavior (Option A — naming convention)
-`resume.typ` always compiles to `resume.pdf` in the same `generated/{app_id}/`
-directory. When the compile route runs:
-1. Derive the PDF path by replacing `.typ` extension with `.pdf`
-2. Query `application_documents` for an existing record with that `file_path`
-3. If found: delete the old file from disk and delete the DB record
-4. Run `typst compile source.typ output.pdf` (30s timeout)
-5. On success: create a new `application_documents` record for the PDF
+### llm_servers table
+New table: `llm_servers (id, server_name, endpoint, server_type, created_at)`
 
-This keeps disk usage bounded per source file and reflects the correct
-"source → derivative" relationship. Users manage `.typ` files; compiled
-PDFs follow automatically.
+- `server_type`: `'local'` | `'anthropic'`
+- `endpoint`: required for `'local'` (Ollama base URL, e.g. `http://192.168.1.10:11434`);
+  `NULL` for `'anthropic'` (base URL is hardcoded in `llm_client.py`)
+- `llm_models.endpoint` column is removed; `llm_models.server_id` (FK → `llm_servers.id`) added
 
-### Delete behavior
-The delete route deletes both the DB record and the file from disk.
-The frontend always shows a confirmation dialog before calling delete.
-The audit log records every deletion.
+### llm_models changes
+- `endpoint` column removed (now on `llm_servers`)
+- `server_id` FK column added
+- `estimated_eval_time` stays in the DB but is no longer user-entered in any form;
+  it is auto-updated after each successful LLM call (rolling average of last 10 call
+  latencies for that model from `llm_call_log`)
 
-### Document types
-Three document types exist under `application_document` in `system_types`:
-- `resume` — the primary tailored resume (`.typ` compilable or pre-built `.pdf`)
-- `cover_letter` — cover letter for this application
-- `application_info` — supporting documents: offer letters, rejection emails, JD PDFs, etc.
+### Schema wipe policy
+Phase 1.3 introduces breaking schema changes (new table, column removal on `llm_models`).
+Per the current project policy, the database is wiped and rebuilt from scratch — no migration
+needed. All existing model config must be re-entered in Settings after the upgrade.
 
-File format (`.typ` vs `.pdf`) is independent of type. A `resume` can be
-a `.typ` file (user will compile it) or a `.pdf` (already compiled externally).
-`application_info` files will typically always be `.pdf`.
+### Anthropic API key
+- Stored in `.env` at project root as `ANTHROPIC_API_KEY` — set manually by the user, never via UI
+- Read at server startup via `env_utils.load_dotenv()` (uses `python-dotenv`, already in requirements.txt)
+- Never echoed in any API response or log
+- The only Settings UI exposure is a read-only "API Key: ✓ Set / Not set" status indicator
+- `GET /api/v1/settings/anthropic-key` returns `{ "anthropic_key_present": bool }` only — no write route
 
-### File storage
-All files stored in `generated/{application_id}/` (relative to project root).
-Filenames sanitized on upload: `[a-zA-Z0-9_-]` only (stem only; extension preserved),
-max 64 characters for the stem. Spaces → `_`, other invalid chars → removed,
-consecutive underscores collapsed. If sanitized name is empty: reject with 422.
+### Connection testing
+- "Test Connection" button lives in the Add/Edit Server popup, not in a separate Settings section
+- For `local`: `GET {endpoint}/api/tags` — success means Ollama is reachable
+- For `anthropic`: lightweight `POST` to Anthropic models endpoint using the current key
+- The standalone "Query Endpoint" section in Settings is removed; no replacement
+- The existing Check Endpoint bug (Ollama endpoint reported unreachable when models show
+  available) is fixed as part of this priority — the root cause is identified and corrected
 
-### Upload limits
-- `.typ` files: 5MB maximum
-- `.pdf` files: 20MB maximum
-- Other extensions: rejected with 422
+### Auto-import model list
+- After a local server is successfully tested in the popup: call `GET {endpoint}/api/tags`
+  and display the returned models as a checklist. User selects which to import.
+- After an Anthropic server is saved: display a hardcoded checklist of current Claude models
+  (`claude-opus-4-7`, `claude-sonnet-4-6`, `claude-haiku-4-5-20251001`). User selects which to add.
+- In both cases the user can skip import and add models manually later via "+ Add Model"
 
-### Duplicate filename handling
-If a file with the same sanitized name already exists for this application,
-return 409 with message: "A file named {name} already exists for this
-application. Delete it first or rename your file."
+### Model selector display throughout app
+- Every `<select>` for model choice uses `<optgroup>` to group options by server name
+- Option label format: `Model Name` (the grouping header shows the server name)
+- If only one server exists, `<optgroup>` header is still rendered for consistency
 
-### Typst availability
-Checked once at startup. Stored as `app.state.typst_available` (bool).
-If not found: compile button hidden in the frontend; compile route returns 503.
-Binary path read from `config.yaml` under `typst.binary_path` (default: `typst`,
-resolved via PATH). Health endpoint includes `typst_available` field.
+### Server deletion
+- A server with one or more `llm_models` records cannot be deleted
+- Backend returns 409 with message: "This server has {n} model(s). Delete or reassign them first."
 
-### Disk usage visibility
-`GET /api/v1/settings/documents-storage` walks `generated/` and returns
-total size and file count. Called only when user opens the Settings page —
-not on health check (keeps health fast).
-
----
-
-## Priority 1 — Config Template
-*No code changes. Must be done first — all Typst routes read from this config structure.*
-
-- [ ] **1. Update `templates/CONFIG_TEMPLATE.yaml`**
-
-  **Files:** `templates/CONFIG_TEMPLATE.yaml`
-
-  - Remove `generated_dir` from the `output:` section (currently labeled "Phase 2+")
-  - Add a new `typst:` section after `output:`:
-    ```yaml
-    # ─────────────────────────────────────
-    # Typst document generation (Phase 1.3+)
-    # Install Typst: brew install typst  (macOS)
-    #                snap install typst  (Linux)
-    # ─────────────────────────────────────
-    typst:
-      binary_path: typst          # command name (resolved via PATH) or full path
-      generated_dir: ./generated  # compiled PDFs and uploaded .typ files
-    ```
-  - Leave `resume_template_path` under `output:` — that is user data, not Typst config
-  - Do NOT touch any other section of the file
+### Auto-seed update
+- On first startup with empty `llm_servers` and `llm_models` tables, and when `config.yaml`
+  has `ollama.base_url` + `ollama.default_model`: create one `llm_servers` record
+  (`server_name = "Local Ollama"`, `endpoint = base_url`, `server_type = 'local'`),
+  then create one `llm_models` record pointing to it with `default_flag = 1`
 
 ---
 
-## Priority 2 — Database
-*Minimal additions. Safe to run against existing DB.*
+## Priority 1 — Database: llm_servers table + llm_models update
 
-- [ ] **2. Add `application_info` system_type seed and missing document DB functions**
+*Schema changes. Wipe and rebuild the database after this item.*
+
+- [ ] **1. Update `database.py` — add `llm_servers` table and update `llm_models`**
 
   **Files:** `database.py`
 
-  **Part A — system_types seed**
-  - In `init_db()`, find the `system_types` seed block
-  - Add one new entry to the INSERT list:
-    ```python
-    ('application_document', 'application_info'),
-    ```
-  - This uses the same `INSERT OR IGNORE` pattern as existing seeds — safe
-    to run against existing databases; new type will be inserted on next startup
-  - Do NOT modify any other seed values
+  **Part A — Add `llm_servers` table in `init_db()`**
 
-  **Part B — `get_document_by_id()`**
-  - Add this function:
-    ```python
-    def get_document_by_id(doc_id: int) -> sqlite3.Row | None:
-        """Return a single application_document record with type info, or None."""
-    ```
-  - Query: `SELECT ad.*, st.type_name, st.type_value FROM application_documents ad JOIN system_types st ON st.id = ad.type_id WHERE ad.id = ?`
-  - Returns the row or `None` if not found
+  Add the table before `llm_models`:
+  ```sql
+  CREATE TABLE IF NOT EXISTS llm_servers (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      server_name TEXT NOT NULL,
+      endpoint    TEXT,
+      server_type TEXT NOT NULL DEFAULT 'local',
+      created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+  ```
+  - `server_type` values: `'local'` | `'anthropic'`
+  - `endpoint` is `NULL` for `server_type = 'anthropic'` (base URL hardcoded in client)
+  - No UNIQUE constraint on endpoint — user may name multiple things similarly; deduplicate in UI
 
-  **Part C — `get_document_by_file_path()`**
-  - Add this function:
-    ```python
-    def get_document_by_file_path(application_id: int, file_path: str) -> sqlite3.Row | None:
-        """Return a document record matching application_id + file_path, or None.
-        Used by compile route to find an existing PDF before replacing it."""
-    ```
-  - Query: `SELECT * FROM application_documents WHERE application_id = ? AND file_path = ?`
-  - Returns the row or `None`
+  **Part B — Update `llm_models` table in `init_db()`**
+
+  Remove the `endpoint` column. Add `server_id`:
+  ```sql
+  CREATE TABLE IF NOT EXISTS llm_models (
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      model               TEXT NOT NULL,
+      server_id           INTEGER NOT NULL,
+      estimated_eval_time INTEGER,
+      available           INTEGER NOT NULL DEFAULT 0,
+      default_flag        INTEGER NOT NULL DEFAULT 0,
+      model_weight        INTEGER NOT NULL DEFAULT 1,
+      created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (server_id) REFERENCES llm_servers(id)
+  )
+  ```
+
+  **Part C — Add DB functions for `llm_servers`**
+
+  Add these functions (all following existing patterns: parameterized queries, `get_connection()`):
+
+  ```python
+  def get_all_servers() -> list[sqlite3.Row]:
+      """Return all llm_servers rows, ordered by server_name."""
+
+  def get_server_by_id(server_id: int) -> sqlite3.Row | None:
+      """Return a single llm_servers row, or None."""
+
+  def create_server(server_name: str, endpoint: str | None, server_type: str) -> int:
+      """Insert a new llm_servers record. Returns new id."""
+
+  def update_server(server_id: int, server_name: str, endpoint: str | None) -> None:
+      """Update server_name and endpoint for an existing server."""
+
+  def delete_server(server_id: int) -> None:
+      """Delete a server. Caller must verify no models reference it first."""
+
+  def get_model_count_for_server(server_id: int) -> int:
+      """Return count of llm_models rows with this server_id."""
+  ```
+
+  **Part D — Update existing llm_models DB functions**
+
+  All existing functions that reference `llm_models.endpoint` must be updated:
+  - `create_model()`: replace `endpoint` param with `server_id` param
+  - `update_model()`: remove `endpoint`, add `server_id` (or leave server_id unchangeable on edit?)
+    — leave server_id unchangeable on edit; it cannot be reassigned via update
+  - Any `SELECT` that returns `endpoint` from `llm_models` must instead `JOIN llm_servers`
+    and return `llm_servers.endpoint`, `llm_servers.server_name`, `llm_servers.server_type`
+  - `get_all_models()` query: `SELECT lm.*, ls.server_name, ls.endpoint, ls.server_type FROM llm_models lm JOIN llm_servers ls ON ls.id = lm.server_id ORDER BY ls.server_name, lm.model`
+  - `get_model_by_id()`: same JOIN pattern
+  - `get_default_model()`: same JOIN pattern
+
+  **Part E — Update auto-seed in `database.py` (if seed logic lives here)**
+
+  If `llm_models` seeding from `config.yaml` is handled in `database.py`:
+  - Check if `llm_servers` is empty AND `llm_models` is empty
+  - If so, AND if config has Ollama settings: create the default server record first, then
+    the model record pointing to it
+
+  If seeding is handled in `main.py`, leave this for Priority 3.
 
   **Do NOT touch any other database functions.**
 
 ---
 
-## Priority 3 — Startup Validation & Health Endpoint
-*Adds Typst check to the existing startup sequence. Extends health response.*
+## Priority 2 — .env API Key Handling
 
-- [ ] **3. Typst startup validation in `main.py`**
+*No schema changes. Adds startup read and a write utility for Anthropic API key.*
 
-  **Files:** `main.py`
+- [ ] **2. Add `.env` read/write support for `ANTHROPIC_API_KEY`**
 
-  **Part A — Read Typst config**
-  - In the config loading section (where `config.yaml` is parsed), read:
-    ```python
-    typst_binary = cfg.get("typst", {}).get("binary_path", "typst")
-    generated_dir = Path(cfg.get("typst", {}).get("generated_dir", "./generated"))
-    ```
+  **Files:** `main.py` (startup), `database.py` or a new `env_utils.py`
 
-  **Part B — Create `generated/` on startup**
-  - In the `lifespan` function, before the LLM availability check, ensure the
-    `generated_dir` directory exists:
-    ```python
-    generated_dir.mkdir(parents=True, exist_ok=True)
-    ```
+  > **Note:** `python-dotenv==1.0.1` is already in `requirements.txt` — no new dependency
+  > is needed. Use it for `load_dotenv()` rather than writing a manual parser.
 
-  **Part C — Check Typst binary**
-  - In the `lifespan` function, after the LLM availability check:
-    ```python
-    import subprocess
-    try:
-        result = subprocess.run(
-            [typst_binary, "--version"],
-            capture_output=True, timeout=5
-        )
-        typst_available = result.returncode == 0
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        typst_available = False
+  Create a small module `env_utils.py` (new file, ~40 lines):
 
-    app.state.typst_available = typst_available
-    app.state.typst_binary = typst_binary
-    app.state.generated_dir = generated_dir
+  ```python
+  """Utilities for reading and writing .env at project root."""
+  import os
+  from pathlib import Path
+  from dotenv import load_dotenv as _dotenv_load
 
-    if typst_available:
-        log.info("typst_available", extra={"binary": typst_binary})
-    else:
-        log.warning("typst_not_found", extra={
-            "binary": typst_binary,
-            "hint": "document compilation disabled; install typst to enable"
-        })
-    ```
+  ENV_PATH = Path(__file__).parent / ".env"
 
-  **Part D — Extend health endpoint response**
-  - In `GET /api/v1/health`, add a `typst_available` field to the JSON response:
-    ```python
-    "typst_available": getattr(request.app.state, "typst_available", False),
-    ```
+  def load_dotenv() -> None:
+      """Load .env into os.environ (skips keys already set)."""
+      _dotenv_load(dotenv_path=ENV_PATH, override=False)
 
-  **Do NOT change any other startup logic or routes.**
+  def get_env_key(key: str) -> str | None:
+      """Return a key's value from os.environ, or None."""
+      return os.environ.get(key)
+  ```
+
+  No `set_env_key()` — the key is managed manually by the user in `.env`, not via the UI.
+
+  In `main.py` lifespan startup, before LLM availability check:
+  ```python
+  from env_utils import load_dotenv, get_env_key
+  load_dotenv()
+  anthropic_key = get_env_key("ANTHROPIC_API_KEY")
+  app.state.anthropic_key_present = anthropic_key is not None and len(anthropic_key) > 0
+  # Do NOT store the key on app.state — read it via get_env_key() at call time
+  ```
+
+  The `set_env_key()` function is used by the settings route (Priority 3) to write a new
+  key value. It must:
+  - Read the current `.env` file if it exists
+  - Replace the existing `ANTHROPIC_API_KEY=...` line, or append if not present
+  - Write atomically (write to `.env.tmp`, rename to `.env`)
+  - Never log the value
+
+  **Do NOT add any new pip dependency.** Implement the `.env` parser manually.
 
 ---
 
-## Priority 4 — Document Routes (Upload, List, Delete, Serve)
-*New file `document_routes.py`. Registered in `main.py`.*
+## Priority 3 — Backend: Server Management Routes
 
-- [ ] **4. Create `document_routes.py` with upload, list, delete, and serve routes**
+*New routes for server CRUD, connection testing, and model import.*
 
-  **Files:** `document_routes.py` (new), `main.py`
+- [ ] **3. Create server management routes in `main.py` (or a new `server_routes.py`)**
 
-  ---
+  **Files:** `main.py` (or new `server_routes.py` registered in `main.py`)
 
-  ### Path sanitization utility (internal, not a route)
-
-  Add a module-level helper:
-  ```python
-  def _sanitize_filename(name: str) -> str:
-      """Sanitize a filename stem to [a-zA-Z0-9_-] only, max 64 chars."""
-      stem, ext = os.path.splitext(name)
-      stem = re.sub(r'[^a-zA-Z0-9_-]', '_', stem)
-      stem = re.sub(r'_+', '_', stem).strip('_')
-      stem = stem[:64]
-      return stem + ext if stem else ""
-  ```
+  If the settings routes grow large, move them to `server_routes.py`. Otherwise add to the
+  existing settings route section in `main.py`. Decision: add to `main.py` for now.
 
   ---
 
-  ### `POST /api/v1/applications/{application_id}/documents` — Upload
+  ### `GET /api/v1/settings/llm-servers`
 
-  **Request:** `multipart/form-data`
-  - `file`: the uploaded file
-  - `doc_type`: one of `resume`, `cover_letter`, `application_info`
+  Call `database.get_all_servers()`. For each server, include:
+  - All `llm_servers` fields
+  - `model_count`: from `database.get_model_count_for_server(id)`
+  - `anthropic_key_present`: `app.state.anthropic_key_present` (only on records where
+    `server_type = 'anthropic'`; omit or `null` for local servers)
 
-  **Validation (return 422 on any failure):**
-  - Application must exist — `database.get_application(application_id)` — 404 if not found
-  - File extension must be `.typ` or `.pdf` — 422 otherwise
-  - File size: `.typ` ≤ 5MB, `.pdf` ≤ 20MB — 413 with message if exceeded
-  - `doc_type` must be one of the three valid values — 422 otherwise
-  - Sanitize the uploaded filename stem. If sanitized stem is empty — 422 with message
-    "Filename contains no valid characters after sanitization."
+  Return list.
 
-  **Duplicate check:**
-  - Construct the target path: `{generated_dir}/{application_id}/{sanitized_name}`
-  - Call `database.get_document_by_file_path(application_id, str(target_path))`
-  - If a record exists — return 409: "A file named {sanitized_name} already exists
-    for this application. Delete it first or rename your file."
+  ---
 
-  **Write file:**
-  - Create `{generated_dir}/{application_id}/` if it does not exist
-  - Write file bytes to the target path
-  - Look up `type_id` from `system_types` where `type_name = 'application_document'`
-    and `type_value = doc_type`
-  - Call `database.create_application_document(application_id, type_id, str(target_path))`
-  - Call `database._audit_application(application_id,
-      f"document_uploaded: {sanitized_name} ({doc_type})")`
+  ### `POST /api/v1/settings/llm-servers`
 
-  **Response:**
+  **Request body:**
   ```json
   {
-    "id": 7,
-    "application_id": 42,
-    "type_value": "resume",
-    "file_path": "generated/42/resume_v2.typ",
-    "filename": "resume_v2.typ",
-    "created_at": "2026-05-17 14:23:00"
+    "server_name": "Home Lab",
+    "endpoint": "http://192.168.1.10:11434",
+    "server_type": "local"
   }
   ```
+  - `server_name`: required, non-empty string
+  - `endpoint`: required for `server_type = 'local'`; must start with `http://` or `https://`;
+    omit trailing slash; 422 if missing for local
+  - `endpoint`: must be `null`/absent for `server_type = 'anthropic'`
+  - `server_type`: must be `'local'` or `'anthropic'`; 422 otherwise
+  - Only one `'anthropic'` server may exist; return 409 if one already exists
+
+  Call `database.create_server(...)`. Return the created record.
 
   ---
 
-  ### `GET /api/v1/applications/{application_id}/documents` — List
+  ### `PUT /api/v1/settings/llm-servers/{server_id}`
 
-  - Application must exist — 404 if not
-  - Call `database.get_application_documents(application_id)`
-  - For each record, include:
-    - All `application_documents` fields
-    - `type_value` (resume / cover_letter / application_info)
-    - `filename`: `os.path.basename(file_path)`
-    - `extension`: `.typ` or `.pdf`
-    - `file_exists`: `os.path.exists(file_path)` — surface broken links in UI
-  - Return list (empty list if no documents)
+  Update `server_name` and `endpoint` only. `server_type` is immutable after creation.
+  Same validation as POST for the updated fields.
+  Return the updated record.
 
   ---
 
-  ### `DELETE /api/v1/applications/{application_id}/documents/{doc_id}` — Delete
+  ### `DELETE /api/v1/settings/llm-servers/{server_id}`
 
-  - Look up doc by `database.get_document_by_id(doc_id)` — 404 if not found
-  - Verify `doc.application_id == application_id` — 404 if mismatch (no information leak)
-  - Delete the file from disk if it exists: `os.remove(file_path)` wrapped in try/except
-    (log warning if file not found on disk — record may be stale — continue with record delete)
-  - Call `database.delete_application_document(doc_id)`
-  - Call `database._audit_application(application_id,
-      f"document_deleted: {filename} ({type_value})")`
+  - Check `database.get_model_count_for_server(server_id)`:
+    - If > 0: return 409 `"This server has {n} model(s). Delete or reassign them first."`
+  - Call `database.delete_server(server_id)`
   - Return `{ "success": true }`
 
   ---
 
-  ### `GET /api/v1/documents/file/{doc_id}` — Serve file
+  ### `POST /api/v1/settings/llm-servers/test`
 
-  - Look up doc by `database.get_document_by_id(doc_id)` — 404 if not found
-  - Resolve the file path and **validate it is within `generated_dir`**:
-    ```python
-    resolved = Path(doc["file_path"]).resolve()
-    if not str(resolved).startswith(str(generated_dir.resolve())):
-        raise HTTPException(status_code=403, detail="Access denied")
-    ```
-  - File must exist on disk — 404 if not
-  - Set Content-Type and Content-Disposition based on extension:
-    - `.pdf` → `application/pdf`, `Content-Disposition: inline; filename="..."`
-    - `.typ` → `text/plain`, `Content-Disposition: attachment; filename="..."`
-  - Return `FileResponse(resolved)`
+  Test a connection *without* creating a server record. Used by the popup's "Test Connection"
+  button before save.
+
+  **Request body:**
+  ```json
+  {
+    "server_type": "local",
+    "endpoint": "http://192.168.1.10:11434"
+  }
+  ```
+
+  For `server_type = 'local'`:
+  - `GET {endpoint}/api/tags` with a 5-second timeout
+  - Success: 200 response from Ollama → return `{ "success": true, "model_count": N }`
+    where N is `len(response["models"])`
+  - Failure: return `{ "success": false, "error": "Could not reach Ollama at {endpoint}" }`
+
+  For `server_type = 'anthropic'`:
+  - Check `app.state.anthropic_key_present`; if False:
+    return `{ "success": false, "error": "No API key set. Enter a key first." }`
+  - Make a lightweight call to Anthropic API using the current key from `get_env_key()`
+    (e.g., list models or a minimal completion) via `llm_client.py`'s existing Anthropic path
+  - Return `{ "success": true }` or `{ "success": false, "error": "..." }`
+  - **Must catch `anthropic_sdk.AuthenticationError` explicitly** and return
+    `{ "success": false, "error": "API key is invalid. Check the value in your .env file." }`
+    — do not rely on the generic `APIError` catch, which gives a cryptic message
+
+  **This is the fix for the existing "Query Endpoint" bug.** The prior implementation
+  checked `{endpoint}/api/tags` but then checked for a specific Ollama JSON key incorrectly.
+  This new implementation validates the response structure properly.
 
   ---
 
-  ### Register in `main.py`
+  ### `GET /api/v1/settings/llm-servers/{server_id}/available-models`
 
-  - Import `document_routes` and register with `app.include_router(document_routes.router, prefix="/api/v1")`
-  - Update the route list comment at the top of `main.py` with all new routes
-  - No other changes to `main.py`
+  Return the list of models available on this server (for the import-after-creation flow).
 
----
+  For `server_type = 'local'`:
+  - Call `GET {endpoint}/api/tags`; 503 if unreachable
+  - Return `{ "models": ["llama3:8b", "mistral:7b", ...] }` (name strings only)
 
-## Priority 5 — Compile Route
-*Added to `document_routes.py`. Depends on Priority 4 being complete.*
-
-- [ ] **5. Add compile route to `document_routes.py`**
-
-  **Files:** `document_routes.py`
-
-  ### `POST /api/v1/applications/{application_id}/documents/{doc_id}/compile`
-
-  **Pre-flight checks:**
-  - Check `request.app.state.typst_available` — 503 if False:
-    `"Typst binary not found. Install Typst to enable compilation."`
-  - Look up doc by `database.get_document_by_id(doc_id)` — 404 if not found
-  - Verify `doc.application_id == application_id` — 404 if mismatch
-  - Verify file extension is `.typ` — 422 if not:
-    `"Only .typ files can be compiled."`
-  - Verify source file exists on disk — 404 if not
-
-  **Derive PDF path (Option A naming convention):**
-  ```python
-  source_path = Path(doc["file_path"])
-  pdf_path = source_path.with_suffix(".pdf")
-  ```
-
-  **Replace existing PDF if present:**
-  - Call `database.get_document_by_file_path(application_id, str(pdf_path))`
-  - If found:
-    - Delete the file: `os.remove(pdf_path)` if it exists (wrapped in try/except)
-    - Call `database.delete_application_document(existing_record["id"])`
-
-  **Run compilation:**
-  ```python
-  import subprocess
-  try:
-      result = subprocess.run(
-          [request.app.state.typst_binary, "compile",
-           str(source_path), str(pdf_path)],
-          capture_output=True,
-          text=True,
-          timeout=30
-      )
-  except subprocess.TimeoutExpired:
-      raise HTTPException(status_code=504,
-          detail="Compilation timed out after 30 seconds.")
-  ```
-
-  **On failure (non-zero exit code):**
-  - Do NOT create any DB record
-  - Return 400:
-    ```json
-    { "success": false, "error": "Compilation failed", "detail": "<stderr text>" }
-    ```
-
-  **On success:**
-  - Look up `type_id` for `application_document / resume` — use the same `type_value`
-    as the source `.typ` file (carry forward the doc_type)
-  - Call `database.create_application_document(application_id, type_id, str(pdf_path))`
-  - Call `database._audit_application(application_id,
-      f"document_compiled: {pdf_path.name} from {source_path.name}")`
-  - Return:
-    ```json
-    {
-      "success": true,
-      "pdf_doc_id": 8,
-      "filename": "resume_v2.pdf",
-      "file_path": "generated/42/resume_v2.pdf"
-    }
-    ```
-
----
-
-## Priority 6 — Documents Storage Settings Endpoint
-*New lightweight endpoint. No impact on existing routes.*
-
-- [ ] **6. Add `GET /api/v1/settings/documents-storage` to `main.py`**
-
-  **Files:** `main.py`
-
-  - Walk `generated_dir` (from `app.state.generated_dir`):
+  For `server_type = 'anthropic'`:
+  - Return the hardcoded known Claude model list:
     ```python
-    total_bytes = 0
-    file_count = 0
-    for f in generated_dir.rglob("*"):
-        if f.is_file():
-            total_bytes += f.stat().st_size
-            file_count += 1
+    KNOWN_ANTHROPIC_MODELS = [
+        "claude-opus-4-7",
+        "claude-sonnet-4-6",
+        "claude-haiku-4-5-20251001",
+    ]
     ```
-  - If `generated_dir` does not exist: return zeros
-  - Return:
-    ```json
-    {
-      "generated_dir": "./generated",
-      "total_bytes": 22020096,
-      "total_mb": 21.0,
-      "file_count": 14,
-      "typst_available": true,
-      "typst_binary": "typst"
-    }
-    ```
-  - `total_mb`: round to one decimal place
-  - `typst_available` and `typst_binary` sourced from `app.state`
-  - Update the route list comment at the top of `main.py`
+  - Always return this list regardless of key validity (user may not have tested yet)
+
+  ---
+
+  ### `GET /api/v1/settings/anthropic-key`
+
+  Return `{ "anthropic_key_present": bool }` only. Never return the key.
+  No write route — the key is set manually in `.env` by the user.
+
+  ---
+
+  Update the route list comment at the top of `main.py` with all new routes.
 
 ---
 
-## Priority 7 — Typst Templates
-*Content task. No code. Can be done in any order relative to other items.*
+## Priority 4 — Backend: Update Model Routes and Auto-seed
 
-- [ ] **7. Add two Typst resume templates to `templates/typst/`**
+*Update existing model management to use server_id instead of endpoint.*
 
-  **Files:** `templates/typst/` (new directory), two `.typ` files
+- [ ] **4. Update model management routes and startup auto-seed**
 
-  - Create `templates/typst/` directory
-  - Add `templates/typst/README.md` with:
-    - Brief explanation: these are starting templates to copy and customize
-    - Instructions: copy to `my_data/resume_templates/`, edit, then upload to an application
-    - Links to Typst Universe for more templates: `https://typst.app/universe`
-    - Attribution for each template (name, author, license)
+  **Files:** `main.py` (or wherever model routes live), `database.py`
 
-  **Template 1 — `modern-cv.typ`**
-  - Source: `https://typst.app/universe/package/modern-cv/` (MIT license)
-  - Fetch the latest `.typ` source from the Typst Universe page
-  - Add a comment block at the top of the file:
-    ```typ
-    // Template: modern-cv
-    // Source: https://typst.app/universe/package/modern-cv/
-    // License: MIT
-    // ─────────────────────────────────────────────────────
-    // SETUP: Copy this file to my_data/resume_templates/ and customize.
-    // Then upload to an application via the Documents tab.
-    ```
-  - Verify the template compiles cleanly with `typst compile modern-cv.typ` before committing
-    (requires Typst installed locally)
+  **Part A — Update `POST /api/v1/settings/models` (create model)**
+  - Remove `endpoint` from the request body
+  - Add `server_id` (required integer) — must reference an existing `llm_servers` record; 404 if not found
+  - Remove `estimated_eval_time` from the request body (no longer user-entered)
+  - Add `default_flag` as an optional boolean (default: false); if true, clear existing default first
 
-  **Template 2 — `simple-technical-resume.typ`**
-  - Source: `https://typst.app/universe/package/simple-technical-resume/` (MIT license)
-  - Same comment block pattern with updated name and source URL
-  - Verify compiles cleanly before committing
+  **Part B — Update `PUT /api/v1/settings/models/{id}` (edit model)**
+  - Same changes as Part A
+  - `server_id` is NOT changeable via edit (the server a model belongs to is fixed at creation)
+  - `default_flag` is settable here; if set to true, clear existing default first (SELECT + UPDATE)
 
-  **If either template cannot be fetched or does not compile cleanly:**
-  - Note the issue and leave a placeholder `{name}.typ.placeholder` with the source URL
-  - Do not commit a non-compiling template
+  **Part C — Remove `Set Default` from model list route response**
+  - Any field/flag that drives the "Set Default" button in the model table row can stay
+    in the response (it's still needed to show which model IS the default), but the
+    "Set Default" action now lives only in the edit popup — no separate route needed
+
+  **Part D — Update auto-seed in `main.py`**
+
+  In the lifespan startup:
+  - Check if BOTH `llm_servers` and `llm_models` tables are empty
+  - If empty AND `config.yaml` has `ollama.base_url` + `ollama.default_model`:
+    1. `server_id = database.create_server("Local Ollama", base_url, "local")`
+    2. `database.create_model(model=default_model, server_id=server_id, default_flag=1)`
+    3. Log: `"Auto-seeded default server and model from config.yaml"`
+  - If only `llm_models` is empty but `llm_servers` has records: do NOT auto-seed
+
+  **Part E — Update startup availability check**
+
+  The current startup iterates `llm_models` and checks each model's availability.
+  This must now work via the server:
+  - For each `llm_models` record, get its server via JOIN
+  - For `server_type = 'local'`: call `GET {server.endpoint}/api/tags` and check if
+    `model.model` appears in the returned list; update `available` flag accordingly
+  - For `server_type = 'anthropic'`: set `available = 1` if `anthropic_key_present` else `0`
+
+  **Do NOT change any evaluation, profile, or application routes.**
 
 ---
 
-## Priority 8 — TypeScript Interfaces
-*Define all types before building any frontend component.*
+## Priority 5 — Backend: estimated_eval_time Auto-Update
 
-- [ ] **8. Create `frontend/src/types/documents.ts`**
+*Small addition to evaluator — no route changes.*
 
-  **Files:** `frontend/src/types/documents.ts` (new)
+- [ ] **5. Auto-update `estimated_eval_time` after each LLM call**
+
+  **Files:** `evaluator.py` (or wherever `llm_call_log` is written after a call)
+
+  After each successful LLM call is written to `llm_call_log`, add a step:
+  - Query the last 10 successful calls for this `llm_model_id` from `llm_call_log`:
+    ```sql
+    SELECT latency_ms FROM llm_call_log
+    WHERE llm_model_id = ? AND success = 1
+    ORDER BY timestamp DESC LIMIT 10
+    ```
+  - Calculate the average (integer division, round to nearest second)
+  - Update `llm_models.estimated_eval_time` where `id = llm_model_id`
+
+  Add a new DB function:
+  ```python
+  def update_model_eval_time(model_id: int, estimated_seconds: int) -> None:
+      """Update estimated_eval_time for a model based on recent call latencies."""
+  ```
+
+  This fires on every successful evaluation. Skipped if the call failed.
+
+---
+
+## Priority 6 — TypeScript Interfaces
+
+*Define all types before any frontend work.*
+
+- [ ] **6. Update and add TypeScript interfaces**
+
+  **Files:** `frontend/src/types/api.ts` (or wherever LLM types live)
+
+  Add or update the following interfaces:
 
   ```typescript
-  export type DocumentTypeValue = 'resume' | 'cover_letter' | 'application_info';
+  export type ServerType = 'local' | 'anthropic';
 
-  export interface ApplicationDocument {
+  export interface LLMServer {
     id: number;
-    application_id: number;
-    type_id: number;
-    type_value: DocumentTypeValue;
-    file_path: string;
-    filename: string;
-    extension: '.typ' | '.pdf';
-    file_exists: boolean;
+    server_name: string;
+    endpoint: string | null;
+    server_type: ServerType;
+    created_at: string;
+    model_count: number;
+    anthropic_key_present?: boolean; // only present when server_type === 'anthropic'
+  }
+
+  export interface LLMModel {
+    id: number;
+    model: string;
+    server_id: number;
+    server_name: string;      // from JOIN
+    server_type: ServerType;  // from JOIN
+    endpoint: string | null;  // from JOIN (null for anthropic)
+    estimated_eval_time: number | null;
+    available: boolean;
+    default_flag: boolean;
+    model_weight: number;
     created_at: string;
   }
 
-  export interface DocumentUploadResult {
-    id: number;
-    application_id: number;
-    type_value: DocumentTypeValue;
-    file_path: string;
-    filename: string;
-    created_at: string;
-  }
-
-  export interface CompileResult {
+  export interface ConnectionTestResult {
     success: boolean;
-    pdf_doc_id?: number;
-    filename?: string;
-    file_path?: string;
     error?: string;
-    detail?: string;
+    model_count?: number; // for local Ollama tests
   }
 
-  export interface DocumentsStorageInfo {
-    generated_dir: string;
-    total_bytes: number;
-    total_mb: number;
-    file_count: number;
-    typst_available: boolean;
-    typst_binary: string;
+  export interface AvailableModelsResponse {
+    models: string[];
+  }
+
+  export interface AnthropicKeyStatus {
+    anthropic_key_present: boolean;
   }
   ```
 
-  Also add `typst_available: boolean` to the health response type in
-  `frontend/src/types/api.ts` (or wherever the health response interface is defined).
+  Remove `endpoint` from any existing `LLMModel` interface that has it as a direct field
+  (it now comes via the server JOIN).
 
 ---
 
-## Priority 9 — React Hooks
+## Priority 7 — Frontend Hooks
+
 *All server state and mutation logic lives in hooks.*
 
-- [ ] **9. Create `frontend/src/hooks/useDocuments.ts`**
+- [ ] **7. Add/update hooks for server and model management**
 
-  **Files:** `frontend/src/hooks/useDocuments.ts` (new)
+  **Files:** `frontend/src/hooks/useServers.ts` (new),
+  `frontend/src/hooks/useModels.ts` (update if exists)
 
-  **`useApplicationDocuments(applicationId: number)`**
-  - React Query: `GET /api/v1/applications/{id}/documents`
-  - Returns `{ documents, isLoading, error }`
-  - Stale time: 0 (documents change often during active workflow)
+  **`useServers.ts` — new file**
 
-  **`useUploadDocument(applicationId: number)`**
-  - Mutation: `POST /api/v1/applications/{id}/documents` (multipart/form-data)
-  - On success: invalidate `['documents', applicationId]` and `['application', applicationId]`
-    (audit list will have refreshed)
-  - Returns mutation object with `uploadDocument(file: File, docType: DocumentTypeValue)`
+  ```typescript
+  useServers()
+  // GET /api/v1/settings/llm-servers
+  // Returns { servers, isLoading, error }
+  // Stale time: 30s
 
-  **`useDeleteDocument(applicationId: number)`**
-  - Mutation: `DELETE /api/v1/applications/{id}/documents/{doc_id}`
-  - On success: invalidate `['documents', applicationId]` and `['application', applicationId]`
-  - Returns mutation object with `deleteDocument(docId: number)`
+  useCreateServer()
+  // POST /api/v1/settings/llm-servers
+  // On success: invalidate ['servers'] and ['models']
 
-  **`useCompileDocument(applicationId: number)`**
-  - Mutation: `POST /api/v1/applications/{id}/documents/{doc_id}/compile`
-  - On success: invalidate `['documents', applicationId]`
-  - Returns mutation object with `compileDocument(docId: number)`
-  - Returns `CompileResult` — caller handles success vs error display
+  useUpdateServer()
+  // PUT /api/v1/settings/llm-servers/{id}
+  // On success: invalidate ['servers'] and ['models']
 
-  **`useDocumentsStorage()`**
-  - React Query: `GET /api/v1/settings/documents-storage`
-  - Stale time: 30 seconds
-  - Used only by Settings page
+  useDeleteServer()
+  // DELETE /api/v1/settings/llm-servers/{id}
+  // On success: invalidate ['servers'] and ['models']
+
+  useTestConnection()
+  // POST /api/v1/settings/llm-servers/test
+  // Mutation only — no cache invalidation; returns ConnectionTestResult
+
+  useAvailableModels(serverId: number | null)
+  // GET /api/v1/settings/llm-servers/{id}/available-models
+  // Only fires when serverId is non-null
+  // Returns { models, isLoading, error }
+
+  useAnthropicKeyStatus()
+  // GET /api/v1/settings/anthropic-key
+  // Returns { anthropic_key_present, isLoading }
+
+  useSetAnthropicKey()
+  // POST /api/v1/settings/anthropic-key
+  // On success: invalidate ['anthropic-key'] and ['servers']
+  ```
+
+  **Update `useModels` hook (or equivalent)**
+  - The `LLMModel` type now includes `server_name`, `server_type`, `endpoint` from JOIN
+  - Create model mutation: remove `endpoint`, add `server_id` and `default_flag` fields
+  - Update model mutation: same changes; `server_id` not included (immutable)
 
 ---
 
-## Priority 10 — ApplicationDetail: Document Tab
-*New tab added to the existing 3-tab left panel.*
+## Priority 8 — Frontend: Settings Page Changes
 
-- [ ] **10. Add Documents tab to `frontend/src/pages/ApplicationDetailPage.tsx`**
+*Update Settings.tsx — this is the most complex frontend priority.*
 
-  **Files:** `frontend/src/pages/ApplicationDetailPage.tsx`
-
-  **Tab bar update:**
-  - Add `'documents'` to the `leftTab` state type:
-    ```typescript
-    const [leftTab, setLeftTab] = useState<'details' | 'add-log' | 'add-lesson' | 'documents'>('details')
-    ```
-  - Add "Documents" tab button to the existing tab bar row (4th tab)
-
-  **Document tab content — `DocumentsPanel` component (defined in the same file):**
-
-  *Props:* `applicationId: number`, `typstAvailable: boolean`
-
-  *Document list:*
-  - Use `useApplicationDocuments(applicationId)`
-  - Loading state: spinner
-  - Empty state: "No documents yet. Upload a .typ or .pdf file to get started."
-  - For each document, show a row:
-    ```
-    resume_v2.typ    Resume    May 17    [Compile ↓]  [Delete]
-    resume_v2.pdf    Resume    May 17    [Open PDF ↗] [Delete]
-    cover_acme.pdf   Cover Letter  May 15  [Open PDF ↗] [Delete]
-    offer_letter.pdf  App Info  May 20  [Open PDF ↗] [Delete]
-    ```
-  - **Compile button:** only shown for `.typ` files; hidden entirely if `typstAvailable` is false
-    (not just disabled — no confusing grayed button with no explanation)
-  - **Open PDF button:** only shown for `.pdf` files; calls
-    `window.open('/api/v1/documents/file/{doc_id}', '_blank')`
-  - **Delete button:** always shown; clicking opens an inline confirmation:
-    "Delete {filename} from disk? This cannot be undone." with Confirm / Cancel
-    Confirm calls `deleteDocument(doc_id)`
-  - `file_exists: false` on a record: show filename in red/muted with a "⚠ File missing" badge;
-    Delete button still shown (cleans up stale record)
-
-  *Compile interaction:*
-  - During compile: replace Compile button with a spinner + "Compiling…" label
-  - On success: document list refreshes (query invalidated); new PDF row appears
-  - On failure: show inline error below the row with the detail text from the response
-
-  *Upload form:*
-  - Below the document list, a compact upload form:
-    ```
-    Type: [Resume ▼]   [Choose file]   [Upload]
-    ```
-  - Type selector: dropdown with Resume / Cover Letter / Application Info
-  - File picker: standard `<input type="file">` accepting `.typ,.pdf`
-  - Upload button: disabled while uploading; shows "Uploading…" during flight
-  - On success: form resets; document list refreshes
-  - On error: show error message inline (duplicate filename 409, size 413, etc.)
-
-  *Typst not available banner (shown at top of Documents tab when `typstAvailable` is false):*
-  ```
-  ⚠  Typst not found — compilation disabled.
-     Install: brew install typst  (macOS) · snap install typst  (Linux)
-     Restart the server after installing.
-  ```
-
-  **How `typstAvailable` reaches the component:**
-  - The health query is already called by Dashboard and likely cached by React Query
-  - Add `useHealthStatus()` hook usage in ApplicationDetailPage (or pass from parent if
-    already available in scope) — read `typst_available` from the health response
-
-  **Do NOT modify any other tab's content or the right column (log panel).**
-
----
-
-## Priority 11 — Settings: Document Storage Widget
-*New card in the existing Settings page.*
-
-- [ ] **11. Add Document Storage card to `frontend/src/pages/Settings.tsx`**
+- [ ] **8. Update `Settings.tsx` — servers section and updated model management**
 
   **Files:** `frontend/src/pages/Settings.tsx`
 
-  - Use `useDocumentsStorage()` hook (defined in Priority 9)
-  - Add a new "Document Storage" card in the Settings page. Placement: after the
-    existing "My Data" section (or wherever fits the existing page flow — do not
-    restructure other sections)
+  This priority has five distinct parts. Complete them in order within the same item.
 
-  **Card content:**
-  ```
-  Document Storage
-  ────────────────────────────────────
-  Typst:    Available  (typst)
-            — or —
-            Not found — compile disabled
-            Install: brew install typst  (macOS)
-                     snap install typst  (Linux)
+  ---
 
-  Generated files:   14 files · 21.0 MB
-                     ./generated
-  ```
-  - `Typst: Available` shown in green accent color when available
-  - `Not found` shown in red/muted
-  - File count and size from `useDocumentsStorage()`
-  - If `total_bytes === 0` and `file_count === 0`: "No generated files yet."
-  - Loading state: skeleton/spinner while query in flight
-  - Do NOT add a "purge files" button in Phase 1.3
+  ### Part A — Add Servers section above Models section
 
-  **Do NOT modify any other Settings section.**
+  Insert a new "AI Servers" card above the existing Models card.
+
+  **Server list table columns:** Server Name | Type | Endpoint | Models | Actions
+  - Type: show "Local" or "Anthropic" badge
+  - Endpoint: show URL for local, "—" for Anthropic
+  - Models: count badge
+  - Actions: "Edit" button | "Delete" button (Delete disabled if model_count > 0;
+    show tooltip: "Delete all models on this server first")
+  - For the Anthropic server row: show an additional "API Key: ✓ Set" / "API Key: Not set"
+    indicator (green / red)
+
+  **"+ Add AI/Server" button** (top-right of the Servers card):
+  Opens the Add Server popup (see Part B).
+
+  ---
+
+  ### Part B — "Add AI/Server" popup
+
+  Modal with two tabs at the top: **Local** | **Remote (Anthropic)**
+
+  **Local tab:**
+  - Server Name: text input (required)
+  - Endpoint: text input, placeholder `http://192.168.1.10:11434` (required)
+  - "Test Connection" button: calls `useTestConnection()` with the current field values;
+    shows spinner during test; on success: "✓ Connected — {N} model(s) found";
+    on failure: "✗ {error message}" in red
+  - Save button (disabled until form is valid; connection test not required before save,
+    but encouraged via the button state label "Save" vs "Save (untested)")
+  - Cancel button
+
+  **Remote (Anthropic) tab:**
+  - Server Name: pre-filled "Anthropic Claude" (editable)
+  - API Key status (read-only): shows "API Key: ✓ Set" or "API Key: Not set — add ANTHROPIC_API_KEY to your .env file"
+    sourced from `useAnthropicKeyStatus()`; no input field, no write path
+  - "Test Connection" button: same pattern as Local; triggers API key validation
+    (if key not set, button disabled with tooltip "Set ANTHROPIC_API_KEY in .env first")
+  - Only one Anthropic server may exist; if one already exists, this tab shows
+    "Anthropic server already configured — use Edit to update." and disables the form
+  - Save / Cancel buttons
+
+  **After save — model import prompt:**
+  After a server is created successfully, the popup transitions to an "Import Models"
+  step (same modal, new content):
+  - Header: "Would you like to add models from this server?"
+  - Shows `useAvailableModels(newServerId)` results as a checklist
+    - For local: fetched model names from Ollama
+    - For Anthropic: hardcoded list (`claude-opus-4-7`, `claude-sonnet-4-6`,
+      `claude-haiku-4-5-20251001`)
+  - "Import Selected" button: for each checked model, call create model mutation
+    with `server_id` + `model` + `default_flag = false` (unless it's the only model)
+  - "Skip" button: closes the popup; user can add models manually later
+
+  ---
+
+  ### Part C — "Edit Server" popup
+
+  Same fields as Add (Local or Anthropic tab, determined by `server_type`).
+  - `server_type` is displayed but not editable
+  - For Anthropic: same read-only key status indicator as Add tab (no input field)
+  - "Test Connection" button behaves identically to Add flow
+  - Save / Cancel
+
+  ---
+
+  ### Part D — Update "Add Model" popup
+
+  Remove `endpoint` field. Add `server_id` selector and `default_flag` checkbox.
+
+  Updated fields:
+  - Model Name: text input (unchanged)
+  - Server: `<select>` dropdown populated from `useServers()`, grouped if multiple exist
+    - Option format: "Server Name (server_type)" — e.g., "Home Lab (Local)"
+    - Required; no blank option
+  - Default model: checkbox — "Set as default model"
+    - If checked: existing default will be replaced (show note: "This will replace the
+      current default model.")
+  - Model Weight: number input (unchanged, default 1)
+  - Remove: Est. Eval Time input (removed)
+  - Remove: Endpoint input (replaced by server selector)
+  - Save / Cancel
+
+  ---
+
+  ### Part E — Update "Edit Model" popup
+
+  Same as Add but:
+  - Server selector is shown read-only (display only; not changeable)
+  - Default model checkbox present (can be set or unset)
+  - Remove: "Set Default" button from the model row in the table (it's now only here)
+  - Save / Cancel
+
+  ---
+
+  ### Part F — Remove "Query Endpoint" section
+
+  Remove the existing "Query Endpoint" / "Check Endpoint" UI section from Settings entirely.
+  Do not replace it with anything — connection testing now lives in the server popup.
+
+  ---
+
+  ### Part G — Update model row to show server name
+
+  The `ModelRow` component currently shows `{model.endpoint}` as a small muted mono line
+  below the model name. In Phase 1.3, `endpoint` is no longer a field on `LLMModel`
+  (it moved to `llm_servers`). Replace that line with `server_name` from the JOIN.
+
+  Updated second line of the model info block:
+  - Remove: `<p className="font-mono text-xs text-muted mt-0.5 truncate">{model.endpoint}</p>`
+  - Add: `<p className="font-mono text-xs text-muted mt-0.5">↳ {model.server_name}</p>`
+
+  The `↳` prefix reads as "lives on [server]" without requiring a new column. The `server_name`
+  field is available on `LLMModel` after the Priority 6 interface update.
+
+  This change lands in the same PR as the rest of Priority 8 (after Priority 6 interface
+  work is complete and `server_name` is available on the type).
+
+  **Do NOT modify any other Settings section** (My Data, System Types, App Settings, etc.)
 
 ---
 
-## Priority 12 — Backend Tests
-*Tests alongside the routes.*
+## Priority 9 — Frontend: Model Selectors Throughout App
 
-- [ ] **12. Backend tests for document routes**
+*Update all model dropdowns to show server context.*
 
-  **Files:** `tests/routes/test_documents.py` (new)
+- [ ] **9. Update model selectors throughout the app to use `<optgroup>` by server**
 
-  Test coverage required:
+  **Files:** Any page or component containing a model `<select>` dropdown.
+  Audit all pages — likely candidates: `Evaluate.tsx`, `JobSearchProfile.tsx`,
+  `Settings.tsx` (already updated in Priority 8), possibly others.
 
-  **Upload (`POST /api/v1/applications/{id}/documents`):**
-  - Happy path: `.typ` upload → record created, file written to disk, audit entry created
-  - Happy path: `.pdf` upload → same
-  - Invalid extension (`.docx`) → 422
-  - Invalid `doc_type` → 422
-  - File too large (`.typ` > 5MB) → 413
-  - Duplicate filename → 409
-  - Application not found → 404
-  - Sanitization: filename with spaces and special chars → sanitized correctly
+  For each model selector:
+  - Group `<option>` elements under `<optgroup label={server_name}>` for each server
+  - Option label: `{model}` (just the model name — the server is the group header)
+  - Sort servers alphabetically; sort models within each server alphabetically
+  - If a model has `available = false`: add ` (unavailable)` to the option text and set
+    `disabled` on the option
+  - Preserve all existing selection, onChange, and default-model pre-selection behavior
 
-  **List (`GET /api/v1/applications/{id}/documents`):**
-  - Returns correct records for application
-  - Returns empty list when no documents
-  - `file_exists` is `false` when file not on disk
-
-  **Delete (`DELETE /api/v1/applications/{id}/documents/{doc_id}`):**
-  - Happy path: record deleted, file deleted from disk, audit entry created
-  - File not on disk: record still deleted, warning logged, no error raised
-  - Wrong application_id for doc → 404
-  - Doc not found → 404
-
-  **Serve (`GET /api/v1/documents/file/{doc_id}`):**
-  - `.pdf` served with `application/pdf` and `inline` disposition
-  - `.typ` served with `text/plain` and `attachment` disposition
-  - Path traversal attempt rejected with 403
-  - File not on disk → 404
-
-  **Compile (`POST /api/v1/applications/{id}/documents/{doc_id}/compile`):**
-  - Happy path (mock `subprocess.run` success): PDF record created, old PDF replaced,
-    audit entry created, returns new doc id
-  - Typst not available (`app.state.typst_available = False`) → 503
-  - Source doc is `.pdf` not `.typ` → 422
-  - Compile failure (mock non-zero returncode): 400 with stderr detail, no PDF record created
-  - Compile timeout (mock `TimeoutExpired`): 504
-  - Application/doc mismatch → 404
-
-  **Documents storage (`GET /api/v1/settings/documents-storage`):**
-  - Returns correct size and file count for populated directory
-  - Returns zeros when directory is empty or missing
+  **Do NOT change any other behavior of these pages.**
 
 ---
 
-## Priority 13 — Frontend Tests
-*Tests alongside the component changes.*
+## Priority 10 — Backend Tests
 
-- [ ] **13. Frontend tests for Document tab on ApplicationDetailPage**
+- [ ] **10. Backend tests for server management routes**
 
-  **Files:** `frontend/src/pages/ApplicationDetailPage.test.tsx`
-  (add to existing file — do not create a new test file)
-
-  Add MSW handlers in `test/mocks/handlers.ts` for:
-  - `GET /api/v1/applications/{id}/documents` → fixture with one `.typ` and one `.pdf`
-  - `POST /api/v1/applications/{id}/documents` → success response
-  - `DELETE /api/v1/applications/{id}/documents/{doc_id}` → `{ success: true }`
-  - `POST /api/v1/applications/{id}/documents/{doc_id}/compile` → success response
-  - `GET /api/v1/settings/documents-storage` → fixture data
+  **Files:** `tests/routes/test_servers.py` (new)
 
   Test coverage required:
-  - Documents tab renders when clicked (4th tab visible)
-  - Document list renders filenames and type labels from fixture
-  - Compile button shown for `.typ` file, not for `.pdf`
-  - Open PDF button shown for `.pdf` file, not for `.typ`
-  - Compile button absent when `typst_available: false` in health fixture
-  - "Typst not found" banner shown when `typst_available: false`
-  - Delete button click shows confirmation inline; cancelling does not call API
-  - Delete confirm calls DELETE route and list refreshes
-  - Upload form renders type selector and file input
-  - Empty state renders when document list is empty
+
+  **`GET /api/v1/settings/llm-servers`:**
+  - Returns empty list when no servers
+  - Returns servers with model_count correctly populated
+
+  **`POST /api/v1/settings/llm-servers`:**
+  - Happy path local: server created, correct fields returned
+  - Happy path anthropic: server created, endpoint null
+  - Duplicate anthropic: 409
+  - Local without endpoint: 422
+  - Invalid server_type: 422
+
+  **`PUT /api/v1/settings/llm-servers/{id}`:**
+  - Updates server_name and endpoint
+  - server_type unchanged in response
+
+  **`DELETE /api/v1/settings/llm-servers/{id}`:**
+  - Happy path: server deleted
+  - Server with models: 409
+
+  **`POST /api/v1/settings/llm-servers/test`:**
+  - Local success (mock httpx / requests GET returning Ollama response)
+  - Local failure (connection error)
+  - Anthropic without key: returns false + error message
+
+  **`GET /api/v1/settings/llm-servers/{id}/available-models`:**
+  - Local: returns model list from mocked Ollama response
+  - Anthropic: returns hardcoded Claude model list
+
+  **`POST /api/v1/settings/anthropic-key`:**
+  - Writes to .env (mock file write); returns success + `anthropic_key_present: true`
+  - Empty key: 422
+
+  **`GET /api/v1/settings/anthropic-key`:**
+  - Returns `anthropic_key_present: false` when no key in env
+  - Returns `anthropic_key_present: true` when key present
+
+  **Model routes (update existing test file):**
+  In `tests/routes/test_models.py` (existing file):
+  - Update fixtures to create a server first, then use `server_id` in model creation
+  - Verify that `endpoint` is no longer accepted on model create/edit (422 if provided)
+  - Verify `default_flag` works correctly on create and edit
+  - Verify that `estimated_eval_time` is NOT accepted on create/edit (field ignored or 422)
+
+---
+
+## Priority 11 — Frontend Tests
+
+- [ ] **11. Frontend tests for server management in Settings**
+
+  **Files:** `frontend/src/pages/Settings.test.tsx` (add to existing)
+
+  Add MSW handlers for:
+  - `GET /api/v1/settings/llm-servers` → fixture with one local + one anthropic server
+  - `POST /api/v1/settings/llm-servers` → success
+  - `DELETE /api/v1/settings/llm-servers/{id}` → success or 409 with models
+  - `POST /api/v1/settings/llm-servers/test` → success
+  - `GET /api/v1/settings/llm-servers/{id}/available-models` → fixture model list
+  - `GET /api/v1/settings/anthropic-key` → `{ anthropic_key_present: false }`
+
+  Test coverage required:
+  - Servers section renders with correct columns and row data
+  - Delete button disabled when model_count > 0
+  - "Add AI/Server" button opens popup
+  - Local tab shows server name and endpoint fields
+  - Remote tab shows pre-filled name and key status indicator
+  - "Test Connection" button triggers test mutation and shows result inline
+  - After server creation, import-models step renders checklist
+  - "Skip" closes the popup
+  - Anthropic server row shows key status indicator
+  - Model dropdowns in Add/Edit Model popup are grouped by server (`optgroup`)
+
+---
+
+## Priority 12 — llm_client.py: Anthropic Async Consistency
+
+*No route changes. No schema changes. Fixes an implementation inconsistency in `llm_client.py`.*
+
+- [ ] **12. Update `_call_anthropic()` to use `AsyncAnthropic`**
+
+  **Files:** `llm_client.py`
+
+  The current `_call_anthropic()` creates a synchronous `anthropic_sdk.Anthropic()` client
+  and runs it in a thread via `asyncio.to_thread()`. `_stream_anthropic()` already uses
+  `anthropic_sdk.AsyncAnthropic()` directly. Align both paths.
+
+  Replace:
+  ```python
+  client = anthropic_sdk.Anthropic(api_key=api_key)
+  response = await asyncio.to_thread(
+      client.messages.create, ...
+  )
+  ```
+
+  With:
+  ```python
+  client = anthropic_sdk.AsyncAnthropic(api_key=api_key)
+  response = await client.messages.create(
+      model=model,
+      max_tokens=max_tokens,
+      system=system,
+      messages=[{"role": "user", "content": prompt}],
+  )
+  ```
+
+  Also add explicit `anthropic_sdk.AuthenticationError` handling before the generic
+  `anthropic_sdk.APIError` catch, with message: `"API key is invalid. Check ANTHROPIC_API_KEY in .env."`
+
+  Remove the now-unused `import asyncio` from `_call_anthropic()` if it was imported only
+  for `to_thread`.
+
+  **Do not change any other logic in `llm_client.py`.**
+
+---
+
+---
+
+## Priority 13 — Routing: Pull Dashboard Outside Layout
+
+*Structural routing change. No visual changes to other pages.*
+
+- [ ] **13. Move Dashboard route outside the `<Layout>` wrapper**
+
+  **Files:** `frontend/src/main.tsx` (or wherever the router is configured)
+
+  Currently all routes render inside `<Layout>` (which includes the left sidebar).
+  Dashboard needs to be a standalone full-page experience without the sidebar.
+
+  Change the router so:
+  - The `'/'` route renders `<Dashboard />` directly (no Layout wrapper)
+  - All other routes remain wrapped in `<Layout>` as before
+
+  Example structure (exact syntax depends on how the router is currently set up):
+  ```tsx
+  // Dashboard — standalone, no sidebar
+  { path: '/', element: <Dashboard /> }
+
+  // All other pages — wrapped in Layout (sidebar present)
+  {
+    element: <Layout />,
+    children: [
+      { path: '/jobs', element: <Jobs /> },
+      { path: '/applications', element: <Applications /> },
+      // ... etc
+    ]
+  }
+  ```
+
+  Verify after change: navigating to `/` shows no sidebar; navigating to `/jobs` shows sidebar.
+
+  **Do NOT change any page component other than verifying the route structure.**
+
+---
+
+## Priority 14 — AppHeader Component
+
+*New reusable component. No page changes yet — used by Dashboard in Priority 15.*
+
+- [ ] **14. Create `frontend/src/components/AppHeader.tsx`**
+
+  **Files:** `frontend/src/components/AppHeader.tsx` (new)
+
+  A top-bar header component matching the `.header` block from `pages/index.html`,
+  translated to Tailwind using the existing design tokens.
+
+  **Visual structure (left to right):**
+  - **Wordmark:** "AIstivus" — `font-serif text-accent text-2xl tracking-tight`
+  - **Tagline:** "AI Job Search Helper for the Rest of Us" — `font-mono text-xs text-muted uppercase tracking-widest` (vertically aligned with wordmark baseline)
+  - **Settings link** (right, `ml-auto`): links to `/settings` — `font-mono text-xs text-muted hover:text-text transition-colors`
+
+  **Container:** `border-b border-border px-12 py-4 flex items-baseline gap-4`
+
+  The component takes no props — it is a pure presentational header. The Settings link
+  uses React Router `<Link>` (not `<a>`).
+
+  **Do NOT build any page or other component in this priority.**
+
+---
+
+## Priority 15 — Dashboard Redesign
+
+*Full redesign of Dashboard.tsx. Depends on Priority 13 (routing) and Priority 14 (AppHeader).*
+
+- [ ] **15. Rewrite `Dashboard.tsx` — header, hero, stats bar, nav tiles**
+
+  **Files:** `frontend/src/pages/Dashboard.tsx`
+
+  Complete rewrite. Keep existing data fetching logic (`useQuery` for stats and health,
+  `useProfileHealth`). Remove the old sidebar-era layout (`h-full overflow-y-auto p-8 max-w-4xl mx-auto`).
+
+  ---
+
+  ### Structure (top to bottom)
+
+  **1. `<AppHeader />`**
+
+  Rendered at the very top. No padding wrapper — AppHeader handles its own padding.
+
+  ---
+
+  **2. Hero block**
+
+  ```
+  padding: px-12 pt-18 pb-12, max-width ~760px
+  ```
+
+  - **Eyebrow:** small mono uppercase accent-dim text.
+    Content: `"PHASE 1.3 — MULTI-SERVER LLM MANAGEMENT"` (static string, update when phase changes)
+    Style: `font-mono text-[0.65rem] uppercase tracking-[0.14em] text-accent/60 mb-4`
+
+  - **Headline:** `"Because companies use AI to filter "` + `<em>you.</em>`
+    Style: `font-serif text-5xl leading-tight tracking-tight text-text mb-5`
+    The `<em>` tag: `text-accent not-italic` (use accent color, not italic — the HTML uses italic
+    but our serif font's italic weight may differ; match the visual weight)
+
+    > Actually, use italic here: `italic text-accent`. DM Serif Display has a proper italic cut.
+
+  - **Subtitle:** `"A local, private job search command center. Evaluate roles against your
+    background, track applications, and build tailored resumes — powered by models running
+    on your own machine."`
+    Style: `text-base text-muted leading-relaxed font-light max-w-lg`
+
+  ---
+
+  **3. Stats bar**
+
+  Horizontal row of 4 bordered cells. Max width ~600px. Margin: `mx-12 mb-12`.
+
+  ```
+  border border-border rounded-xl overflow-hidden flex
+  ```
+
+  Each stat cell (`flex-1 px-5 py-4 border-r border-border last:border-r-0`):
+  - **Number:** `font-serif text-accent text-3xl leading-none mb-1` — the stat value
+  - **Label:** `font-mono text-[0.65rem] uppercase tracking-widest text-muted`
+
+  Stats and link behavior:
+  | Label | Value | Link |
+  |---|---|---|
+  | Jobs | `stats.data.jobs` | `/jobs` |
+  | Evaluations | `stats.data.evaluations` | none |
+  | Applications | `stats.data.applications` | `/applications` |
+  | LLM Calls | `stats.data.llm_calls` | `/llm-usage` |
+
+  When a stat links somewhere, wrap the cell content in `<Link to={...}>` and add
+  `hover:bg-surface transition-colors` to the cell.
+
+  Show `—` for each value while loading. Show `—` (silently) on error — stats are non-critical.
+
+  ---
+
+  **4. Nav tiles**
+
+  Section label + grid. Padding: `px-12 pb-18`.
+
+  ```
+  Section label: font-mono text-[0.65rem] uppercase tracking-widest text-muted/60 mb-5
+  Grid: grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4 max-w-4xl
+  ```
+
+  Each tile is a `<Link>` wrapping a card div:
+  ```
+  bg-surface border border-border rounded-xl p-6 flex flex-col gap-2.5
+  hover:border-border-focus hover:bg-surface2 hover:-translate-y-0.5
+  transition-all duration-200
+  ```
+
+  Tile contents:
+  - **Icon:** `text-2xl leading-none`
+  - **Title:** `font-serif text-xl text-text tracking-tight`
+  - **Description:** `text-[0.78rem] text-muted leading-snug`
+  - **Status line** (`mt-auto pt-2 border-t border-border`):
+    `font-mono text-[0.62rem] uppercase tracking-wider text-green`
+    Content: `● Active`
+
+  Five tiles (in display order):
+
+  | Icon | Title | Description | Route |
+  |---|---|---|---|
+  | ⚡ | Evaluate | Paste a job description and get a structured fit assessment against your background. | `/evaluate` |
+  | 💼 | Jobs | View all jobs and opportunities. Compare evaluations and re-evaluate top candidates. | `/jobs` |
+  | 📁 | Applications | Track application status, add notes, and log recruiter conversations. | `/applications` |
+  | 📋 | JS Profile | Build and refine your Job Search Profile — the context behind every evaluation. | `/profile` |
+  | 📊 | LLM Usage | View all LLM call logs, inspect prompts, and monitor usage by model. | `/llm-usage` |
+
+  ---
+
+  **5. Profile Strength widget**
+
+  Keep existing `<ProfileStrengthWidget />` component and its logic. Place it below the
+  nav tiles in its own section with a label:
+  ```
+  Section label: PROFILE  (same mono uppercase style as "TOOLS")
+  ```
+  Restyled to fill the full available width (remove any `max-w` constraint from the widget
+  that assumed a sidebar layout).
+
+  ---
+
+  **6. Model health**
+
+  Keep existing model health section and `<ModelBadge />` component. Place below Profile
+  Strength with label `MODELS`. Same restyling — full width.
+
+  ---
+
+  ### What to remove
+
+  - The old `<h1 className="font-serif text-accent text-3xl">Dashboard</h1>` heading
+  - The `max-w-4xl mx-auto` container that assumed sidebar context
+  - The `h-full overflow-y-auto` outer wrapper (the page now scrolls naturally)
+
+  The outer page wrapper becomes `<div className="min-h-screen bg-bg overflow-y-auto">`.
+
+  ---
+
+  **Do NOT change any other page or component.**
 
 ---
 
 ## Out of Scope for Phase 1.3 (Do Not Build)
-- AI-assisted resume content generation from `jobsearch.md` (Phase 2)
-- In-app `.typ` editor or viewer
-- Per-application file count or size limits
-- Automatic disk cleanup / retention policies
-- "Purge generated files" button in Settings
-- Docker deployment (Phase 1.4)
-- Resume chunk library / `resume_info` table activation (Phase 2)
+
+- OpenAI or any other cloud provider beyond Anthropic
+- Self-hosted OpenAI-compatible endpoints (LiteLLM, etc.)
+- Per-server rate limiting or concurrency controls
+- Model capability metadata (context window sizes, etc.)
+- Automatic model pruning / cleanup of unavailable models
+- Typst / document management (Phase 1.4)
+- Docker deployment (Phase 1.5)
 
 ---
 
@@ -784,19 +1066,21 @@ not on health check (keeps health fast).
 
 | Method | Route | Description |
 |---|---|---|
-| POST | `/api/v1/applications/{id}/documents` | Upload document |
-| GET | `/api/v1/applications/{id}/documents` | List documents |
-| DELETE | `/api/v1/applications/{id}/documents/{doc_id}` | Delete document + file |
-| POST | `/api/v1/applications/{id}/documents/{doc_id}/compile` | Compile .typ → .pdf |
-| GET | `/api/v1/documents/file/{doc_id}` | Serve file (inline PDF / download .typ) |
-| GET | `/api/v1/settings/documents-storage` | Disk usage + Typst status |
+| GET | `/api/v1/settings/llm-servers` | List all servers |
+| POST | `/api/v1/settings/llm-servers` | Create server |
+| PUT | `/api/v1/settings/llm-servers/{id}` | Update server name/endpoint |
+| DELETE | `/api/v1/settings/llm-servers/{id}` | Delete server (fails if models exist) |
+| POST | `/api/v1/settings/llm-servers/test` | Test connection (no record created) |
+| GET | `/api/v1/settings/llm-servers/{id}/available-models` | Fetch importable model list |
+| GET | `/api/v1/settings/anthropic-key` | Key presence status (boolean only; no write route) |
+
+---
 
 ## Security Checklist (verify before closing each backend item)
-- [ ] All file paths validated within `generated_dir` before any read/write/serve
-- [ ] No SQL string interpolation — parameterized queries only
-- [ ] File extension validated before compile (`['.typ']` only)
-- [ ] Filename sanitized on upload: `[a-zA-Z0-9_-]` stem only, max 64 chars
-- [ ] Application ownership verified on every doc operation (doc.application_id check)
-- [ ] Subprocess timeout enforced (30s) on every compile call
-- [ ] stderr captured and returned as user-readable message; not raised as unhandled exception
-- [ ] No API keys or PII in log output
+
+- [ ] `ANTHROPIC_API_KEY` never appears in any log output, API response, or DB record
+- [ ] `GET /api/v1/settings/anthropic-key` returns only `{ anthropic_key_present: bool }` — no write route exists
+- [ ] Server connection test route does not create any DB record
+- [ ] All SQL parameterized — no string interpolation
+- [ ] Server deletion checks model count before deleting (no orphaned models)
+- [ ] Startup key load: key read into `os.environ`, not stored on `app.state`

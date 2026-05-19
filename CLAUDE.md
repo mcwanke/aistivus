@@ -22,10 +22,10 @@ document generation.
 
 ---
 
-## Current Phase: PHASE 1.0 — DB + Backend + Tests
+## Current Phase: PHASE 1.3 — Multi-Server LLM Management
 
-**Phases 0 through 1.1 are complete.** Core evaluation pipeline working end-to-end.
-HTML frontend operational (read-only reference — do not modify).
+**Phases 0 through 1.2 are complete.** Core evaluation pipeline, React frontend, and
+Job Search Profile all working end-to-end.
 
 ### Phase 1.0 Checklist 🔄
 - [x] New schema v1.0 — clean slate (`init_db()` with all new tables)
@@ -84,6 +84,37 @@ HTML frontend operational (read-only reference — do not modify).
 - [x] Frontend tests for Job Search Profile page
 
 ### Phase 1.3 Checklist 🔲
+- [ ] `llm_servers` table in `database.py` (`init_db()`) with CRUD functions
+- [ ] `llm_models` table: `endpoint` column removed, `server_id` FK added; all DB functions updated
+- [ ] `estimated_eval_time` removed from user-facing forms; auto-updated from `llm_call_log` after each call
+- [ ] `env_utils.py` — `.env` read/write utility (`python-dotenv` already in requirements.txt; use it for `load_dotenv()`)
+- [ ] Startup: `load_dotenv()` called; `app.state.anthropic_key_present` set
+- [ ] Server management routes (list, create, update, delete, test, available-models)
+- [ ] Anthropic key route (`GET /api/v1/settings/anthropic-key` — boolean presence only; no write route)
+- [ ] Model routes updated: `endpoint` removed, `server_id` added, `default_flag` on create/edit
+- [ ] Auto-seed updated: creates `llm_servers` record before `llm_models` on first run
+- [ ] Startup availability check updated: checks per-server type (`local` → Ollama ping, `anthropic` → key present)
+- [ ] `estimated_eval_time` auto-update after each successful LLM call (`evaluator.py`)
+- [ ] Fix "Query Endpoint" availability check bug (now handled via per-server test route)
+- [ ] TypeScript interfaces updated (`LLMServer`, updated `LLMModel`, `ConnectionTestResult`, etc.)
+- [ ] `useServers.ts` hook with full CRUD, test, and available-models queries
+- [ ] `useModels` hook updated for new schema
+- [ ] Settings: Servers section (list, edit, delete with guard)
+- [ ] Settings: "Add AI/Server" popup (Local + Remote/Anthropic tabs, Test Connection, import flow)
+- [ ] Settings: "Add Model" popup updated (server dropdown, default checkbox, no endpoint/eval-time)
+- [ ] Settings: "Edit Model" popup updated (same changes + Set Default moved here, removed from row)
+- [ ] Settings: "Query Endpoint" section removed
+- [ ] Model selectors throughout app: `<optgroup>` grouping by server
+- [ ] Backend tests for all new server and key routes; model route tests updated
+- [ ] Frontend tests for server management in Settings
+- [ ] `_call_anthropic()` in `llm_client.py`: switch from sync `Anthropic` + `asyncio.to_thread()` to `AsyncAnthropic` (consistent with `_stream_anthropic`)
+- [ ] Anthropic connection test route: catch `anthropic_sdk.AuthenticationError` explicitly; return clear "API key is invalid" message (not generic API error)
+- [ ] Settings: model row displays server name in place of endpoint (via JOIN; Part G of Priority 8)
+- [ ] `AppHeader.tsx` — reusable top header component (wordmark, tagline, Settings link); no sidebar
+- [ ] Dashboard: standalone route outside `<Layout>` wrapper — no sidebar rendered
+- [ ] Dashboard: full redesign — AppHeader, hero block, stats bar, nav tiles (active pages only; no disabled future tiles)
+
+### Phase 1.4 Checklist 🔲
 - [ ] Config: `typst:` section in `CONFIG_TEMPLATE.yaml` (`binary_path`, `generated_dir`; moved from `output:`)
 - [ ] DB: `application_info` system_type seed; `get_document_by_id()`; `get_document_by_file_path()`
 - [ ] Startup: Typst binary check → `app.state.typst_available`; create `generated/` on startup; extend health endpoint with `typst_available`
@@ -98,7 +129,7 @@ HTML frontend operational (read-only reference — do not modify).
 - [ ] Backend tests for all document routes
 - [ ] Frontend tests for Document tab on ApplicationDetail
 
-### Phase 1.4 Checklist 🔲
+### Phase 1.5 Checklist 🔲
 - [ ] Dockerfile
 - [ ] docker-compose.yml (volume mounts: data/, generated/, reports/, logs/)
 - [ ] .dockerignore
@@ -118,7 +149,7 @@ aistivus/
 ├── logger.py               (Phase 1.0 — new)
 ├── profile_routes.py       (Phase 1.2 — new)
 ├── templates/
-│   └── typst/              (Phase 1.3)
+│   └── typst/              (Phase 1.4)
 ├── pages/                  (read-only reference; retired Phase 1.1)
 ├── tests/                  (Phase 1.0 — new)
 │   ├── conftest.py
@@ -168,16 +199,20 @@ aistivus/
 | LLM (local) | Ollama REST API |
 | LLM (cloud) | Anthropic API |
 | Model config | `llm_models` DB table (replaces config.yaml model config) |
-| Document gen | Typst binary (Phase 1.3) |
+| Document gen | Typst binary (Phase 1.4) |
 | Rate limiting | slowapi (Phase 1.0) |
 | Logging | Python stdlib logging — structured JSON (Phase 1.0) |
 | Testing | pytest + Vitest (Phase 1.0/1.1) |
 | Streaming | SSE via FastAPI `StreamingResponse` (Phase 1.2) |
-| Deployment | Docker + docker-compose (Phase 1.4) |
+| Deployment | Docker + docker-compose (Phase 1.5) |
 
 ---
 
 ## Database Rules (Non-Negotiable)
+
+- **Schema wipe policy (active until rescinded):** All breaking schema changes are handled
+  by wiping the database and rebuilding from scratch. No migration scripts are needed or
+  written. Do not write migration code unless this policy is explicitly changed.
 
 - **All database logic lives in `database.py`.** No SQL anywhere else.
 - **All queries use parameterized statements.** No string interpolation in SQL. Ever.
@@ -220,8 +255,15 @@ aistivus/
 system_types        (id, type_name, type_value, created_at)
                     UNIQUE (type_name, type_value)
 
-llm_models          (id, model, endpoint, estimated_eval_time,
+llm_servers         (id, server_name, endpoint, server_type, created_at)
+                    -- server_type: 'local' | 'anthropic'
+                    -- endpoint: NULL for 'anthropic' (base URL hardcoded in llm_client.py)
+
+llm_models          (id, model, server_id, estimated_eval_time,
                      available, default_flag, model_weight, created_at)
+                    -- server_id: FK → llm_servers.id
+                    -- endpoint removed (now on llm_servers)
+                    -- estimated_eval_time: auto-updated from llm_call_log; not user-entered
 
 jobs                (id, company_name, title, location, remote_type,
                      description_merged, pay_band, role_keyword,
@@ -328,7 +370,7 @@ prompt = f"[JD_START]\n{jd_clean}\n[JD_END]"
 ### Startup Validation
 1. Check each `llm_models` record — update `available` flag
 2. If `llm_models` empty: auto-seed from config.yaml (`ollama.base_url` + `ollama.default_model`)
-3. Phase 1.2: check Typst binary — degrade gracefully if not found
+3. Phase 1.4: check Typst binary — degrade gracefully if not found
 4. If no models available: log error, continue (app usable for browsing)
 
 ---
