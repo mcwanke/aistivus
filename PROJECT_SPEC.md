@@ -888,7 +888,30 @@ calls. These are separate Anthropic products with separate auth. The manual "cop
 paste into Claude.ai → import JSON" workflow from Phase 0 is the only path for Claude Pro users
 and is preserved via the import modal on the Evaluate page.
 
-### Phase 1.4 — Typst / Documents 🔲
+### Phase 1.4 — Settings Improvements + Job Lifecycle 🔲
+**Goal: Server-aware model selection in Settings and an explicit job activation flow on the Evaluate page.**
+
+Deliverables:
+- Settings "Add Model": model name replaced with server-aware dropdown (populated from server's available models; filtered to exclude already-added models on that server; refresh button; error state when server unreachable — no free-text fallback)
+- Settings "AI Servers": Actions column widened (delete button overflow fix); "MODELS" header renamed to "IN USE"
+- `jobs.is_active` flag (DEFAULT 0) — new jobs start inactive; DB wipe required
+- `activate_job()` in `database.py`; `GET /api/v1/jobs` returns active-only by default; dashboard stats count active jobs only
+- `POST /api/v1/jobs/{id}/activate` route
+- `Evaluate.tsx`: post-evaluation CTA banner — displays LLM recommendation, prompts user to activate or skip; "Yes" navigates to `/jobs/{jobId}`; "No" resets Evaluate page for fresh JD entry
+- Backend + frontend tests
+
+**See:** `app_docs/WORKORDER-phase1.4.md` for full item-by-item build spec.
+
+### Phase 1.5 — Navigation & Header Rollout 🔲
+**Goal: Bring the top-header navigation model from the Dashboard to all pages; remove the sidebar.**
+
+Deliverables:
+- `AppHeader.tsx` applied to all pages
+- Sidebar (`<Layout>` wrapper) removed from all non-Dashboard pages
+- CSS/design pass to pull forward visual details from original HTML pages in `pages/`
+- Additional page-specific rework (TBD — see `app_docs/WORKORDER-phase1.5.md`)
+
+### Phase 1.6 — Typst / Documents 🔲
 **Goal: Import, compile, and view Typst resume files within the app.**
 
 Deliverables:
@@ -900,7 +923,7 @@ Deliverables:
 - At least two bundled Typst resume templates in `templates/typst/`
 - Settings: Typst binary path configuration, generated files disk usage
 
-### Phase 1.5 — Docker 🔲
+### Phase 1.7 — Docker 🔲
 **Goal: Consistent, portable local deployment. One container per user for family/multi-user use.**
 
 Deliverables:
@@ -1020,7 +1043,7 @@ frontend/src/
     └── JobSearchProfile.tsx
 ```
 
-### Phase 1.5 Additions
+### Phase 1.7 Additions
 ```
 aistivus/
 ├── Dockerfile
@@ -1327,3 +1350,7 @@ This is computed server-side in `is_section_complete()` and returned by
   tiles; standalone route outside sidebar Layout). AppHeader.tsx component added. Settings
   model row shows server name in place of endpoint. Dashboard spec added as Section 20;
   prior sections 20–21 renumbered.
+- **v2.4** — Phase renumbering: old Phase 1.4 (Typst) → 1.6; old Phase 1.5 (Docker) → 1.7.
+  New Phase 1.4: Settings improvements (server-aware model dropdown, AI Servers layout fix)
+  + jobs.is_active lifecycle flag + Evaluate page activate CTA. New Phase 1.5 stub: nav/header
+  rollout to all pages + sidebar removal.

@@ -1078,9 +1078,9 @@ needed. All existing model config must be re-entered in Settings after the upgra
 
 ## Security Checklist (verify before closing each backend item)
 
-- [ ] `ANTHROPIC_API_KEY` never appears in any log output, API response, or DB record
-- [ ] `GET /api/v1/settings/anthropic-key` returns only `{ anthropic_key_present: bool }` — no write route exists
-- [ ] Server connection test route does not create any DB record
-- [ ] All SQL parameterized — no string interpolation
-- [ ] Server deletion checks model count before deleting (no orphaned models)
-- [ ] Startup key load: key read into `os.environ`, not stored on `app.state`
+- [x] `ANTHROPIC_API_KEY` never appears in any log output, API response, or DB record — verified: health + settings endpoints return `bool(os.environ.get(...))` only; key never touches DB; `get_env_key()` is never passed to any logger
+- [x] `GET /api/v1/settings/anthropic-key` returns only `{ anthropic_key_present: bool }` — no write route exists — verified: route at main.py:1685 returns boolean only; no POST/PUT route for this path exists
+- [x] Server connection test route does not create any DB record — verified: `POST /api/v1/settings/llm-servers/test` (main.py:1621) makes HTTP/SDK calls only; zero database.* calls in the handler
+- [x] All SQL parameterized — no string interpolation — verified: f-strings in dynamic SET clauses (update_llm_model, update_job, update_application, upsert_job) only interpolate column names from hardcoded allowlists; all user values are `?`-bound; export_db uses hardcoded table-name list
+- [x] Server deletion checks model count before deleting (no orphaned models) — verified: main.py:1610 calls get_model_count_for_server() and raises 409 before delete
+- [x] Startup key load: key read into `os.environ`, not stored on `app.state` — verified: main.py:190–191 stores only `bool(anthropic_key)` on app.state; key is re-read from os.environ at call time via get_env_key()

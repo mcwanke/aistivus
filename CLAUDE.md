@@ -22,10 +22,10 @@ document generation.
 
 ---
 
-## Current Phase: PHASE 1.3 — Multi-Server LLM Management
+## Current Phase: PHASE 1.4 — Settings Improvements + Job Lifecycle
 
-**Phases 0 through 1.2 are complete.** Core evaluation pipeline, React frontend, and
-Job Search Profile all working end-to-end.
+**Phases 0 through 1.3 are complete.** Core evaluation pipeline, React frontend,
+Job Search Profile, and multi-server LLM management all working end-to-end.
 
 ### Phase 1.0 Checklist 🔄
 - [x] New schema v1.0 — clean slate (`init_db()` with all new tables)
@@ -115,6 +115,28 @@ Job Search Profile all working end-to-end.
 - [x] Dashboard: full redesign — AppHeader, hero block, stats bar, nav tiles (active pages only; no disabled future tiles)
 
 ### Phase 1.4 Checklist 🔲
+- [ ] Settings: "Add Model" — model name field replaced with server-aware dropdown (populated from server's available models)
+- [ ] Settings: "Add Model" — dropdown filters out models already configured on the selected server; refresh button re-fetches list
+- [ ] Settings: "Add Model" — error state blocks entry when server is unreachable (no text input fallback)
+- [ ] Settings: AI Servers — Actions column widened to fix delete button overflow
+- [ ] Settings: AI Servers — "MODELS" column header renamed to "IN USE"
+- [ ] `jobs.is_active` column added to schema (`DEFAULT 0`); DB wipe required
+- [ ] `database.py`: `create_job()` sets `is_active = 0`; `get_all_jobs()` filters `is_active = 1` by default; `activate_job()` function added
+- [ ] Backend: `POST /api/v1/jobs/{id}/activate` route
+- [ ] Backend: `GET /api/v1/jobs` returns only active jobs by default; dashboard stats count active jobs only
+- [ ] TypeScript: `Job` interface updated with `is_active: number`; `useActivateJob` hook added
+- [ ] `Evaluate.tsx`: post-evaluation CTA banner showing LLM recommendation with Yes/No activate prompt
+- [ ] `Evaluate.tsx`: "Yes" — activates job, navigates to `/jobs/{jobId}`
+- [ ] `Evaluate.tsx`: "No" — resets page for fresh JD entry (clears form + results)
+- [ ] Backend tests: activate route, `is_active` filter on jobs list
+- [ ] Frontend tests: Evaluate.tsx CTA renders/hides correctly; "No" resets page
+
+### Phase 1.5 Checklist 🔲
+- [ ] `AppHeader.tsx` applied to all pages; `<Layout>` sidebar wrapper removed from all non-Dashboard pages
+- [ ] CSS/design pass across all pages (details TBD in workorder)
+- [ ] Additional page-specific rework (TBD)
+
+### Phase 1.6 Checklist 🔲
 - [ ] Config: `typst:` section in `CONFIG_TEMPLATE.yaml` (`binary_path`, `generated_dir`; moved from `output:`)
 - [ ] DB: `application_info` system_type seed; `get_document_by_id()`; `get_document_by_file_path()`
 - [ ] Startup: Typst binary check → `app.state.typst_available`; create `generated/` on startup; extend health endpoint with `typst_available`
@@ -129,7 +151,7 @@ Job Search Profile all working end-to-end.
 - [ ] Backend tests for all document routes
 - [ ] Frontend tests for Document tab on ApplicationDetail
 
-### Phase 1.5 Checklist 🔲
+### Phase 1.7 Checklist 🔲
 - [ ] Dockerfile
 - [ ] docker-compose.yml (volume mounts: data/, generated/, reports/, logs/)
 - [ ] .dockerignore
@@ -149,7 +171,7 @@ aistivus/
 ├── logger.py               (Phase 1.0 — new)
 ├── profile_routes.py       (Phase 1.2 — new)
 ├── templates/
-│   └── typst/              (Phase 1.4)
+│   └── typst/              (Phase 1.6)
 ├── pages/                  (read-only reference; retired Phase 1.1)
 ├── tests/                  (Phase 1.0 — new)
 │   ├── conftest.py
