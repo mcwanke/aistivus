@@ -104,7 +104,7 @@ Job Search Profile all working end-to-end.
 - [x] Settings: "Add Model" popup updated (server dropdown, default checkbox, no endpoint/eval-time)
 - [x] Settings: "Edit Model" popup updated (same changes + Set Default moved here, removed from row)
 - [x] Settings: "Query Endpoint" section removed
-- [ ] Model selectors throughout app: `<optgroup>` grouping by server
+- [x] Model selectors throughout app: `<optgroup>` grouping by server
 - [ ] Backend tests for all new server and key routes; model route tests updated
 - [ ] Frontend tests for server management in Settings
 - [x] `_call_anthropic()` in `llm_client.py`: switch from sync `Anthropic` + `asyncio.to_thread()` to `AsyncAnthropic` (consistent with `_stream_anthropic`)

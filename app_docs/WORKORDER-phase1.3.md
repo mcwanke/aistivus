@@ -705,7 +705,7 @@ needed. All existing model config must be re-entered in Settings after the upgra
 
 *Update all model dropdowns to show server context.*
 
-- [ ] **9. Update model selectors throughout the app to use `<optgroup>` by server**
+- [x] **9. Update model selectors throughout the app to use `<optgroup>` by server** — Evaluate.tsx and JobSearchProfile.tsx updated; models grouped by server_name (sorted alphabetically), unavailable models shown as disabled with "(unavailable)" suffix; removed stale `enabled` filter from Evaluate.tsx
 
   **Files:** Any page or component containing a model `<select>` dropdown.
   Audit all pages — likely candidates: `Evaluate.tsx`, `JobSearchProfile.tsx`,

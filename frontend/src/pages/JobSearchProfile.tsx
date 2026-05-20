@@ -791,10 +791,28 @@ export default function JobSearchProfile(): React.JSX.Element {
               className="bg-surface border border-surface2 rounded px-2 py-1.5 text-xs font-mono text-muted focus:outline-none focus:border-accent/50"
             >
               <option value="">Default model</option>
-              {modelList.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.model}
-                </option>
+              {Array.from(
+                [...modelList]
+                  .sort((a, b) => {
+                    const s = a.server_name.localeCompare(b.server_name)
+                    return s !== 0 ? s : a.model.localeCompare(b.model)
+                  })
+                  .reduce<Map<string, typeof modelList>>((acc, m) => {
+                    const g = acc.get(m.server_name) ?? []
+                    g.push(m)
+                    acc.set(m.server_name, g)
+                    return acc
+                  }, new Map())
+                  .entries(),
+              ).map(([serverName, serverModels]) => (
+                <optgroup key={serverName} label={serverName}>
+                  {serverModels.map((m) => (
+                    <option key={m.id} value={m.id} disabled={m.available !== 1}>
+                      {m.model}
+                      {m.available !== 1 ? ' (unavailable)' : ''}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           )}
