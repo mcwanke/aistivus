@@ -12,7 +12,8 @@ import type {
 async function fetchServers(): Promise<LlmServer[]> {
   const res = await fetch('/api/v1/settings/llm-servers')
   if (!res.ok) throw new Error(`servers ${res.status}`)
-  return res.json() as Promise<LlmServer[]>
+  const data = (await res.json()) as { servers: LlmServer[] }
+  return data.servers
 }
 
 export function useServers() {
