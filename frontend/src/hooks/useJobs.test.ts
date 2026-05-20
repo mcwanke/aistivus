@@ -5,7 +5,7 @@ import { createElement } from 'react'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/test/mocks/server'
 import { MOCK_JOB, MOCK_JOB_DETAIL } from '@/test/mocks/handlers'
-import { useJobs, useJobDetail, usePatchJob, useStartApplication } from './useJobs'
+import { useJobs, useJobDetail, usePatchJob, useStartApplication, useActivateJob } from './useJobs'
 
 function makeWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
@@ -58,6 +58,22 @@ describe('usePatchJob', () => {
     server.use(http.patch('/api/v1/jobs/:id', () => new HttpResponse(null, { status: 500 })))
     const { result } = renderHook(() => usePatchJob(), { wrapper: makeWrapper() })
     result.current.mutate({ jobId: 1, updates: { title: 'New Title' } })
+    await waitFor(() => expect(result.current.isError).toBe(true))
+  })
+})
+
+describe('useActivateJob', () => {
+  it('mutates and returns updated job on success', async () => {
+    const { result } = renderHook(() => useActivateJob(), { wrapper: makeWrapper() })
+    result.current.mutate(1)
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect((result.current.data as { is_active: number }).is_active).toBe(1)
+  })
+
+  it('enters error state on failure', async () => {
+    server.use(http.post('/api/v1/jobs/:id/activate', () => new HttpResponse(null, { status: 404 })))
+    const { result } = renderHook(() => useActivateJob(), { wrapper: makeWrapper() })
+    result.current.mutate(999)
     await waitFor(() => expect(result.current.isError).toBe(true))
   })
 })

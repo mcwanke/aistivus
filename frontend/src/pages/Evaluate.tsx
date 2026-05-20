@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   useModels,
   useEvaluateMutation,
   type EvaluatePayload,
 } from '@/hooks/useEvaluate'
+import { useActivateJob } from '@/hooks/useJobs'
 import type { EvaluateResponse, ExistingJob } from '@/types/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -271,6 +273,52 @@ function DupModal({
   )
 }
 
+// ─── Activate CTA ─────────────────────────────────────────────────────────────
+
+function ActivateCTA({
+  recommendation,
+  onYes,
+  onNo,
+  isPending,
+}: {
+  recommendation: string | null
+  onYes: () => void
+  onNo: () => void
+  isPending: boolean
+}): React.JSX.Element {
+  const firstLine = recommendation
+    ? `The overall recommendation for this job is: ${recommendation}`
+    : 'Evaluation completed.'
+
+  return (
+    <div className="mx-6 mt-6 bg-accent/10 border border-accent/30 rounded-lg p-5 space-y-3">
+      <p className="text-sm text-text font-sans">{firstLine}</p>
+      <p className="text-sm text-muted font-sans">
+        Would you like to start building the job and application information?
+      </p>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onYes}
+          disabled={isPending}
+          className="px-4 py-2 text-sm font-sans bg-accent text-bg rounded hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isPending ? 'Activating…' : 'Yes, build this job'}
+        </button>
+        <button
+          onClick={onNo}
+          disabled={isPending}
+          className="px-4 py-2 text-sm font-sans bg-surface2 text-muted border border-surface2 rounded hover:text-text transition-colors disabled:opacity-50"
+        >
+          No, skip for now
+        </button>
+      </div>
+      <p className="text-xs font-mono text-muted/60">
+        You can always return to this evaluation in the Evaluations page if you change your mind.
+      </p>
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Evaluate(): React.JSX.Element {
@@ -293,8 +341,12 @@ export default function Evaluate(): React.JSX.Element {
   const [dupJobs, setDupJobs] = useState<ExistingJob[]>([])
   const [pendingPayload, setPendingPayload] = useState<EvaluatePayload | null>(null)
 
+  const [jobIsActive, setJobIsActive] = useState(false)
+
   const { data: models = [] } = useModels()
   const evaluateMutation = useEvaluateMutation()
+  const activateJobMutation = useActivateJob()
+  const navigate = useNavigate()
 
   useEffect(() => {
     if (models.length > 0 && selectedModelId === null) {
@@ -340,6 +392,7 @@ export default function Evaluate(): React.JSX.Element {
       }
       if (data.success) {
         setResult(data)
+        setJobIsActive(false)
         setPanelState('result')
       } else {
         setErrorMsg(data.error ?? 'Evaluation failed.')
@@ -382,8 +435,24 @@ export default function Evaluate(): React.JSX.Element {
     setResult(null)
     setErrorMsg('')
     setPanelState('idle')
+    setJobIsActive(false)
     stopTimer()
     setElapsed(0)
+    if (models.length > 0) {
+      const def = models.find((m) => m.default_flag === 1) ?? models[0]
+      setSelectedModelId(def.id)
+    }
+  }
+
+  async function handleActivate(): Promise<void> {
+    if (!result?.job_id) return
+    await activateJobMutation.mutateAsync(result.job_id)
+    setJobIsActive(true)
+    navigate(`/jobs/${result.job_id}`)
+  }
+
+  function handleNoActivate(): void {
+    handleClear()
   }
 
   function handleDupCancel(): void {
@@ -596,11 +665,23 @@ export default function Evaluate(): React.JSX.Element {
           <RunningPanel elapsed={elapsed} countdown={countdown} />
         )}
         {panelState === 'result' && result !== null && (
-          <ResultPanel
-            result={result}
-            company={company || 'Unknown Company'}
-            title={title || 'Unknown Role'}
-          />
+          <>
+            {!jobIsActive && (
+              <ActivateCTA
+                recommendation={
+                  (result.evaluation?.recommendation as string | null | undefined) ?? null
+                }
+                onYes={() => void handleActivate()}
+                onNo={handleNoActivate}
+                isPending={activateJobMutation.isPending}
+              />
+            )}
+            <ResultPanel
+              result={result}
+              company={company || 'Unknown Company'}
+              title={title || 'Unknown Role'}
+            />
+          </>
         )}
         {panelState === 'error' && (
           <div className="p-6">

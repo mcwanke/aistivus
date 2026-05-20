@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { JobListItem, JobDetailResponse } from '@/types/api'
+import type { Job, JobListItem, JobDetailResponse } from '@/types/api'
 
 export type { JobDetailResponse }
 
@@ -89,6 +89,21 @@ export function useAddCompanyLog() {
       if (!res.ok) throw new Error(`add company log ${res.status}`)
     },
     onSuccess: (_data, { jobId }) => {
+      void qc.invalidateQueries({ queryKey: ['job', jobId] })
+    },
+  })
+}
+
+export function useActivateJob() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (jobId: number) =>
+      fetch(`/api/v1/jobs/${jobId}/activate`, { method: 'POST' }).then((r) => {
+        if (!r.ok) throw new Error('Failed to activate job')
+        return r.json() as Promise<Job>
+      }),
+    onSuccess: (_data, jobId) => {
+      void qc.invalidateQueries({ queryKey: ['jobs'] })
       void qc.invalidateQueries({ queryKey: ['job', jobId] })
     },
   })

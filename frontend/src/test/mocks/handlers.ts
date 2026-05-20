@@ -95,6 +95,7 @@ export const MOCK_JOB: JobListItem = {
   excitement_level: null,
   created_at: '2024-01-01T00:00:00',
   project_id: null,
+  is_active: 0,
   application_id: 1,
   application_status: 'draft',
 }
@@ -127,9 +128,11 @@ export const MOCK_JOB_DETAIL: JobDetailResponse = {
     excitement_level: null,
     created_at: '2024-01-01T00:00:00',
     project_id: null,
+    is_active: 0,
   },
   evaluations: [],
   postings: [],
+  company_log: [],
 }
 
 export const MOCK_APPLICATION: ApplicationListItem = {
@@ -268,6 +271,9 @@ export const handlers = [
   http.get('/api/v1/jobs', () => HttpResponse.json([MOCK_JOB])),
   http.get('/api/v1/jobs/:id', () => HttpResponse.json(MOCK_JOB_DETAIL)),
   http.patch('/api/v1/jobs/:id', () => new HttpResponse(null, { status: 200 })),
+  http.post('/api/v1/jobs/:id/activate', () =>
+    HttpResponse.json({ ...MOCK_JOB_DETAIL.job, is_active: 1 }),
+  ),
   http.get('/api/v1/models', () => HttpResponse.json({ models: [MOCK_MODEL] } as ModelsResponse)),
   http.post('/api/v1/models', () => new HttpResponse(null, { status: 201 })),
   http.patch('/api/v1/models/:id', () => new HttpResponse(null, { status: 200 })),

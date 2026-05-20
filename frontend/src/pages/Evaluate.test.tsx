@@ -1,8 +1,18 @@
 import { describe, it, expect } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
+import { server } from '@/test/mocks/server'
 import { renderWithProviders } from '@/test/utils'
 import Evaluate from './Evaluate'
+
+async function runEvaluation(): Promise<void> {
+  const user = userEvent.setup()
+  const textarea = screen.getByPlaceholderText('Paste the full job description here…')
+  await user.type(textarea, 'Senior engineer role requiring Python.')
+  await user.click(screen.getByRole('button', { name: 'Evaluate' }))
+  await waitFor(() => expect(screen.getByText('8.0')).toBeInTheDocument(), { timeout: 5000 })
+}
 
 describe('Evaluate page', () => {
   it('renders the Evaluate heading', () => {
@@ -90,5 +100,64 @@ describe('Evaluate page', () => {
     await user.type(textarea, 'Some JD text')
     await user.click(screen.getByRole('button', { name: 'Clear' }))
     expect((textarea as HTMLTextAreaElement).value).toBe('')
+  })
+})
+
+describe('Evaluate page — activate CTA', () => {
+  it('shows CTA after evaluation when job is inactive', async () => {
+    renderWithProviders(<Evaluate />)
+    await runEvaluation()
+    expect(screen.getByRole('button', { name: 'Yes, build this job' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'No, skip for now' })).toBeInTheDocument()
+  })
+
+  it('does not show CTA when job is already active', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<Evaluate />)
+    await runEvaluation()
+    await user.click(screen.getByRole('button', { name: 'Yes, build this job' }))
+    await waitFor(
+      () =>
+        expect(screen.queryByRole('button', { name: 'Yes, build this job' })).not.toBeInTheDocument(),
+      { timeout: 5000 },
+    )
+  })
+
+  it('shows "Evaluation completed." when recommendation is null', async () => {
+    server.use(
+      http.post('/api/v1/evaluate', () =>
+        HttpResponse.json({
+          success: true,
+          evaluation_id: 1,
+          job_id: 1,
+          report_path: null,
+          evaluation: { score_overall: 7, recommendation: null },
+          error: null,
+          duplicate_detected: false,
+          existing_jobs: null,
+        }),
+      ),
+    )
+    const user = userEvent.setup()
+    renderWithProviders(<Evaluate />)
+    const textarea = screen.getByPlaceholderText('Paste the full job description here…')
+    await user.type(textarea, 'Senior engineer role.')
+    await user.click(screen.getByRole('button', { name: 'Evaluate' }))
+    await waitFor(
+      () => expect(screen.getByRole('button', { name: 'Yes, build this job' })).toBeInTheDocument(),
+      { timeout: 5000 },
+    )
+    expect(screen.getByText('Evaluation completed.')).toBeInTheDocument()
+  })
+
+  it('"No" clears the JD textarea and hides results', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<Evaluate />)
+    await runEvaluation()
+    await user.click(screen.getByRole('button', { name: 'No, skip for now' }))
+    const textarea = screen.getByPlaceholderText('Paste the full job description here…')
+    expect((textarea as HTMLTextAreaElement).value).toBe('')
+    expect(screen.queryByRole('button', { name: 'Yes, build this job' })).not.toBeInTheDocument()
+    expect(screen.queryByText('8.0')).not.toBeInTheDocument()
   })
 })

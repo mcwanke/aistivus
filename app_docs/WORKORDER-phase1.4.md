@@ -313,7 +313,7 @@ applications must be re-entered after upgrade.
 
 ## Priority 5 — TypeScript Interfaces + Hooks
 
-- [ ] **5. Update `Job` interface; add `useActivateJob` hook**
+- [x] **5. Update `Job` interface; add `useActivateJob` hook** — `is_active: number` added to `Job` interface; `useActivateJob` mutation added to `useJobs.ts`; MOCK_JOB, MOCK_JOB_DETAIL, and activate route handler added to test mocks
 
   **Files:** `frontend/src/types/api.ts`, appropriate hooks file (wherever job hooks live)
 
@@ -350,7 +350,7 @@ applications must be re-entered after upgrade.
 
 ## Priority 6 — Evaluate.tsx: Post-Evaluation Activate CTA
 
-- [ ] **6. Add activate CTA banner to `Evaluate.tsx`**
+- [x] **6. Add activate CTA banner to `Evaluate.tsx`** — `ActivateCTA` component added; shown after evaluation when `jobIsActive === false`; "Yes" activates job and navigates to `/jobs/{id}`; "No" resets page via `handleClear()`
 
   **Files:** `frontend/src/pages/Evaluate.tsx`
 
@@ -420,7 +420,7 @@ applications must be re-entered after upgrade.
 
 ## Priority 7 — Tests
 
-- [ ] **7. Backend and frontend tests** — backend tests complete (see below); frontend tests pending
+- [x] **7. Backend and frontend tests** — backend tests complete (P3/P4); frontend: `useActivateJob` tests in `useJobs.test.ts`; CTA tests in `Evaluate.test.tsx` (4 cases: CTA shows on inactive job, CTA hides after Yes, "Evaluation completed." on null recommendation, "No" resets page)
 
   **Files:**
   - `tests/routes/test_jobs.py` (update existing)

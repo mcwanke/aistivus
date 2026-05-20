@@ -124,12 +124,12 @@ Job Search Profile, and multi-server LLM management all working end-to-end.
 - [x] `database.py`: `create_job()` sets `is_active = 0`; `get_all_jobs()` filters `is_active = 1` by default; `activate_job()` function added
 - [x] Backend: `POST /api/v1/jobs/{id}/activate` route
 - [x] Backend: `GET /api/v1/jobs` returns only active jobs by default; dashboard stats count active jobs only
-- [ ] TypeScript: `Job` interface updated with `is_active: number`; `useActivateJob` hook added
-- [ ] `Evaluate.tsx`: post-evaluation CTA banner showing LLM recommendation with Yes/No activate prompt
-- [ ] `Evaluate.tsx`: "Yes" — activates job, navigates to `/jobs/{jobId}`
-- [ ] `Evaluate.tsx`: "No" — resets page for fresh JD entry (clears form + results)
-- [ ] Backend tests: activate route, `is_active` filter on jobs list
-- [ ] Frontend tests: Evaluate.tsx CTA renders/hides correctly; "No" resets page
+- [x] TypeScript: `Job` interface updated with `is_active: number`; `useActivateJob` hook added
+- [x] `Evaluate.tsx`: post-evaluation CTA banner showing LLM recommendation with Yes/No activate prompt
+- [x] `Evaluate.tsx`: "Yes" — activates job, navigates to `/jobs/{jobId}`
+- [x] `Evaluate.tsx`: "No" — resets page for fresh JD entry (clears form + results)
+- [x] Backend tests: activate route, `is_active` filter on jobs list
+- [x] Frontend tests: Evaluate.tsx CTA renders/hides correctly; "No" resets page
 - [ ] Backend: `GET /api/v1/stats` extended with `jobs_applied_to` (applications.applied = 1 count) and `applications_in_process` (status IN applied/screening/interview/offer)
 - [ ] TypeScript: `StatsResponse` interface updated with `jobs_applied_to` and `applications_in_process` fields
 - [ ] Dashboard: hero section restructured — two-column layout (large "Find Me My Ideal Job" Jobs tile left; hero text right)

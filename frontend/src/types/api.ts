@@ -164,6 +164,7 @@ export interface Job {
   excitement_level: string | null
   created_at: string
   project_id: number | null
+  is_active: number
 }
 
 // ─── GET /api/v1/jobs ─────────────────────────────────────────────────────────
