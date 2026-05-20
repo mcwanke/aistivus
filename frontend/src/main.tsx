@@ -16,19 +16,22 @@ import JobSearchProfile from '@/pages/JobSearchProfile'
 import '@/index.css'
 
 const router = createBrowserRouter([
+  // Dashboard — standalone full-page route, no sidebar
+  { path: '/', element: <Dashboard /> },
+
+  // All other pages wrapped in Layout (sidebar present)
   {
     element: <Layout />,
     children: [
-      { path: '/',                              element: <Dashboard /> },
-      { path: '/jobs',                          element: <Jobs /> },
-      { path: '/jobs/:jobId',                   element: <Jobs /> },
-      { path: '/evaluate',                      element: <Evaluate /> },
-      { path: '/applications',                  element: <Applications /> },
-      { path: '/applications/:applicationId',   element: <Applications /> },
+      { path: '/jobs',                              element: <Jobs /> },
+      { path: '/jobs/:jobId',                       element: <Jobs /> },
+      { path: '/evaluate',                          element: <Evaluate /> },
+      { path: '/applications',                      element: <Applications /> },
+      { path: '/applications/:applicationId',       element: <Applications /> },
       { path: '/application-detail/:applicationId', element: <ApplicationDetailPage /> },
-      { path: '/settings',                      element: <Settings /> },
-      { path: '/llm-usage',                     element: <LLMUsage /> },
-      { path: '/profile',                       element: <JobSearchProfile /> },
+      { path: '/settings',                          element: <Settings /> },
+      { path: '/llm-usage',                         element: <LLMUsage /> },
+      { path: '/profile',                           element: <JobSearchProfile /> },
     ],
   },
 ])

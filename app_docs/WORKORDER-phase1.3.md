@@ -571,7 +571,7 @@ needed. All existing model config must be re-entered in Settings after the upgra
 
 *Update Settings.tsx — this is the most complex frontend priority.*
 
-- [ ] **8. Update `Settings.tsx` — servers section and updated model management**
+- [x] **8. Update `Settings.tsx` — servers section and updated model management** — ServersSection added (table, Add/Edit/Delete server with guard); AddServerModal (Local/Anthropic tabs, Test Connection, post-save import checklist); EditServerModal; ModelRow updated (server_name via ↳, removed enabled/set-default buttons); ModelForm updated (server dropdown, default_flag checkbox, no endpoint/eval-time); QueryEndpointModal removed; "Servers" tab added to Settings nav
 
   **Files:** `frontend/src/pages/Settings.tsx`
 
@@ -851,7 +851,7 @@ needed. All existing model config must be re-entered in Settings after the upgra
 
 *Structural routing change. No visual changes to other pages.*
 
-- [ ] **13. Move Dashboard route outside the `<Layout>` wrapper**
+- [x] **13. Move Dashboard route outside the `<Layout>` wrapper** — Dashboard moved to standalone route in main.tsx; all other pages remain wrapped in Layout
 
   **Files:** `frontend/src/main.tsx` (or wherever the router is configured)
 
@@ -888,7 +888,7 @@ needed. All existing model config must be re-entered in Settings after the upgra
 
 *New reusable component. No page changes yet — used by Dashboard in Priority 15.*
 
-- [ ] **14. Create `frontend/src/components/AppHeader.tsx`**
+- [x] **14. Create `frontend/src/components/AppHeader.tsx`** — wordmark, tagline, Settings link; pure presentational, no props; uses React Router Link; border-b border-surface2 header bar
 
   **Files:** `frontend/src/components/AppHeader.tsx` (new)
 

@@ -86,7 +86,7 @@ Job Search Profile all working end-to-end.
 ### Phase 1.3 Checklist 🔲
 - [x] `llm_servers` table in `database.py` (`init_db()`) with CRUD functions
 - [x] `llm_models` table: `endpoint` column removed, `server_id` FK added; all DB functions updated
-- [ ] `estimated_eval_time` removed from user-facing forms (backend auto-update done; frontend form removal pending Priority 8)
+- [x] `estimated_eval_time` removed from user-facing forms (frontend form removal done in Priority 8)
 - [x] `env_utils.py` — `.env` read/write utility (`python-dotenv` already in requirements.txt; use it for `load_dotenv()`)
 - [x] Startup: `load_dotenv()` called; `app.state.anthropic_key_present` set
 - [x] Server management routes (list, create, update, delete, test, available-models)
@@ -99,19 +99,19 @@ Job Search Profile all working end-to-end.
 - [x] TypeScript interfaces updated (`LLMServer`, updated `LLMModel`, `ConnectionTestResult`, etc.)
 - [x] `useServers.ts` hook with full CRUD, test, and available-models queries
 - [x] `useModels` hook updated for new schema
-- [ ] Settings: Servers section (list, edit, delete with guard)
-- [ ] Settings: "Add AI/Server" popup (Local + Remote/Anthropic tabs, Test Connection, import flow)
-- [ ] Settings: "Add Model" popup updated (server dropdown, default checkbox, no endpoint/eval-time)
-- [ ] Settings: "Edit Model" popup updated (same changes + Set Default moved here, removed from row)
-- [ ] Settings: "Query Endpoint" section removed
+- [x] Settings: Servers section (list, edit, delete with guard)
+- [x] Settings: "Add AI/Server" popup (Local + Remote/Anthropic tabs, Test Connection, import flow)
+- [x] Settings: "Add Model" popup updated (server dropdown, default checkbox, no endpoint/eval-time)
+- [x] Settings: "Edit Model" popup updated (same changes + Set Default moved here, removed from row)
+- [x] Settings: "Query Endpoint" section removed
 - [ ] Model selectors throughout app: `<optgroup>` grouping by server
 - [ ] Backend tests for all new server and key routes; model route tests updated
 - [ ] Frontend tests for server management in Settings
 - [x] `_call_anthropic()` in `llm_client.py`: switch from sync `Anthropic` + `asyncio.to_thread()` to `AsyncAnthropic` (consistent with `_stream_anthropic`)
 - [x] Anthropic connection test route: catch `anthropic_sdk.AuthenticationError` explicitly; return clear "API key is invalid" message (not generic API error)
-- [ ] Settings: model row displays server name in place of endpoint (via JOIN; Part G of Priority 8)
-- [ ] `AppHeader.tsx` — reusable top header component (wordmark, tagline, Settings link); no sidebar
-- [ ] Dashboard: standalone route outside `<Layout>` wrapper — no sidebar rendered
+- [x] Settings: model row displays server name in place of endpoint (via JOIN; Part G of Priority 8)
+- [x] `AppHeader.tsx` — reusable top header component (wordmark, tagline, Settings link); no sidebar
+- [x] Dashboard: standalone route outside `<Layout>` wrapper — no sidebar rendered
 - [ ] Dashboard: full redesign — AppHeader, hero block, stats bar, nav tiles (active pages only; no disabled future tiles)
 
 ### Phase 1.4 Checklist 🔲
