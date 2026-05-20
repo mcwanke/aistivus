@@ -7,6 +7,7 @@ import type {
   ApplicationListItem,
   ApplicationDetailResponse,
   LlmModel,
+  LlmServer,
   ModelsResponse,
   SettingsResponse,
   SystemType,
@@ -19,9 +20,31 @@ import type { ProfileHealth, ProfileSections, CoherenceCheckResponse, ProposedUp
 
 // ─── Fixture data ─────────────────────────────────────────────────────────────
 
+export const MOCK_SERVER: LlmServer = {
+  id: 1,
+  server_name: 'Local Ollama',
+  endpoint: 'http://localhost:11434',
+  server_type: 'local',
+  created_at: '2024-01-01T00:00:00',
+  model_count: 1,
+}
+
+export const MOCK_ANTHROPIC_SERVER: LlmServer = {
+  id: 2,
+  server_name: 'Anthropic Claude',
+  endpoint: null,
+  server_type: 'anthropic',
+  created_at: '2024-01-01T00:00:00',
+  model_count: 0,
+  anthropic_key_present: false,
+}
+
 export const MOCK_MODEL: LlmModel = {
   id: 1,
   model: 'llama3',
+  server_id: 1,
+  server_name: 'Local Ollama',
+  server_type: 'local',
   endpoint: 'http://localhost:11434',
   available: 1,
   default_flag: 1,
@@ -279,4 +302,20 @@ export const handlers = [
   http.post('/api/v1/profile/generate-tailoring-rules', () => HttpResponse.json(MOCK_PROPOSED_UPDATE)),
   http.post('/api/v1/profile/synthesize-insights', () => HttpResponse.json(MOCK_PROPOSED_UPDATE)),
   http.post('/api/v1/profile/propose-update', () => HttpResponse.json(MOCK_PROPOSED_UPDATE)),
+  // Server management
+  http.get('/api/v1/settings/llm-servers', () =>
+    HttpResponse.json({ servers: [MOCK_SERVER, MOCK_ANTHROPIC_SERVER] }),
+  ),
+  http.post('/api/v1/settings/llm-servers', () => HttpResponse.json(MOCK_SERVER, { status: 201 })),
+  http.put('/api/v1/settings/llm-servers/:id', () => HttpResponse.json(MOCK_SERVER)),
+  http.delete('/api/v1/settings/llm-servers/:id', () => HttpResponse.json({ success: true })),
+  http.post('/api/v1/settings/llm-servers/test', () =>
+    HttpResponse.json({ success: true, model_count: 2 }),
+  ),
+  http.get('/api/v1/settings/llm-servers/:id/available-models', () =>
+    HttpResponse.json({ models: ['llama3:8b', 'mistral:7b'] }),
+  ),
+  http.get('/api/v1/settings/anthropic-key', () =>
+    HttpResponse.json({ anthropic_key_present: false }),
+  ),
 ]

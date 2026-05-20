@@ -105,8 +105,8 @@ Job Search Profile all working end-to-end.
 - [x] Settings: "Edit Model" popup updated (same changes + Set Default moved here, removed from row)
 - [x] Settings: "Query Endpoint" section removed
 - [x] Model selectors throughout app: `<optgroup>` grouping by server
-- [ ] Backend tests for all new server and key routes; model route tests updated
-- [ ] Frontend tests for server management in Settings
+- [x] Backend tests for all new server and key routes; model route tests updated
+- [x] Frontend tests for server management in Settings
 - [x] `_call_anthropic()` in `llm_client.py`: switch from sync `Anthropic` + `asyncio.to_thread()` to `AsyncAnthropic` (consistent with `_stream_anthropic`)
 - [x] Anthropic connection test route: catch `anthropic_sdk.AuthenticationError` explicitly; return clear "API key is invalid" message (not generic API error)
 - [x] Settings: model row displays server name in place of endpoint (via JOIN; Part G of Priority 8)

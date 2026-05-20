@@ -725,7 +725,7 @@ needed. All existing model config must be re-entered in Settings after the upgra
 
 ## Priority 10 — Backend Tests
 
-- [ ] **10. Backend tests for server management routes**
+- [x] **10. Backend tests for server management routes** — test_servers.py (36 tests: list/create/update/delete/test/available-models/anthropic-key routes); test_models.py (new, 24 tests: GET/POST/PATCH/DELETE/set-default with server fixtures, server_id FK, default_flag, immutable server_id, endpoint/estimated_eval_time fields ignored)
 
   **Files:** `tests/routes/test_servers.py` (new)
 
@@ -778,7 +778,7 @@ needed. All existing model config must be re-entered in Settings after the upgra
 
 ## Priority 11 — Frontend Tests
 
-- [ ] **11. Frontend tests for server management in Settings**
+- [x] **11. Frontend tests for server management in Settings** — useServers.test.ts (20 tests: all 7 hooks covered — useServers, useCreateServer, useUpdateServer, useDeleteServer, useTestConnection, useAvailableModels, useAnthropicKeyStatus); Settings.test.tsx expanded (15 new tests: AI Servers tab render, server table columns, type badges, delete disabled guard, anthropic key indicator, Add AI/Server modal Local+Remote tabs, Test Connection inline result, Add Model server selector)
 
   **Files:** `frontend/src/pages/Settings.test.tsx` (add to existing)
 
