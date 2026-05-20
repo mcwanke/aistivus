@@ -213,7 +213,7 @@ applications must be re-entered after upgrade.
 
 ## Priority 3 — Schema + database.py
 
-- [ ] **3. Add `is_active` to `jobs` schema; add `activate_job()`; update `get_all_jobs()`**
+- [x] **3. Add `is_active` to `jobs` schema; add `activate_job()`; update `get_all_jobs()`** — `is_active INTEGER NOT NULL DEFAULT 0` added to jobs; `upsert_job()` explicitly sets `is_active=0`; `get_all_jobs(include_inactive=False)` filters active-only by default; `activate_job()` added; `get_stats()` counts active jobs only
 
   **Files:** `database.py`
 
@@ -276,7 +276,7 @@ applications must be re-entered after upgrade.
 
 ## Priority 4 — Backend: Activate Route + Stats Update
 
-- [ ] **4. Add `POST /api/v1/jobs/{job_id}/activate` route; update stats count**
+- [x] **4. Add `POST /api/v1/jobs/{job_id}/activate` route; update stats count** — route added to `main.py`; 404 on unknown job; returns updated job record; route list comment updated; stats endpoint already uses `get_all_jobs()` indirectly (stats SQL updated in Priority 3)
 
   **Files:** `main.py`
 
@@ -420,7 +420,7 @@ applications must be re-entered after upgrade.
 
 ## Priority 7 — Tests
 
-- [ ] **7. Backend and frontend tests**
+- [ ] **7. Backend and frontend tests** — backend tests complete (see below); frontend tests pending
 
   **Files:**
   - `tests/routes/test_jobs.py` (update existing)

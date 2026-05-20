@@ -3,10 +3,11 @@ tests/routes/test_jobs.py
 Integration tests for job-related routes.
 
 Routes covered:
-  GET /api/v1/jobs
-  GET /api/v1/jobs/{id}
-  GET /api/v1/jobs/{id}/application
-  GET /api/v1/stats
+  GET  /api/v1/jobs
+  GET  /api/v1/jobs/{id}
+  GET  /api/v1/jobs/{id}/application
+  POST /api/v1/jobs/{id}/activate
+  GET  /api/v1/stats
 """
 
 import pytest
@@ -19,8 +20,9 @@ class TestListJobs:
         assert resp.status_code == 200
         assert resp.json() == []
 
-    def test_returns_job_after_insert(self, client):
-        database.upsert_job("Acme", "Engineer", "backend")
+    def test_returns_active_job_after_activate(self, client):
+        job_id, _ = database.upsert_job("Acme", "Engineer", "backend")
+        database.activate_job(job_id)
         resp = client.get("/api/v1/jobs")
         assert resp.status_code == 200
         data = resp.json()
@@ -28,31 +30,50 @@ class TestListJobs:
         assert data[0]["company_name"] == "Acme"
         assert data[0]["title"] == "Engineer"
 
-    def test_returns_multiple_jobs(self, client):
-        database.upsert_job("Alpha Corp", "Backend Engineer", "backend")
-        database.upsert_job("Beta Inc", "Frontend Engineer", "frontend")
+    def test_inactive_job_not_returned(self, client):
+        database.upsert_job("Hidden Corp", "Ghost Role", "general")
         resp = client.get("/api/v1/jobs")
         assert resp.status_code == 200
-        assert len(resp.json()) == 2
+        assert resp.json() == []
+
+    def test_returns_only_active_jobs_when_mixed(self, client):
+        job_id, _ = database.upsert_job("Alpha Corp", "Backend Engineer", "backend")
+        database.upsert_job("Beta Inc", "Frontend Engineer", "frontend")  # stays inactive
+        database.activate_job(job_id)
+        resp = client.get("/api/v1/jobs")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["company_name"] == "Alpha Corp"
 
     def test_job_includes_application_status(self, client):
-        database.upsert_job("Corp", "Role", "general")
+        job_id, _ = database.upsert_job("Corp", "Role", "general")
+        database.activate_job(job_id)
         resp = client.get("/api/v1/jobs")
         assert resp.status_code == 200
         job = resp.json()[0]
         assert "application_status" in job
 
     def test_new_job_has_not_started_application(self, client):
-        database.upsert_job("Corp", "Role", "general")
+        job_id, _ = database.upsert_job("Corp", "Role", "general")
+        database.activate_job(job_id)
         resp = client.get("/api/v1/jobs")
         job = resp.json()[0]
         assert job["application_status"] == "not-started"
 
     def test_job_includes_agg_scores(self, client):
-        database.upsert_job("Corp", "Role", "general")
+        job_id, _ = database.upsert_job("Corp", "Role", "general")
+        database.activate_job(job_id)
         resp = client.get("/api/v1/jobs")
         job = resp.json()[0]
         assert "agg_score_overall" in job
+
+    def test_job_includes_is_active_field(self, client):
+        job_id, _ = database.upsert_job("Corp", "Role", "general")
+        database.activate_job(job_id)
+        resp = client.get("/api/v1/jobs")
+        job = resp.json()[0]
+        assert job["is_active"] == 1
 
 
 class TestGetJob:
@@ -95,6 +116,13 @@ class TestGetJob:
         resp = sc["client"].get(f"/api/v1/jobs/{sc['job_id']}")
         assert len(resp.json()["postings"]) == 1
 
+    def test_get_job_returns_inactive_job(self, client):
+        # single-job GET is not filtered by is_active
+        job_id, _ = database.upsert_job("Inactive Co", "Analyst", "finance")
+        resp = client.get(f"/api/v1/jobs/{job_id}")
+        assert resp.status_code == 200
+        assert resp.json()["job"]["is_active"] == 0
+
 
 class TestGetJobApplication:
     def test_returns_application_for_new_job(self, seeded_client):
@@ -116,6 +144,35 @@ class TestGetJobApplication:
         assert resp.json()["exists"] is False
 
 
+class TestActivateJob:
+    def test_activate_returns_200_and_updated_job(self, client):
+        job_id, _ = database.upsert_job("Zeta Ltd", "Data Eng", "data")
+        resp = client.post(f"/api/v1/jobs/{job_id}/activate")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["is_active"] == 1
+        assert data["id"] == job_id
+
+    def test_activate_job_appears_in_list(self, client):
+        job_id, _ = database.upsert_job("Zeta Ltd", "Data Eng", "data")
+        assert client.get("/api/v1/jobs").json() == []
+        client.post(f"/api/v1/jobs/{job_id}/activate")
+        jobs = client.get("/api/v1/jobs").json()
+        assert len(jobs) == 1
+        assert jobs[0]["is_active"] == 1
+
+    def test_activate_returns_404_for_unknown_job(self, client):
+        resp = client.post("/api/v1/jobs/9999/activate")
+        assert resp.status_code == 404
+
+    def test_activate_is_idempotent(self, client):
+        job_id, _ = database.upsert_job("Zeta Ltd", "Data Eng", "data")
+        client.post(f"/api/v1/jobs/{job_id}/activate")
+        resp = client.post(f"/api/v1/jobs/{job_id}/activate")
+        assert resp.status_code == 200
+        assert resp.json()["is_active"] == 1
+
+
 class TestStats:
     def test_stats_returns_zeroes_on_empty_db(self, client):
         resp = client.get("/api/v1/stats")
@@ -125,11 +182,18 @@ class TestStats:
         assert data["evaluations"] == 0
         assert data["applications"] == 0
 
-    def test_stats_counts_jobs(self, client):
+    def test_stats_counts_only_active_jobs(self, client):
+        job_id, _ = database.upsert_job("A", "B", "general")
+        database.upsert_job("C", "D", "general")  # stays inactive
+        database.activate_job(job_id)
+        resp = client.get("/api/v1/stats")
+        assert resp.json()["jobs"] == 1
+
+    def test_stats_inactive_jobs_not_counted(self, client):
         database.upsert_job("A", "B", "general")
         database.upsert_job("C", "D", "general")
         resp = client.get("/api/v1/stats")
-        assert resp.json()["jobs"] == 2
+        assert resp.json()["jobs"] == 0
 
     def test_stats_excludes_not_started_from_applications(self, client):
         # upsert_job auto-creates a not-started application
@@ -143,3 +207,22 @@ class TestStats:
         database.update_application_status(app_row["id"], "draft")
         resp = client.get("/api/v1/stats")
         assert resp.json()["applications"] == 1
+
+
+class TestGetAllJobsDatabase:
+    def test_get_all_jobs_excludes_inactive_by_default(self, client):
+        database.upsert_job("Inactive Co", "Analyst", "finance")
+        jobs = database.get_all_jobs()
+        assert len(jobs) == 0
+
+    def test_get_all_jobs_include_inactive_returns_all(self, client):
+        database.upsert_job("Inactive Co", "Analyst", "finance")
+        jobs = database.get_all_jobs(include_inactive=True)
+        assert len(jobs) == 1
+
+    def test_activate_job_sets_is_active(self, client):
+        job_id, _ = database.upsert_job("Corp", "Role", "general")
+        database.activate_job(job_id)
+        jobs = database.get_all_jobs()
+        assert len(jobs) == 1
+        assert jobs[0]["is_active"] == 1

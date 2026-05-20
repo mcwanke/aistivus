@@ -18,6 +18,7 @@ API routes:
   GET  /api/v1/jobs/{id}
   PATCH /api/v1/jobs/{id}
   GET  /api/v1/jobs/{id}/application
+  POST /api/v1/jobs/{id}/activate
   GET  /api/v1/settings/llm-servers
   POST /api/v1/settings/llm-servers
   PUT  /api/v1/settings/llm-servers/{id}
@@ -769,6 +770,18 @@ async def get_job_application(request: Request, job_id: int):
     if app_row:
         return JSONResponse({"exists": True, "application": dict(app_row)})
     return JSONResponse({"exists": False, "application": None})
+
+
+@app.post("/api/v1/jobs/{job_id}/activate")
+@limiter.limit("30/minute")
+async def activate_job(request: Request, job_id: int):
+    """Set is_active = 1 for a job, promoting it to the active jobs list."""
+    job = database.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found.")
+    database.activate_job(job_id)
+    updated = database.get_job(job_id)
+    return JSONResponse(dict(updated))
 
 
 # ─────────────────────────────────────────────────────────────

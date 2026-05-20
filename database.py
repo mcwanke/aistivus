@@ -138,6 +138,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     excitement_level    TEXT,
     created_at          TEXT NOT NULL DEFAULT (datetime('now')),
     project_id          INTEGER,
+    is_active           INTEGER NOT NULL DEFAULT 0,
     UNIQUE (company_name, title, role_keyword)
 );
 
@@ -854,17 +855,18 @@ def upsert_job(
         insert_params["first_seen_date"] = insert_params.get("first_seen_date") or now
         insert_params["last_seen_date"] = insert_params.get("last_seen_date") or now
 
+        insert_params["is_active"] = 0
         conn.execute(
             """INSERT INTO jobs
                (company_name, title, role_keyword, location, remote_type,
                 description_merged, pay_band, first_seen_date, last_seen_date,
                 excitement_level, my_role_fit, my_scope_fit, my_culture, my_comp,
-                my_score_overall)
+                my_score_overall, is_active)
                VALUES
                (:company_name, :title, :role_keyword, :location, :remote_type,
                 :description_merged, :pay_band, :first_seen_date, :last_seen_date,
                 :excitement_level, :my_role_fit, :my_scope_fit, :my_culture, :my_comp,
-                :my_score_overall)""",
+                :my_score_overall, :is_active)""",
             insert_params
         )
         job_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -901,11 +903,16 @@ def get_job(job_id: int) -> sqlite3.Row | None:
         ).fetchone()
 
 
-def get_all_jobs() -> list[sqlite3.Row]:
-    """Return all jobs with their current application status, newest first."""
+def get_all_jobs(include_inactive: bool = False) -> list[sqlite3.Row]:
+    """Return jobs with their current application status, newest first.
+
+    By default, only active jobs (is_active = 1) are returned. Pass
+    include_inactive=True to return all jobs regardless of activation state.
+    """
+    where = "" if include_inactive else "WHERE j.is_active = 1"
     with get_connection() as conn:
         return conn.execute(
-            """SELECT j.*,
+            f"""SELECT j.*,
                       a.id AS application_id,
                       a.application_status
                FROM jobs j
@@ -918,8 +925,18 @@ def get_all_jobs() -> list[sqlite3.Row]:
                        id DESC
                    LIMIT 1
                )
+               {where}
                ORDER BY j.last_seen_date DESC, j.created_at DESC"""
         ).fetchall()
+
+
+def activate_job(job_id: int) -> None:
+    """Set is_active = 1 for a job. Caller verifies job exists before calling."""
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE jobs SET is_active = 1 WHERE id = ?",
+            (job_id,)
+        )
 
 
 def get_jobs_pending_evaluation() -> list[sqlite3.Row]:
@@ -1661,7 +1678,7 @@ def get_evaluation(eval_id: int) -> sqlite3.Row | None:
 def get_stats() -> dict:
     """Return summary counts for the dashboard."""
     with get_connection() as conn:
-        jobs = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+        jobs = conn.execute("SELECT COUNT(*) FROM jobs WHERE is_active = 1").fetchone()[0]
         evals = conn.execute("SELECT COUNT(*) FROM evaluations").fetchone()[0]
         apps = conn.execute(
             "SELECT COUNT(*) FROM applications WHERE application_status != 'not-started'"

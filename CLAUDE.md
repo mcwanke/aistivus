@@ -120,10 +120,10 @@ Job Search Profile, and multi-server LLM management all working end-to-end.
 - [x] Settings: "Add Model" — error state blocks entry when server is unreachable (no text input fallback)
 - [x] Settings: AI Servers — Actions column widened to fix delete button overflow
 - [x] Settings: AI Servers — "MODELS" column header renamed to "IN USE"
-- [ ] `jobs.is_active` column added to schema (`DEFAULT 0`); DB wipe required
-- [ ] `database.py`: `create_job()` sets `is_active = 0`; `get_all_jobs()` filters `is_active = 1` by default; `activate_job()` function added
-- [ ] Backend: `POST /api/v1/jobs/{id}/activate` route
-- [ ] Backend: `GET /api/v1/jobs` returns only active jobs by default; dashboard stats count active jobs only
+- [x] `jobs.is_active` column added to schema (`DEFAULT 0`); DB wipe required
+- [x] `database.py`: `create_job()` sets `is_active = 0`; `get_all_jobs()` filters `is_active = 1` by default; `activate_job()` function added
+- [x] Backend: `POST /api/v1/jobs/{id}/activate` route
+- [x] Backend: `GET /api/v1/jobs` returns only active jobs by default; dashboard stats count active jobs only
 - [ ] TypeScript: `Job` interface updated with `is_active: number`; `useActivateJob` hook added
 - [ ] `Evaluate.tsx`: post-evaluation CTA banner showing LLM recommendation with Yes/No activate prompt
 - [ ] `Evaluate.tsx`: "Yes" — activates job, navigates to `/jobs/{jobId}`
