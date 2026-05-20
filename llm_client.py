@@ -324,15 +324,11 @@ async def _call_anthropic(
         )
 
     import anthropic as anthropic_sdk
-    import asyncio
 
     start = time.monotonic()
     try:
-        client = anthropic_sdk.Anthropic(api_key=api_key)
-
-        # SDK is synchronous — run in a thread to avoid blocking the event loop
-        response = await asyncio.to_thread(
-            client.messages.create,
+        client = anthropic_sdk.AsyncAnthropic(api_key=api_key)
+        response = await client.messages.create(
             model=model,
             max_tokens=max_tokens,
             system=system,
@@ -362,6 +358,14 @@ async def _call_anthropic(
             provider=PROVIDER_ANTHROPIC,
             model=model,
             error=f"Anthropic rate limit reached. Wait a moment and retry. ({e})",
+            latency_ms=latency_ms,
+        )
+    except anthropic_sdk.AuthenticationError:
+        latency_ms = int((time.monotonic() - start) * 1000)
+        return _error_response(
+            provider=PROVIDER_ANTHROPIC,
+            model=model,
+            error="API key is invalid. Check ANTHROPIC_API_KEY in .env.",
             latency_ms=latency_ms,
         )
     except anthropic_sdk.APIError as e:

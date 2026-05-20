@@ -18,6 +18,13 @@ API routes:
   GET  /api/v1/jobs/{id}
   PATCH /api/v1/jobs/{id}
   GET  /api/v1/jobs/{id}/application
+  GET  /api/v1/settings/llm-servers
+  POST /api/v1/settings/llm-servers
+  PUT  /api/v1/settings/llm-servers/{id}
+  DELETE /api/v1/settings/llm-servers/{id}
+  POST /api/v1/settings/llm-servers/test
+  GET  /api/v1/settings/llm-servers/{id}/available-models
+  GET  /api/v1/settings/anthropic-key
   GET  /api/v1/models
   POST /api/v1/models
   PATCH /api/v1/models/{id}
@@ -72,6 +79,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import AsyncGenerator
 
+import httpx
 import yaml
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -116,9 +124,10 @@ def _load_config() -> dict:
 # Startup helpers
 # ─────────────────────────────────────────────────────────────
 
-async def _update_model_availability() -> None:
+async def _update_model_availability(app_state=None) -> None:
     """
     Re-check availability of every llm_models record and update the available flag.
+    Uses server_type from the server JOIN: local → Ollama ping, anthropic → key present.
     Failures are logged; the app continues regardless — usable for browsing.
     """
     models = database.get_all_llm_models()
@@ -126,22 +135,29 @@ async def _update_model_availability() -> None:
         log.warning("no_models_configured", extra={"hint": "add a model in Settings"})
         return
 
+    # Check key presence from state if available (avoids re-reading env at call time)
+    anthropic_key_present = getattr(app_state, "anthropic_key_present", bool(get_env_key("ANTHROPIC_API_KEY")))
+
     available_count = 0
     for row in models:
         model_dict = dict(row)
-        endpoint = model_dict["endpoint"]
+        server_type = model_dict.get("server_type", "local")
+        endpoint = model_dict.get("endpoint")
         model_name = model_dict["model"]
         model_id = model_dict["id"]
 
         try:
-            if "anthropic.com" in endpoint:
-                is_available = llm_client.check_anthropic_configured()
+            if server_type == "anthropic":
+                is_available = anthropic_key_present
             else:
-                health = await llm_client.check_ollama_health(endpoint)
-                is_available = (
-                    health.get("reachable", False)
-                    and llm_client.model_is_available(model_name, health.get("models", []))
-                )
+                if not endpoint:
+                    is_available = False
+                else:
+                    health = await llm_client.check_ollama_health(endpoint)
+                    is_available = (
+                        health.get("reachable", False)
+                        and llm_client.model_is_available(model_name, health.get("models", []))
+                    )
             database.set_llm_model_available(model_id, 1 if is_available else 0)
             if is_available:
                 available_count += 1
@@ -174,7 +190,9 @@ async def lifespan(app: FastAPI):
     anthropic_key = get_env_key("ANTHROPIC_API_KEY")
     app.state.anthropic_key_present = bool(anthropic_key)
 
-    await _update_model_availability()
+    database.seed_llm_models_from_config()
+
+    await _update_model_availability(app.state)
 
     jobsearch_path = Path("jobsearch.md")
     if not jobsearch_path.exists():
@@ -341,20 +359,33 @@ class ProcessInboxRequest(BaseModel):
     filenames: list[str]
 
 
+class CreateServerRequest(BaseModel):
+    server_name: str
+    endpoint: str | None = None
+    server_type: str
+
+
+class UpdateServerRequest(BaseModel):
+    server_name: str
+    endpoint: str | None = None
+
+
+class TestConnectionRequest(BaseModel):
+    server_type: str
+    endpoint: str | None = None
+
+
 class CreateModelRequest(BaseModel):
     model: str
-    endpoint: str
+    server_id: int
     model_weight: int = 1
-    estimated_eval_time: int | None = None
-    enabled: int = 1
+    default_flag: bool = False
 
 
 class UpdateModelRequest(BaseModel):
     model: str | None = None
-    endpoint: str | None = None
     model_weight: int | None = None
-    estimated_eval_time: int | None = None
-    enabled: int | None = None
+    default_flag: bool | None = None
 
 
 class CreateSystemTypeRequest(BaseModel):
@@ -755,28 +786,31 @@ async def list_models(request: Request):
 @app.post("/api/v1/models")
 @limiter.limit("30/minute")
 async def create_model(request: Request, body: CreateModelRequest):
-    """Add a new LLM model. Endpoint is optional for external/manual models."""
+    """Add a new LLM model linked to an existing server."""
+    if not database.get_server_by_id(body.server_id):
+        raise HTTPException(status_code=404, detail=f"Server {body.server_id} not found.")
     model_id = database.insert_llm_model(
         model=body.model,
-        endpoint=body.endpoint,
+        server_id=body.server_id,
         model_weight=body.model_weight,
-        estimated_eval_time=body.estimated_eval_time,
-        enabled=body.enabled,
+        default_flag=1 if body.default_flag else 0,
     )
-    log.info("model_created", extra={"model_id": model_id, "model": body.model})
+    log.info("model_created", extra={"model_id": model_id, "model": body.model, "server_id": body.server_id})
     return JSONResponse({"success": True, "model_id": model_id})
 
 
 @app.patch("/api/v1/models/{model_id}")
 @limiter.limit("30/minute")
 async def update_model(request: Request, model_id: int, body: UpdateModelRequest):
-    """Update mutable fields on a model record."""
+    """Update mutable fields on a model record. server_id is immutable after creation."""
     row = database.get_llm_model(model_id)
     if not row:
         raise HTTPException(status_code=404, detail=f"Model {model_id} not found.")
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update.")
+    if "default_flag" in updates:
+        updates["default_flag"] = 1 if updates["default_flag"] else 0
     database.update_llm_model(model_id, **updates)
     log.info("model_updated", extra={"model_id": model_id})
     return JSONResponse({"success": True})
@@ -820,7 +854,7 @@ async def delete_model(request: Request, model_id: int):
 @limiter.limit("10/minute")
 async def check_model_availability(request: Request):
     """Re-run the availability check for all configured models."""
-    await _update_model_availability()
+    await _update_model_availability(request.app.state)
     models = database.get_all_llm_models()
     available_count = sum(1 for m in models if dict(m)["available"] == 1)
     log.info("model_availability_checked", extra={"available": available_count})
@@ -1486,6 +1520,173 @@ async def update_app_setting(request: Request, key: str, body: UpdateAppSettingR
     """Update a single app_settings value by key."""
     database.set_app_setting(key, body.value)
     return JSONResponse({"success": True, "key": key, "value": body.value})
+
+
+# ─────────────────────────────────────────────────────────────
+# Settings / LLM Servers
+# ─────────────────────────────────────────────────────────────
+
+_VALID_SERVER_TYPES = frozenset({"local", "anthropic"})
+
+# Claude models supported via Anthropic API — update as new versions ship
+_KNOWN_ANTHROPIC_MODELS = [
+    "claude-opus-4-7",
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5-20251001",
+]
+
+
+@app.get("/api/v1/settings/llm-servers")
+@limiter.limit("60/minute")
+async def list_servers(request: Request):
+    """Return all LLM servers with model count and anthropic key status."""
+    servers = database.get_all_servers()
+    result = []
+    for row in servers:
+        s = dict(row)
+        s["model_count"] = database.get_model_count_for_server(s["id"])
+        if s["server_type"] == "anthropic":
+            s["anthropic_key_present"] = request.app.state.anthropic_key_present
+        result.append(s)
+    return JSONResponse({"servers": result})
+
+
+@app.post("/api/v1/settings/llm-servers")
+@limiter.limit("30/minute")
+async def create_server(request: Request, body: CreateServerRequest):
+    """Create a new LLM server record."""
+    if body.server_type not in _VALID_SERVER_TYPES:
+        raise HTTPException(status_code=422, detail=f"server_type must be one of: {', '.join(_VALID_SERVER_TYPES)}")
+    if body.server_type == "local":
+        if not body.endpoint:
+            raise HTTPException(status_code=422, detail="endpoint is required for local servers.")
+        if not (body.endpoint.startswith("http://") or body.endpoint.startswith("https://")):
+            raise HTTPException(status_code=422, detail="endpoint must start with http:// or https://")
+    if body.server_type == "anthropic":
+        existing = [dict(s) for s in database.get_all_servers() if dict(s)["server_type"] == "anthropic"]
+        if existing:
+            raise HTTPException(status_code=409, detail="An Anthropic server is already configured.")
+    server_id = database.create_server(
+        server_name=body.server_name,
+        endpoint=body.endpoint if body.server_type == "local" else None,
+        server_type=body.server_type,
+    )
+    row = database.get_server_by_id(server_id)
+    result = dict(row)
+    result["model_count"] = 0
+    if body.server_type == "anthropic":
+        result["anthropic_key_present"] = request.app.state.anthropic_key_present
+    log.info("server_created", extra={"server_id": server_id, "server_type": body.server_type})
+    return JSONResponse(result, status_code=201)
+
+
+@app.put("/api/v1/settings/llm-servers/{server_id}")
+@limiter.limit("30/minute")
+async def update_server(request: Request, server_id: int, body: UpdateServerRequest):
+    """Update a server's name and endpoint. server_type is immutable."""
+    row = database.get_server_by_id(server_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Server {server_id} not found.")
+    server = dict(row)
+    if server["server_type"] == "local" and body.endpoint:
+        if not (body.endpoint.startswith("http://") or body.endpoint.startswith("https://")):
+            raise HTTPException(status_code=422, detail="endpoint must start with http:// or https://")
+    database.update_server(server_id, server_name=body.server_name, endpoint=body.endpoint)
+    updated = dict(database.get_server_by_id(server_id))
+    updated["model_count"] = database.get_model_count_for_server(server_id)
+    if server["server_type"] == "anthropic":
+        updated["anthropic_key_present"] = request.app.state.anthropic_key_present
+    log.info("server_updated", extra={"server_id": server_id})
+    return JSONResponse(updated)
+
+
+@app.delete("/api/v1/settings/llm-servers/{server_id}")
+@limiter.limit("30/minute")
+async def delete_server(request: Request, server_id: int):
+    """Delete a server. Blocked if any models reference it."""
+    row = database.get_server_by_id(server_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Server {server_id} not found.")
+    model_count = database.get_model_count_for_server(server_id)
+    if model_count > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"This server has {model_count} model(s). Delete or reassign them first.",
+        )
+    database.delete_server(server_id)
+    log.info("server_deleted", extra={"server_id": server_id})
+    return JSONResponse({"success": True})
+
+
+@app.post("/api/v1/settings/llm-servers/test")
+@limiter.limit("20/minute")
+async def test_server_connection(request: Request, body: TestConnectionRequest):
+    """Test a server connection without creating a record."""
+    if body.server_type == "local":
+        if not body.endpoint:
+            raise HTTPException(status_code=422, detail="endpoint is required for local server test.")
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(f"{body.endpoint.rstrip('/')}/api/tags")
+            if resp.status_code == 200:
+                data = resp.json()
+                model_count = len(data.get("models", []))
+                return JSONResponse({"success": True, "model_count": model_count})
+            return JSONResponse({"success": False, "error": f"Ollama returned HTTP {resp.status_code}."})
+        except httpx.ConnectError:
+            return JSONResponse({"success": False, "error": f"Could not reach Ollama at {body.endpoint}."})
+        except Exception as exc:
+            return JSONResponse({"success": False, "error": f"Connection error: {exc}"})
+
+    if body.server_type == "anthropic":
+        if not request.app.state.anthropic_key_present:
+            return JSONResponse({"success": False, "error": "No API key set. Add ANTHROPIC_API_KEY to your .env file."})
+        api_key = get_env_key("ANTHROPIC_API_KEY")
+        try:
+            import anthropic as anthropic_sdk
+            client = anthropic_sdk.AsyncAnthropic(api_key=api_key)
+            await client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=1,
+                messages=[{"role": "user", "content": "hi"}],
+            )
+            return JSONResponse({"success": True})
+        except anthropic_sdk.AuthenticationError:
+            return JSONResponse({"success": False, "error": "API key is invalid. Check the value in your .env file."})
+        except Exception as exc:
+            return JSONResponse({"success": False, "error": f"Anthropic API error: {exc}"})
+
+    raise HTTPException(status_code=422, detail=f"server_type must be one of: {', '.join(_VALID_SERVER_TYPES)}")
+
+
+@app.get("/api/v1/settings/llm-servers/{server_id}/available-models")
+@limiter.limit("20/minute")
+async def get_available_models(request: Request, server_id: int):
+    """Return models available on this server for the import flow."""
+    row = database.get_server_by_id(server_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Server {server_id} not found.")
+    server = dict(row)
+    if server["server_type"] == "anthropic":
+        return JSONResponse({"models": _KNOWN_ANTHROPIC_MODELS})
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"{server['endpoint'].rstrip('/')}/api/tags")
+        if resp.status_code != 200:
+            raise HTTPException(status_code=503, detail="Ollama server returned an error.")
+        model_names = [m["name"] for m in resp.json().get("models", [])]
+        return JSONResponse({"models": sorted(model_names)})
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Could not reach Ollama: {exc}")
+
+
+@app.get("/api/v1/settings/anthropic-key")
+@limiter.limit("30/minute")
+async def get_anthropic_key_status(request: Request):
+    """Return whether the Anthropic API key is set. Never echoes the key value."""
+    return JSONResponse({"anthropic_key_present": request.app.state.anthropic_key_present})
 
 
 # ─────────────────────────────────────────────────────────────

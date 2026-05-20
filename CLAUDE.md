@@ -89,13 +89,13 @@ Job Search Profile all working end-to-end.
 - [ ] `estimated_eval_time` removed from user-facing forms; auto-updated from `llm_call_log` after each call
 - [x] `env_utils.py` — `.env` read/write utility (`python-dotenv` already in requirements.txt; use it for `load_dotenv()`)
 - [x] Startup: `load_dotenv()` called; `app.state.anthropic_key_present` set
-- [ ] Server management routes (list, create, update, delete, test, available-models)
-- [ ] Anthropic key route (`GET /api/v1/settings/anthropic-key` — boolean presence only; no write route)
-- [ ] Model routes updated: `endpoint` removed, `server_id` added, `default_flag` on create/edit
+- [x] Server management routes (list, create, update, delete, test, available-models)
+- [x] Anthropic key route (`GET /api/v1/settings/anthropic-key` — boolean presence only; no write route)
+- [x] Model routes updated: `endpoint` removed, `server_id` added, `default_flag` on create/edit
 - [x] Auto-seed updated: creates `llm_servers` record before `llm_models` on first run
-- [ ] Startup availability check updated: checks per-server type (`local` → Ollama ping, `anthropic` → key present)
+- [x] Startup availability check updated: checks per-server type (`local` → Ollama ping, `anthropic` → key present)
 - [ ] `estimated_eval_time` auto-update after each successful LLM call (`evaluator.py`)
-- [ ] Fix "Query Endpoint" availability check bug (now handled via per-server test route)
+- [x] Fix "Query Endpoint" availability check bug (now handled via per-server test route)
 - [ ] TypeScript interfaces updated (`LLMServer`, updated `LLMModel`, `ConnectionTestResult`, etc.)
 - [ ] `useServers.ts` hook with full CRUD, test, and available-models queries
 - [ ] `useModels` hook updated for new schema
@@ -107,8 +107,8 @@ Job Search Profile all working end-to-end.
 - [ ] Model selectors throughout app: `<optgroup>` grouping by server
 - [ ] Backend tests for all new server and key routes; model route tests updated
 - [ ] Frontend tests for server management in Settings
-- [ ] `_call_anthropic()` in `llm_client.py`: switch from sync `Anthropic` + `asyncio.to_thread()` to `AsyncAnthropic` (consistent with `_stream_anthropic`)
-- [ ] Anthropic connection test route: catch `anthropic_sdk.AuthenticationError` explicitly; return clear "API key is invalid" message (not generic API error)
+- [x] `_call_anthropic()` in `llm_client.py`: switch from sync `Anthropic` + `asyncio.to_thread()` to `AsyncAnthropic` (consistent with `_stream_anthropic`)
+- [x] Anthropic connection test route: catch `anthropic_sdk.AuthenticationError` explicitly; return clear "API key is invalid" message (not generic API error)
 - [ ] Settings: model row displays server name in place of endpoint (via JOIN; Part G of Priority 8)
 - [ ] `AppHeader.tsx` — reusable top header component (wordmark, tagline, Settings link); no sidebar
 - [ ] Dashboard: standalone route outside `<Layout>` wrapper — no sidebar rendered

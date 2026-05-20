@@ -255,7 +255,7 @@ needed. All existing model config must be re-entered in Settings after the upgra
 
 *New routes for server CRUD, connection testing, and model import.*
 
-- [ ] **3. Create server management routes in `main.py` (or a new `server_routes.py`)**
+- [x] **3. Create server management routes in `main.py` (or a new `server_routes.py`)** — 7 routes added directly in main.py (list, create, update, delete, test, available-models, anthropic-key); CreateServerRequest/UpdateServerRequest/TestConnectionRequest Pydantic models added; httpx used for Ollama test; hardcoded Claude model list for Anthropic import flow
 
   **Files:** `main.py` (or new `server_routes.py` registered in `main.py`)
 
@@ -385,7 +385,7 @@ needed. All existing model config must be re-entered in Settings after the upgra
 
 *Update existing model management to use server_id instead of endpoint.*
 
-- [ ] **4. Update model management routes and startup auto-seed**
+- [x] **4. Update model management routes and startup auto-seed** — CreateModelRequest/UpdateModelRequest updated (server_id required, default_flag added, endpoint/enabled/estimated_eval_time removed); create/update routes updated; _update_model_availability() rewritten for server-type-aware logic (anthropic → key present, local → Ollama ping); lifespan calls seed_llm_models_from_config(); tests/routes/conftest.py noop stub updated to accept app_state param
 
   **Files:** `main.py` (or wherever model routes live), `database.py`
 
@@ -808,7 +808,7 @@ needed. All existing model config must be re-entered in Settings after the upgra
 
 *No route changes. No schema changes. Fixes an implementation inconsistency in `llm_client.py`.*
 
-- [ ] **12. Update `_call_anthropic()` to use `AsyncAnthropic`**
+- [x] **12. Update `_call_anthropic()` to use `AsyncAnthropic`** — replaced sync Anthropic + asyncio.to_thread() with AsyncAnthropic + native await; added explicit AuthenticationError catch before generic APIError; removed asyncio import from _call_anthropic
 
   **Files:** `llm_client.py`
 

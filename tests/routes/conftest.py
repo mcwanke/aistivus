@@ -33,7 +33,7 @@ def client(tmp_path, monkeypatch):
 
     # Skip live model availability check (no Ollama in CI)
     import main as main_module
-    async def _noop_update():
+    async def _noop_update(app_state=None):
         pass
     monkeypatch.setattr(main_module, "_update_model_availability", _noop_update)
     monkeypatch.setattr(main_module, "_load_config", lambda: {})
