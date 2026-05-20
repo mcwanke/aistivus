@@ -432,7 +432,7 @@ needed. All existing model config must be re-entered in Settings after the upgra
 
 *Small addition to evaluator — no route changes.*
 
-- [ ] **5. Auto-update `estimated_eval_time` after each LLM call**
+- [x] **5. Auto-update `estimated_eval_time` after each LLM call** — `get_recent_model_latencies()` and `update_model_eval_time()` added to `database.py`; rolling average of last 10 successful latencies written after each successful LLM call in `evaluator.py`; `_provider_from_endpoint` replaced with `_provider_from_server_type` to fix Anthropic null-endpoint crash; test class updated to match renamed function
 
   **Files:** `evaluator.py` (or wherever `llm_call_log` is written after a call)
 

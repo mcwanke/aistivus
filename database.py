@@ -746,6 +746,27 @@ def delete_llm_model(model_id: int) -> bool:
         return conn.total_changes > 0
 
 
+def get_recent_model_latencies(model_id: int, limit: int = 10) -> list[int]:
+    """Return the last N successful call latencies (ms) for a model, newest first."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT latency_ms FROM llm_call_log
+               WHERE llm_model_id = ? AND success = 1 AND latency_ms IS NOT NULL
+               ORDER BY timestamp DESC LIMIT ?""",
+            (model_id, limit),
+        ).fetchall()
+    return [row["latency_ms"] for row in rows]
+
+
+def update_model_eval_time(model_id: int, estimated_seconds: int) -> None:
+    """Update estimated_eval_time for a model based on recent call latencies."""
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE llm_models SET estimated_eval_time = ? WHERE id = ?",
+            (estimated_seconds, model_id),
+        )
+
+
 def seed_llm_models_from_config() -> bool:
     """
     Auto-seed llm_servers and llm_models from config.yaml if both tables are empty.

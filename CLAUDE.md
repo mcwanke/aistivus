@@ -86,7 +86,7 @@ Job Search Profile all working end-to-end.
 ### Phase 1.3 Checklist 🔲
 - [x] `llm_servers` table in `database.py` (`init_db()`) with CRUD functions
 - [x] `llm_models` table: `endpoint` column removed, `server_id` FK added; all DB functions updated
-- [ ] `estimated_eval_time` removed from user-facing forms; auto-updated from `llm_call_log` after each call
+- [ ] `estimated_eval_time` removed from user-facing forms (backend auto-update done; frontend form removal pending Priority 8)
 - [x] `env_utils.py` — `.env` read/write utility (`python-dotenv` already in requirements.txt; use it for `load_dotenv()`)
 - [x] Startup: `load_dotenv()` called; `app.state.anthropic_key_present` set
 - [x] Server management routes (list, create, update, delete, test, available-models)
@@ -94,7 +94,7 @@ Job Search Profile all working end-to-end.
 - [x] Model routes updated: `endpoint` removed, `server_id` added, `default_flag` on create/edit
 - [x] Auto-seed updated: creates `llm_servers` record before `llm_models` on first run
 - [x] Startup availability check updated: checks per-server type (`local` → Ollama ping, `anthropic` → key present)
-- [ ] `estimated_eval_time` auto-update after each successful LLM call (`evaluator.py`)
+- [x] `estimated_eval_time` auto-update after each successful LLM call (`evaluator.py`); `_provider_from_endpoint` replaced with `_provider_from_server_type` (Anthropic null-endpoint fix)
 - [x] Fix "Query Endpoint" availability check bug (now handled via per-server test route)
 - [ ] TypeScript interfaces updated (`LLMServer`, updated `LLMModel`, `ConnectionTestResult`, etc.)
 - [ ] `useServers.ts` hook with full CRUD, test, and available-models queries

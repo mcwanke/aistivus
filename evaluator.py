@@ -67,9 +67,9 @@ def _get_inbox_done_dir() -> Path:
 # Model resolution
 # ─────────────────────────────────────────────────────────────
 
-def _provider_from_endpoint(endpoint: str) -> str:
-    """Derive provider constant from endpoint URL."""
-    if "anthropic.com" in endpoint:
+def _provider_from_server_type(server_type: str) -> str:
+    """Derive provider constant from llm_servers.server_type."""
+    if server_type == "anthropic":
         return llm_client.PROVIDER_ANTHROPIC
     return llm_client.PROVIDER_OLLAMA
 
@@ -515,7 +515,7 @@ async def evaluate_jd(
     resolved_model_id = model_row["id"]
     model = model_row["model"]
     endpoint = model_row["endpoint"]
-    provider = _provider_from_endpoint(endpoint)
+    provider = _provider_from_server_type(model_row["server_type"])
 
     # ── Step 2: Load jobsearch.md ──────────────────────────────
     jobsearch_path = _get_jobsearch_path()
@@ -639,6 +639,15 @@ async def evaluate_jd(
             error_message=result.get("error"),
             job_id=job_id,
         )
+
+    # ── Step 7b: Update estimated_eval_time ───────────────────
+    # Rolling average of last 10 successful latencies for this model.
+    # Skipped when the LLM call itself failed (network/API error).
+    if result["success"]:
+        latencies = database.get_recent_model_latencies(resolved_model_id)
+        if latencies:
+            avg_ms = sum(latencies) / len(latencies)
+            database.update_model_eval_time(resolved_model_id, round(avg_ms / 1000))
 
     # ── Step 8: Write evaluation to DB ─────────────────────────
     # Always write — even on failure. Never silently drop.

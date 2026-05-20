@@ -95,21 +95,18 @@ def eval_setup(tmp_db, model_id, jobsearch_file):
 
 
 # ─────────────────────────────────────────────────────────────
-# _provider_from_endpoint
+# _provider_from_server_type
 # ─────────────────────────────────────────────────────────────
 
-class TestProviderFromEndpoint:
-    def test_ollama_localhost(self):
-        assert evaluator._provider_from_endpoint("http://localhost:11434") == "ollama"
+class TestProviderFromServerType:
+    def test_local_returns_ollama(self):
+        assert evaluator._provider_from_server_type("local") == "ollama"
 
-    def test_anthropic_api(self):
-        assert evaluator._provider_from_endpoint("https://api.anthropic.com") == "anthropic"
+    def test_anthropic_returns_anthropic(self):
+        assert evaluator._provider_from_server_type("anthropic") == "anthropic"
 
     def test_unknown_defaults_to_ollama(self):
-        assert evaluator._provider_from_endpoint("http://myserver:8080") == "ollama"
-
-    def test_anthropic_subdomain(self):
-        assert evaluator._provider_from_endpoint("https://beta.anthropic.com") == "anthropic"
+        assert evaluator._provider_from_server_type("unknown") == "ollama"
 
 
 # ─────────────────────────────────────────────────────────────
