@@ -35,9 +35,9 @@ export function useLlmModels() {
 
 export interface CreateModelPayload {
   model: string
-  endpoint: string
+  server_id: number
   model_weight?: number
-  estimated_eval_time?: number | null
+  default_flag?: number
 }
 
 export function useCreateModel() {
@@ -62,10 +62,8 @@ export interface UpdateModelPayload {
   modelId: number
   updates: {
     model?: string
-    endpoint?: string
     model_weight?: number
-    estimated_eval_time?: number | null
-    enabled?: number
+    default_flag?: number
   }
 }
 

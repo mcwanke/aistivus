@@ -1,3 +1,31 @@
+// ─── LLM Server types ─────────────────────────────────────────────────────────
+
+export type ServerType = 'local' | 'anthropic'
+
+export interface LlmServer {
+  id: number
+  server_name: string
+  endpoint: string | null
+  server_type: ServerType
+  created_at: string
+  model_count: number
+  anthropic_key_present?: boolean  // only present when server_type === 'anthropic'
+}
+
+export interface ConnectionTestResult {
+  success: boolean
+  error?: string
+  model_count?: number  // only present on successful local Ollama test
+}
+
+export interface AvailableModelsResponse {
+  models: string[]
+}
+
+export interface AnthropicKeyStatus {
+  anthropic_key_present: boolean
+}
+
 // ─── Shared primitives ───────────────────────────────────────────────────────
 
 export type ApplicationStatus =
@@ -20,7 +48,8 @@ export type Recommendation = 'Apply' | 'Apply with modifications' | 'Skip'
 export interface LlmModelHealth {
   id: number
   model: string
-  endpoint: string
+  server_name: string
+  server_type: ServerType
   available: boolean
   default_flag: boolean
 }
@@ -47,14 +76,15 @@ export interface StatsResponse {
 export interface LlmModel {
   id: number
   model: string
-  endpoint: string
-  available: number   // 0 | 1 from SQLite
-  enabled: number   // 0 | 1 from SQLite
-  default_flag: number
+  server_id: number
+  server_name: string     // from JOIN on llm_servers
+  server_type: ServerType // from JOIN on llm_servers
+  endpoint: string | null // from JOIN (null for anthropic)
+  available: number       // 0 | 1 from SQLite
+  default_flag: number    // 0 | 1 from SQLite
   model_weight: number
   estimated_eval_time: number | null
   created_at: string
-
 }
 
 export interface ModelsResponse {

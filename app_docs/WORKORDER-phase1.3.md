@@ -460,7 +460,7 @@ needed. All existing model config must be re-entered in Settings after the upgra
 
 *Define all types before any frontend work.*
 
-- [ ] **6. Update and add TypeScript interfaces**
+- [x] **6. Update and add TypeScript interfaces** — ServerType + LlmServer + ConnectionTestResult + AvailableModelsResponse + AnthropicKeyStatus added; LlmModel updated (server_id, server_name, server_type, endpoint via JOIN; endpoint/enabled direct fields removed); LlmModelHealth endpoint → server_name/server_type
 
   **Files:** `frontend/src/types/api.ts` (or wherever LLM types live)
 
@@ -517,7 +517,7 @@ needed. All existing model config must be re-entered in Settings after the upgra
 
 *All server state and mutation logic lives in hooks.*
 
-- [ ] **7. Add/update hooks for server and model management**
+- [x] **7. Add/update hooks for server and model management** — useServers.ts created (useServers, useCreateServer, useUpdateServer, useDeleteServer, useTestConnection, useAvailableModels, useAnthropicKeyStatus); useSettings.ts model payloads updated (CreateModelPayload: server_id + default_flag replace endpoint/estimated_eval_time; UpdateModelPayload: endpoint/enabled/estimated_eval_time removed, default_flag added)
 
   **Files:** `frontend/src/hooks/useServers.ts` (new),
   `frontend/src/hooks/useModels.ts` (update if exists)

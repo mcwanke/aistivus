@@ -96,9 +96,9 @@ Job Search Profile all working end-to-end.
 - [x] Startup availability check updated: checks per-server type (`local` → Ollama ping, `anthropic` → key present)
 - [x] `estimated_eval_time` auto-update after each successful LLM call (`evaluator.py`); `_provider_from_endpoint` replaced with `_provider_from_server_type` (Anthropic null-endpoint fix)
 - [x] Fix "Query Endpoint" availability check bug (now handled via per-server test route)
-- [ ] TypeScript interfaces updated (`LLMServer`, updated `LLMModel`, `ConnectionTestResult`, etc.)
-- [ ] `useServers.ts` hook with full CRUD, test, and available-models queries
-- [ ] `useModels` hook updated for new schema
+- [x] TypeScript interfaces updated (`LLMServer`, updated `LLMModel`, `ConnectionTestResult`, etc.)
+- [x] `useServers.ts` hook with full CRUD, test, and available-models queries
+- [x] `useModels` hook updated for new schema
 - [ ] Settings: Servers section (list, edit, delete with guard)
 - [ ] Settings: "Add AI/Server" popup (Local + Remote/Anthropic tabs, Test Connection, import flow)
 - [ ] Settings: "Add Model" popup updated (server dropdown, default checkbox, no endpoint/eval-time)
