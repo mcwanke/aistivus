@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import type { StatsResponse, HealthResponse } from '@/types/api'
 import { useProfileHealth } from '@/hooks/useProfileHealth'
+import AppHeader from '@/components/AppHeader'
 
 // ─── Data fetchers ────────────────────────────────────────────────────────────
 
@@ -19,33 +20,6 @@ async function fetchHealth(): Promise<HealthResponse> {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-interface StatCardProps {
-  label: string
-  value: number | string
-  to?: string
-}
-
-function StatCard({ label, value, to }: StatCardProps): React.JSX.Element {
-  const inner = (
-    <>
-      <span className="text-muted text-sm font-mono uppercase tracking-widest">{label}</span>
-      <span className="text-accent font-serif text-4xl">{value}</span>
-    </>
-  )
-  if (to) {
-    return (
-      <Link to={to} className="bg-surface rounded p-5 flex flex-col gap-1 hover:bg-surface2 transition-colors">
-        {inner}
-      </Link>
-    )
-  }
-  return (
-    <div className="bg-surface rounded p-5 flex flex-col gap-1">
-      {inner}
-    </div>
-  )
-}
-
 function ModelBadge({ model, available }: { model: string; available: boolean }): React.JSX.Element {
   return (
     <div className="flex items-center gap-2 text-sm">
@@ -58,15 +32,12 @@ function ModelBadge({ model, available }: { model: string; available: boolean })
   )
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
 function ProfileStrengthWidget(): React.JSX.Element {
   const { data, isLoading } = useProfileHealth()
 
   if (isLoading) {
     return (
       <div className="bg-surface rounded p-5">
-        <p className="text-muted text-sm font-mono uppercase tracking-widest text-xs mb-2">Job Search Profile</p>
         <p className="text-muted text-sm">Loading…</p>
       </div>
     )
@@ -75,7 +46,6 @@ function ProfileStrengthWidget(): React.JSX.Element {
   if (!data || !data.file_exists) {
     return (
       <div className="bg-surface rounded p-5">
-        <p className="text-muted font-mono uppercase tracking-widest text-xs mb-2">Job Search Profile</p>
         <Link to="/profile" className="text-sm text-accent hover:underline">
           Profile not set up — start here →
         </Link>
@@ -89,12 +59,8 @@ function ProfileStrengthWidget(): React.JSX.Element {
   return (
     <div className="bg-surface rounded p-5 space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-muted font-mono uppercase tracking-widest text-xs">Job Search Profile</p>
-        {isComplete && (
-          <span className="text-xs font-mono text-green">Complete ✓</span>
-        )}
+        {isComplete && <span className="text-xs font-mono text-green">Complete ✓</span>}
       </div>
-      {/* Progress bar */}
       <div className="flex gap-1">
         {Array.from({ length: total_sections }).map((_, i) => (
           <div
@@ -117,61 +83,148 @@ function ProfileStrengthWidget(): React.JSX.Element {
   )
 }
 
+// ─── Nav tile data ────────────────────────────────────────────────────────────
+
+const NAV_TILES = [
+  {
+    icon: '⚡',
+    title: 'Evaluate',
+    description: 'Paste a job description and get a structured fit assessment against your background.',
+    to: '/evaluate',
+  },
+  {
+    icon: '💼',
+    title: 'Jobs',
+    description: 'View all jobs and opportunities. Compare evaluations and re-evaluate top candidates.',
+    to: '/jobs',
+  },
+  {
+    icon: '📁',
+    title: 'Applications',
+    description: 'Track application status, add notes, and log recruiter conversations.',
+    to: '/applications',
+  },
+  {
+    icon: '📋',
+    title: 'JS Profile',
+    description: 'Build and refine your Job Search Profile — the context behind every evaluation.',
+    to: '/profile',
+  },
+  {
+    icon: '📊',
+    title: 'LLM Usage',
+    description: 'View all LLM call logs, inspect prompts, and monitor usage by model.',
+    to: '/llm-usage',
+  },
+]
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function Dashboard(): React.JSX.Element {
   const stats = useQuery({ queryKey: ['stats'], queryFn: fetchStats })
   const health = useQuery({ queryKey: ['health'], queryFn: fetchHealth })
 
+  const statValue = (v: number | undefined) => (stats.isLoading || stats.isError || v === undefined ? '—' : v)
+
   return (
-    <div className="h-full overflow-y-auto p-8 max-w-4xl mx-auto space-y-8">
-      <h1 className="font-serif text-accent text-3xl">Dashboard</h1>
+    <div className="min-h-screen bg-bg overflow-y-auto">
+      <AppHeader />
 
-      {/* Stat cards */}
-      <section>
-        <h2 className="text-muted text-xs font-mono uppercase tracking-widest mb-3">Overview</h2>
-        {stats.isLoading && (
-          <p className="text-muted text-sm">Loading stats…</p>
-        )}
-        {stats.isError && (
-          <p className="text-red text-sm">Failed to load stats.</p>
-        )}
-        {stats.data && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <StatCard label="Jobs"         value={stats.data.jobs}         to="/jobs" />
-            <StatCard label="Evaluations"  value={stats.data.evaluations} />
-            <StatCard label="Applications" value={stats.data.applications} to="/applications" />
-            <StatCard label="LLM Calls"    value={stats.data.llm_calls} to="/llm-usage" />
-          </div>
-        )}
-      </section>
+      {/* Hero */}
+      <div className="px-12 pt-16 pb-12 max-w-3xl">
+        <p className="font-mono text-[0.65rem] uppercase tracking-[0.14em] text-accent/60 mb-4">
+          PHASE 1.3 — MULTI-SERVER LLM MANAGEMENT
+        </p>
+        <h1 className="font-serif text-5xl leading-tight tracking-tight text-text mb-5">
+          Because companies use AI to filter{' '}
+          <em className="italic text-accent">you.</em>
+        </h1>
+        <p className="text-base text-muted leading-relaxed font-light max-w-lg">
+          A local, private job search command center. Evaluate roles against your background,
+          track applications, and build tailored resumes — powered by models running on your
+          own machine.
+        </p>
+      </div>
 
-      {/* Profile strength */}
-      <section>
-        <h2 className="text-muted text-xs font-mono uppercase tracking-widest mb-3">Profile</h2>
+      {/* Stats bar */}
+      <div className="mx-12 mb-12 border border-surface2 rounded-xl overflow-hidden flex">
+        {/* Jobs */}
+        <Link
+          to="/jobs"
+          className="flex-1 px-5 py-4 border-r border-surface2 hover:bg-surface transition-colors"
+        >
+          <p className="font-serif text-accent text-3xl leading-none mb-1">{statValue(stats.data?.jobs)}</p>
+          <p className="font-mono text-[0.65rem] uppercase tracking-widest text-muted">Jobs</p>
+        </Link>
+
+        {/* Evaluations — no link */}
+        <div className="flex-1 px-5 py-4 border-r border-surface2">
+          <p className="font-serif text-accent text-3xl leading-none mb-1">{statValue(stats.data?.evaluations)}</p>
+          <p className="font-mono text-[0.65rem] uppercase tracking-widest text-muted">Evaluations</p>
+        </div>
+
+        {/* Applications */}
+        <Link
+          to="/applications"
+          className="flex-1 px-5 py-4 border-r border-surface2 hover:bg-surface transition-colors"
+        >
+          <p className="font-serif text-accent text-3xl leading-none mb-1">{statValue(stats.data?.applications)}</p>
+          <p className="font-mono text-[0.65rem] uppercase tracking-widest text-muted">Applications</p>
+        </Link>
+
+        {/* LLM Calls */}
+        <Link
+          to="/llm-usage"
+          className="flex-1 px-5 py-4 hover:bg-surface transition-colors"
+        >
+          <p className="font-serif text-accent text-3xl leading-none mb-1">{statValue(stats.data?.llm_calls)}</p>
+          <p className="font-mono text-[0.65rem] uppercase tracking-widest text-muted">LLM Calls</p>
+        </Link>
+      </div>
+
+      {/* Nav tiles */}
+      <div className="px-12 pb-16">
+        <p className="font-mono text-[0.65rem] uppercase tracking-widest text-muted/60 mb-5">Tools</p>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4 max-w-4xl">
+          {NAV_TILES.map((tile) => (
+            <Link
+              key={tile.to}
+              to={tile.to}
+              className="bg-surface border border-surface2 rounded-xl p-6 flex flex-col gap-2.5 hover:border-accent/30 hover:bg-surface2 hover:-translate-y-0.5 transition-all duration-200"
+            >
+              <span className="text-2xl leading-none">{tile.icon}</span>
+              <span className="font-serif text-xl text-text tracking-tight">{tile.title}</span>
+              <span className="text-[0.78rem] text-muted leading-snug">{tile.description}</span>
+              <span className="mt-auto pt-2 border-t border-surface2 font-mono text-[0.62rem] uppercase tracking-wider text-green">
+                ● Active
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* Profile Strength */}
+      <div className="px-12 pb-8">
+        <p className="font-mono text-[0.65rem] uppercase tracking-widest text-muted/60 mb-5">Profile</p>
         <ProfileStrengthWidget />
-      </section>
+      </div>
 
       {/* Model health */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-muted text-xs font-mono uppercase tracking-widest">Models</h2>
+      <div className="px-12 pb-16">
+        <div className="flex items-center justify-between mb-5">
+          <p className="font-mono text-[0.65rem] uppercase tracking-widest text-muted/60">Models</p>
           <Link to="/settings" className="text-xs font-mono text-muted hover:text-accent transition-colors">
             Manage →
           </Link>
         </div>
-        {health.isLoading && (
-          <p className="text-muted text-sm">Checking models…</p>
-        )}
-        {health.isError && (
-          <p className="text-red text-sm">Failed to load health status.</p>
-        )}
+        {health.isLoading && <p className="text-muted text-sm">Checking models…</p>}
+        {health.isError && <p className="text-red text-sm">Failed to load health status.</p>}
         {health.data && (
           <div className="bg-surface rounded p-5 space-y-3">
             <div className="flex items-center gap-2 mb-2">
               <span
                 className={`text-xs font-mono px-2 py-0.5 rounded ${
-                  health.data.status === 'ok'
-                    ? 'bg-green/20 text-green'
-                    : 'bg-red/20 text-red'
+                  health.data.status === 'ok' ? 'bg-green/20 text-green' : 'bg-red/20 text-red'
                 }`}
               >
                 {health.data.status}
@@ -187,7 +240,7 @@ export default function Dashboard(): React.JSX.Element {
             )}
           </div>
         )}
-      </section>
+      </div>
     </div>
   )
 }

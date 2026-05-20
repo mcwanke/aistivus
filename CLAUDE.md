@@ -112,7 +112,7 @@ Job Search Profile all working end-to-end.
 - [x] Settings: model row displays server name in place of endpoint (via JOIN; Part G of Priority 8)
 - [x] `AppHeader.tsx` — reusable top header component (wordmark, tagline, Settings link); no sidebar
 - [x] Dashboard: standalone route outside `<Layout>` wrapper — no sidebar rendered
-- [ ] Dashboard: full redesign — AppHeader, hero block, stats bar, nav tiles (active pages only; no disabled future tiles)
+- [x] Dashboard: full redesign — AppHeader, hero block, stats bar, nav tiles (active pages only; no disabled future tiles)
 
 ### Phase 1.4 Checklist 🔲
 - [ ] Config: `typst:` section in `CONFIG_TEMPLATE.yaml` (`binary_path`, `generated_dir`; moved from `output:`)

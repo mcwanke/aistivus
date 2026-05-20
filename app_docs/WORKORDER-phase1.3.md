@@ -913,7 +913,7 @@ needed. All existing model config must be re-entered in Settings after the upgra
 
 *Full redesign of Dashboard.tsx. Depends on Priority 13 (routing) and Priority 14 (AppHeader).*
 
-- [ ] **15. Rewrite `Dashboard.tsx` — header, hero, stats bar, nav tiles**
+- [x] **15. Rewrite `Dashboard.tsx` — header, hero, stats bar, nav tiles** — AppHeader imported; hero block (eyebrow, headline with italic accent, subtitle); stats bar (4 bordered cells, Jobs/Applications/LLM Calls link, Evaluations no link); 5 nav tiles in auto-fill grid with icon/title/description/Active status; ProfileStrengthWidget + ModelBadge retained and restyled full-width; old StatCard, heading, and sidebar-era wrapper removed
 
   **Files:** `frontend/src/pages/Dashboard.tsx`
 
