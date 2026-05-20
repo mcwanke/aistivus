@@ -91,7 +91,7 @@ applications must be re-entered after upgrade.
 
 ## Priority 1 — Settings: Add Model Form — Server-Aware Dropdown
 
-- [ ] **1. Update `ModelForm` in `Settings.tsx` — server-aware model name dropdown**
+- [x] **1. Update `ModelForm` in `Settings.tsx` — server-aware model name dropdown** — server-aware `<select>` with loading/error/filtered states; ↺ Refresh button; Save disabled until model chosen; stale tests fixed; 31 new/updated tests passing
 
   **Files:** `frontend/src/pages/Settings.tsx`
 
@@ -188,7 +188,7 @@ applications must be re-entered after upgrade.
 
 ## Priority 2 — Settings: AI Servers Section Layout Fixes
 
-- [ ] **2. Fix AI Servers table — column width + header rename**
+- [x] **2. Fix AI Servers table — column width + header rename** — Actions column widened 108px→140px; "Models" header renamed "IN USE"
 
   **Files:** `frontend/src/pages/Settings.tsx`
 
@@ -455,11 +455,198 @@ applications must be re-entered after upgrade.
 
 ---
 
+---
+
+## Priority 8 — Stats Endpoint: New Dashboard Fields
+
+- [ ] **8. Extend `GET /api/v1/stats` with two new aggregate fields**
+
+  **Files:** `main.py` (and `database.py` if stats logic lives there)
+
+  Read the existing stats endpoint implementation first to understand where the SQL lives.
+
+  ---
+
+  ### Part A — `jobs_applied_to`
+
+  Count of applications where `applied = 1`. This answers "how many jobs has the user
+  formally submitted an application for."
+
+  ```sql
+  SELECT COUNT(*) FROM applications WHERE applied = 1
+  ```
+
+  ---
+
+  ### Part B — `applications_in_process`
+
+  Count of applications with `application_status IN ('applied', 'screening', 'interview', 'offer')`.
+  Excludes: not-started, draft, rejected, ghosted, withdrawn.
+
+  ```sql
+  SELECT COUNT(*) FROM applications
+  WHERE application_status IN ('applied', 'screening', 'interview', 'offer')
+  ```
+
+  ---
+
+  ### Part C — Response schema
+
+  Add both fields to the stats JSON response alongside existing fields (jobs, evaluations,
+  applications, llm_calls). Existing fields are unchanged.
+
+  ```json
+  {
+    "jobs": 12,
+    "evaluations": 47,
+    "applications": 8,
+    "llm_calls": 53,
+    "jobs_applied_to": 5,
+    "applications_in_process": 3
+  }
+  ```
+
+  ---
+
+  ### Part D — TypeScript interface
+
+  Update `StatsResponse` in `frontend/src/types/api.ts`:
+  ```typescript
+  jobs_applied_to: number
+  applications_in_process: number
+  ```
+
+  **Do NOT touch any other route or file.**
+
+---
+
+## Priority 9 — Dashboard: Hero Restructure + Stats Bar + Tile Layout
+
+- [ ] **9. Redesign Dashboard.tsx — hero, stats bar, tile sections**
+
+  **Files:** `frontend/src/pages/Dashboard.tsx`
+
+  Read the current file fully before making any changes. All changes are confined to this
+  one file.
+
+  ---
+
+  ### Part A — Hero: two-column layout
+
+  Replace the current single-column hero block (`px-12 pt-16 pb-12 max-w-3xl` div) with a
+  two-column layout:
+
+  **Left column — Featured Jobs tile:**
+  - A `<Link to="/jobs">` card styled more prominently than the standard nav tiles
+  - Title: **"Find Me My Ideal Job"** — DM Serif Display, larger than nav tile titles (~2xl or larger)
+  - Description: "View all jobs and opportunities. Compare evaluations and re-evaluate top candidates."
+    (same text as the former Jobs nav tile)
+  - "● Active" footer in green mono, same as nav tiles
+  - Styling: `bg-surface border border-surface2 rounded-xl` with generous padding; hover: `hover:border-accent/30 hover:bg-surface2 hover:-translate-y-0.5 transition-all duration-200`
+  - The card should be visually larger/more prominent than standard nav tiles — use more padding and a larger title font size
+
+  **Right column — Hero text (existing copy, unchanged):**
+  - Phase eyebrow, headline, subtitle — same content and styling as today
+  - Remove the `max-w-3xl` constraint (it now lives in a column, not full-width)
+
+  Layout: use a CSS grid or flex row. The Jobs tile column should be narrower than the
+  text column (e.g., roughly 1:2 ratio). The two columns should align at the top.
+
+  ---
+
+  ### Part B — Stats bar: relabeled + new fields
+
+  Update the four stat cells. Same visual structure, new labels and sources:
+
+  | Position | Label | Source field | Link |
+  |---|---|---|---|
+  | 1 | Evaluations Run | `stats.data?.evaluations` | none |
+  | 2 | Open Jobs | `stats.data?.jobs` | `/jobs` |
+  | 3 | Jobs Applied To | `stats.data?.jobs_applied_to` | `/applications` |
+  | 4 | Applications In Process | `stats.data?.applications_in_process` | `/applications` |
+
+  The first cell (Evaluations Run) has no link — render as a `<div>` not a `<Link>`.
+  Cells 2–4 are `<Link>` components. Borders between cells remain unchanged.
+
+  ---
+
+  ### Part C — TOOLS section: tile changes
+
+  Remove the `Jobs` tile from `NAV_TILES` entirely (it is now in the hero area).
+
+  Rename the `Evaluate` tile title from `'Evaluate'` to `'Evaluate a Job'`.
+
+  After this change, TOOLS contains: Evaluate a Job, JS Profile.
+
+  ---
+
+  ### Part D — DATA section: new tile group
+
+  After the PROFILE section (Profile Strength widget) and before the MODELS section (Model
+  Health widget), add a new section:
+
+  ```tsx
+  {/* Data */}
+  <div className="px-12 pb-8">
+    <p className="font-mono text-[0.65rem] uppercase tracking-widest text-muted/60 mb-5">Data</p>
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4 max-w-4xl">
+      {DATA_TILES.map((tile) => (
+        <Link
+          key={tile.to}
+          to={tile.to}
+          className="bg-surface border border-surface2 rounded-xl p-6 flex flex-col gap-2.5 hover:border-accent/30 hover:bg-surface2 hover:-translate-y-0.5 transition-all duration-200"
+        >
+          <span className="text-2xl leading-none">{tile.icon}</span>
+          <span className="font-serif text-xl text-text tracking-tight">{tile.title}</span>
+          <span className="text-[0.78rem] text-muted leading-snug">{tile.description}</span>
+          <span className="mt-auto pt-2 border-t border-surface2 font-mono text-[0.62rem] uppercase tracking-wider text-green">
+            ● Active
+          </span>
+        </Link>
+      ))}
+    </div>
+  </div>
+  ```
+
+  Define `DATA_TILES` alongside `NAV_TILES`:
+  ```typescript
+  const DATA_TILES = [
+    {
+      icon: '📁',
+      title: 'Applications',
+      description: 'Track application status, add notes, and log recruiter conversations.',
+      to: '/applications',
+    },
+    {
+      icon: '📊',
+      title: 'LLM Usage',
+      description: 'View all LLM call logs, inspect prompts, and monitor usage by model.',
+      to: '/llm-usage',
+    },
+  ]
+  ```
+
+  Remove Applications and LLM Usage from `NAV_TILES` (they are now in DATA_TILES).
+
+  **Final section order (top to bottom):**
+  1. AppHeader
+  2. Hero (two-column: Jobs tile + hero text)
+  3. Stats bar
+  4. TOOLS tiles (Evaluate a Job, JS Profile)
+  5. PROFILE (Profile Strength widget)
+  6. DATA tiles (Applications, LLM Usage)
+  7. MODELS (Model Health widget)
+
+  **Do NOT modify any other file.**
+
+---
+
 ## API Route Summary
 
 | Method | Route | Description |
 |---|---|---|
 | POST | `/api/v1/jobs/{id}/activate` | Set job is_active = 1 |
+| GET | `/api/v1/stats` | Returns job/eval/application counts (extended with jobs_applied_to, applications_in_process in P8) |
 
 ---
 
@@ -468,3 +655,4 @@ applications must be re-entered after upgrade.
 - [ ] All SQL parameterized — no string interpolation
 - [ ] `activate_job()` uses `WHERE id = ?` — no user-controlled SQL
 - [ ] No new external data exposure in activate response (returns same Job object as existing routes)
+- [ ] Stats query additions use parameterized IN clause or hardcoded string literals (no user input)

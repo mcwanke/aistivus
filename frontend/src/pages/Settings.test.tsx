@@ -16,14 +16,14 @@ describe('Settings page', () => {
     renderWithProviders(<Settings />)
     expect(screen.getByRole('button', { name: 'Models' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'System Types' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'jobsearch.md' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'My Data' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'System Info' })).toBeInTheDocument()
   })
 
-  it('shows LLM Models section by default', async () => {
+  it('shows App Settings section by default', async () => {
     renderWithProviders(<Settings />)
-    await waitFor(() => expect(screen.getByText('LLM Models')).toBeInTheDocument())
-    expect(screen.getByText('llama3')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('Application Settings')).toBeInTheDocument())
+    expect(screen.getByText('Allow Audit Timestamp Edit')).toBeInTheDocument()
   })
 
   it('switches to System Types tab on click', async () => {
@@ -33,10 +33,10 @@ describe('Settings page', () => {
     await waitFor(() => expect(screen.getByText('general')).toBeInTheDocument())
   })
 
-  it('switches to jobsearch.md tab on click', async () => {
+  it('switches to My Data tab on click', async () => {
     const user = userEvent.setup()
     renderWithProviders(<Settings />)
-    await user.click(screen.getByRole('button', { name: 'jobsearch.md' }))
+    await user.click(screen.getByRole('button', { name: 'My Data' }))
     await waitFor(() => expect(screen.getByText(/My Job Search/)).toBeInTheDocument())
   })
 })
@@ -190,26 +190,121 @@ describe('Settings page — AI Servers tab', () => {
 })
 
 describe('Settings page — Models tab server selector', () => {
-  it('Add Model form renders a server selector with server names as options', async () => {
+  async function openAddModelForm() {
     const user = userEvent.setup()
     renderWithProviders(<Settings />)
     await user.click(screen.getByRole('button', { name: 'Models' }))
     await waitFor(() => expect(screen.getByText('LLM Models')).toBeInTheDocument())
     await user.click(screen.getByRole('button', { name: '+ Add model' }))
+    return user
+  }
+
+  it('Add Model form renders a server selector with server names as options', async () => {
+    await openAddModelForm()
     await waitFor(() => {
-      // Server selector should appear with server name options
       expect(screen.getAllByRole('option', { name: /Local Ollama/ }).length).toBeGreaterThan(0)
     })
   })
 
   it('Add Model form includes both local and anthropic server options', async () => {
-    const user = userEvent.setup()
-    renderWithProviders(<Settings />)
-    await user.click(screen.getByRole('button', { name: 'Models' }))
-    await waitFor(() => expect(screen.getByText('LLM Models')).toBeInTheDocument())
-    await user.click(screen.getByRole('button', { name: '+ Add model' }))
+    await openAddModelForm()
     await waitFor(() => {
       expect(screen.getAllByRole('option', { name: /Anthropic Claude/ }).length).toBeGreaterThan(0)
     })
+  })
+
+  it('model name dropdown shows "select a server first" when no server is selected', async () => {
+    await openAddModelForm()
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: '— select a server first —' })).toBeInTheDocument()
+    })
+  })
+
+  it('model name dropdown populates with available models after selecting a server', async () => {
+    const user = await openAddModelForm()
+    await waitFor(() => expect(screen.getAllByRole('option', { name: /Local Ollama/ }).length).toBeGreaterThan(0))
+    const serverSelect = screen.getAllByRole('combobox')[1]
+    await user.selectOptions(serverSelect, '1')
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: 'llama3:8b' })).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: 'mistral:7b' })).toBeInTheDocument()
+    })
+  })
+
+  it('refresh button appears after selecting a server', async () => {
+    const user = await openAddModelForm()
+    await waitFor(() => expect(screen.getAllByRole('option', { name: /Local Ollama/ }).length).toBeGreaterThan(0))
+    const serverSelect = screen.getAllByRole('combobox')[1]
+    await user.selectOptions(serverSelect, '1')
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '↺ Refresh' })).toBeInTheDocument()
+    })
+  })
+
+  it('refresh button is absent when no server is selected', async () => {
+    await openAddModelForm()
+    await waitFor(() => expect(screen.getAllByRole('option', { name: /Local Ollama/ }).length).toBeGreaterThan(0))
+    expect(screen.queryByRole('button', { name: '↺ Refresh' })).not.toBeInTheDocument()
+  })
+
+  it('Save button is disabled until a model is selected', async () => {
+    const user = await openAddModelForm()
+    await waitFor(() => expect(screen.getAllByRole('option', { name: /Local Ollama/ }).length).toBeGreaterThan(0))
+    const serverSelect = screen.getAllByRole('combobox')[1]
+    await user.selectOptions(serverSelect, '1')
+    await waitFor(() => expect(screen.getByRole('option', { name: 'llama3:8b' })).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+
+  it('Save button is enabled after selecting a model', async () => {
+    const user = await openAddModelForm()
+    await waitFor(() => expect(screen.getAllByRole('option', { name: /Local Ollama/ }).length).toBeGreaterThan(0))
+    const serverSelect = screen.getAllByRole('combobox')[1]
+    await user.selectOptions(serverSelect, '1')
+    await waitFor(() => expect(screen.getByRole('option', { name: 'llama3:8b' })).toBeInTheDocument())
+    const modelSelect = screen.getAllByRole('combobox')[0]
+    await user.selectOptions(modelSelect, 'llama3:8b')
+    expect(screen.getByRole('button', { name: 'Save' })).not.toBeDisabled()
+  })
+
+  it('shows error message and disables Save when server is unreachable', async () => {
+    server.use(
+      http.get('/api/v1/settings/llm-servers/:id/available-models', () =>
+        HttpResponse.error(),
+      ),
+    )
+    const user = await openAddModelForm()
+    await waitFor(() => expect(screen.getAllByRole('option', { name: /Local Ollama/ }).length).toBeGreaterThan(0))
+    const serverSelect = screen.getAllByRole('combobox')[1]
+    await user.selectOptions(serverSelect, '1')
+    await waitFor(() => {
+      expect(screen.getByText(/Could not reach this server/)).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+
+  it('clearing model on server change resets the model dropdown', async () => {
+    const user = await openAddModelForm()
+    await waitFor(() => expect(screen.getAllByRole('option', { name: /Local Ollama/ }).length).toBeGreaterThan(0))
+    const serverSelect = screen.getAllByRole('combobox')[1]
+    await user.selectOptions(serverSelect, '1')
+    await waitFor(() => expect(screen.getByRole('option', { name: 'llama3:8b' })).toBeInTheDocument())
+    const modelSelect = screen.getAllByRole('combobox')[0]
+    await user.selectOptions(modelSelect, 'llama3:8b')
+    // Now switch server — model should reset
+    await user.selectOptions(serverSelect, '')
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: '— select a server first —' })).toBeInTheDocument()
+    })
+  })
+})
+
+describe('Settings page — AI Servers column header', () => {
+  it('AI Servers table shows "IN USE" column header', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<Settings />)
+    await user.click(screen.getByRole('button', { name: 'AI Servers' }))
+    await waitFor(() => expect(screen.getByText('Server Name')).toBeInTheDocument())
+    expect(screen.getByText('IN USE')).toBeInTheDocument()
   })
 })

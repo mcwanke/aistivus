@@ -115,11 +115,11 @@ Job Search Profile, and multi-server LLM management all working end-to-end.
 - [x] Dashboard: full redesign — AppHeader, hero block, stats bar, nav tiles (active pages only; no disabled future tiles)
 
 ### Phase 1.4 Checklist 🔲
-- [ ] Settings: "Add Model" — model name field replaced with server-aware dropdown (populated from server's available models)
-- [ ] Settings: "Add Model" — dropdown filters out models already configured on the selected server; refresh button re-fetches list
-- [ ] Settings: "Add Model" — error state blocks entry when server is unreachable (no text input fallback)
-- [ ] Settings: AI Servers — Actions column widened to fix delete button overflow
-- [ ] Settings: AI Servers — "MODELS" column header renamed to "IN USE"
+- [x] Settings: "Add Model" — model name field replaced with server-aware dropdown (populated from server's available models)
+- [x] Settings: "Add Model" — dropdown filters out models already configured on the selected server; refresh button re-fetches list
+- [x] Settings: "Add Model" — error state blocks entry when server is unreachable (no text input fallback)
+- [x] Settings: AI Servers — Actions column widened to fix delete button overflow
+- [x] Settings: AI Servers — "MODELS" column header renamed to "IN USE"
 - [ ] `jobs.is_active` column added to schema (`DEFAULT 0`); DB wipe required
 - [ ] `database.py`: `create_job()` sets `is_active = 0`; `get_all_jobs()` filters `is_active = 1` by default; `activate_job()` function added
 - [ ] Backend: `POST /api/v1/jobs/{id}/activate` route
@@ -130,6 +130,13 @@ Job Search Profile, and multi-server LLM management all working end-to-end.
 - [ ] `Evaluate.tsx`: "No" — resets page for fresh JD entry (clears form + results)
 - [ ] Backend tests: activate route, `is_active` filter on jobs list
 - [ ] Frontend tests: Evaluate.tsx CTA renders/hides correctly; "No" resets page
+- [ ] Backend: `GET /api/v1/stats` extended with `jobs_applied_to` (applications.applied = 1 count) and `applications_in_process` (status IN applied/screening/interview/offer)
+- [ ] TypeScript: `StatsResponse` interface updated with `jobs_applied_to` and `applications_in_process` fields
+- [ ] Dashboard: hero section restructured — two-column layout (large "Find Me My Ideal Job" Jobs tile left; hero text right)
+- [ ] Dashboard: stats bar relabeled — "Evaluations Run", "Open Jobs", "Jobs Applied To", "Applications In Process"
+- [ ] Dashboard: stats bar wired to new `jobs_applied_to` and `applications_in_process` fields
+- [ ] Dashboard: "Evaluate" tile renamed to "Evaluate a Job"; Jobs tile removed from TOOLS section
+- [ ] Dashboard: new DATA section added (between PROFILE and MODELS) containing Applications and LLM Usage tiles (moved from TOOLS)
 
 ### Phase 1.5 Checklist 🔲
 - [ ] `AppHeader.tsx` applied to all pages; `<Layout>` sidebar wrapper removed from all non-Dashboard pages
@@ -319,8 +326,9 @@ llm_call_log        (id, timestamp, llm_model_id, call_type,
                      job_id, search_run_id)
 
 applications        (id, job_id, apply_date, end_date,
-                     requested_salary, application_status, project_id)
+                     requested_salary, application_status, applied, project_id)
                     DEFAULT application_status = 'not-started'
+                    -- applied: INTEGER 0/1 flag set when user has formally submitted the application
 
 application_logs    (id, application_id, type_id, log, url,
                      log_timestamp, llm_call_log_id)

@@ -319,12 +319,14 @@ applications (
     end_date            TEXT,
     requested_salary    TEXT,           -- added Phase 1.0; captured at application time
     application_status  TEXT NOT NULL DEFAULT 'not-started',
+    applied             INTEGER NOT NULL DEFAULT 0,   -- 0/1 flag; set when user has formally submitted
     project_id          INTEGER
 )
 -- Valid status values: not-started | draft | applied | screening | interview |
 --                      offer | rejected | ghosted | withdrawn
 -- 'not-started' records auto-created when a job is created. Hidden from Applications view.
 -- Status transitions not enforced at DB level; application_audit is source of truth.
+-- applied flag is independent of application_status; used for stats (jobs_applied_to count).
 -- cv_link and cover_link removed; documents tracked in application_documents.
 -- excitement_level moved to jobs table.
 
@@ -898,6 +900,12 @@ Deliverables:
 - `activate_job()` in `database.py`; `GET /api/v1/jobs` returns active-only by default; dashboard stats count active jobs only
 - `POST /api/v1/jobs/{id}/activate` route
 - `Evaluate.tsx`: post-evaluation CTA banner — displays LLM recommendation, prompts user to activate or skip; "Yes" navigates to `/jobs/{jobId}`; "No" resets Evaluate page for fresh JD entry
+- `GET /api/v1/stats` extended: `jobs_applied_to` (applications.applied = 1 count) and `applications_in_process` (status IN applied/screening/interview/offer)
+- `StatsResponse` TypeScript interface updated with new stat fields
+- Dashboard hero restructured: two-column layout — large "Find Me My Ideal Job" Jobs tile (left) + hero text (right)
+- Dashboard stats bar relabeled: "Evaluations Run" / "Open Jobs" / "Jobs Applied To" / "Applications In Process"
+- Dashboard TOOLS section: "Evaluate" tile renamed "Evaluate a Job"; Jobs tile removed (promoted to hero)
+- Dashboard: new DATA section (between PROFILE and MODELS) containing Applications and LLM Usage tiles
 - Backend + frontend tests
 
 **See:** `app_docs/WORKORDER-phase1.4.md` for full item-by-item build spec.
@@ -1162,7 +1170,7 @@ The section system prompts adjust question framing:
 
 ---
 
-## 20. Dashboard Specification (Phase 1.3)
+## 20. Dashboard Specification (Phase 1.3 + 1.4 additions)
 
 ### Layout
 
@@ -1175,27 +1183,37 @@ future phases may extend the header to other pages.
 │ AIstivus   AI JOB SEARCH HELPER FOR THE REST OF US  Settings │  ← AppHeader
 ├──────────────────────────────────────────────────────────────┤
 │                                                              │
-│  PHASE 1.X — ...                           ← hero eyebrow   │
-│  Because companies use AI                                    │
-│  to filter you.                            ← hero headline   │
+│  ┌──────────────────────┐  PHASE 1.X — ...   ← eyebrow     │
+│  │                      │  Because companies use AI         │
+│  │  Find Me My          │  to filter you.    ← headline     │
+│  │  Ideal Job           │                                   │
+│  │  [description]       │  A local, private job search...   │
+│  │  ● Active            │  ← subtitle                       │
+│  └──────────────────────┘                                   │
 │                                                              │
-│  A local, private job search command center...  ← sub       │
+├──────────────┬──────────────┬──────────────┬────────────────┤
+│ Evaluations  │  Open Jobs   │ Jobs Applied │ Apps In Process│  ← stats bar
+│     Run      │              │     To       │                │
+├──────────────┴──────────────┴──────────────┴────────────────┤
+│ TOOLS                                                        │
+│ ┌──────────┐ ┌──────────┐                                  │
+│ │ ⚡        │ │ 📋       │                                  │  ← nav tiles
+│ │ Evaluate │ │ JS Prof. │                                  │
+│ │ a Job    │ └──────────┘                                  │
+│ └──────────┘                                                │
 │                                                              │
-├──────────┬──────────┬──────────┬──────────┤
-│  Jobs    │ Evals    │ Apps     │ LLM Calls│  ← stats bar
-├──────────┴──────────┴──────────┴──────────┤
-│ TOOLS                                      │
-│ ┌──────────┐ ┌──────────┐ ┌──────────┐   │
-│ │ ⚡       │ │ 💼       │ │ 📁       │   │  ← nav tiles
-│ │ Evaluate │ │ Jobs     │ │ Applicat.│   │
-│ └──────────┘ └──────────┘ └──────────┘   │
-│ ┌──────────┐ ┌──────────┐                │
-│ │ JS Prof. │ │ LLM Usage│                │
-│ └──────────┘ └──────────┘                │
-│                                           │
-│  Profile Strength widget                  │
-│  Model Health widget                      │
-└───────────────────────────────────────────┘
+│ PROFILE                                                      │
+│  Profile Strength widget                                     │
+│                                                              │
+│ DATA                                                         │
+│ ┌──────────┐ ┌──────────┐                                  │
+│ │ 📁        │ │ 📊       │                                  │
+│ │ Applicat.│ │ LLM Usage│                                  │
+│ └──────────┘ └──────────┘                                  │
+│                                                              │
+│ MODELS                                                       │
+│  Model Health widget                                         │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ### AppHeader Component (`frontend/src/components/AppHeader.tsx`)
@@ -1207,39 +1225,64 @@ the header-first layout). Contains:
 - **Settings link:** right-aligned, DM Mono, muted, links to `/settings`
 - Bottom border using `border-border` token
 
-### Hero Block
+### Hero Block (Phase 1.4 change)
 
-Static copy, matching the HTML prototype:
-- **Eyebrow:** small DM Mono uppercase text in accent-dim (e.g., the current phase label)
+The hero area is restructured into a **two-column layout**:
+
+**Left column — Featured Jobs tile:**
+- Larger and more prominent than the standard nav tiles
+- Title: "Find Me My Ideal Job"
+- Same description text as the former Jobs nav tile
+- "● Active" status footer, same green mono style
+- Links to `/jobs`
+- Styling: larger padding, larger serif title text — visually signals this is the primary CTA
+
+**Right column — Hero text (unchanged):**
+- **Eyebrow:** small DM Mono uppercase text in accent-dim (current phase label)
 - **Headline:** "Because companies use AI to filter *you.*" — DM Serif Display, ~3rem,
   `you.` in accent italic
 - **Subtitle:** "A local, private job search command center. Evaluate roles against your background,
   track applications, and build tailored resumes — powered by models running on your own machine."
   — muted body text
 
-### Stats Bar
+### Stats Bar (Phase 1.4 change)
 
-Four stats displayed in a horizontal bordered row (same pattern as `index.html` `.stats-bar`):
-| Stat | Source | Links to |
+Four stats in a horizontal bordered row. Labels and sources updated:
+
+| Stat label | Source field | Links to |
 |---|---|---|
-| Jobs | `stats.jobs` | `/jobs` |
-| Evaluations | `stats.evaluations` | — |
-| Applications | `stats.applications` | `/applications` |
-| LLM Calls | `stats.llm_calls` | `/llm-usage` |
+| Evaluations Run | `stats.evaluations` | — |
+| Open Jobs | `stats.jobs` (active jobs, `is_active = 1`) | `/jobs` |
+| Jobs Applied To | `stats.jobs_applied_to` (applications where `applied = 1`) | `/applications` |
+| Applications In Process | `stats.applications_in_process` (status IN applied/screening/interview/offer) | `/applications` |
+
+`jobs_applied_to` and `applications_in_process` are new fields on the stats endpoint
+(added Phase 1.4).
 
 Each cell: large serif accent number, small mono uppercase label.
 
-### Nav Tiles
+### Nav Tiles (Phase 1.4 change)
 
-"Tools" section label + grid of nav cards (active pages only — no disabled/future tiles):
+**TOOLS section** — "Tools" label + grid (active pages only):
 
 | Tile | Icon | Route |
 |---|---|---|
-| Evaluate | ⚡ | `/evaluate` |
-| Jobs | 💼 | `/jobs` |
-| Applications | 📁 | `/applications` |
+| Evaluate a Job | ⚡ | `/evaluate` |
 | JS Profile | 📋 | `/profile` |
+
+Jobs tile removed from TOOLS (promoted to hero area).
+Applications and LLM Usage tiles moved to DATA section (see below).
+
+**PROFILE section** — label + Profile Strength widget.
+
+**DATA section** (new, Phase 1.4) — "Data" label + grid:
+
+| Tile | Icon | Route |
+|---|---|---|
+| Applications | 📁 | `/applications` |
 | LLM Usage | 📊 | `/llm-usage` |
+
+**MODELS section** — label + Model Health widget (unchanged).
 
 Each card: icon, serif title, short description, "● Active" status line in green.
 Cards link to their routes. Hover: slight lift + border highlight.
@@ -1247,7 +1290,7 @@ Cards link to their routes. Hover: slight lift + border highlight.
 ### Retained Widgets
 
 Profile Strength widget and Model Health widget are kept from the current Dashboard
-but restyled to fit the full-width (no-sidebar) layout. They appear below the nav tiles.
+but restyled to fit the full-width (no-sidebar) layout.
 
 ### Routing Change
 

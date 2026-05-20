@@ -577,8 +577,8 @@ function ServersSection(): React.JSX.Element {
         <p className="text-sm text-muted">No servers configured.</p>
       ) : (
         <div className="border border-surface2 rounded-lg overflow-hidden">
-          <div className="grid grid-cols-[minmax(0,1.5fr)_80px_minmax(0,1.5fr)_52px_108px] border-b border-surface2 bg-surface2/40">
-            {['Server Name', 'Type', 'Endpoint', 'Models', 'Actions'].map((h) => (
+          <div className="grid grid-cols-[minmax(0,1.5fr)_80px_minmax(0,1.5fr)_52px_140px] border-b border-surface2 bg-surface2/40">
+            {['Server Name', 'Type', 'Endpoint', 'IN USE', 'Actions'].map((h) => (
               <div
                 key={h}
                 className="px-3 py-2 text-[10px] font-mono text-muted uppercase tracking-wider"
@@ -590,7 +590,7 @@ function ServersSection(): React.JSX.Element {
 
           {servers.map((server) => (
             <div key={server.id} className="border-b border-surface2 last:border-0">
-              <div className="grid grid-cols-[minmax(0,1.5fr)_80px_minmax(0,1.5fr)_52px_108px] items-center">
+              <div className="grid grid-cols-[minmax(0,1.5fr)_80px_minmax(0,1.5fr)_52px_140px] items-center">
                 <div className="px-3 py-3 min-w-0">
                   <p className="font-mono text-sm text-text truncate">{server.server_name}</p>
                   {server.server_type === 'anthropic' && (
@@ -746,10 +746,69 @@ function ModelForm({
   const [form, setForm] = useState<ModelFormState>(initial)
   const { data: servers = [] } = useServers()
   const { data: models = [] } = useLlmModels()
+  const availableModels = useAvailableModels(form.server_id)
 
   const currentDefault = models.find((m) => m.default_flag === 1)
   // Warn only when we're newly requesting default (wasn't default before)
   const willReplaceDefault = form.default_flag && !initial.default_flag && currentDefault != null
+
+  const existingModelNames = new Set(
+    models.filter((m) => m.server_id === form.server_id).map((m) => m.model)
+  )
+  const filteredOptions = (availableModels.data?.models ?? []).filter(
+    (name) => !existingModelNames.has(name)
+  )
+
+  const saveDisabled =
+    saving ||
+    (!isEdit &&
+      (availableModels.isError ||
+        form.model === '' ||
+        (form.server_id !== null && !availableModels.isLoading && filteredOptions.length === 0)))
+
+  const selectClass =
+    'bg-surface border border-surface2 rounded px-3 py-1.5 text-sm font-mono text-text focus:outline-none focus:border-accent/50 disabled:opacity-50'
+
+  function renderModelNameField(): React.JSX.Element {
+    if (form.server_id === null) {
+      return (
+        <select disabled className={selectClass}>
+          <option>— select a server first —</option>
+        </select>
+      )
+    }
+    if (availableModels.isLoading) {
+      return (
+        <select disabled className={selectClass}>
+          <option>Loading models…</option>
+        </select>
+      )
+    }
+    if (availableModels.isError) {
+      return <></>
+    }
+    if (filteredOptions.length === 0) {
+      return (
+        <select disabled className={selectClass}>
+          <option>All available models already added</option>
+        </select>
+      )
+    }
+    return (
+      <select
+        value={form.model}
+        onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
+        className={selectClass}
+      >
+        <option value="">— select a model —</option>
+        {filteredOptions.map((name) => (
+          <option key={name} value={name}>
+            {name}
+          </option>
+        ))}
+      </select>
+    )
+  }
 
   return (
     <div className="bg-surface2 border border-surface2 rounded-lg p-4 space-y-3 mt-3">
@@ -758,18 +817,34 @@ function ModelForm({
           <label className="text-[10px] font-mono text-muted uppercase tracking-wider">
             Model name
           </label>
-          <input
-            value={form.model}
-            onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
-            placeholder="llama3.1:8b"
-            className="bg-surface border border-surface2 rounded px-3 py-1.5 text-sm font-mono text-text focus:outline-none focus:border-accent/50"
-          />
+          {isEdit ? (
+            <input
+              value={form.model}
+              onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
+              placeholder="llama3.1:8b"
+              className="bg-surface border border-surface2 rounded px-3 py-1.5 text-sm font-mono text-text focus:outline-none focus:border-accent/50"
+            />
+          ) : (
+            renderModelNameField()
+          )}
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-mono text-muted uppercase tracking-wider">
-            Server
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-mono text-muted uppercase tracking-wider">
+              Server
+            </label>
+            {!isEdit && form.server_id !== null && (
+              <button
+                type="button"
+                onClick={() => void availableModels.refetch()}
+                disabled={availableModels.isFetching}
+                className="text-[10px] font-mono text-muted hover:text-accent transition-colors disabled:opacity-40"
+              >
+                {availableModels.isFetching ? '…' : '↺ Refresh'}
+              </button>
+            )}
+          </div>
           {isEdit ? (
             <p className="text-sm font-mono text-muted py-1.5">{editServerName ?? '—'}</p>
           ) : (
@@ -779,6 +854,7 @@ function ModelForm({
                 setForm((f) => ({
                   ...f,
                   server_id: e.target.value === '' ? null : parseInt(e.target.value, 10),
+                  model: '',
                 }))
               }
               className="bg-surface border border-surface2 rounded px-3 py-1.5 text-sm font-mono text-text focus:outline-none focus:border-accent/50"
@@ -824,6 +900,12 @@ function ModelForm({
         </div>
       </div>
 
+      {!isEdit && availableModels.isError && (
+        <p className="text-xs font-mono text-red">
+          Could not reach this server — fix the connection in AI Servers settings.
+        </p>
+      )}
+
       {error && <p className="text-xs font-mono text-red">{error}</p>}
 
       <div className="flex gap-2 justify-end">
@@ -835,7 +917,7 @@ function ModelForm({
         </button>
         <button
           onClick={() => onSave(form)}
-          disabled={saving}
+          disabled={saveDisabled}
           className="px-3 py-1.5 text-sm font-sans bg-accent text-bg rounded hover:bg-accent/90 transition-colors disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save'}

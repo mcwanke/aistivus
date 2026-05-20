@@ -284,6 +284,10 @@ export const handlers = [
   ),
   http.get('/api/v1/settings', () => HttpResponse.json(MOCK_SETTINGS)),
   http.patch('/api/v1/settings', () => new HttpResponse(null, { status: 200 })),
+  http.get('/api/v1/settings/app', () =>
+    HttpResponse.json([{ id: 1, key: 'allow_audit_timestamp_edit', value: '0', created_at: '2024-01-01T00:00:00' }]),
+  ),
+  http.patch('/api/v1/settings/app/:key', () => new HttpResponse(null, { status: 200 })),
   http.get('/api/v1/system-types', () => HttpResponse.json(MOCK_SYSTEM_TYPES)),
   http.post('/api/v1/system-types', () => new HttpResponse(null, { status: 201 })),
   http.delete('/api/v1/system-types/:id', () => new HttpResponse(null, { status: 200 })),
