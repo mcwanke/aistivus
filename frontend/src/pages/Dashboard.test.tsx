@@ -8,17 +8,24 @@ import Dashboard from './Dashboard'
 describe('Dashboard', () => {
   it('shows loading states initially', () => {
     renderWithProviders(<Dashboard />)
-    expect(screen.getByText('Loading stats…')).toBeInTheDocument()
     expect(screen.getByText('Checking models…')).toBeInTheDocument()
   })
 
   it('renders stat cards after data loads', async () => {
     renderWithProviders(<Dashboard />)
-    await waitFor(() => expect(screen.getByText('5')).toBeInTheDocument())
-    expect(screen.getByText('Jobs')).toBeInTheDocument()
-    expect(screen.getByText('Evaluations')).toBeInTheDocument()
-    expect(screen.getByText('Applications')).toBeInTheDocument()
-    expect(screen.getByText('LLM Calls')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('Evaluations Run')).toBeInTheDocument())
+    expect(screen.getByText('Open Jobs')).toBeInTheDocument()
+    expect(screen.getByText('Jobs Applied To')).toBeInTheDocument()
+    expect(screen.getByText('Applications In Process')).toBeInTheDocument()
+  })
+
+  it('renders correct stat values from mock data', async () => {
+    renderWithProviders(<Dashboard />)
+    // MOCK_STATS: evaluations=3, jobs=5, jobs_applied_to=4, applications_in_process=2
+    await waitFor(() => expect(screen.getByText('3')).toBeInTheDocument())
+    expect(screen.getByText('5')).toBeInTheDocument()
+    expect(screen.getByText('4')).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
   })
 
   it('renders model health section after data loads', async () => {
@@ -26,12 +33,6 @@ describe('Dashboard', () => {
     await waitFor(() => expect(screen.getByText('llama3')).toBeInTheDocument())
     expect(screen.getByText('ok')).toBeInTheDocument()
     expect(screen.getByText('schema v1.0')).toBeInTheDocument()
-  })
-
-  it('shows error for stats on failure', async () => {
-    server.use(http.get('/api/v1/stats', () => new HttpResponse(null, { status: 500 })))
-    renderWithProviders(<Dashboard />)
-    await waitFor(() => expect(screen.getByText('Failed to load stats.')).toBeInTheDocument())
   })
 
   it('shows error for health on failure', async () => {
@@ -76,10 +77,37 @@ describe('Dashboard', () => {
 
   it('renders navigation links', async () => {
     renderWithProviders(<Dashboard />)
-    await waitFor(() => expect(screen.getByText('5')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Open Jobs')).toBeInTheDocument())
     const links = screen.getAllByRole('link')
     const hrefs = links.map((l) => l.getAttribute('href'))
     expect(hrefs).toContain('/jobs')
     expect(hrefs).toContain('/applications')
+    expect(hrefs).toContain('/evaluate')
+    expect(hrefs).toContain('/llm-usage')
+  })
+
+  it('renders featured Jobs tile in hero', async () => {
+    renderWithProviders(<Dashboard />)
+    await waitFor(() => expect(screen.getByText('Find Me My Ideal Job')).toBeInTheDocument())
+  })
+
+  it('renders Tools section with correct tile titles', async () => {
+    renderWithProviders(<Dashboard />)
+    await waitFor(() => expect(screen.getByText('Evaluate a Job')).toBeInTheDocument())
+    expect(screen.getByText('JS Profile')).toBeInTheDocument()
+  })
+
+  it('renders Data section with Applications and LLM Usage tiles', async () => {
+    renderWithProviders(<Dashboard />)
+    await waitFor(() => expect(screen.getByText('LLM Usage')).toBeInTheDocument())
+    expect(screen.getByText('Applications')).toBeInTheDocument()
+  })
+
+  it('does not render Jobs tile in Tools section', async () => {
+    renderWithProviders(<Dashboard />)
+    await waitFor(() => expect(screen.getByText('Find Me My Ideal Job')).toBeInTheDocument())
+    // "Jobs" appears only as a stat label (Open Jobs) and in the featured tile text, not as a standalone tile title
+    const headings = screen.queryAllByText('Jobs')
+    expect(headings).toHaveLength(0)
   })
 })

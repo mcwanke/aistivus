@@ -1684,11 +1684,20 @@ def get_stats() -> dict:
             "SELECT COUNT(*) FROM applications WHERE application_status != 'not-started'"
         ).fetchone()[0]
         llm_calls = conn.execute("SELECT COUNT(*) FROM llm_call_log").fetchone()[0]
+        jobs_applied_to = conn.execute(
+            "SELECT COUNT(*) FROM applications WHERE applied = 1"
+        ).fetchone()[0]
+        applications_in_process = conn.execute(
+            "SELECT COUNT(*) FROM applications"
+            " WHERE application_status IN ('applied', 'screening', 'interview', 'offer')"
+        ).fetchone()[0]
     return {
         "jobs": jobs,
         "evaluations": evals,
         "applications": apps,
         "llm_calls": llm_calls,
+        "jobs_applied_to": jobs_applied_to,
+        "applications_in_process": applications_in_process,
     }
 
 

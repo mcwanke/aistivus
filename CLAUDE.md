@@ -130,13 +130,13 @@ Job Search Profile, and multi-server LLM management all working end-to-end.
 - [x] `Evaluate.tsx`: "No" — resets page for fresh JD entry (clears form + results)
 - [x] Backend tests: activate route, `is_active` filter on jobs list
 - [x] Frontend tests: Evaluate.tsx CTA renders/hides correctly; "No" resets page
-- [ ] Backend: `GET /api/v1/stats` extended with `jobs_applied_to` (applications.applied = 1 count) and `applications_in_process` (status IN applied/screening/interview/offer)
-- [ ] TypeScript: `StatsResponse` interface updated with `jobs_applied_to` and `applications_in_process` fields
-- [ ] Dashboard: hero section restructured — two-column layout (large "Find Me My Ideal Job" Jobs tile left; hero text right)
-- [ ] Dashboard: stats bar relabeled — "Evaluations Run", "Open Jobs", "Jobs Applied To", "Applications In Process"
-- [ ] Dashboard: stats bar wired to new `jobs_applied_to` and `applications_in_process` fields
-- [ ] Dashboard: "Evaluate" tile renamed to "Evaluate a Job"; Jobs tile removed from TOOLS section
-- [ ] Dashboard: new DATA section added (between PROFILE and MODELS) containing Applications and LLM Usage tiles (moved from TOOLS)
+- [x] Backend: `GET /api/v1/stats` extended with `jobs_applied_to` (applications.applied = 1 count) and `applications_in_process` (status IN applied/screening/interview/offer)
+- [x] TypeScript: `StatsResponse` interface updated with `jobs_applied_to` and `applications_in_process` fields
+- [x] Dashboard: hero section restructured — two-column layout (large "Find Me My Ideal Job" Jobs tile left; hero text right)
+- [x] Dashboard: stats bar relabeled — "Evaluations Run", "Open Jobs", "Jobs Applied To", "Applications In Process"
+- [x] Dashboard: stats bar wired to new `jobs_applied_to` and `applications_in_process` fields
+- [x] Dashboard: "Evaluate" tile renamed to "Evaluate a Job"; Jobs tile removed from TOOLS section
+- [x] Dashboard: new DATA section added (between PROFILE and MODELS) containing Applications and LLM Usage tiles (moved from TOOLS)
 
 ### Phase 1.5 Checklist 🔲
 - [ ] `AppHeader.tsx` applied to all pages; `<Layout>` sidebar wrapper removed from all non-Dashboard pages

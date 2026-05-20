@@ -66,6 +66,8 @@ export const MOCK_STATS: StatsResponse = {
   evaluations: 3,
   applications: 2,
   llm_calls: 10,
+  jobs_applied_to: 4,
+  applications_in_process: 2,
 }
 
 export const MOCK_JOB: JobListItem = {

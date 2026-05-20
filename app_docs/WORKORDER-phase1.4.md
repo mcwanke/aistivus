@@ -459,7 +459,7 @@ applications must be re-entered after upgrade.
 
 ## Priority 8 — Stats Endpoint: New Dashboard Fields
 
-- [ ] **8. Extend `GET /api/v1/stats` with two new aggregate fields**
+- [x] **8. Extend `GET /api/v1/stats` with two new aggregate fields** — `jobs_applied_to` (applied=1) and `applications_in_process` (status IN applied/screening/interview/offer) added to `get_stats()`; `StatsResponse` interface updated; MOCK_STATS updated; 4 new backend tests passing
 
   **Files:** `main.py` (and `database.py` if stats logic lives there)
 
@@ -522,7 +522,7 @@ applications must be re-entered after upgrade.
 
 ## Priority 9 — Dashboard: Hero Restructure + Stats Bar + Tile Layout
 
-- [ ] **9. Redesign Dashboard.tsx — hero, stats bar, tile sections**
+- [x] **9. Redesign Dashboard.tsx — hero, stats bar, tile sections** — two-column hero (featured Jobs tile + hero text); stats bar relabeled (Evaluations Run, Open Jobs, Jobs Applied To, Applications In Process) wired to new fields; TOOLS: Jobs tile removed, Evaluate renamed "Evaluate a Job"; DATA section added (Applications + LLM Usage); phase eyebrow updated to 1.4; 12 frontend tests passing (fixed 3 pre-existing failures)
 
   **Files:** `frontend/src/pages/Dashboard.tsx`
 

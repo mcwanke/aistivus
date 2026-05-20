@@ -181,6 +181,8 @@ class TestStats:
         assert data["jobs"] == 0
         assert data["evaluations"] == 0
         assert data["applications"] == 0
+        assert data["jobs_applied_to"] == 0
+        assert data["applications_in_process"] == 0
 
     def test_stats_counts_only_active_jobs(self, client):
         job_id, _ = database.upsert_job("A", "B", "general")
@@ -207,6 +209,35 @@ class TestStats:
         database.update_application_status(app_row["id"], "draft")
         resp = client.get("/api/v1/stats")
         assert resp.json()["applications"] == 1
+
+    def test_stats_jobs_applied_to_counts_applied_flag(self, client):
+        job_id, _ = database.upsert_job("A", "B", "general")
+        app_row = database.get_application_for_job(job_id)
+        database.update_application(app_row["id"], applied=1)
+        resp = client.get("/api/v1/stats")
+        assert resp.json()["jobs_applied_to"] == 1
+
+    def test_stats_jobs_applied_to_excludes_not_applied(self, client):
+        database.upsert_job("A", "B", "general")
+        resp = client.get("/api/v1/stats")
+        assert resp.json()["jobs_applied_to"] == 0
+
+    def test_stats_applications_in_process_counts_active_statuses(self, client):
+        for status in ("applied", "screening", "interview", "offer"):
+            job_id, _ = database.upsert_job(f"Co {status}", "Role", "general")
+            app_row = database.get_application_for_job(job_id)
+            database.update_application_status(app_row["id"], status)
+        resp = client.get("/api/v1/stats")
+        assert resp.json()["applications_in_process"] == 4
+
+    def test_stats_applications_in_process_excludes_inactive_statuses(self, client):
+        for status in ("not-started", "draft", "rejected", "ghosted", "withdrawn"):
+            job_id, _ = database.upsert_job(f"Co {status}", "Role", "general")
+            app_row = database.get_application_for_job(job_id)
+            if status != "not-started":
+                database.update_application_status(app_row["id"], status)
+        resp = client.get("/api/v1/stats")
+        assert resp.json()["applications_in_process"] == 0
 
 
 class TestGetAllJobsDatabase:

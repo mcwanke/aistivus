@@ -69,6 +69,8 @@ export interface StatsResponse {
   evaluations: number
   applications: number
   llm_calls: number
+  jobs_applied_to: number
+  applications_in_process: number
 }
 
 // ─── GET /api/v1/models ───────────────────────────────────────────────────────

@@ -83,32 +83,29 @@ function ProfileStrengthWidget(): React.JSX.Element {
   )
 }
 
-// ─── Nav tile data ────────────────────────────────────────────────────────────
+// ─── Tile data ────────────────────────────────────────────────────────────────
 
-const NAV_TILES = [
+const TOOLS_TILES = [
   {
     icon: '⚡',
-    title: 'Evaluate',
+    title: 'Evaluate a Job',
     description: 'Paste a job description and get a structured fit assessment against your background.',
     to: '/evaluate',
-  },
-  {
-    icon: '💼',
-    title: 'Jobs',
-    description: 'View all jobs and opportunities. Compare evaluations and re-evaluate top candidates.',
-    to: '/jobs',
-  },
-  {
-    icon: '📁',
-    title: 'Applications',
-    description: 'Track application status, add notes, and log recruiter conversations.',
-    to: '/applications',
   },
   {
     icon: '📋',
     title: 'JS Profile',
     description: 'Build and refine your Job Search Profile — the context behind every evaluation.',
     to: '/profile',
+  },
+]
+
+const DATA_TILES = [
+  {
+    icon: '📁',
+    title: 'Applications',
+    description: 'Track application status, add notes, and log recruiter conversations.',
+    to: '/applications',
   },
   {
     icon: '📊',
@@ -130,63 +127,85 @@ export default function Dashboard(): React.JSX.Element {
     <div className="min-h-screen bg-bg overflow-y-auto">
       <AppHeader />
 
-      {/* Hero */}
-      <div className="px-12 pt-16 pb-12 max-w-3xl">
-        <p className="font-mono text-[0.65rem] uppercase tracking-[0.14em] text-accent/60 mb-4">
-          PHASE 1.3 — MULTI-SERVER LLM MANAGEMENT
-        </p>
-        <h1 className="font-serif text-5xl leading-tight tracking-tight text-text mb-5">
-          Because companies use AI to filter{' '}
-          <em className="italic text-accent">you.</em>
-        </h1>
-        <p className="text-base text-muted leading-relaxed font-light max-w-lg">
-          A local, private job search command center. Evaluate roles against your background,
-          track applications, and build tailored resumes — powered by models running on your
-          own machine.
-        </p>
+      {/* Hero — two-column: featured Jobs tile (left) + hero text (right) */}
+      <div className="px-12 pt-16 pb-12 flex gap-10 items-start max-w-5xl">
+        {/* Featured Jobs tile */}
+        <div className="w-72 flex-shrink-0">
+          <Link
+            to="/jobs"
+            className="bg-surface border border-surface2 rounded-xl p-8 flex flex-col gap-3 hover:border-accent/30 hover:bg-surface2 hover:-translate-y-0.5 transition-all duration-200 h-full"
+          >
+            <span className="text-3xl leading-none">💼</span>
+            <span className="font-serif text-2xl text-text tracking-tight leading-tight">
+              Find Me My Ideal Job
+            </span>
+            <span className="text-[0.78rem] text-muted leading-snug">
+              View all jobs and opportunities. Compare evaluations and re-evaluate top candidates.
+            </span>
+            <span className="mt-auto pt-3 border-t border-surface2 font-mono text-[0.62rem] uppercase tracking-wider text-green">
+              ● Active
+            </span>
+          </Link>
+        </div>
+
+        {/* Hero text */}
+        <div className="flex-1 pt-2">
+          <p className="font-mono text-[0.65rem] uppercase tracking-[0.14em] text-accent/60 mb-4">
+            PHASE 1.4 — SETTINGS IMPROVEMENTS + JOB LIFECYCLE
+          </p>
+          <h1 className="font-serif text-5xl leading-tight tracking-tight text-text mb-5">
+            Because companies use AI to filter{' '}
+            <em className="italic text-accent">you.</em>
+          </h1>
+          <p className="text-base text-muted leading-relaxed font-light max-w-lg">
+            A local, private job search command center. Evaluate roles against your background,
+            track applications, and build tailored resumes — powered by models running on your
+            own machine.
+          </p>
+        </div>
       </div>
 
       {/* Stats bar */}
       <div className="mx-12 mb-12 border border-surface2 rounded-xl overflow-hidden flex">
-        {/* Jobs */}
+        {/* Evaluations Run — no link */}
+        <div className="flex-1 px-5 py-4 border-r border-surface2">
+          <p className="font-serif text-accent text-3xl leading-none mb-1">{statValue(stats.data?.evaluations)}</p>
+          <p className="font-mono text-[0.65rem] uppercase tracking-widest text-muted">Evaluations Run</p>
+        </div>
+
+        {/* Open Jobs */}
         <Link
           to="/jobs"
           className="flex-1 px-5 py-4 border-r border-surface2 hover:bg-surface transition-colors"
         >
           <p className="font-serif text-accent text-3xl leading-none mb-1">{statValue(stats.data?.jobs)}</p>
-          <p className="font-mono text-[0.65rem] uppercase tracking-widest text-muted">Jobs</p>
+          <p className="font-mono text-[0.65rem] uppercase tracking-widest text-muted">Open Jobs</p>
         </Link>
 
-        {/* Evaluations — no link */}
-        <div className="flex-1 px-5 py-4 border-r border-surface2">
-          <p className="font-serif text-accent text-3xl leading-none mb-1">{statValue(stats.data?.evaluations)}</p>
-          <p className="font-mono text-[0.65rem] uppercase tracking-widest text-muted">Evaluations</p>
-        </div>
-
-        {/* Applications */}
+        {/* Jobs Applied To */}
         <Link
           to="/applications"
           className="flex-1 px-5 py-4 border-r border-surface2 hover:bg-surface transition-colors"
         >
-          <p className="font-serif text-accent text-3xl leading-none mb-1">{statValue(stats.data?.applications)}</p>
-          <p className="font-mono text-[0.65rem] uppercase tracking-widest text-muted">Applications</p>
+          <p className="font-serif text-accent text-3xl leading-none mb-1">{statValue(stats.data?.jobs_applied_to)}</p>
+          <p className="font-mono text-[0.65rem] uppercase tracking-widest text-muted">Jobs Applied To</p>
         </Link>
 
-        {/* LLM Calls */}
+        {/* Applications In Process */}
         <Link
-          to="/llm-usage"
+          to="/applications"
           className="flex-1 px-5 py-4 hover:bg-surface transition-colors"
         >
-          <p className="font-serif text-accent text-3xl leading-none mb-1">{statValue(stats.data?.llm_calls)}</p>
-          <p className="font-mono text-[0.65rem] uppercase tracking-widest text-muted">LLM Calls</p>
+          <p className="font-serif text-accent text-3xl leading-none mb-1">{statValue(stats.data?.applications_in_process)}</p>
+          <p className="font-mono text-[0.65rem] uppercase tracking-widest text-muted">Applications In Process</p>
         </Link>
       </div>
 
-      {/* Nav tiles */}
-      <div className="px-12 pb-16">
+      {/* Tools tiles */}
+      <div className="px-12 pb-8">
         <p className="font-mono text-[0.65rem] uppercase tracking-widest text-muted/60 mb-5">Tools</p>
         <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4 max-w-4xl">
-          {NAV_TILES.map((tile) => (
+          {TOOLS_TILES.map((tile) => (
             <Link
               key={tile.to}
               to={tile.to}
@@ -207,6 +226,27 @@ export default function Dashboard(): React.JSX.Element {
       <div className="px-12 pb-8">
         <p className="font-mono text-[0.65rem] uppercase tracking-widest text-muted/60 mb-5">Profile</p>
         <ProfileStrengthWidget />
+      </div>
+
+      {/* Data tiles */}
+      <div className="px-12 pb-8">
+        <p className="font-mono text-[0.65rem] uppercase tracking-widest text-muted/60 mb-5">Data</p>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4 max-w-4xl">
+          {DATA_TILES.map((tile) => (
+            <Link
+              key={tile.to}
+              to={tile.to}
+              className="bg-surface border border-surface2 rounded-xl p-6 flex flex-col gap-2.5 hover:border-accent/30 hover:bg-surface2 hover:-translate-y-0.5 transition-all duration-200"
+            >
+              <span className="text-2xl leading-none">{tile.icon}</span>
+              <span className="font-serif text-xl text-text tracking-tight">{tile.title}</span>
+              <span className="text-[0.78rem] text-muted leading-snug">{tile.description}</span>
+              <span className="mt-auto pt-2 border-t border-surface2 font-mono text-[0.62rem] uppercase tracking-wider text-green">
+                ● Active
+              </span>
+            </Link>
+          ))}
+        </div>
       </div>
 
       {/* Model health */}
