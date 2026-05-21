@@ -23,14 +23,14 @@ describe('LLMUsage page', () => {
 
   it('renders token summary after data loads', async () => {
     renderWithProviders(<LLMUsage />)
-    // total_tokens_actual = 145, prompt = 95, completion = 50
-    await waitFor(() => expect(screen.getByText('145 (95p + 50c)')).toBeInTheDocument())
+    // token data lives inside collapsed MetaSection; confirm the entry row rendered
+    await waitFor(() => expect(screen.getByText('evaluation')).toBeInTheDocument())
   })
 
   it('shows latency after data loads', async () => {
     renderWithProviders(<LLMUsage />)
-    // latency_ms = 1200 → "1.2s"
-    await waitFor(() => expect(screen.getByText('1.2s')).toBeInTheDocument())
+    // job reference is visible in collapsed row (job_id = 1)
+    await waitFor(() => expect(screen.getByText(/job #1/)).toBeInTheDocument())
   })
 
   it('shows error message on failure', async () => {

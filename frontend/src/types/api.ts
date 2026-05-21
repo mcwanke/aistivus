@@ -345,6 +345,12 @@ export interface JobsearchContent {
   has_backup: boolean
 }
 
+export interface JobsearchVersion {
+  id: number
+  saved_at: string
+  note: string | null
+}
+
 // ─── GET /api/v1/settings/resume-template ────────────────────────────────────
 
 export interface ResumeTemplateContent {

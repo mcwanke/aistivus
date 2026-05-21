@@ -5,6 +5,7 @@ import type {
   SettingsResponse,
   SystemType,
   JobsearchContent,
+  JobsearchVersion,
   ResumeTemplateContent,
 } from '@/types/api'
 
@@ -208,6 +209,17 @@ export function useSaveJobsearch() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['jobsearch'] })
       void qc.invalidateQueries({ queryKey: ['jobsearch-versions'] })
+    },
+  })
+}
+
+export function useJobsearchVersions() {
+  return useQuery({
+    queryKey: ['jobsearch-versions'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/settings/jobsearch/versions')
+      if (!res.ok) throw new Error(`jobsearch versions ${res.status}`)
+      return res.json() as Promise<JobsearchVersion[]>
     },
   })
 }

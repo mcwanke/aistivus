@@ -6,6 +6,7 @@ import { server } from '@/test/mocks/server'
 import { renderWithProviders } from '@/test/utils'
 import JobDetail from './JobDetail'
 
+
 describe('JobDetail', () => {
   it('shows loading state initially', () => {
     renderWithProviders(<JobDetail jobId={1} />)
@@ -37,7 +38,8 @@ describe('JobDetail', () => {
 
   it('renders Application section', async () => {
     renderWithProviders(<JobDetail jobId={1} />)
-    await waitFor(() => expect(screen.getByText('Application')).toBeInTheDocument())
+    // "Application" appears in multiple places (status section header + AppStatusSection)
+    await waitFor(() => expect(screen.getAllByText('Application').length).toBeGreaterThan(0))
   })
 
   it('renders Edit buttons', async () => {
@@ -64,7 +66,11 @@ describe('JobDetail', () => {
   })
 
   it('shows no evaluations message when evaluations are empty', async () => {
+    const user = userEvent.setup()
     renderWithProviders(<JobDetail jobId={1} />)
+    // The Evaluations section starts collapsed; click the header to expand it
+    await waitFor(() => screen.getByText(/Evaluations/))
+    await user.click(screen.getByText(/Evaluations/))
     await waitFor(() => expect(screen.getByText('No evaluations yet.')).toBeInTheDocument())
   })
 })
