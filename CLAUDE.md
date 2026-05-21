@@ -150,9 +150,9 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 - [x] Shared utils extracted: `frontend/src/utils/formatting.ts` (`fmtScore`, `fmtDate`, `fmtDateTime`); `frontend/src/utils/status.ts` (`STATUS_COLORS`, `STATUSES`, `StatusBadge`)
 - [x] Priority 4: Design Foundation — visual patterns extracted from `pages/` HTML and documented for use in all subsequent priorities
 - [x] `AppHeader.tsx` gains optional `pageName` prop; page-mode variant renders `← Home` link + wordmark + page name (no tagline)
-- [ ] `<Layout>` sidebar wrapper removed from: `Evaluate.tsx`, `Settings.tsx`, `LLMUsage.tsx`, `JobSearchProfile.tsx`; `AppHeader pageName="..."` added to each
-- [ ] `Jobs.tsx` → standalone list page; split-pane removed; row click navigates to `/jobs/:id`; `AppHeader pageName="Jobs"` added
-- [ ] `Applications.tsx` → standalone list page; split-pane removed; row click navigates to `/jobs/:id?tab=application`; `AppHeader pageName="Applications"` added
+- [x] `<Layout>` sidebar wrapper removed from: `Evaluate.tsx`, `Settings.tsx`, `LLMUsage.tsx`, `JobSearchProfile.tsx`; `AppHeader pageName="..."` added to each
+- [x] `Jobs.tsx` → standalone list page; split-pane removed; row click navigates to `/jobs/:id`; `AppHeader pageName="Jobs"` added
+- [x] `Applications.tsx` → standalone list page; split-pane removed; row click navigates to `/jobs/:id?tab=application`; `AppHeader pageName="Applications"` added
 - [ ] Workspace shell: `/jobs/:jobId` becomes full-page standalone route; sub-header (score, status, company, title, location, remote); tab bar (5 tabs); `?tab=` query param for tab state; 2-column grid (280px left / flex-1 right) for 4 tabs; 1-column for APPLICATION LOG
 - [ ] JOB DETAILS tab: left column (ACTIONS: Evaluations/Job Description/Company Info; SUMMARY: excitement, my ratings, job info); right column (Evaluations with agg + rows + prompt expand + Import External Eval; Job Description with edit/copy/export; Company Info with inline add form + expandable rows)
 - [ ] APPLICATION tab: left column (ACTIONS: Details/Add Event/Add Application Note/Application Questions/Add Lesson; SUMMARY: company/title/status); right column (Details with apply URL/I APPLIED!/fields/Generate External Eval + Tailored Resume; Add Event inline form; Add Application Note inline form; Application Questions inline form + Q&A rows; Add Lesson panel)

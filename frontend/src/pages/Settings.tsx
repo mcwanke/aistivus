@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import AppHeader from '@/components/AppHeader'
 import { useQueryClient } from '@tanstack/react-query'
 import type { LlmModel, LlmServer, SystemType } from '@/types/api'
 import {
@@ -1575,7 +1576,9 @@ export default function Settings(): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<Tab>('app-settings')
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex flex-col h-screen">
+      <AppHeader pageName="Settings" />
+      <div className="flex flex-1 overflow-hidden">
       <div className="w-44 shrink-0 border-r border-surface2 flex flex-col py-4 px-3 gap-0.5">
         <p className="font-serif text-accent text-base mb-3 px-2">Settings</p>
         {TABS.map(({ id, label }) => (
@@ -1606,6 +1609,7 @@ export default function Settings(): React.JSX.Element {
           </>
         )}
         {activeTab === 'info' && <InfoSection />}
+      </div>
       </div>
     </div>
   )

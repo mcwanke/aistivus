@@ -7,6 +7,7 @@ import {
 } from '@/hooks/useEvaluate'
 import { useActivateJob } from '@/hooks/useJobs'
 import type { EvaluateResponse, ExistingJob } from '@/types/api'
+import AppHeader from '@/components/AppHeader'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -488,7 +489,9 @@ export default function Evaluate(): React.JSX.Element {
   const isRunning = panelState === 'running'
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex flex-col h-screen">
+      <AppHeader pageName="Evaluate" />
+      <div className="flex flex-1 overflow-hidden">
       {/* ── Left panel ──────────────────────────────────────────────── */}
       <div className="w-[460px] shrink-0 border-r border-surface2 flex flex-col overflow-y-auto">
         <div className="px-5 py-4 border-b border-surface2 flex items-center justify-between">
@@ -723,6 +726,7 @@ export default function Evaluate(): React.JSX.Element {
         />
       )}
 
+    </div>
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { LlmCallLogEntry } from '@/types/api'
 import { useLlmCallLog } from '@/hooks/useLLMUsage'
+import AppHeader from '@/components/AppHeader'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -244,7 +245,9 @@ export default function LLMUsage(): React.JSX.Element {
   })
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-screen">
+      <AppHeader pageName="LLM Usage" />
+      <div className="flex flex-col flex-1 overflow-hidden">
       {/* Header + filters */}
       <div className="px-6 py-4 border-b border-surface2 flex items-center gap-4 flex-wrap shrink-0">
         <h1 className="font-serif text-accent text-xl mr-2">LLM Usage</h1>
@@ -318,6 +321,7 @@ export default function LLMUsage(): React.JSX.Element {
         {entries.map((entry) => (
           <LogRow key={entry.id} entry={entry} />
         ))}
+      </div>
       </div>
     </div>
   )

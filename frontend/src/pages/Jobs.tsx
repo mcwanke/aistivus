@@ -1,7 +1,7 @@
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useJobs } from '@/hooks/useJobs'
 import type { JobListItem } from '@/types/api'
-import JobDetail from '@/pages/JobDetail'
+import AppHeader from '@/components/AppHeader'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -40,17 +40,14 @@ function ScoreCell({ label, value }: { label: string; value: number | null }): R
 
 interface JobRowProps {
   job: JobListItem
-  selected: boolean
   onSelect: () => void
 }
 
-function JobRow({ job, selected, onSelect }: JobRowProps): React.JSX.Element {
+function JobRow({ job, onSelect }: JobRowProps): React.JSX.Element {
   return (
     <button
       onClick={onSelect}
-      className={`w-full text-left px-4 py-3 border-b border-surface2 transition-colors ${
-        selected ? 'bg-surface2' : 'hover:bg-surface'
-      }`}
+      className="w-full text-left px-4 py-3 border-b border-surface2 transition-colors hover:bg-surface"
     >
       {/* Top: company (30%) + title/location stacked (70%) */}
       <div className="flex items-start gap-3">
@@ -85,62 +82,36 @@ function JobRow({ job, selected, onSelect }: JobRowProps): React.JSX.Element {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Jobs(): React.JSX.Element {
-  const { jobId: jobIdParam } = useParams<{ jobId?: string }>()
-  const selectedJobId = jobIdParam !== undefined ? parseInt(jobIdParam, 10) : undefined
   const navigate = useNavigate()
-
   const { data: jobs, isLoading, isError } = useJobs()
 
-  function handleSelect(id: number): void {
-    if (selectedJobId === id) {
-      navigate('/jobs')
-    } else {
-      navigate(`/jobs/${id}`)
-    }
-  }
-
   return (
-    <div className="flex h-full overflow-hidden">
-      {/* ── Left panel ──────────────────────────────────────────────── */}
-      <div className="w-[465px] shrink-0 border-r border-surface2 flex flex-col overflow-hidden">
-        <div className="px-4 py-3 border-b border-surface2">
-          <h1 className="font-serif text-accent text-xl">Jobs</h1>
-          {jobs && (
-            <p className="text-muted text-xs font-mono mt-0.5">{jobs.length} jobs</p>
-          )}
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          {isLoading && (
-            <p className="text-muted text-sm p-4">Loading jobs…</p>
-          )}
-          {isError && (
-            <p className="text-red text-sm p-4">Failed to load jobs.</p>
-          )}
-          {jobs && jobs.length === 0 && (
-            <p className="text-muted text-sm p-4">No jobs yet. Run an evaluation to add one.</p>
-          )}
-          {jobs &&
-            jobs.map((job) => (
-              <JobRow
-                key={job.id}
-                job={job}
-                selected={selectedJobId === job.id}
-                onSelect={() => handleSelect(job.id)}
-              />
-            ))}
-        </div>
-      </div>
-
-      {/* ── Right panel ─────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto">
-        {selectedJobId !== undefined ? (
-          <JobDetail jobId={selectedJobId} />
-        ) : (
-          <div className="flex items-center justify-center h-full text-muted text-sm">
-            Select a job to view details
-          </div>
+    <div className="flex flex-col h-screen">
+      <AppHeader pageName="Jobs" />
+      <div className="px-4 py-3 border-b border-surface2 shrink-0">
+        <h1 className="font-serif text-accent text-xl">Jobs</h1>
+        {jobs && (
+          <p className="text-muted text-xs font-mono mt-0.5">{jobs.length} jobs</p>
         )}
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {isLoading && (
+          <p className="text-muted text-sm p-4">Loading jobs…</p>
+        )}
+        {isError && (
+          <p className="text-red text-sm p-4">Failed to load jobs.</p>
+        )}
+        {jobs && jobs.length === 0 && (
+          <p className="text-muted text-sm p-4">No jobs yet. Run an evaluation to add one.</p>
+        )}
+        {jobs &&
+          jobs.map((job) => (
+            <JobRow
+              key={job.id}
+              job={job}
+              onSelect={() => navigate(`/jobs/${job.id}`)}
+            />
+          ))}
       </div>
     </div>
   )

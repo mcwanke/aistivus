@@ -9,7 +9,7 @@ import Settings from './Settings'
 describe('Settings page', () => {
   it('renders the Settings label', () => {
     renderWithProviders(<Settings />)
-    expect(screen.getByText('Settings')).toBeInTheDocument()
+    expect(screen.getAllByText('Settings').length).toBeGreaterThan(0)
   })
 
   it('renders tab navigation', () => {

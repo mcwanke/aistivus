@@ -19,19 +19,21 @@ const router = createBrowserRouter([
   // Dashboard — standalone full-page route, no sidebar
   { path: '/', element: <Dashboard /> },
 
-  // All other pages wrapped in Layout (sidebar present)
+  // Standalone pages — AppHeader top-nav, no sidebar
+  { path: '/evaluate',   element: <Evaluate /> },
+  { path: '/settings',   element: <Settings /> },
+  { path: '/llm-usage',  element: <LLMUsage /> },
+  { path: '/profile',    element: <JobSearchProfile /> },
+  { path: '/jobs',       element: <Jobs /> },
+  { path: '/jobs/:jobId', element: <Jobs /> },
+  { path: '/applications',                      element: <Applications /> },
+  { path: '/applications/:applicationId',       element: <Applications /> },
+
+  // Legacy route — retired in Phase 1.5 P14
   {
     element: <Layout />,
     children: [
-      { path: '/jobs',                              element: <Jobs /> },
-      { path: '/jobs/:jobId',                       element: <Jobs /> },
-      { path: '/evaluate',                          element: <Evaluate /> },
-      { path: '/applications',                      element: <Applications /> },
-      { path: '/applications/:applicationId',       element: <Applications /> },
       { path: '/application-detail/:applicationId', element: <ApplicationDetailPage /> },
-      { path: '/settings',                          element: <Settings /> },
-      { path: '/llm-usage',                         element: <LLMUsage /> },
-      { path: '/profile',                           element: <JobSearchProfile /> },
     ],
   },
 ])

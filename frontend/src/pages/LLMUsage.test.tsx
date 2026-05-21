@@ -8,7 +8,7 @@ import LLMUsage from './LLMUsage'
 describe('LLMUsage page', () => {
   it('renders the page heading', () => {
     renderWithProviders(<LLMUsage />)
-    expect(screen.getByText('LLM Usage')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'LLM Usage' })).toBeInTheDocument()
   })
 
   it('shows loading state initially', () => {

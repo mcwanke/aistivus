@@ -1,4 +1,5 @@
 import { useState, useRef, useLayoutEffect, useEffect } from 'react'
+import AppHeader from '@/components/AppHeader'
 import { useProfileHealth } from '@/hooks/useProfileHealth'
 import { useProfileSections, useUpdateSection } from '@/hooks/useProfileSections'
 import { useProfileChat } from '@/hooks/useProfileChat'
@@ -768,7 +769,9 @@ export default function JobSearchProfile(): React.JSX.Element {
   const fileExists = health.data?.file_exists ?? true
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-screen">
+      <AppHeader pageName="JS Profile" />
+      <div className="flex flex-col flex-1 overflow-hidden">
       {/* ── Page header ────────────────────────────────────────────── */}
       <div className="px-6 py-4 border-b border-surface2 flex items-center justify-between shrink-0 gap-4">
         <div className="flex items-center gap-4 min-w-0">
@@ -926,6 +929,7 @@ export default function JobSearchProfile(): React.JSX.Element {
           onClose={() => setQualityResult(null)}
         />
       )}
+      </div>
     </div>
   )
 }

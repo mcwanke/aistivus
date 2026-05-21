@@ -628,7 +628,7 @@ Left column: a muted label "Nothing to configure yet."
 
 ## Priority 6 — Sidebar removal + AppHeader rollout (non-workspace pages)
 
-- [ ] **6. Remove `<Layout>` from 4 pages; apply AppHeader with pageName**
+- [x] **6. Remove `<Layout>` from 4 pages; apply AppHeader with pageName** — Evaluate, Settings, LLMUsage, JobSearchProfile extracted from Layout; each wrapped in `flex flex-col h-screen` with `<AppHeader pageName="...">` at top; inner content div changed from `h-full` to `flex-1`; test fixes for Settings/LLMUsage duplicate-text queries
 
   **Files:** `frontend/src/pages/Evaluate.tsx`, `frontend/src/pages/Settings.tsx`,
   `frontend/src/pages/LLMUsage.tsx`, `frontend/src/pages/JobSearchProfile.tsx`,
@@ -652,7 +652,7 @@ Left column: a muted label "Nothing to configure yet."
 
 ## Priority 7 — Jobs.tsx → standalone list
 
-- [ ] **7. Remove split-pane from Jobs.tsx; add AppHeader; rows navigate to workspace**
+- [x] **7. Remove split-pane from Jobs.tsx; add AppHeader; rows navigate to workspace** — split-pane removed; `JobDetail` import dropped; `selected` prop removed from `JobRow`; row onClick navigates to `/jobs/${job.id}`; `<AppHeader pageName="Jobs" />` added; `useParams` removed
 
   **Files:** `frontend/src/pages/Jobs.tsx`
 
@@ -692,7 +692,7 @@ Left column: a muted label "Nothing to configure yet."
 
 ## Priority 8 — Applications.tsx → standalone list
 
-- [ ] **8. Remove split-pane from Applications.tsx; add AppHeader; rows navigate to workspace**
+- [x] **8. Remove split-pane from Applications.tsx; add AppHeader; rows navigate to workspace** — split-pane removed; `ApplicationSummary` import dropped; `selected` prop removed from `AppRow`; row onClick navigates to `/jobs/${app.job_id}?tab=application`; `<AppHeader pageName="Applications" />` added; `useParams` removed
 
   **Files:** `frontend/src/pages/Applications.tsx`
 
