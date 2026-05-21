@@ -114,6 +114,28 @@ docker-compose
         └── SQLite volume mount
 ```
 
+### Frontend Routing (Phase 1.5+)
+
+| Route | Component | Notes |
+|---|---|---|
+| `/` | `Dashboard.tsx` | Full-page; AppHeader (no back link); no sidebar |
+| `/jobs` | `Jobs.tsx` | Standalone list; AppHeader `← Home`; no split-pane |
+| `/jobs/:jobId` | `JobDetail.tsx` (workspace) | Full-page workspace; sub-header + 5 tabs |
+| `/jobs/:jobId?tab=job-details` | JobDetail — JOB DETAILS tab | Default tab |
+| `/jobs/:jobId?tab=application` | JobDetail — APPLICATION tab | Loaded from Applications list |
+| `/jobs/:jobId?tab=resume-cover` | JobDetail — RESUME/COVER tab | Phase 1.6 content |
+| `/jobs/:jobId?tab=interview` | JobDetail — INTERVIEW tab | Future content |
+| `/jobs/:jobId?tab=application-log` | JobDetail — APPLICATION LOG tab | Unified timeline |
+| `/applications` | `Applications.tsx` | Standalone list; rows link to `/jobs/:id?tab=application` |
+| `/evaluate` | `Evaluate.tsx` | AppHeader `← Home` |
+| `/profile` | `JobSearchProfile.tsx` | AppHeader `← Home` |
+| `/llm-usage` | `LLMUsage.tsx` | AppHeader `← Home` |
+| `/settings` | `Settings.tsx` | AppHeader `← Home` |
+
+**Retired routes (Phase 1.5):**
+- `/application-detail/:applicationId` — removed; content in `/jobs/:jobId?tab=application`
+- `/applications/:applicationId` — removed; split-pane pattern gone
+
 ### Tech Stack
 
 | Layer | Phase 0.4 | Phase 1.1+ |
@@ -219,11 +241,14 @@ jobs (
     my_score_overall    REAL,
     excitement_level    TEXT,             -- moved from applications table
     created_at          TEXT NOT NULL DEFAULT (datetime('now')),
-    project_id          INTEGER           -- NULL in Phases 1–3; activated Phase 4
+    project_id          INTEGER,          -- NULL in Phases 1–3; activated Phase 4
+    is_active           INTEGER NOT NULL DEFAULT 0   -- Phase 1.4; 0=exploratory, 1=active/visible in Jobs list
 )
 -- UNIQUE constraint: (company_name, title, role_keyword)
 -- company_name stored as-supplied; dedup comparison is case-insensitive in application layer.
 -- When a job is created, a corresponding application record is auto-created with status 'not-started'.
+-- get_all_jobs() filters is_active = 1 by default. Activate via POST /api/v1/jobs/{id}/activate.
+-- Evaluate page CTA ("Yes, build this job") calls the activate route.
 
 -- ─────────────────────────────────────────
 -- Company detail log — ACTIVE PHASE 1.0
@@ -358,9 +383,34 @@ application_documents (
 -- One record per file; .typ source and compiled .pdf are separate records.
 
 -- ─────────────────────────────────────────
+-- Application Q&A — ACTIVE PHASE 1.5
+-- ─────────────────────────────────────────
+application_questions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id  INTEGER NOT NULL,   -- FK to applications.id
+    question        TEXT NOT NULL,      -- full application question text
+    response        TEXT,               -- user's answer
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (application_id) REFERENCES applications(id)
+)
+-- Captures application form questions + user responses per application.
+-- Designed to support cross-application full-text search in a future phase.
+-- CRUD: GET/POST/PATCH/DELETE /api/v1/applications/{id}/questions
+
+-- ─────────────────────────────────────────
 -- Audit trails — append-only, NEVER update or delete
 -- ─────────────────────────────────────────
-application_audit   (id, application_id, timestamp, event)
+application_audit (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id  INTEGER NOT NULL,
+    job_id          INTEGER,            -- nullable; set for job-scope events (Phase 1.5)
+    timestamp       TEXT NOT NULL DEFAULT (datetime('now')),
+    event           TEXT NOT NULL
+)
+-- job_id added Phase 1.5 to support job-level events (Job Created, Job Description Attached).
+-- create_job() inserts two sequential records: "Job created — {co} — {title}" then
+-- "Job description attached" (if description present). Sequential IDs guarantee ordering.
+-- Used as the sort tiebreaker (id ASC) in the unified activity log query.
 job_posting_audit   (id, job_posting_id, timestamp, event)    -- STUB Phase 3
 
 -- ─────────────────────────────────────────

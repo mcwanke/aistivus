@@ -116,18 +116,10 @@ function ResultPanel({
   return (
     <div className="p-6 space-y-5">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start gap-4">
         <div>
           <p className="font-sans font-medium text-text text-sm">{company}</p>
           <p className="font-serif text-accent text-lg">{title}</p>
-        </div>
-        <div className="flex flex-col items-center shrink-0">
-          <span className="font-mono text-3xl text-accent">
-            {get<number>('score_overall') !== null
-              ? (get<number>('score_overall') as number).toFixed(1)
-              : '—'}
-          </span>
-          <span className="font-mono text-xs text-muted">/10</span>
         </div>
       </div>
 
@@ -277,44 +269,60 @@ function DupModal({
 
 function ActivateCTA({
   recommendation,
+  scoreOverall,
   onYes,
   onNo,
   isPending,
+  error,
 }: {
   recommendation: string | null
+  scoreOverall: number | null
   onYes: () => void
   onNo: () => void
   isPending: boolean
+  error: string | null
 }): React.JSX.Element {
   const firstLine = recommendation
     ? `The overall recommendation for this job is: ${recommendation}`
     : 'Evaluation completed.'
 
   return (
-    <div className="mx-6 mt-6 bg-accent/10 border border-accent/30 rounded-lg p-5 space-y-3">
-      <p className="text-sm text-text font-sans">{firstLine}</p>
-      <p className="text-sm text-muted font-sans">
-        Would you like to start building the job and application information?
-      </p>
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onYes}
-          disabled={isPending}
-          className="px-4 py-2 text-sm font-sans bg-accent text-bg rounded hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isPending ? 'Activating…' : 'Yes, build this job'}
-        </button>
-        <button
-          onClick={onNo}
-          disabled={isPending}
-          className="px-4 py-2 text-sm font-sans bg-surface2 text-muted border border-surface2 rounded hover:text-text transition-colors disabled:opacity-50"
-        >
-          No, skip for now
-        </button>
+    <div className="mx-6 mt-6 bg-accent/10 border border-accent/30 rounded-lg p-5 flex gap-6">
+      <div className="flex-1 space-y-3">
+        <p className="text-sm text-text font-sans">{firstLine}</p>
+        <p className="text-sm text-muted font-sans">
+          Would you like to start building the job and application information?
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onYes}
+            disabled={isPending}
+            className="px-4 py-2 text-sm font-sans bg-accent text-bg rounded hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isPending ? 'Going to job…' : 'Yes, Go to Job'}
+          </button>
+          <button
+            onClick={onNo}
+            disabled={isPending}
+            className="px-4 py-2 text-sm font-sans bg-surface2 text-muted border border-surface2 rounded hover:text-text transition-colors disabled:opacity-50"
+          >
+            No, Skip Job
+          </button>
+        </div>
+        {error && (
+          <p className="text-xs font-mono text-red">{error}</p>
+        )}
+        <p className="text-xs font-mono text-muted/60">
+          You can always return to this evaluation in the Evaluations page if you change your mind.
+        </p>
       </div>
-      <p className="text-xs font-mono text-muted/60">
-        You can always return to this evaluation in the Evaluations page if you change your mind.
-      </p>
+      {scoreOverall !== null && (
+        <div className="flex flex-col items-center justify-center shrink-0 border-l border-accent/20 pl-6 min-w-[100px]">
+          <span className="font-mono text-[0.6rem] uppercase tracking-widest text-muted mb-1">Overall Score</span>
+          <span className="font-mono text-5xl text-accent leading-none">{scoreOverall.toFixed(1)}</span>
+          <span className="font-mono text-sm text-muted mt-1">/ 10</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -342,6 +350,7 @@ export default function Evaluate(): React.JSX.Element {
   const [pendingPayload, setPendingPayload] = useState<EvaluatePayload | null>(null)
 
   const [jobIsActive, setJobIsActive] = useState(false)
+  const [activateError, setActivateError] = useState<string | null>(null)
 
   const { data: models = [] } = useModels()
   const evaluateMutation = useEvaluateMutation()
@@ -436,6 +445,7 @@ export default function Evaluate(): React.JSX.Element {
     setErrorMsg('')
     setPanelState('idle')
     setJobIsActive(false)
+    setActivateError(null)
     stopTimer()
     setElapsed(0)
     if (models.length > 0) {
@@ -446,9 +456,14 @@ export default function Evaluate(): React.JSX.Element {
 
   async function handleActivate(): Promise<void> {
     if (!result?.job_id) return
-    await activateJobMutation.mutateAsync(result.job_id)
-    setJobIsActive(true)
-    navigate(`/jobs/${result.job_id}`)
+    setActivateError(null)
+    try {
+      await activateJobMutation.mutateAsync(result.job_id)
+      setJobIsActive(true)
+      navigate(`/jobs/${result.job_id}`)
+    } catch {
+      setActivateError('Failed to activate job — please try again.')
+    }
   }
 
   function handleNoActivate(): void {
@@ -671,9 +686,13 @@ export default function Evaluate(): React.JSX.Element {
                 recommendation={
                   (result.evaluation?.recommendation as string | null | undefined) ?? null
                 }
+                scoreOverall={
+                  (result.evaluation?.score_overall as number | null | undefined) ?? null
+                }
                 onYes={() => void handleActivate()}
                 onNo={handleNoActivate}
                 isPending={activateJobMutation.isPending}
+                error={activateError}
               />
             )}
             <ResultPanel

@@ -3,6 +3,10 @@
 > This file is consumed by AI-assisted code generation tooling at the start of every session.
 > Read this file completely before writing or modifying any code.
 > For full architecture detail, see PROJECT_SPEC.md.
+> Never open responses with filler phrases like "Great question!", "Of course!", "Certainly!", or similar warmups. Start every response with the actual answer. No preamble, no acknowledgment of the question.
+> Match response length to task complexity. Simple questions get direct, short answers. Complex tasks get full, detailed responses. Never pad responses with restatements of the question or closing sentences that repeat what you just said.
+> Before any significant task, show me 2-3 ways you could approach this work. Wait for me to choose before proceeding.
+>If you are uncertain about any fact, statistic, date, or piece of technical information: say so explicitly before including it. Never fill gaps in your knowledge with plausible-sounding information. When in doubt, say so.
 
 ---
 
@@ -10,9 +14,7 @@
 
 **AIstivus** — *"AI Job Search Helper for the Rest of Us"*
 
-A locally-hosted, open-source web application that gives job seekers an AI-assisted command center
-for managing their entire job search lifecycle: discovery, evaluation, application tracking, and
-document generation.
+A locally-hosted, open-source web application that gives job seekers an AI-assisted command center for managing their entire job search lifecycle: discovery, evaluation, application tracking, and document generation.
 
 **Key principles:**
 - All data stays local — no cloud dependency unless user explicitly configures a cloud LLM
@@ -22,10 +24,9 @@ document generation.
 
 ---
 
-## Current Phase: PHASE 1.4 — Settings Improvements + Job Lifecycle
+## Current Phase: PHASE 1.5 — Job Workspace + Navigation Overhaul
 
-**Phases 0 through 1.3 are complete.** Core evaluation pipeline, React frontend,
-Job Search Profile, and multi-server LLM management all working end-to-end.
+**Phases 0 through 1.4 are complete.** Core evaluation pipeline, React frontend, Job Search Profile, and multi-server LLM management all working end-to-end.
 
 ### Phase 1.0 Checklist 🔄
 - [x] New schema v1.0 — clean slate (`init_db()` with all new tables)
@@ -139,9 +140,29 @@ Job Search Profile, and multi-server LLM management all working end-to-end.
 - [x] Dashboard: new DATA section added (between PROFILE and MODELS) containing Applications and LLM Usage tiles (moved from TOOLS)
 
 ### Phase 1.5 Checklist 🔲
-- [ ] `AppHeader.tsx` applied to all pages; `<Layout>` sidebar wrapper removed from all non-Dashboard pages
-- [ ] CSS/design pass across all pages (details TBD in workorder)
-- [ ] Additional page-specific rework (TBD)
+- [ ] Schema: `application_questions` table added; `application_audit.job_id` nullable column added; 7 new `application_log` system_type seeds; DB wipe required
+- [ ] Backend: `application_questions` CRUD routes (`GET/POST/PATCH/DELETE /api/v1/applications/{id}/questions`)
+- [ ] Backend: `GET /api/v1/jobs/{id}/activity-log` — unified timeline from 7 data sources
+- [ ] Backend: `GET /api/v1/jobs/{id}` extended to return `application_id`
+- [ ] `create_job()` inserts sequential audit records ("Job created", "Job description attached") — replaces frontend synthetic items
+- [ ] TypeScript: `ApplicationQuestion`, `ActivityLogEntry`, `ActivityEntryType` interfaces; `Job.application_id` field added
+- [ ] TypeScript: `useApplicationQuestions` hook (CRUD); `useActivityLog(jobId)` hook; `useApplicationDetail` gains `enabled` option
+- [ ] Shared utils extracted: `frontend/src/utils/formatting.ts` (`fmtScore`, `fmtDate`, `fmtDateTime`); `frontend/src/utils/status.ts` (`STATUS_COLORS`, `STATUSES`, `StatusBadge`)
+- [ ] Priority 4: Design Foundation — visual patterns extracted from `pages/` HTML and documented for use in all subsequent priorities
+- [ ] `AppHeader.tsx` gains optional `pageName` prop; page-mode variant renders `← Home` link + wordmark + page name (no tagline)
+- [ ] `<Layout>` sidebar wrapper removed from: `Evaluate.tsx`, `Settings.tsx`, `LLMUsage.tsx`, `JobSearchProfile.tsx`; `AppHeader pageName="..."` added to each
+- [ ] `Jobs.tsx` → standalone list page; split-pane removed; row click navigates to `/jobs/:id`; `AppHeader pageName="Jobs"` added
+- [ ] `Applications.tsx` → standalone list page; split-pane removed; row click navigates to `/jobs/:id?tab=application`; `AppHeader pageName="Applications"` added
+- [ ] Workspace shell: `/jobs/:jobId` becomes full-page standalone route; sub-header (score, status, company, title, location, remote); tab bar (5 tabs); `?tab=` query param for tab state; 2-column grid (280px left / flex-1 right) for 4 tabs; 1-column for APPLICATION LOG
+- [ ] JOB DETAILS tab: left column (ACTIONS: Evaluations/Job Description/Company Info; SUMMARY: excitement, my ratings, job info); right column (Evaluations with agg + rows + prompt expand + Import External Eval; Job Description with edit/copy/export; Company Info with inline add form + expandable rows)
+- [ ] APPLICATION tab: left column (ACTIONS: Details/Add Event/Add Application Note/Application Questions/Add Lesson; SUMMARY: company/title/status); right column (Details with apply URL/I APPLIED!/fields/Generate External Eval + Tailored Resume; Add Event inline form; Add Application Note inline form; Application Questions inline form + Q&A rows; Add Lesson panel)
+- [ ] APPLICATION LOG tab: 1-column unified timeline; `useActivityLog` hook; color-coded type badges; expandable rows with copy/delete/timestamp-edit
+- [ ] RESUME/COVER tab: 2-column stub with placeholder card ("Coming in Phase 1.6")
+- [ ] INTERVIEW tab: 2-column stub with placeholder card ("Coming soon")
+- [ ] `ApplicationDetailPage.tsx` and `ApplicationSummary.tsx` retired (deleted); routes `/application-detail/:id` and `/applications/:id` removed from `main.tsx`
+- [ ] Backend tests: `application_questions` CRUD, activity log route, job detail `application_id`, `create_job()` audit records
+- [ ] Frontend tests: workspace tabs/sub-header, JOB DETAILS defaults, APPLICATION defaults, APPLICATION LOG, list page navigation, AppHeader variants
+- [ ] Visual consistency sweep: CSS/design pass verifying Design Foundation patterns applied consistently across all pages
 
 ### Phase 1.6 Checklist 🔲
 - [ ] Config: `typst:` section in `CONFIG_TEMPLATE.yaml` (`binary_path`, `generated_dir`; moved from `output:`)
@@ -269,6 +290,13 @@ aistivus/
 | application_log | repost_alert |
 | application_log | prompt |
 | application_log | lesson_learned |
+| application_log | recruiter_outreach |
+| application_log | phone_screen |
+| application_log | onsite_interview |
+| application_log | offer_received |
+| application_log | rejection_received |
+| application_log | withdrawal |
+| application_log | application_communication |
 | company_info | website |
 | company_info | careerpage |
 | company_info | culturepage |
@@ -303,6 +331,7 @@ jobs                (id, company_name, title, location, remote_type,
                      my_role_fit, my_scope_fit, my_culture, my_comp,
                      my_score_overall,
                      excitement_level, created_at, project_id)
+                    is_active       INTEGER NOT NULL DEFAULT 0   -- Phase 1.4; activate via POST /jobs/{id}/activate
                     UNIQUE (company_name, title, role_keyword)
 
 job_company_log     (id, job_id, type_id, log, url, log_timestamp)
@@ -335,7 +364,11 @@ application_logs    (id, application_id, type_id, log, url,
 
 application_documents (id, application_id, type_id, file_path, created_at)
 
-application_audit   (id, application_id, timestamp, event)   -- append-only
+application_questions (id, application_id, question, response, created_at)
+                    -- application_id: FK → applications.id
+                    -- designed to support full-text search in a future phase
+
+application_audit   (id, application_id, job_id, timestamp, event)   -- append-only; job_id nullable (Phase 1.5)
 job_posting_audit   (id, job_posting_id, timestamp, event)   -- append-only, Phase 3
 
 jobsearch_versions  (id, content, saved_at, note)
