@@ -235,9 +235,19 @@ CREATE TABLE IF NOT EXISTS application_documents (
     created_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS application_questions (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id INTEGER NOT NULL REFERENCES applications(id),
+    question       TEXT NOT NULL,
+    response       TEXT,
+    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (application_id) REFERENCES applications(id)
+);
+
 CREATE TABLE IF NOT EXISTS application_audit (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     application_id INTEGER NOT NULL REFERENCES applications(id),
+    job_id         INTEGER,
     timestamp      TEXT NOT NULL DEFAULT (datetime('now')),
     event          TEXT NOT NULL
 );
@@ -351,7 +361,7 @@ CREATE INDEX IF NOT EXISTS idx_job_company_log_job_id  ON job_company_log(job_id
 CREATE INDEX IF NOT EXISTS idx_llm_models_server_id    ON llm_models(server_id);
 """
 
-CURRENT_SCHEMA_VERSION = "1.3"
+CURRENT_SCHEMA_VERSION = "1.5"
 
 _APP_SETTINGS_SEED: list[tuple[str, str]] = [
     ("allow_audit_timestamp_edit", "0"),
@@ -365,6 +375,13 @@ _SYSTEM_TYPES_SEED: list[tuple[str, str]] = [
     ("application_log", "repost_alert"),
     ("application_log", "prompt"),
     ("application_log", "lesson_learned"),
+    ("application_log", "recruiter_outreach"),
+    ("application_log", "phone_screen"),
+    ("application_log", "onsite_interview"),
+    ("application_log", "offer_received"),
+    ("application_log", "rejection_received"),
+    ("application_log", "withdrawal"),
+    ("application_log", "application_communication"),
     ("company_info", "website"),
     ("company_info", "careerpage"),
     ("company_info", "culturepage"),
@@ -415,7 +432,7 @@ def init_db() -> None:
         if not existing_version:
             conn.execute(
                 "INSERT INTO schema_versions (version, description) VALUES (?, ?)",
-                (CURRENT_SCHEMA_VERSION, "Schema v1.3 — llm_servers table; llm_models.server_id FK replaces endpoint")
+                (CURRENT_SCHEMA_VERSION, "Schema v1.5 — application_questions table; application_audit.job_id; 7 new system_type seeds")
             )
 
     seed_llm_models_from_config()
@@ -877,6 +894,17 @@ def upsert_job(
         )
         app_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         _audit_application(app_id, "Application auto-created with job", conn=conn)
+
+        conn.execute(
+            "INSERT INTO application_audit (application_id, job_id, event) VALUES (?, ?, ?)",
+            (app_id, job_id, f"Job created — {company_name} — {title}")
+        )
+        description_merged = insert_params.get("description_merged")
+        if description_merged:
+            conn.execute(
+                "INSERT INTO application_audit (application_id, job_id, event) VALUES (?, ?, ?)",
+                (app_id, job_id, "Job description attached")
+            )
 
         return job_id, True
 
@@ -1524,6 +1552,63 @@ def delete_application_document(doc_id: int) -> bool:
 
 
 # ─────────────────────────────────────────────────────────────
+# Application Questions
+# ─────────────────────────────────────────────────────────────
+
+def get_application_questions(application_id: int) -> list[sqlite3.Row]:
+    """Return all Q&A entries for an application, newest first."""
+    with get_connection() as conn:
+        return conn.execute(
+            """SELECT * FROM application_questions
+               WHERE application_id = ?
+               ORDER BY created_at DESC""",
+            (application_id,)
+        ).fetchall()
+
+
+def create_application_question(
+    application_id: int, question: str, response: str | None
+) -> int:
+    """Insert a new application question record. Returns the new id."""
+    with get_connection() as conn:
+        conn.execute(
+            """INSERT INTO application_questions (application_id, question, response)
+               VALUES (?, ?, ?)""",
+            (application_id, question, response)
+        )
+        return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def update_application_question(
+    question_id: int,
+    question: str | None = None,
+    response: str | None = None,
+) -> bool:
+    """Update question and/or response on an existing record. Returns False if not found."""
+    updates: dict[str, str | None] = {}
+    if question is not None:
+        updates["question"] = question
+    if response is not None:
+        updates["response"] = response
+    if not updates:
+        return True
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    with get_connection() as conn:
+        cursor = conn.execute(
+            f"UPDATE application_questions SET {set_clause} WHERE id = ?",
+            (*updates.values(), question_id)
+        )
+        return cursor.rowcount > 0
+
+
+def delete_application_question(question_id: int) -> bool:
+    """Delete an application question record. Returns True if deleted, False if not found."""
+    with get_connection() as conn:
+        conn.execute("DELETE FROM application_questions WHERE id = ?", (question_id,))
+        return conn.total_changes > 0
+
+
+# ─────────────────────────────────────────────────────────────
 # Application Audit (append-only)
 # ─────────────────────────────────────────────────────────────
 
@@ -1702,6 +1787,200 @@ def get_stats() -> dict:
 
 
 # ─────────────────────────────────────────────────────────────
+# Unified Activity Log
+# ─────────────────────────────────────────────────────────────
+
+def get_activity_log(job_id: int) -> list[dict]:
+    """
+    Return a merged, timestamp-sorted activity log for a job across all 7 data sources.
+    Each entry is a plain dict with keys: entry_type, timestamp, activity_type, source,
+    text, url, raw_id, can_delete, can_edit_timestamp.
+    Sorted by timestamp DESC, then id ASC as tiebreaker.
+    """
+    with get_connection() as conn:
+        # Resolve the application_id for this job (takes the earliest application)
+        app_row = conn.execute(
+            "SELECT id FROM applications WHERE job_id = ? ORDER BY id ASC LIMIT 1",
+            (job_id,)
+        ).fetchone()
+        app_id = app_row["id"] if app_row else None
+
+        results: list[dict] = []
+
+        # 1. Evaluations
+        evals = conn.execute(
+            """SELECT e.id, e.evaluated_at AS ts, e.score_overall, e.fit_type,
+                      e.recommendation, m.model AS model_name
+               FROM evaluations e
+               JOIN llm_models m ON m.id = e.llm_model_id
+               WHERE e.job_id = ?""",
+            (job_id,)
+        ).fetchall()
+        for row in evals:
+            score_str = f"{row['score_overall']:.1f}/10" if row["score_overall"] is not None else "—/10"
+            parts = [f"Score: {score_str}"]
+            if row["fit_type"]:
+                parts.append(row["fit_type"])
+            if row["recommendation"]:
+                parts.append(row["recommendation"])
+            results.append({
+                "entry_type": "evaluation",
+                "timestamp": row["ts"],
+                "activity_type": "EVALUATION",
+                "source": row["model_name"] or "",
+                "text": " · ".join(parts),
+                "url": None,
+                "raw_id": row["id"],
+                "can_delete": False,
+                "can_edit_timestamp": False,
+            })
+
+        # 2. LLM call log entries for this job
+        llm_rows = conn.execute(
+            """SELECT l.id, l.timestamp AS ts, l.call_type, l.prompt,
+                      m.model AS model_name
+               FROM llm_call_log l
+               LEFT JOIN llm_models m ON m.id = l.llm_model_id
+               WHERE l.job_id = ?""",
+            (job_id,)
+        ).fetchall()
+        for row in llm_rows:
+            results.append({
+                "entry_type": "llm_call",
+                "timestamp": row["ts"],
+                "activity_type": (row["call_type"] or "LLM CALL").upper(),
+                "source": row["model_name"] or "",
+                "text": row["prompt"],
+                "url": None,
+                "raw_id": row["id"],
+                "can_delete": False,
+                "can_edit_timestamp": False,
+            })
+
+        # 3. Application logs (via application_id)
+        if app_id is not None:
+            log_rows = conn.execute(
+                """SELECT al.id, al.log_timestamp AS ts, al.log, al.url,
+                          st.type_value
+                   FROM application_logs al
+                   JOIN system_types st ON st.id = al.type_id
+                   WHERE al.application_id = ?""",
+                (app_id,)
+            ).fetchall()
+            for row in log_rows:
+                results.append({
+                    "entry_type": "application_log",
+                    "timestamp": row["ts"],
+                    "activity_type": (row["type_value"] or "LOG").upper().replace("_", " "),
+                    "source": "",
+                    "text": row["log"],
+                    "url": row["url"],
+                    "raw_id": row["id"],
+                    "can_delete": True,
+                    "can_edit_timestamp": True,
+                })
+
+        # 4. Application audit — by job_id or matching application_id
+        if app_id is not None:
+            audit_rows = conn.execute(
+                """SELECT id, timestamp AS ts, event
+                   FROM application_audit
+                   WHERE job_id = ? OR application_id = ?
+                   ORDER BY id ASC""",
+                (job_id, app_id)
+            ).fetchall()
+        else:
+            audit_rows = conn.execute(
+                """SELECT id, timestamp AS ts, event
+                   FROM application_audit
+                   WHERE job_id = ?
+                   ORDER BY id ASC""",
+                (job_id,)
+            ).fetchall()
+        for row in audit_rows:
+            results.append({
+                "entry_type": "audit",
+                "timestamp": row["ts"],
+                "activity_type": "AUDIT",
+                "source": "",
+                "text": row["event"],
+                "url": None,
+                "raw_id": row["id"],
+                "can_delete": False,
+                "can_edit_timestamp": False,
+            })
+
+        # 5. Company log entries
+        company_rows = conn.execute(
+            """SELECT jcl.id, jcl.log_timestamp AS ts, jcl.log, jcl.url,
+                      st.type_value
+               FROM job_company_log jcl
+               JOIN system_types st ON st.id = jcl.type_id
+               WHERE jcl.job_id = ?""",
+            (job_id,)
+        ).fetchall()
+        for row in company_rows:
+            results.append({
+                "entry_type": "company_log",
+                "timestamp": row["ts"],
+                "activity_type": (row["type_value"] or "COMPANY INFO").upper().replace("_", " "),
+                "source": "Company Info",
+                "text": row["log"],
+                "url": row["url"],
+                "raw_id": row["id"],
+                "can_delete": True,
+                "can_edit_timestamp": False,
+            })
+
+        # 6. Job postings
+        posting_rows = conn.execute(
+            """SELECT id, date_scraped AS ts, source_board, source_url, description_raw
+               FROM job_postings WHERE job_id = ?""",
+            (job_id,)
+        ).fetchall()
+        for row in posting_rows:
+            results.append({
+                "entry_type": "job_posting",
+                "timestamp": row["ts"],
+                "activity_type": "JOB POSTING",
+                "source": row["source_board"] or "",
+                "text": row["description_raw"],
+                "url": row["source_url"],
+                "raw_id": row["id"],
+                "can_delete": False,
+                "can_edit_timestamp": False,
+            })
+
+        # 7. Application questions (via application_id)
+        if app_id is not None:
+            question_rows = conn.execute(
+                """SELECT id, created_at AS ts, question, response
+                   FROM application_questions WHERE application_id = ?""",
+                (app_id,)
+            ).fetchall()
+            for row in question_rows:
+                preview = (row["question"] or "")[:80]
+                results.append({
+                    "entry_type": "application_question",
+                    "timestamp": row["ts"],
+                    "activity_type": "APP QUESTION",
+                    "source": "",
+                    "text": f"Q: {preview}\nA: {row['response'] or '—'}",
+                    "url": None,
+                    "raw_id": row["id"],
+                    "can_delete": True,
+                    "can_edit_timestamp": False,
+                })
+
+    # Sort: timestamp DESC, raw_id ASC tiebreaker (guarantees "Job Created" before
+    # "Job Description" when they share a timestamp — they have sequential IDs).
+    # Achieved by sorting (timestamp, -raw_id) descending.
+    results.sort(key=lambda e: (e["timestamp"] or "", -(e["raw_id"] or 0)), reverse=True)
+
+    return results
+
+
+# ─────────────────────────────────────────────────────────────
 # Utilities
 # ─────────────────────────────────────────────────────────────
 
@@ -1713,7 +1992,7 @@ def compute_sha256(content: str) -> str:
 _EXPORT_TABLES = [
     "system_types", "llm_servers", "llm_models", "jobs", "job_company_log", "job_postings",
     "evaluations", "llm_call_log", "applications", "application_logs",
-    "application_documents", "application_audit", "job_posting_audit",
+    "application_documents", "application_questions", "application_audit", "job_posting_audit",
     "jobsearch_versions", "resume_info", "search_runs", "search_run_errors",
     "chat_sessions", "chat_messages", "projects",
     "schema_versions", "schema_migrations",

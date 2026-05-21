@@ -140,11 +140,11 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 - [x] Dashboard: new DATA section added (between PROFILE and MODELS) containing Applications and LLM Usage tiles (moved from TOOLS)
 
 ### Phase 1.5 Checklist 🔲
-- [ ] Schema: `application_questions` table added; `application_audit.job_id` nullable column added; 7 new `application_log` system_type seeds; DB wipe required
-- [ ] Backend: `application_questions` CRUD routes (`GET/POST/PATCH/DELETE /api/v1/applications/{id}/questions`)
-- [ ] Backend: `GET /api/v1/jobs/{id}/activity-log` — unified timeline from 7 data sources
-- [ ] Backend: `GET /api/v1/jobs/{id}` extended to return `application_id`
-- [ ] `create_job()` inserts sequential audit records ("Job created", "Job description attached") — replaces frontend synthetic items
+- [x] Schema: `application_questions` table added; `application_audit.job_id` nullable column added; 7 new `application_log` system_type seeds; DB wipe required
+- [x] Backend: `application_questions` CRUD routes (`GET/POST/PATCH/DELETE /api/v1/applications/{id}/questions`)
+- [x] Backend: `GET /api/v1/jobs/{id}/activity-log` — unified timeline from 7 data sources
+- [x] Backend: `GET /api/v1/jobs/{id}` extended to return `application_id`
+- [x] `create_job()` inserts sequential audit records ("Job created", "Job description attached") — replaces frontend synthetic items
 - [ ] TypeScript: `ApplicationQuestion`, `ActivityLogEntry`, `ActivityEntryType` interfaces; `Job.application_id` field added
 - [ ] TypeScript: `useApplicationQuestions` hook (CRUD); `useActivityLog(jobId)` hook; `useApplicationDetail` gains `enabled` option
 - [ ] Shared utils extracted: `frontend/src/utils/formatting.ts` (`fmtScore`, `fmtDate`, `fmtDateTime`); `frontend/src/utils/status.ts` (`STATUS_COLORS`, `STATUSES`, `StatusBadge`)

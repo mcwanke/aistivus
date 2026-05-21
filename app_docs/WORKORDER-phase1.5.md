@@ -200,7 +200,7 @@ Left column: a muted label "Nothing to configure yet."
 
 ## Priority 1 — Schema + database.py
 
-- [ ] **1. Schema additions, audit expansion, create_job() updates**
+- [x] **1. Schema additions, audit expansion, create_job() updates** — application_questions table added; application_audit.job_id nullable column added; 7 new application_log seeds; upsert_job() inserts Job created/Job description audit records; get_activity_log() added; application_questions CRUD added; schema version bumped to 1.5
 
   **Files:** `database.py`
 
@@ -342,7 +342,7 @@ Left column: a muted label "Nothing to configure yet."
 
 ## Priority 2 — Backend routes
 
-- [ ] **2. application_questions CRUD routes; activity log route; job detail application_id**
+- [x] **2. application_questions CRUD routes; activity log route; job detail application_id** — GET/POST/PATCH/DELETE /api/v1/applications/{id}/questions; GET /api/v1/jobs/{id}/activity-log; job detail application_id already present via get_job() JOIN
 
   **Files:** `main.py`
 

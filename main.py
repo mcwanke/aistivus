@@ -394,6 +394,16 @@ class CreateSystemTypeRequest(BaseModel):
     type_value: str
 
 
+class CreateQuestionRequest(BaseModel):
+    question: str
+    response: str | None = None
+
+
+class UpdateQuestionRequest(BaseModel):
+    question: str | None = None
+    response: str | None = None
+
+
 class SaveJobsearchRequest(BaseModel):
     content: str
 
@@ -782,6 +792,17 @@ async def activate_job(request: Request, job_id: int):
     database.activate_job(job_id)
     updated = database.get_job(job_id)
     return JSONResponse(dict(updated))
+
+
+@app.get("/api/v1/jobs/{job_id}/activity-log")
+@limiter.limit("60/minute")
+async def get_activity_log(request: Request, job_id: int):
+    """Unified activity timeline for a job across all 7 data sources, newest first."""
+    job = database.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found.")
+    entries = database.get_activity_log(job_id)
+    return JSONResponse({"entries": entries})
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1346,6 +1367,77 @@ async def lesson_chat(
             "insights_addition": insights_addition,
             "application_id": application_id,
         })
+
+
+# ─────────────────────────────────────────────────────────────
+# Application Questions
+# ─────────────────────────────────────────────────────────────
+
+@app.get("/api/v1/applications/{application_id}/questions")
+@limiter.limit("60/minute")
+async def list_application_questions(request: Request, application_id: int):
+    """Return all Q&A entries for an application."""
+    app_row = database.get_application(application_id)
+    if not app_row:
+        raise HTTPException(status_code=404, detail=f"Application {application_id} not found.")
+    rows = database.get_application_questions(application_id)
+    return JSONResponse([dict(r) for r in rows])
+
+
+@app.post("/api/v1/applications/{application_id}/questions")
+@limiter.limit("30/minute")
+async def create_application_question(
+    request: Request, application_id: int, body: CreateQuestionRequest
+):
+    """Create a new application Q&A entry."""
+    app_row = database.get_application(application_id)
+    if not app_row:
+        raise HTTPException(status_code=404, detail=f"Application {application_id} not found.")
+    if not body.question.strip():
+        raise HTTPException(status_code=400, detail="question must not be empty.")
+    new_id = database.create_application_question(
+        application_id, body.question, body.response
+    )
+    rows = database.get_application_questions(application_id)
+    record = next((dict(r) for r in rows if r["id"] == new_id), None)
+    return JSONResponse(record, status_code=201)
+
+
+@app.patch("/api/v1/applications/{application_id}/questions/{question_id}")
+@limiter.limit("30/minute")
+async def update_application_question(
+    request: Request,
+    application_id: int,
+    question_id: int,
+    body: UpdateQuestionRequest,
+):
+    """Update the question text and/or response on an existing Q&A entry."""
+    app_row = database.get_application(application_id)
+    if not app_row:
+        raise HTTPException(status_code=404, detail=f"Application {application_id} not found.")
+    updated = database.update_application_question(
+        question_id, body.question, body.response
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Question {question_id} not found.")
+    rows = database.get_application_questions(application_id)
+    record = next((dict(r) for r in rows if r["id"] == question_id), None)
+    return JSONResponse(record)
+
+
+@app.delete("/api/v1/applications/{application_id}/questions/{question_id}")
+@limiter.limit("30/minute")
+async def delete_application_question(
+    request: Request, application_id: int, question_id: int
+):
+    """Delete an application Q&A entry."""
+    app_row = database.get_application(application_id)
+    if not app_row:
+        raise HTTPException(status_code=404, detail=f"Application {application_id} not found.")
+    deleted = database.delete_application_question(question_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Question {question_id} not found.")
+    return JSONResponse({"deleted": True})
 
 
 # ─────────────────────────────────────────────────────────────

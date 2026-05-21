@@ -19,10 +19,10 @@ class TestInitDb:
         tables = {
             "system_types", "llm_models", "jobs", "job_company_log",
             "job_postings", "evaluations", "llm_call_log", "applications",
-            "application_logs", "application_documents", "application_audit",
-            "job_posting_audit", "jobsearch_versions", "resume_info",
-            "search_runs", "search_run_errors", "chat_sessions", "chat_messages",
-            "projects", "schema_versions", "schema_migrations",
+            "application_logs", "application_documents", "application_questions",
+            "application_audit", "job_posting_audit", "jobsearch_versions",
+            "resume_info", "search_runs", "search_run_errors", "chat_sessions",
+            "chat_messages", "projects", "schema_versions", "schema_migrations",
         }
         with database.get_connection() as conn:
             rows = conn.execute(
@@ -33,7 +33,7 @@ class TestInitDb:
 
     def test_seeds_system_types(self, tmp_db):
         types = database.get_all_system_types()
-        assert len(types) == 14
+        assert len(types) == 22
 
     def test_seeds_all_expected_type_names(self, tmp_db):
         names = {r["type_name"] for r in database.get_all_system_types()}
@@ -44,7 +44,10 @@ class TestInitDb:
         values = {r["type_value"] for r in rows}
         assert values == {
             "recruiter_call", "interview_feedback", "compensation",
-            "general", "repost_alert", "prompt",
+            "general", "repost_alert", "prompt", "lesson_learned",
+            "recruiter_outreach", "phone_screen", "onsite_interview",
+            "offer_received", "rejection_received", "withdrawal",
+            "application_communication",
         }
 
     def test_seeds_company_info_values(self, tmp_db):
@@ -58,13 +61,13 @@ class TestInitDb:
         assert values == {"resume", "cover_letter"}
 
     def test_records_schema_version(self, tmp_db):
-        assert database.get_schema_version() == "1.0"
+        assert database.get_schema_version() == "1.5"
 
     def test_idempotent(self, tmp_db):
         database.init_db()
         database.init_db()
-        assert len(database.get_all_system_types()) == 14
-        assert database.get_schema_version() == "1.0"
+        assert len(database.get_all_system_types()) == 22
+        assert database.get_schema_version() == "1.5"
 
     def test_no_auto_seed_without_config(self, tmp_db):
         models = database.get_all_llm_models()
@@ -77,11 +80,11 @@ class TestInitDb:
 
 class TestSystemTypes:
     def test_get_all_returns_all(self, tmp_db):
-        assert len(database.get_all_system_types()) == 14
+        assert len(database.get_all_system_types()) == 22
 
     def test_get_filtered_by_type_name(self, tmp_db):
         rows = database.get_all_system_types("application_log")
-        assert len(rows) == 6
+        assert len(rows) == 14
         assert all(r["type_name"] == "application_log" for r in rows)
 
     def test_get_system_type_id_found(self, tmp_db):
@@ -316,8 +319,11 @@ class TestJobs:
         jid, _ = database.upsert_job("Acme Corp", "Engineer", "python")
         app = database.get_application_for_job(jid)
         audit = database.get_application_audit(app["id"])
-        assert len(audit) == 1
-        assert "auto-created" in audit[0]["event"]
+        # 3 records: "Application auto-created", "Job created — ...", no description so no 3rd
+        assert len(audit) >= 2
+        events = [a["event"] for a in audit]
+        assert any("auto-created" in e for e in events)
+        assert any("Job created" in e for e in events)
 
     def test_get_job_returns_correct_record(self, tmp_db):
         jid, _ = database.upsert_job("Acme Corp", "Engineer", "python", location="NYC")
@@ -869,14 +875,14 @@ class TestUtilities:
         assert broken[0]["path"] == "/nonexistent/path/resume.pdf"
 
     def test_get_schema_version(self, tmp_db):
-        assert database.get_schema_version() == "1.0"
+        assert database.get_schema_version() == "1.5"
 
     def test_export_db_returns_dict(self, tmp_db):
         result = database.export_db()
-        assert result["schema_version"] == "1.0"
+        assert result["schema_version"] == "1.5"
         assert "tables" in result
         assert "system_types" in result["tables"]
-        assert len(result["tables"]["system_types"]) == 14
+        assert len(result["tables"]["system_types"]) == 22
 
 
 # ─────────────────────────────────────────────────────────────
