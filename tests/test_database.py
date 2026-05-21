@@ -343,7 +343,7 @@ class TestJobs:
     def test_get_all_jobs(self, tmp_db):
         database.upsert_job("Acme Corp", "Engineer", "python")
         database.upsert_job("Beta Inc", "Manager", "leadership")
-        jobs = database.get_all_jobs()
+        jobs = database.get_all_jobs(include_inactive=True)
         assert len(jobs) == 2
 
     def test_get_jobs_pending_evaluation(self, tmp_db, model_id):
@@ -822,12 +822,13 @@ class TestJobsearchVersions:
     def test_save_and_retrieve_version(self, tmp_db):
         vid = database.save_jobsearch_version("# My job search\n\nContent here.", note="initial")
         assert isinstance(vid, int)
-        content = database.get_jobsearch_version_content(vid)
-        assert content == "# My job search\n\nContent here."
+        row = database.get_jobsearch_version_by_id(vid)
+        assert row is not None
+        assert row["content"] == "# My job search\n\nContent here."
 
     def test_get_versions_newest_first(self, tmp_db):
-        database.save_jobsearch_version("version 1")
-        database.save_jobsearch_version("version 2")
+        database.save_jobsearch_version("version 1", note="v1")
+        database.save_jobsearch_version("version 2", note="v2")
         versions = database.get_jobsearch_versions()
         assert len(versions) == 2
 
@@ -838,11 +839,11 @@ class TestJobsearchVersions:
         assert "note" in versions[0].keys()
 
     def test_get_version_content_not_found(self, tmp_db):
-        assert database.get_jobsearch_version_content(99999) is None
+        assert database.get_jobsearch_version_by_id(99999) is None
 
     def test_get_versions_respects_limit(self, tmp_db):
         for i in range(5):
-            database.save_jobsearch_version(f"version {i}")
+            database.save_jobsearch_version(f"version {i}", note=f"v{i}")
         versions = database.get_jobsearch_versions(limit=3)
         assert len(versions) == 3
 

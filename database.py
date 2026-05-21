@@ -480,7 +480,7 @@ def _check_jobsearch_staleness() -> None:
 # Jobsearch Versions
 # ─────────────────────────────────────────────────────────────
 
-def save_jobsearch_version(content: str, note: str) -> int:
+def save_jobsearch_version(content: str, note: str | None = None) -> int:
     """Insert a snapshot of jobsearch.md content. Returns the new version id."""
     with get_connection() as conn:
         cursor = conn.execute(
