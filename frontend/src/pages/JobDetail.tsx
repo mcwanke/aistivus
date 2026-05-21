@@ -1,9 +1,20 @@
-import { useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import AppHeader from '@/components/AppHeader'
 import { useJobDetail, usePatchJob, useAddCompanyLog } from '@/hooks/useJobs'
+import { useApplicationDetail } from '@/hooks/useApplications'
 import { useImportEvaluationMutation, useModels, type ImportPayload } from '@/hooks/useEvaluate'
-import type { Evaluation, JobPosting, LlmModel, CompanyLogEntry } from '@/types/api'
+import { StatusBadge } from '@/utils/status'
+import { fmtScore } from '@/utils/formatting'
+import type {
+  Evaluation,
+  JobPosting,
+  LlmModel,
+  CompanyLogEntry,
+  ApplicationStatus,
+  Job,
+} from '@/types/api'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -12,9 +23,63 @@ function fmtDate(iso: string | null | undefined): string {
   return iso.split('T')[0] ?? iso.slice(0, 10)
 }
 
-function fmtScore(val: number | null | undefined): string {
-  if (val === null || val === undefined) return '—'
-  return val.toFixed(1)
+// ─── Tab type ─────────────────────────────────────────────────────────────────
+
+type TabId = 'job-details' | 'application' | 'resume-cover' | 'interview' | 'application-log'
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: 'job-details',     label: 'Job Details' },
+  { id: 'application',     label: 'Application' },
+  { id: 'resume-cover',    label: 'Resume / Cover' },
+  { id: 'interview',       label: 'Interview' },
+  { id: 'application-log', label: 'Application Log' },
+]
+
+// ─── WorkspaceSubHeader ───────────────────────────────────────────────────────
+
+interface WorkspaceSubHeaderProps {
+  job: Job
+  appStatus: ApplicationStatus | null
+  appLoading: boolean
+}
+
+function WorkspaceSubHeader({ job, appStatus, appLoading }: WorkspaceSubHeaderProps): React.JSX.Element {
+  return (
+    <div className="sticky top-[57px] z-10 bg-bg border-b border-surface2 px-6 py-3">
+      <div className="flex items-start gap-8">
+        {/* Score */}
+        <div className="flex flex-col items-start shrink-0">
+          <span className="font-serif text-4xl text-accent leading-none">
+            {job.agg_score_overall != null ? fmtScore(job.agg_score_overall) : '—'}
+          </span>
+          <span className="font-mono text-xs text-muted">/ 10</span>
+        </div>
+
+        {/* Status + company */}
+        <div className="flex flex-col gap-1 shrink-0">
+          <span className="text-[10px] font-mono text-muted uppercase tracking-widest">Status</span>
+          <div className="flex items-center gap-2">
+            {appLoading ? (
+              <span className="text-xs text-muted">—</span>
+            ) : (
+              <StatusBadge status={appStatus} />
+            )}
+          </div>
+          <span className="text-sm text-muted">{job.company_name}</span>
+        </div>
+
+        {/* Title + location/remote */}
+        <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+          <span className="font-serif text-lg text-text leading-tight">{job.title}</span>
+          <span className="text-xs text-muted font-mono">
+            {[job.location ? `📍 ${job.location}` : null, job.remote_type]
+              .filter(Boolean)
+              .join(' · ')}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ─── Collapsible section ──────────────────────────────────────────────────────
@@ -338,7 +403,6 @@ function MyRatingsSection({ jobId, job }: MyRatingsSectionProps): React.JSX.Elem
   return (
     <>
       <div className="grid grid-cols-[25%_1fr] gap-6">
-        {/* Left col: Excitement — 25%, center */}
         <div className="flex flex-col items-center">
           <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Excitement</p>
           <StarRating
@@ -349,7 +413,6 @@ function MyRatingsSection({ jobId, job }: MyRatingsSectionProps): React.JSX.Elem
           />
         </div>
 
-        {/* Right col: My Ratings — remaining 75%, center */}
         <div className="flex flex-col items-center">
           <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">My Ratings</p>
           <div className="flex items-center gap-4 flex-wrap justify-center">
@@ -486,182 +549,7 @@ function EvalCard({ evaluation }: { evaluation: Evaluation & { report_path: stri
   )
 }
 
-// ─── Application status section ───────────────────────────────────────────────
-
-interface AppStatusSectionProps {
-  jobId: number
-  applicationId: number | null
-  status: string | null
-  postings: JobPosting[]
-}
-
-function AppStatusSection({ applicationId, status, postings }: AppStatusSectionProps): React.JSX.Element {
-  const applyUrl = postings.find((p) => p.source_url)?.source_url
-
-  return (
-    <div className="space-y-2">
-      <div className="grid grid-cols-[15%_25%_1fr] gap-4">
-        {/* Col 1: STATUS */}
-        <div className="flex flex-col items-center">
-          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Status</p>
-          {status ? (
-            <span className="text-xs font-mono px-2 py-0.5 rounded bg-surface2 text-muted">
-              {status}
-            </span>
-          ) : (
-            <span className="text-xs text-muted">—</span>
-          )}
-        </div>
-
-        {/* Col 2: APPLICATION */}
-        <div className="flex flex-col items-center">
-          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Application</p>
-          {applicationId ? (
-            <Link
-              to={`/application-detail/${applicationId}`}
-              className="text-sm px-3 py-1.5 bg-accent text-bg rounded hover:bg-accent/90 transition-colors"
-            >
-              View Application →
-            </Link>
-          ) : (
-            <span className="text-xs text-muted">—</span>
-          )}
-        </div>
-
-        {/* Col 3: APPLY URL */}
-        <div>
-          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Apply URL</p>
-          {applyUrl ? (
-            <a
-              href={applyUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-accent hover:underline break-all"
-            >
-              {applyUrl}
-            </a>
-          ) : (
-            <span className="text-xs text-muted">—</span>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Import modal ─────────────────────────────────────────────────────────────
-
-interface ImportModalProps {
-  models: LlmModel[]
-  defaultModelId: number | null
-  onClose: () => void
-  onImport: (modelId: number | null, parsed: Record<string, unknown>) => void
-  importError: string
-  importing: boolean
-}
-
-function ImportModal({
-  models,
-  defaultModelId,
-  onClose,
-  onImport,
-  importError,
-  importing,
-}: ImportModalProps): React.JSX.Element {
-  const [rawText, setRawText] = useState('')
-  const [modelId, setModelId] = useState<number | null>(defaultModelId)
-  const [parseError, setParseError] = useState('')
-
-  function handleImport(): void {
-    setParseError('')
-    const start = rawText.indexOf('EVALUATION_JSON_START')
-    const end = rawText.indexOf('EVALUATION_JSON_END')
-    const jsonStr = start !== -1 && end !== -1
-      ? rawText.slice(start + 'EVALUATION_JSON_START'.length, end).trim()
-      : rawText.trim()
-    let parsed: Record<string, unknown>
-    try {
-      parsed = JSON.parse(jsonStr) as Record<string, unknown>
-    } catch (e) {
-      setParseError(`JSON parse error: ${(e as Error).message}`)
-      return
-    }
-    onImport(modelId, parsed)
-  }
-
-  const error = parseError || importError
-
-  return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-surface2 rounded-xl p-7 max-w-lg w-full shadow-2xl flex flex-col gap-4">
-        <div>
-          <p className="font-serif text-accent text-lg mb-1">Import External Model Evaluation</p>
-          <p className="text-xs text-muted leading-relaxed">
-            Paste the evaluation JSON output. Sentinels{' '}
-            <span className="font-mono text-accent/70">
-              EVALUATION_JSON_START … EVALUATION_JSON_END
-            </span>
-            {' '}are optional — if present they will be stripped automatically.
-          </p>
-          <p className="text-xs text-muted/60 leading-relaxed mt-1">
-            Models must be added in Settings before they are available here.
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-mono text-muted uppercase tracking-wider">Model</label>
-          <select
-            value={modelId ?? ''}
-            onChange={(e) =>
-              setModelId(e.target.value ? parseInt(e.target.value, 10) : null)
-            }
-            className="bg-surface2 border border-surface2 rounded px-3 py-2 text-sm font-mono text-text focus:outline-none focus:border-accent/50"
-          >
-            <option value="">— default model —</option>
-            {models.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.model}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-mono text-muted uppercase tracking-wider">
-            Evaluation JSON
-          </label>
-          <textarea
-            value={rawText}
-            onChange={(e) => setRawText(e.target.value)}
-            placeholder="Paste the full response here…"
-            rows={8}
-            className="bg-surface2 border border-surface2 rounded px-3 py-2 text-xs font-mono text-text focus:outline-none focus:border-accent/50 resize-y"
-          />
-        </div>
-
-        {error && <p className="text-xs font-mono text-red">{error}</p>}
-
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-sans bg-surface2 text-muted border border-surface2 rounded hover:text-text transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleImport}
-            disabled={importing}
-            className="px-4 py-2 text-sm font-sans bg-accent text-bg rounded hover:bg-accent/90 transition-colors disabled:opacity-50"
-          >
-            {importing ? 'Importing…' : 'Import'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Job Info section ─────────────────────────────────────────────────────────
+// ─── Company info section ─────────────────────────────────────────────────────
 
 const COMPANY_INFO_TYPES = [
   { value: 'website',     label: 'Website' },
@@ -883,7 +771,6 @@ function JobInfoSection({ jobId, job, companyLog }: JobInfoSectionProps): React.
   return (
     <>
       <div className="grid grid-cols-2 gap-6">
-        {/* Left col: job fields */}
         <div>
           <div className="flex items-center justify-between mb-3">
             <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Job Info</p>
@@ -904,7 +791,6 @@ function JobInfoSection({ jobId, job, companyLog }: JobInfoSectionProps): React.
           </div>
         </div>
 
-        {/* Right col: company log */}
         <div>
           <div className="flex items-center justify-between mb-3">
             <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Company Info</p>
@@ -937,36 +823,161 @@ function JobInfoSection({ jobId, job, companyLog }: JobInfoSectionProps): React.
   )
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Import modal ─────────────────────────────────────────────────────────────
 
-interface JobDetailProps {
-  jobId: number
+interface ImportModalProps {
+  models: LlmModel[]
+  defaultModelId: number | null
+  onClose: () => void
+  onImport: (modelId: number | null, parsed: Record<string, unknown>) => void
+  importError: string
+  importing: boolean
 }
 
-export default function JobDetail({ jobId }: JobDetailProps): React.JSX.Element {
-  const { data, isLoading, isError } = useJobDetail(jobId)
-  const [editJobOpen, setEditJobOpen] = useState(false)
-  const [editDescOpen, setEditDescOpen] = useState(false)
+function ImportModal({
+  models,
+  defaultModelId,
+  onClose,
+  onImport,
+  importError,
+  importing,
+}: ImportModalProps): React.JSX.Element {
+  const [rawText, setRawText] = useState('')
+  const [modelId, setModelId] = useState<number | null>(defaultModelId)
+  const [parseError, setParseError] = useState('')
+
+  function handleImport(): void {
+    setParseError('')
+    const start = rawText.indexOf('EVALUATION_JSON_START')
+    const end = rawText.indexOf('EVALUATION_JSON_END')
+    const jsonStr = start !== -1 && end !== -1
+      ? rawText.slice(start + 'EVALUATION_JSON_START'.length, end).trim()
+      : rawText.trim()
+    let parsed: Record<string, unknown>
+    try {
+      parsed = JSON.parse(jsonStr) as Record<string, unknown>
+    } catch (e) {
+      setParseError(`JSON parse error: ${(e as Error).message}`)
+      return
+    }
+    onImport(modelId, parsed)
+  }
+
+  const error = parseError || importError
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+      <div className="bg-surface border border-surface2 rounded-xl p-7 max-w-lg w-full shadow-2xl flex flex-col gap-4">
+        <div>
+          <p className="font-serif text-accent text-lg mb-1">Import External Model Evaluation</p>
+          <p className="text-xs text-muted leading-relaxed">
+            Paste the evaluation JSON output. Sentinels{' '}
+            <span className="font-mono text-accent/70">
+              EVALUATION_JSON_START … EVALUATION_JSON_END
+            </span>
+            {' '}are optional — if present they will be stripped automatically.
+          </p>
+          <p className="text-xs text-muted/60 leading-relaxed mt-1">
+            Models must be added in Settings before they are available here.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-mono text-muted uppercase tracking-wider">Model</label>
+          <select
+            value={modelId ?? ''}
+            onChange={(e) =>
+              setModelId(e.target.value ? parseInt(e.target.value, 10) : null)
+            }
+            className="bg-surface2 border border-surface2 rounded px-3 py-2 text-sm font-mono text-text focus:outline-none focus:border-accent/50"
+          >
+            <option value="">— default model —</option>
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.model}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-mono text-muted uppercase tracking-wider">
+            Evaluation JSON
+          </label>
+          <textarea
+            value={rawText}
+            onChange={(e) => setRawText(e.target.value)}
+            placeholder="Paste the full response here…"
+            rows={8}
+            className="bg-surface2 border border-surface2 rounded px-3 py-2 text-xs font-mono text-text focus:outline-none focus:border-accent/50 resize-y"
+          />
+        </div>
+
+        {error && <p className="text-xs font-mono text-red">{error}</p>}
+
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-sans bg-surface2 text-muted border border-surface2 rounded hover:text-text transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleImport}
+            disabled={importing}
+            className="px-4 py-2 text-sm font-sans bg-accent text-bg rounded hover:bg-accent/90 transition-colors disabled:opacity-50"
+          >
+            {importing ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Workspace page ───────────────────────────────────────────────────────────
+
+export default function JobDetailPage(): React.JSX.Element {
+  const { jobId: jobIdParam } = useParams<{ jobId: string }>()
+  const jobId = parseInt(jobIdParam ?? '0', 10)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = (searchParams.get('tab') ?? 'job-details') as TabId
+
+  const { data: jobData, isLoading: jobLoading, isError: jobError } = useJobDetail(jobId)
+  const applicationId = jobData?.job.application_id ?? undefined
+  const { data: appData, isLoading: appLoading } = useApplicationDetail(applicationId)
+
+  // Modal state (used by P10/P11 tab content)
   const [importOpen, setImportOpen] = useState(false)
   const [importError, setImportError] = useState('')
   const importMutation = useImportEvaluationMutation()
   const { data: models = [] } = useModels()
   const qc = useQueryClient()
 
-  const invalidateJobDetail = useCallback(() => {
-    setEditJobOpen(false)
-    setEditDescOpen(false)
-  }, [])
-
-  if (isLoading) {
-    return <div className="p-6 text-muted text-sm">Loading job details…</div>
-  }
-  if (isError || !data) {
-    return <div className="p-6 text-red text-sm">Failed to load job.</div>
+  function setTab(tab: TabId): void {
+    setSearchParams({ tab }, { replace: true })
   }
 
-  const { job, evaluations, postings, company_log } = data
+  if (jobLoading) {
+    return (
+      <div className="flex flex-col h-screen">
+        <AppHeader pageName="Jobs" />
+        <div className="p-6 text-muted text-sm">Loading…</div>
+      </div>
+    )
+  }
 
+  if (jobError || !jobData) {
+    return (
+      <div className="flex flex-col h-screen">
+        <AppHeader pageName="Jobs" />
+        <div className="p-6 text-red text-sm">Job not found.</div>
+      </div>
+    )
+  }
+
+  const { job } = jobData
+  const appStatus = appData?.application.application_status ?? null
   const defaultModelId = models.find((m) => m.default_flag === 1)?.id ?? null
 
   async function handleImport(
@@ -977,20 +988,20 @@ export default function JobDetail({ jobId }: JobDetailProps): React.JSX.Element 
     const payload: ImportPayload = {
       job_id: job.id,
       llm_model_id: modelId,
-      score_overall: (parsed.score_overall as number | null) ?? null,
-      score_role_fit: (parsed.score_role_fit as number | null) ?? null,
+      score_overall:   (parsed.score_overall   as number | null) ?? null,
+      score_role_fit:  (parsed.score_role_fit  as number | null) ?? null,
       score_scope_fit: (parsed.score_scope_fit as number | null) ?? null,
-      score_culture: (parsed.score_culture as number | null) ?? null,
-      score_comp: (parsed.score_comp as number | null) ?? null,
-      fit_type: (parsed.fit_type as string | null) ?? null,
-      archetype: (parsed.archetype as string | null) ?? null,
-      strengths: (parsed.strengths as string | null) ?? null,
-      gaps: (parsed.gaps as string | null) ?? null,
-      recommendation: (parsed.recommendation as string | null) ?? null,
-      keywords: (parsed.keywords as string | null) ?? null,
-      domain_match: (parsed.domain_match as string | null) ?? null,
+      score_culture:   (parsed.score_culture   as number | null) ?? null,
+      score_comp:      (parsed.score_comp      as number | null) ?? null,
+      fit_type:        (parsed.fit_type        as string | null) ?? null,
+      archetype:       (parsed.archetype       as string | null) ?? null,
+      strengths:       (parsed.strengths       as string | null) ?? null,
+      gaps:            (parsed.gaps            as string | null) ?? null,
+      recommendation:  (parsed.recommendation  as string | null) ?? null,
+      keywords:        (parsed.keywords        as string | null) ?? null,
+      domain_match:    (parsed.domain_match    as string | null) ?? null,
       role_type_match: (parsed.role_type_match as string | null) ?? null,
-      keyword_gaps: (parsed.keyword_gaps as string | null) ?? null,
+      keyword_gaps:    (parsed.keyword_gaps    as string | null) ?? null,
     }
     try {
       await importMutation.mutateAsync(payload)
@@ -1002,133 +1013,72 @@ export default function JobDetail({ jobId }: JobDetailProps): React.JSX.Element 
   }
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
+    <div className="flex flex-col h-screen overflow-hidden">
+      <AppHeader pageName={job.title} />
 
-      {/* ── Section 1: Job Detail ─────────────────────────────────── */}
-      <section>
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <p className="text-muted text-xs font-mono">{job.company_name}</p>
-            <h2 className="font-serif text-accent text-2xl leading-tight">{job.title}</h2>
-            <div className="flex items-center gap-2 flex-wrap">
-              {job.location && (
-                <span className="text-muted text-xs">📍 {job.location}</span>
-              )}
-              {job.remote_type && (
-                <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-surface2 text-muted">
-                  {job.remote_type}
-                </span>
-              )}
-              <span className="text-muted text-xs">Added {fmtDate(job.created_at)}</span>
-            </div>
-          </div>
+      <WorkspaceSubHeader job={job} appStatus={appStatus} appLoading={appLoading} />
+
+      {/* Tab bar */}
+      <div className="flex border-b border-surface2 px-6 shrink-0">
+        {TABS.map(({ id, label }) => (
           <button
-            onClick={() => setEditJobOpen(true)}
-            className="text-xs text-muted hover:text-text px-2 py-1 border border-surface2 rounded transition-colors shrink-0"
+            key={id}
+            onClick={() => setTab(id)}
+            className={`px-4 py-3 text-xs font-mono uppercase tracking-widest transition-colors border-b-2 -mb-px ${
+              activeTab === id
+                ? 'border-accent text-accent'
+                : 'border-transparent text-muted hover:text-text'
+            }`}
           >
-            Edit
+            {label}
           </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      {activeTab === 'application-log' ? (
+        <div className="flex-1 overflow-y-auto p-6">
+          {/* APPLICATION LOG tab — built in P12 */}
         </div>
-      </section>
-
-      {/* ── Section 2: Application Status ────────────────────────── */}
-      <section>
-        <p className="text-muted text-xs font-mono uppercase tracking-widest mb-2">Application</p>
-        <AppStatusSection
-          jobId={job.id}
-          applicationId={(job as JobListItemExtended).application_id ?? null}
-          status={(job as JobListItemExtended).application_status ?? null}
-          postings={postings}
-        />
-      </section>
-
-      <hr className="border-surface2" />
-
-      {/* ── Section 3: My Ratings ─────────────────────────────────── */}
-      <section>
-        <MyRatingsSection jobId={job.id} job={job} />
-      </section>
-
-      <hr className="border-surface2" />
-
-      {/* ── Section 4: Actions ───────────────────────────────────── */}
-      <section>
-        <p className="text-muted text-xs font-mono uppercase tracking-widest mb-3">Actions</p>
-        <button
-          onClick={() => { setImportOpen(true); setImportError('') }}
-          className="text-xs font-mono text-muted hover:text-accent border border-surface2 px-3 py-1.5 rounded hover:border-accent/40 transition-colors"
-        >
-          Import External Model Eval
-        </button>
-      </section>
-
-      <hr className="border-surface2" />
-
-      {/* ── Section 5: Job Info ───────────────────────────────────── */}
-      <section>
-        <JobInfoSection jobId={job.id} job={job} companyLog={company_log} />
-      </section>
-
-      <hr className="border-surface2" />
-
-      {/* ── Section 6: Job Description ────────────────────────────── */}
-      <section>
-        <Collapsible title="Description" defaultOpen={false}>
-          <div className="flex items-start justify-between mb-2">
-            <span />
-            <button
-              onClick={() => setEditDescOpen(true)}
-              className="text-xs text-muted hover:text-text px-2 py-1 border border-surface2 rounded transition-colors"
-            >
-              Edit
-            </button>
+      ) : (
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left column */}
+          <div className="w-[280px] shrink-0 border-r border-surface2 overflow-y-auto p-4">
+            {(activeTab === 'resume-cover' || activeTab === 'interview') && (
+              <p className="text-[10px] font-mono text-muted uppercase tracking-widest">
+                Nothing to configure yet.
+              </p>
+            )}
+            {/* JOB DETAILS and APPLICATION left columns — built in P10/P11 */}
           </div>
-          {job.description_merged ? (
-            <pre className="text-xs text-text font-sans leading-relaxed whitespace-pre-wrap break-words">
-              {job.description_merged}
-            </pre>
-          ) : (
-            <p className="text-muted text-xs italic">No description.</p>
-          )}
-        </Collapsible>
-        <hr className="border-surface2 mt-4" />
-      </section>
 
-      {/* ── Section 5: Evaluations ────────────────────────────────── */}
-      <section>
-        <Collapsible title={`Evaluations (${evaluations.length})`} defaultOpen={false}>
-          {evaluations.length === 0 ? (
-            <p className="text-muted text-xs py-2">No evaluations yet.</p>
-          ) : (
-            <div className="space-y-3 mt-2">
-              {evaluations.map((ev) => (
-                <EvalCard key={ev.id} evaluation={ev} />
-              ))}
-            </div>
-          )}
-        </Collapsible>
-      </section>
+          {/* Right column */}
+          <div className="flex-1 overflow-y-auto p-6">
+            {activeTab === 'resume-cover' && (
+              <div className="bg-surface border border-surface2 rounded-xl p-6 max-w-lg">
+                <p className="font-serif text-accent text-lg mb-2">Resume & Cover Letter</p>
+                <p className="text-sm text-muted leading-relaxed">
+                  Upload and manage your resume and cover letter documents.
+                  Connect to Typst for PDF compilation and tailored resume generation.
+                </p>
+                <p className="mt-4 text-xs font-mono text-muted/60">Coming in Phase 1.6.</p>
+              </div>
+            )}
+            {activeTab === 'interview' && (
+              <div className="bg-surface border border-surface2 rounded-xl p-6 max-w-lg">
+                <p className="font-serif text-accent text-lg mb-2">Interview Tracking</p>
+                <p className="text-sm text-muted leading-relaxed">
+                  Track interview stages, scheduling, prep notes, and feedback from each round.
+                </p>
+                <p className="mt-4 text-xs font-mono text-muted/60">Coming soon.</p>
+              </div>
+            )}
+            {/* JOB DETAILS and APPLICATION right columns — built in P10/P11 */}
+          </div>
+        </div>
+      )}
 
-      {/* ── Modals ───────────────────────────────────────────────── */}
-      {editJobOpen && (
-        <EditJobModal
-          jobId={job.id}
-          initial={{
-            company_name: job.company_name,
-            title: job.title,
-            location: job.location,
-            remote_type: job.remote_type,
-          }}
-          onClose={() => { setEditJobOpen(false); invalidateJobDetail() }}
-        />
-      )}
-      {editDescOpen && (
-        <EditDescriptionModal
-          jobId={job.id}
-          initial={job.description_merged ?? ''}
-          onClose={() => { setEditDescOpen(false); invalidateJobDetail() }}
-        />
-      )}
+      {/* Import modal — rendered when triggered from JOB DETAILS tab (P10) */}
       {importOpen && (
         <ImportModal
           models={models}
@@ -1143,9 +1093,20 @@ export default function JobDetail({ jobId }: JobDetailProps): React.JSX.Element 
   )
 }
 
-// The job detail API response includes the job without application fields,
-// but we need them from the list. Cast to access them if present.
-interface JobListItemExtended {
-  application_id?: number | null
-  application_status?: string | null
+// Exported for reuse in P10/P11 tab content
+export {
+  Collapsible,
+  EditJobModal,
+  EditDescriptionModal,
+  EditRatingsModal,
+  EditJobInfoModal,
+  AddCompanyInfoModal,
+  ImportModal,
+  JobInfoSection,
+  MyRatingsSection,
+  EvalCard,
+  CompanyLogRow,
+  StarRating,
+  COMPANY_INFO_TYPES,
+  fmtDate,
 }

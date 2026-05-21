@@ -7,6 +7,7 @@ import { queryClient } from '@/queryClient'
 import Layout from '@/components/Layout'
 import Dashboard from '@/pages/Dashboard'
 import Jobs from '@/pages/Jobs'
+import JobDetailPage from '@/pages/JobDetail'
 import Evaluate from '@/pages/Evaluate'
 import Applications from '@/pages/Applications'
 import ApplicationDetailPage from '@/pages/ApplicationDetailPage'
@@ -25,7 +26,7 @@ const router = createBrowserRouter([
   { path: '/llm-usage',  element: <LLMUsage /> },
   { path: '/profile',    element: <JobSearchProfile /> },
   { path: '/jobs',       element: <Jobs /> },
-  { path: '/jobs/:jobId', element: <Jobs /> },
+  { path: '/jobs/:jobId', element: <JobDetailPage /> },
   { path: '/applications',                      element: <Applications /> },
   { path: '/applications/:applicationId',       element: <Applications /> },
 

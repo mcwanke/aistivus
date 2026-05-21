@@ -725,7 +725,7 @@ Left column: a muted label "Nothing to configure yet."
 
 ## Priority 9 — Workspace shell: routing, sub-header, tab bar, 2-column skeleton
 
-- [ ] **9. Rebuild JobDetail.tsx as full-page workspace shell**
+- [x] **9. Rebuild JobDetail.tsx as full-page workspace shell** — JobDetailPage standalone route; WorkspaceSubHeader (score/status/title/location sticky below AppHeader); 5-tab bar (job-details/application/resume-cover/interview/application-log); 2-column skeleton (280px left/flex-1 right) for 4 tabs; full-width for application-log; RESUME/COVER + INTERVIEW stub cards (P13 bundled); status.ts renamed to status.tsx (JSX in .ts fix); 13 new workspace tests added
 
   **Files:** `frontend/src/pages/JobDetail.tsx`, `frontend/src/main.tsx`
 
@@ -1090,7 +1090,7 @@ Left column: a muted label "Nothing to configure yet."
 
 ## Priority 13 — RESUME/COVER + INTERVIEW stubs
 
-- [ ] **13. Add stub content to RESUME/COVER and INTERVIEW tabs**
+- [x] **13. Add stub content to RESUME/COVER and INTERVIEW tabs** — bundled with P9; both tabs render "Nothing to configure yet." in left column and placeholder card in right column
 
   **Files:** `frontend/src/pages/JobDetail.tsx`
 
