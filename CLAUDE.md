@@ -145,11 +145,11 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 - [x] Backend: `GET /api/v1/jobs/{id}/activity-log` — unified timeline from 7 data sources
 - [x] Backend: `GET /api/v1/jobs/{id}` extended to return `application_id`
 - [x] `create_job()` inserts sequential audit records ("Job created", "Job description attached") — replaces frontend synthetic items
-- [ ] TypeScript: `ApplicationQuestion`, `ActivityLogEntry`, `ActivityEntryType` interfaces; `Job.application_id` field added
-- [ ] TypeScript: `useApplicationQuestions` hook (CRUD); `useActivityLog(jobId)` hook; `useApplicationDetail` gains `enabled` option
-- [ ] Shared utils extracted: `frontend/src/utils/formatting.ts` (`fmtScore`, `fmtDate`, `fmtDateTime`); `frontend/src/utils/status.ts` (`STATUS_COLORS`, `STATUSES`, `StatusBadge`)
-- [ ] Priority 4: Design Foundation — visual patterns extracted from `pages/` HTML and documented for use in all subsequent priorities
-- [ ] `AppHeader.tsx` gains optional `pageName` prop; page-mode variant renders `← Home` link + wordmark + page name (no tagline)
+- [x] TypeScript: `ApplicationQuestion`, `ActivityLogEntry`, `ActivityEntryType` interfaces; `Job.application_id` field added
+- [x] TypeScript: `useApplicationQuestions` hook (CRUD); `useActivityLog(jobId)` hook; `useApplicationDetail` gains `enabled` option
+- [x] Shared utils extracted: `frontend/src/utils/formatting.ts` (`fmtScore`, `fmtDate`, `fmtDateTime`); `frontend/src/utils/status.ts` (`STATUS_COLORS`, `STATUSES`, `StatusBadge`)
+- [x] Priority 4: Design Foundation — visual patterns extracted from `pages/` HTML and documented for use in all subsequent priorities
+- [x] `AppHeader.tsx` gains optional `pageName` prop; page-mode variant renders `← Home` link + wordmark + page name (no tagline)
 - [ ] `<Layout>` sidebar wrapper removed from: `Evaluate.tsx`, `Settings.tsx`, `LLMUsage.tsx`, `JobSearchProfile.tsx`; `AppHeader pageName="..."` added to each
 - [ ] `Jobs.tsx` → standalone list page; split-pane removed; row click navigates to `/jobs/:id`; `AppHeader pageName="Jobs"` added
 - [ ] `Applications.tsx` → standalone list page; split-pane removed; row click navigates to `/jobs/:id?tab=application`; `AppHeader pageName="Applications"` added

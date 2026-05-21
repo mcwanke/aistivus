@@ -405,7 +405,7 @@ Left column: a muted label "Nothing to configure yet."
 
 ## Priority 3 — TypeScript interfaces + hooks
 
-- [ ] **3. New interfaces, hooks, shared utils**
+- [x] **3. New interfaces, hooks, shared utils** — Job.application_id + ApplicationAuditEntry.job_id added; ApplicationQuestion, ActivityEntryType, ActivityLogEntry, ActivityLogResponse interfaces added; useApplicationQuestions hook (4 exports); useActivityLog added to useJobs.ts; activity-log invalidation wired in useActivateJob + useAddCompanyLog; formatting.ts + status.ts utils created
 
   **Files:** `frontend/src/types/api.ts`, `frontend/src/hooks/useApplicationQuestions.ts` (new),
   `frontend/src/hooks/useJobs.ts` (updated), `frontend/src/utils/formatting.ts` (new),
@@ -522,7 +522,7 @@ Left column: a muted label "Nothing to configure yet."
 
 ## Priority 4 — Design Foundation
 
-- [ ] **4. Extract visual patterns from `pages/` HTML; document for use in P5–P17**
+- [x] **4. Extract visual patterns from `pages/` HTML; document for use in P5–P17** — application_detail.html + jobs.html reviewed; all patterns in workorder confirmed correct; noted: section labels use text-dim in HTML but workorder specifies text-muted (follow workorder); page-mode header uses px-8 py-[18px]; score display uses text-4xl in workspace sub-header vs 1.6rem in list rows (intentional per spec)
 
   **Files:** Read-only reference: `pages/application_detail.html`, `pages/jobs.html`,
   `pages/settings.html`, `pages/evaluate.html`. No code is written in this priority.
@@ -582,7 +582,7 @@ Left column: a muted label "Nothing to configure yet."
 
 ## Priority 5 — AppHeader variant
 
-- [ ] **5. Add `pageName` prop to `AppHeader.tsx`; ← Home variant**
+- [x] **5. Add `pageName` prop to `AppHeader.tsx`; ← Home variant** — optional pageName prop added; page-mode renders ← Home link + wordmark + pageName + Settings (ml-auto) with px-8 py-[18px] sticky header; Dashboard mode unchanged
 
   **Files:** `frontend/src/components/AppHeader.tsx`
 

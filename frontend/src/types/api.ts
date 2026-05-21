@@ -167,6 +167,7 @@ export interface Job {
   created_at: string
   project_id: number | null
   is_active: number
+  application_id: number | null  // returned by job detail endpoint via JOIN (Phase 1.5)
 }
 
 // ─── GET /api/v1/jobs ─────────────────────────────────────────────────────────
@@ -262,6 +263,7 @@ export interface ApplicationLog {
 export interface ApplicationAuditEntry {
   id: number
   application_id: number
+  job_id: number | null  // nullable; set for job-scope events (Phase 1.5)
   timestamp: string
   event: string
 }
@@ -378,5 +380,42 @@ export interface EvaluateResponse {
   error: string | null
   duplicate_detected: boolean
   existing_jobs: ExistingJob[] | null
+}
+
+// ─── GET /api/v1/applications/{id}/questions ─────────────────────────────────
+
+export interface ApplicationQuestion {
+  id: number
+  application_id: number
+  question: string
+  response: string | null
+  created_at: string
+}
+
+// ─── GET /api/v1/jobs/{id}/activity-log ──────────────────────────────────────
+
+export type ActivityEntryType =
+  | 'evaluation'
+  | 'llm_call'
+  | 'application_log'
+  | 'audit'
+  | 'company_log'
+  | 'job_posting'
+  | 'application_question'
+
+export interface ActivityLogEntry {
+  entry_type: ActivityEntryType
+  timestamp: string
+  activity_type: string
+  source: string
+  text: string | null
+  url: string | null
+  raw_id: number | null
+  can_delete: boolean
+  can_edit_timestamp: boolean
+}
+
+export interface ActivityLogResponse {
+  entries: ActivityLogEntry[]
 }
 

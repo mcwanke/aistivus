@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { Job, JobListItem, JobDetailResponse } from '@/types/api'
+import type { Job, JobListItem, JobDetailResponse, ActivityLogResponse } from '@/types/api'
 
 export type { JobDetailResponse }
 
@@ -27,6 +27,18 @@ export function useJobDetail(jobId: number | undefined) {
   return useQuery({
     queryKey: ['job', jobId],
     queryFn: () => fetchJobDetail(jobId!),
+    enabled: jobId !== undefined,
+  })
+}
+
+export function useActivityLog(jobId: number | undefined) {
+  return useQuery({
+    queryKey: ['activity-log', jobId],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/jobs/${jobId!}/activity-log`)
+      if (!res.ok) throw new Error(`activity-log ${res.status}`)
+      return res.json() as Promise<ActivityLogResponse>
+    },
     enabled: jobId !== undefined,
   })
 }
@@ -90,6 +102,7 @@ export function useAddCompanyLog() {
     },
     onSuccess: (_data, { jobId }) => {
       void qc.invalidateQueries({ queryKey: ['job', jobId] })
+      void qc.invalidateQueries({ queryKey: ['activity-log', jobId] })
     },
   })
 }
@@ -105,6 +118,7 @@ export function useActivateJob() {
     onSuccess: (_data, jobId) => {
       void qc.invalidateQueries({ queryKey: ['jobs'] })
       void qc.invalidateQueries({ queryKey: ['job', jobId] })
+      void qc.invalidateQueries({ queryKey: ['activity-log', jobId] })
     },
   })
 }
