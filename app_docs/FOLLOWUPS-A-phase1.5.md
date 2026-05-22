@@ -8,9 +8,9 @@ Items discovered during Phase 1.5 testing. All are UI polish or minor behavior f
 |---|--------|-------|
 | A1 | [x] | Add "Person / LinkedIn Profile" to Company Info dropdown |
 | A2 | [x] | Strip UTM params from job application link |
-| A3 | [ ] | Company Info panel rework (form layout + default-open + Collapse All) |
-| A4 | [ ] | Job description visual treatment |
-| A5 | [ ] | Company Info row header enhancements |
+| A3 | [x] | Company Info panel rework (form layout + default-open + Collapse All) |
+| A4 | [x] | Job description visual treatment |
+| A5 | [x] | Company Info row header enhancements |
 | A6 | [ ] | Export button → generate .md in inbox/done/ |
 | A7 | [x] | Move company name above job title in sub-header |
 | A8 | [ ] | Row background highlighting across wide row-based layouts |
@@ -28,6 +28,11 @@ Status markers: `[ ]` todo · `[x]` done · `[~]` deferred
 
 - Frontend: 195 passed / 6 pre-existing failures (Evaluate.test.tsx) — 201 total
 - Backend: 482 passed / 0 errors (+7 new tests: test_utils.py UTM stripping)
+
+## Test Baseline (after A3 + A4 + A5)
+
+- Frontend: 195 passed / 6 pre-existing failures (Evaluate.test.tsx) — 201 total (unchanged — pure UI)
+- Backend: 482 passed / 0 errors (unchanged — no backend changes)
 
 ---
 

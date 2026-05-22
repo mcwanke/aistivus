@@ -683,22 +683,44 @@ const COMPANY_INFO_TYPES = [
   { value: 'person',      label: 'Person / LinkedIn Profile' },
 ]
 
+const URL_TYPE_VALUES = new Set(['website', 'careerpage', 'culturepage', 'person'])
+
 interface CompanyLogRowProps {
   entry: CompanyLogEntry
+  collapseSignal: number
 }
 
-function CompanyLogRow({ entry }: CompanyLogRowProps): React.JSX.Element {
-  const [open, setOpen] = useState(false)
+function CompanyLogRow({ entry, collapseSignal }: CompanyLogRowProps): React.JSX.Element {
+  const [open, setOpen] = useState(true)
   const typeLabel = COMPANY_INFO_TYPES.find((t) => t.value === entry.type_value)?.label ?? entry.type_value
+  const showUrlInHeader = URL_TYPE_VALUES.has(entry.type_value) && !!entry.url
+
+  useEffect(() => {
+    if (collapseSignal > 0) setOpen(false)
+  }, [collapseSignal])
 
   return (
     <div className="border-b border-surface2 last:border-0">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between py-1.5 text-left group"
+        className="w-full flex items-center gap-2 py-1.5 text-left group"
       >
-        <span className="text-xs font-mono text-muted group-hover:text-text transition-colors">{typeLabel}</span>
-        <span className="text-muted text-xs">{open ? '▲' : '▼'}</span>
+        <span className="text-xs font-mono text-muted group-hover:text-text transition-colors shrink-0">{typeLabel}</span>
+        {!open && showUrlInHeader && (
+          <a
+            href={entry.url!}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-xs text-accent hover:underline truncate flex-1"
+          >
+            {entry.url}
+          </a>
+        )}
+        {!open && entry.log && (
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface2 text-muted shrink-0">notes</span>
+        )}
+        <span className="text-muted text-xs ml-auto">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
         <div className="pb-2 space-y-1">
@@ -1080,47 +1102,54 @@ function CompanyInfoInlineForm({ jobId, onSaved }: CompanyInfoInlineFormProps): 
   }
 
   return (
-    <div className="space-y-3 pb-4 border-b border-surface2 mb-4">
+    <div className="pb-4 border-b border-surface2 mb-4 space-y-2">
       <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Add Company Info</p>
-      <label className="block">
-        <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Type</span>
-        <select
-          className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-          value={typeValue}
-          onChange={(e) => setTypeValue(e.target.value)}
-        >
-          {COMPANY_INFO_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>{t.label}</option>
-          ))}
-        </select>
-      </label>
-      <label className="block">
-        <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Notes</span>
-        <textarea
-          className="mt-1 w-full h-20 bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent resize-y"
-          value={log}
-          onChange={(e) => setLog(e.target.value)}
-          placeholder="Optional notes…"
-        />
-      </label>
-      <label className="block">
-        <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">URL</span>
-        <input
-          type="url"
-          className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://…"
-        />
-      </label>
-      {addLog.isError && <p className="text-red text-xs">{addLog.error.message}</p>}
-      <button
-        onClick={() => void handleSave()}
-        disabled={addLog.isPending || (!log.trim() && !url.trim())}
-        className="px-4 py-2 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
-      >
-        {addLog.isPending ? 'Saving…' : 'Save'}
-      </button>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="text-[10px] font-mono text-muted uppercase tracking-widest block mb-1">Type</span>
+          <select
+            className="w-full bg-surface2 rounded px-2 py-1.5 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+            value={typeValue}
+            onChange={(e) => setTypeValue(e.target.value)}
+          >
+            {COMPANY_INFO_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="text-[10px] font-mono text-muted uppercase tracking-widest block mb-1">Notes</span>
+          <input
+            type="text"
+            className="w-full bg-surface2 rounded px-2 py-1.5 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+            value={log}
+            onChange={(e) => setLog(e.target.value)}
+            placeholder="Optional notes…"
+          />
+        </label>
+      </div>
+      <div className="grid grid-cols-2 gap-2 items-end">
+        <label className="block">
+          <span className="text-[10px] font-mono text-muted uppercase tracking-widest block mb-1">URL</span>
+          <input
+            type="url"
+            className="w-full bg-surface2 rounded px-2 py-1.5 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://…"
+          />
+        </label>
+        <div>
+          {addLog.isError && <p className="text-red text-xs mb-1">{addLog.error.message}</p>}
+          <button
+            onClick={() => void handleSave()}
+            disabled={addLog.isPending || (!log.trim() && !url.trim())}
+            className="w-full px-3 py-1.5 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+          >
+            {addLog.isPending ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1985,6 +2014,7 @@ function JobDetailsRight({
   const [descCopied, setDescCopied] = useState(false)
   const [exportCopied, setExportCopied] = useState(false)
   const [savedInfo, setSavedInfo] = useState(false)
+  const [collapseSignal, setCollapseSignal] = useState(0)
 
   function copyDescription(): void {
     if (!job.description_merged) return
@@ -2091,9 +2121,11 @@ function JobDetailsRight({
         </div>
 
         {job.description_merged ? (
-          <pre className="text-xs text-text font-sans leading-relaxed whitespace-pre-wrap break-words">
-            {job.description_merged}
-          </pre>
+          <div className="border border-surface2 rounded bg-surface2/40 p-4">
+            <pre className="text-xs text-text font-sans leading-relaxed whitespace-pre-wrap break-words">
+              {job.description_merged}
+            </pre>
+          </div>
         ) : (
           <p className="text-sm text-muted italic">No description yet.</p>
         )}
@@ -2118,8 +2150,16 @@ function JobDetailsRight({
         <p className="text-sm text-muted italic">No company info yet.</p>
       ) : (
         <div>
+          <div className="flex justify-end mb-1">
+            <button
+              onClick={() => setCollapseSignal((s) => s + 1)}
+              className="text-[10px] font-mono text-muted hover:text-text transition-colors uppercase tracking-widest"
+            >
+              Collapse All
+            </button>
+          </div>
           {companyLog.map((entry) => (
-            <CompanyLogRow key={entry.id} entry={entry} />
+            <CompanyLogRow key={entry.id} entry={entry} collapseSignal={collapseSignal} />
           ))}
         </div>
       )}
