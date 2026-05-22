@@ -933,7 +933,7 @@ Left column: a muted label "Nothing to configure yet."
 
 ## Priority 11 — APPLICATION tab
 
-- [ ] **11. Build APPLICATION tab — left column + right column with 5 action sections**
+- [x] **11. Build APPLICATION tab — left column + right column with 5 action sections** — ApplicationLeft (5 actions + summary); ApplicationRight (DETAILS: apply URL/I APPLIED!/status/dates/salary/Generate External Eval; ADD EVENT: 7 new types + expandable rows; ADD APPLICATION NOTE: 5 original types + delete/timestamp-edit rows; APPLICATION QUESTIONS: Q&A form + inline-edit rows; ADD LESSON: LessonCapturePanel moved from ApplicationDetailPage); ActivityLogRow delete mutation wired; PromptModal added to JobDetail.tsx
 
   **Files:** `frontend/src/pages/JobDetail.tsx`
 
@@ -1139,7 +1139,7 @@ Left column: a muted label "Nothing to configure yet."
 
 ## Priority 14 — Retire ApplicationDetailPage + ApplicationSummary + routes
 
-- [ ] **14. Delete retired files; remove routes; clean up cross-references**
+- [x] **14. Delete retired files; remove routes; clean up cross-references** — ApplicationDetailPage.tsx deleted; ApplicationSummary.tsx + ApplicationSummary.test.tsx deleted; Layout import removed from main.tsx; /application-detail/:applicationId route removed; LessonCapturePanel moved to JobDetail.tsx
 
   **Files:** `frontend/src/pages/ApplicationDetailPage.tsx` (delete),
   `frontend/src/pages/ApplicationSummary.tsx` (delete),

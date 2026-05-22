@@ -1,18 +1,38 @@
-import { useState } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useState, useRef, useLayoutEffect } from 'react'
+import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import AppHeader from '@/components/AppHeader'
 import { useJobDetail, usePatchJob, useAddCompanyLog, useActivityLog } from '@/hooks/useJobs'
-import { useApplicationDetail, usePatchLogTimestamp, usePatchAuditTimestamp } from '@/hooks/useApplications'
+import {
+  useApplicationDetail,
+  usePatchApplication,
+  useAddLog,
+  useDeleteLog,
+  useGeneratePrompt,
+  usePatchLogTimestamp,
+  usePatchAuditTimestamp,
+} from '@/hooks/useApplications'
+import {
+  useApplicationQuestions,
+  useCreateApplicationQuestion,
+  useUpdateApplicationQuestion,
+  useDeleteApplicationQuestion,
+} from '@/hooks/useApplicationQuestions'
+import { useLessonChat } from '@/hooks/useLessonChat'
 import { useImportEvaluationMutation, useModels, type ImportPayload } from '@/hooks/useEvaluate'
-import { StatusBadge } from '@/utils/status'
+import { StatusBadge, STATUSES } from '@/utils/status'
 import { fmtScore } from '@/utils/formatting'
+import type { LessonChatFinalizeResponse } from '@/types/profile'
 import type {
   Evaluation,
   LlmModel,
   CompanyLogEntry,
   ApplicationStatus,
   Job,
+  Application,
+  ApplicationLog,
+  JobPosting,
+  ApplicationQuestion,
   ActivityLogEntry,
 } from '@/types/api'
 
@@ -1141,6 +1161,508 @@ function TimestampModal({ current, onSave, onClose }: TimestampModalProps): Reac
   )
 }
 
+// ─── Prompt modal (APPLICATION tab — generate external eval + tailored resume) ─
+
+function PromptModal({ prompt, onClose }: { prompt: string; onClose: () => void }): React.JSX.Element {
+  const [copied, setCopied] = useState(false)
+
+  function handleCopy(): void {
+    void navigator.clipboard.writeText(prompt).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 bg-bg/80 flex items-center justify-center z-50 p-4">
+      <div className="bg-surface rounded p-6 w-full max-w-2xl flex flex-col gap-4 max-h-[80vh]">
+        <div className="flex items-center justify-between">
+          <h2 className="font-serif text-accent text-lg">External Eval + Tailored Resume Prompt</h2>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopy}
+              className="text-xs px-3 py-1.5 bg-accent text-bg rounded hover:bg-accent/90 transition-colors font-mono"
+            >
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
+            <button
+              onClick={onClose}
+              className="text-xs px-3 py-1.5 text-muted hover:text-text transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+        <pre className="flex-1 overflow-y-auto text-xs font-mono text-text bg-surface2 rounded p-4 whitespace-pre-wrap break-words leading-relaxed">
+          {prompt}
+        </pre>
+      </div>
+    </div>
+  )
+}
+
+// ─── Lesson capture panel (APPLICATION tab → ADD LESSON) ──────────────────────
+
+const LESSON_OPENER =
+  'Tell me about your experience with this role so far. What happened, and what are you taking away from it?'
+
+interface LessonCapturePanelProps {
+  applicationId: number
+  jobTitle?: string
+  companyName?: string
+  onFinalized: () => void
+}
+
+function LessonCapturePanel({
+  applicationId,
+  jobTitle,
+  companyName,
+  onFinalized,
+}: LessonCapturePanelProps): React.JSX.Element {
+  const { messages, streamingContent, isStreaming, error, sendMessage, finalize, clearConversation } =
+    useLessonChat({ applicationId })
+  const [input, setInput] = useState('')
+  const [finalizing, setFinalizing] = useState(false)
+  const [finalizedResult, setFinalizedResult] = useState<LessonChatFinalizeResponse | null>(null)
+  const [insightsChecked, setInsightsChecked] = useState(true)
+  const [finalizeError, setFinalizeError] = useState('')
+  const [successBanner, setSuccessBanner] = useState<{ withInsights: boolean } | null>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  const msgCount = messages.length + (streamingContent ? 1 : 0)
+  useLayoutEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [msgCount, streamingContent])
+
+  function handleSend(): void {
+    const text = input.trim()
+    if (!text || isStreaming) return
+    setInput('')
+    sendMessage(text)
+  }
+
+  async function handleFinalize(): Promise<void> {
+    setFinalizing(true)
+    setFinalizeError('')
+    try {
+      const result = await finalize()
+      setFinalizedResult(result)
+      onFinalized()
+    } catch (e) {
+      setFinalizeError(e instanceof Error ? e.message : 'Finalize failed')
+    } finally {
+      setFinalizing(false)
+    }
+  }
+
+  function handleDone(): void {
+    const withInsights = insightsChecked
+    setFinalizedResult(null)
+    setInsightsChecked(true)
+    clearConversation()
+    setSuccessBanner({ withInsights })
+  }
+
+  const contextLabel = [companyName, jobTitle].filter(Boolean).join(' — ')
+
+  return (
+    <div className="flex flex-col gap-3">
+      {contextLabel && (
+        <p className="text-[10px] font-mono text-muted uppercase tracking-widest">{contextLabel}</p>
+      )}
+
+      {successBanner && (
+        <div className="bg-green/10 border border-green/20 rounded p-3 flex items-start justify-between gap-2">
+          <div className="space-y-0.5">
+            <p className="text-xs font-mono text-green">Lesson added to application log.</p>
+            {successBanner.withInsights && (
+              <Link to="/profile" className="text-xs text-accent hover:underline block">
+                Review in Profile Insights →
+              </Link>
+            )}
+          </div>
+          <button
+            onClick={() => setSuccessBanner(null)}
+            className="text-muted hover:text-text text-xs shrink-0"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+        <div className="flex justify-start">
+          <div className="max-w-[90%] bg-surface2 rounded px-3 py-2 text-sm text-muted leading-relaxed whitespace-pre-wrap">
+            {LESSON_OPENER}
+          </div>
+        </div>
+        {messages.map((msg, i) => {
+          const isUser = msg.role === 'user'
+          return (
+            <div key={i} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`max-w-[90%] rounded px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap ${
+                  isUser ? 'bg-accent/20 text-text' : 'bg-surface2 text-muted'
+                }`}
+              >
+                {msg.content}
+              </div>
+            </div>
+          )
+        })}
+        {streamingContent && (
+          <div className="flex justify-start">
+            <div className="max-w-[90%] bg-surface2 rounded px-3 py-2 text-sm text-muted whitespace-pre-wrap leading-relaxed">
+              {streamingContent}
+              <span className="inline-block w-1.5 h-3.5 bg-accent/60 ml-0.5 animate-pulse align-text-bottom" />
+            </div>
+          </div>
+        )}
+        {error && <p className="text-xs font-mono text-red">{error}</p>}
+        <div ref={bottomRef} />
+      </div>
+
+      {finalizedResult && (
+        <div className="border border-accent/30 rounded p-4 space-y-3 bg-accent/5">
+          <p className="text-[10px] font-mono text-accent uppercase tracking-wider">Lesson captured</p>
+          <p className="text-xs font-mono text-muted leading-relaxed line-clamp-4">
+            {finalizedResult.log_entry}
+          </p>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={insightsChecked}
+              onChange={(e) => setInsightsChecked(e.target.checked)}
+              className="accent-[#c8a96e]"
+            />
+            <span className="text-xs font-sans text-text">Add to Profile Insights &amp; Lessons</span>
+          </label>
+          <button
+            onClick={handleDone}
+            className="px-3 py-1.5 text-xs font-sans bg-accent text-bg rounded hover:bg-accent/90 transition-colors"
+          >
+            Done
+          </button>
+        </div>
+      )}
+
+      {!finalizedResult && (
+        <div className="space-y-2">
+          <div className="flex gap-2 items-end">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSend()
+                }
+              }}
+              placeholder="Message… (Enter to send, Shift+Enter for newline)"
+              rows={2}
+              disabled={isStreaming}
+              className="flex-1 bg-surface border border-surface2 rounded px-3 py-2 text-sm font-sans text-text placeholder-muted/50 focus:outline-none focus:border-accent/50 resize-none disabled:opacity-50"
+            />
+            <button
+              onClick={handleSend}
+              disabled={isStreaming || !input.trim()}
+              className="px-3 py-2 bg-accent text-bg text-sm font-sans rounded hover:bg-accent/90 transition-colors disabled:opacity-50 self-end"
+            >
+              Send
+            </button>
+          </div>
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => void handleFinalize()}
+              disabled={isStreaming || messages.length === 0 || finalizing}
+              className="text-xs font-mono text-muted hover:text-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {finalizing ? 'Saving…' : 'Save lesson ↑'}
+            </button>
+            {(messages.length > 0 || successBanner) && (
+              <button
+                onClick={() => {
+                  clearConversation()
+                  setFinalizedResult(null)
+                  setSuccessBanner(null)
+                }}
+                disabled={isStreaming}
+                className="text-xs font-mono text-muted/60 hover:text-muted transition-colors"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          {finalizeError && <p className="text-xs font-mono text-red">{finalizeError}</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Application log type options ─────────────────────────────────────────────
+
+const EVENT_TYPE_OPTIONS = [
+  { value: 'recruiter_outreach',        label: 'Recruiter Outreach' },
+  { value: 'phone_screen',              label: 'Phone Screen' },
+  { value: 'onsite_interview',          label: 'On-site Interview' },
+  { value: 'offer_received',            label: 'Offer Received' },
+  { value: 'rejection_received',        label: 'Rejection Received' },
+  { value: 'withdrawal',                label: 'Withdrawal' },
+  { value: 'application_communication', label: 'Application Communication' },
+]
+
+const LOG_TYPE_OPTIONS = [
+  { value: 'recruiter_call',     label: 'Recruiter Call' },
+  { value: 'interview_feedback', label: 'Interview Feedback' },
+  { value: 'compensation',       label: 'Compensation' },
+  { value: 'repost_alert',       label: 'Repost Alert' },
+  { value: 'general',            label: 'General' },
+]
+
+// ─── Expandable log row (ADD EVENT + ADD APPLICATION NOTE sections) ────────────
+
+interface AppLogRowProps {
+  log: ApplicationLog
+  typeOptions: { value: string; label: string }[]
+  applicationId: number
+  canDelete?: boolean
+  canEditTimestamp?: boolean
+  onDataChanged: () => void
+}
+
+function AppLogRow({
+  log,
+  typeOptions,
+  applicationId,
+  canDelete,
+  canEditTimestamp,
+  onDataChanged,
+}: AppLogRowProps): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [tsModalOpen, setTsModalOpen] = useState(false)
+  const deleteLogMutation = useDeleteLog()
+  const patchLogTs = usePatchLogTimestamp()
+
+  const typeLabel = typeOptions.find((o) => o.value === log.type_value)?.label ?? log.type_value
+
+  function handleDelete(): void {
+    if (!deleteConfirm) { setDeleteConfirm(true); return }
+    deleteLogMutation.mutate(
+      { applicationId, logId: log.id },
+      { onSuccess: () => { setDeleteConfirm(false); onDataChanged() } },
+    )
+  }
+
+  return (
+    <div className="border-b border-surface2 last:border-0">
+      <div
+        className="flex items-center justify-between py-2 cursor-pointer select-none"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          {canEditTimestamp ? (
+            <button
+              className="text-[10px] font-mono text-muted hover:text-accent underline decoration-dotted shrink-0"
+              onClick={(e) => { e.stopPropagation(); setTsModalOpen(true) }}
+            >
+              {fmtDateTime(log.log_timestamp)}
+            </button>
+          ) : (
+            <span className="text-[10px] font-mono text-muted shrink-0">{fmtDateTime(log.log_timestamp)}</span>
+          )}
+          <span className="text-xs font-mono text-muted truncate">{typeLabel}</span>
+        </div>
+        <div
+          className="flex items-center gap-2 shrink-0 ml-2"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {canDelete && (
+            <button
+              onClick={handleDelete}
+              disabled={deleteLogMutation.isPending}
+              className={`text-[10px] font-mono px-1.5 py-0.5 border rounded transition-colors disabled:opacity-50 ${
+                deleteConfirm
+                  ? 'border-red text-red'
+                  : 'border-surface2 text-muted hover:text-red hover:border-red'
+              }`}
+            >
+              {deleteConfirm ? 'Confirm?' : 'Delete'}
+            </button>
+          )}
+          <span className="text-muted text-xs">{open ? '▲' : '▼'}</span>
+        </div>
+      </div>
+      {open && (
+        <div className="pb-2 border-t border-surface2 pt-2 space-y-1">
+          {log.log && <p className="text-xs text-text leading-relaxed whitespace-pre-wrap">{log.log}</p>}
+          {log.url && (
+            <a
+              href={log.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-accent hover:underline break-all block"
+            >
+              {log.url}
+            </a>
+          )}
+          {!log.log && !log.url && <p className="text-xs text-muted italic">No content.</p>}
+        </div>
+      )}
+      {tsModalOpen && (
+        <TimestampModal
+          current={log.log_timestamp}
+          onSave={(ts) => {
+            patchLogTs.mutate(
+              { applicationId, logId: log.id, timestamp: ts },
+              { onSuccess: () => { setTsModalOpen(false); onDataChanged() } },
+            )
+          }}
+          onClose={() => setTsModalOpen(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Expandable question row ──────────────────────────────────────────────────
+
+interface QuestionRowProps {
+  question: ApplicationQuestion
+  applicationId: number
+  jobId: number
+}
+
+function QuestionRow({ question, applicationId, jobId }: QuestionRowProps): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editQ, setEditQ] = useState(question.question)
+  const [editR, setEditR] = useState(question.response ?? '')
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const update = useUpdateApplicationQuestion()
+  const del = useDeleteApplicationQuestion()
+  const qc = useQueryClient()
+
+  const preview = question.question.length > 80
+    ? question.question.slice(0, 80) + '…'
+    : question.question
+
+  async function handleSave(): Promise<void> {
+    await update.mutateAsync({
+      applicationId,
+      questionId: question.id,
+      question: editQ.trim() || undefined,
+      response: editR.trim() || null,
+    })
+    setEditing(false)
+  }
+
+  function handleDelete(): void {
+    if (!deleteConfirm) { setDeleteConfirm(true); return }
+    del.mutate(
+      { applicationId, questionId: question.id },
+      { onSuccess: () => {
+        void qc.invalidateQueries({ queryKey: ['activity-log', jobId] })
+        setDeleteConfirm(false)
+      }},
+    )
+  }
+
+  return (
+    <div className="border-b border-surface2 last:border-0">
+      <div
+        className="flex items-center gap-2 py-2 select-none"
+        onClick={() => { if (!editing) setOpen((o) => !o) }}
+        style={{ cursor: editing ? 'default' : 'pointer' }}
+      >
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-mono text-muted truncate">{preview}</p>
+          <p className="text-[10px] font-mono text-muted/60">{fmtDate(question.created_at)}</p>
+        </div>
+        <div
+          className="flex items-center gap-1.5 shrink-0"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => { setEditing((v) => !v); setOpen(true) }}
+            className="text-[10px] font-mono text-muted hover:text-accent border border-surface2 rounded px-1.5 py-0.5 transition-colors"
+          >
+            Edit
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={del.isPending}
+            className={`text-[10px] font-mono px-1.5 py-0.5 border rounded transition-colors disabled:opacity-50 ${
+              deleteConfirm
+                ? 'border-red text-red'
+                : 'border-surface2 text-muted hover:text-red hover:border-red'
+            }`}
+          >
+            {deleteConfirm ? 'Confirm?' : 'Delete'}
+          </button>
+          <span className="text-[10px] text-muted">{open ? '▲' : '▼'}</span>
+        </div>
+      </div>
+      {open && (
+        <div className="pb-3 border-t border-surface2 pt-2 space-y-3">
+          {editing ? (
+            <div className="space-y-2">
+              <label className="block">
+                <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Question</span>
+                <textarea
+                  className="mt-1 w-full h-20 bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent resize-y"
+                  value={editQ}
+                  onChange={(e) => setEditQ(e.target.value)}
+                />
+              </label>
+              <label className="block">
+                <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Response</span>
+                <textarea
+                  className="mt-1 w-full h-20 bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent resize-y"
+                  value={editR}
+                  onChange={(e) => setEditR(e.target.value)}
+                  placeholder="Your answer…"
+                />
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => void handleSave()}
+                  disabled={update.isPending || !editQ.trim()}
+                  className="px-3 py-1.5 text-xs bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+                >
+                  {update.isPending ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  onClick={() => { setEditing(false); setEditQ(question.question); setEditR(question.response ?? '') }}
+                  className="px-3 py-1.5 text-xs text-muted hover:text-text transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div>
+                <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Question</p>
+                <p className="text-xs text-text leading-relaxed whitespace-pre-wrap">{question.question}</p>
+              </div>
+              {question.response ? (
+                <div>
+                  <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Response</p>
+                  <p className="text-xs text-text leading-relaxed whitespace-pre-wrap">{question.response}</p>
+                </div>
+              ) : (
+                <p className="text-xs text-muted italic">No response yet.</p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Activity log row ─────────────────────────────────────────────────────────
 
 const BADGE_CLASSES: Record<string, string> = {
@@ -1166,6 +1688,7 @@ function ActivityLogRow({ entry, applicationId, onTimestampSaved }: ActivityLogR
   const [copied, setCopied] = useState(false)
   const patchLogTs = usePatchLogTimestamp()
   const patchAuditTs = usePatchAuditTimestamp()
+  const deleteLog = useDeleteLog()
 
   const badgeClass = BADGE_CLASSES[entry.entry_type] ?? 'bg-surface2 text-muted'
 
@@ -1237,8 +1760,14 @@ function ActivityLogRow({ entry, applicationId, onTimestampSaved }: ActivityLogR
             <button
               onClick={() => {
                 if (deleteConfirm) {
-                  // actual delete is wired in P11 when delete mutations are available
-                  setDeleteConfirm(false)
+                  if (applicationId !== null && entry.raw_id !== null) {
+                    deleteLog.mutate(
+                      { applicationId, logId: entry.raw_id },
+                      { onSuccess: () => { setDeleteConfirm(false); onTimestampSaved() } },
+                    )
+                  } else {
+                    setDeleteConfirm(false)
+                  }
                 } else {
                   setDeleteConfirm(true)
                   setTimeout(() => setDeleteConfirm(false), 3000)
@@ -1597,6 +2126,450 @@ function JobDetailsRight({
   )
 }
 
+// ─── APPLICATION tab — left column ───────────────────────────────────────────
+
+type AppAction = 'details' | 'add-event' | 'add-note' | 'questions' | 'lesson'
+
+interface ApplicationLeftProps {
+  active: AppAction
+  onSelect: (a: AppAction) => void
+  appStatus: ApplicationStatus | null
+  job: Job
+}
+
+function ApplicationLeft({ active, onSelect, appStatus, job }: ApplicationLeftProps): React.JSX.Element {
+  const actions: { id: AppAction; label: string }[] = [
+    { id: 'details',   label: 'Details' },
+    { id: 'add-event', label: 'Add Event' },
+    { id: 'add-note',  label: 'Add Application Note' },
+    { id: 'questions', label: 'Application Questions' },
+    { id: 'lesson',    label: 'Add Lesson' },
+  ]
+
+  return (
+    <>
+      <div className="space-y-0.5 mb-4">
+        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Actions</p>
+        {actions.map(({ id, label }) => (
+          <button
+            key={id}
+            onClick={() => onSelect(id)}
+            className={`w-full text-left px-3 py-2 text-sm font-mono rounded-r transition-colors ${
+              active === id
+                ? 'bg-surface2 text-accent border-l-2 border-accent'
+                : 'text-muted hover:text-text'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <hr className="border-surface2 my-4" />
+
+      <div className="space-y-2">
+        <p className="font-serif text-lg text-text">{job.company_name}</p>
+        <p className="text-sm text-muted leading-snug">{job.title}</p>
+        <StatusBadge status={appStatus} />
+      </div>
+    </>
+  )
+}
+
+// ─── APPLICATION tab — right column ──────────────────────────────────────────
+
+interface ApplicationRightProps {
+  jobId: number
+  job: Job
+  applicationId: number
+  application: Application
+  logs: ApplicationLog[]
+  postings: JobPosting[]
+  activeAction: AppAction
+  onDataChanged: () => void
+}
+
+function ApplicationRight({
+  jobId,
+  job,
+  applicationId,
+  application,
+  logs,
+  postings,
+  activeAction,
+  onDataChanged,
+}: ApplicationRightProps): React.JSX.Element {
+  const [promptText, setPromptText] = useState<string | null>(null)
+  const patch = usePatchApplication()
+  const addLog = useAddLog()
+  const generatePrompt = useGeneratePrompt()
+  const { data: questions = [] } = useApplicationQuestions(applicationId)
+  const createQuestion = useCreateApplicationQuestion()
+  const qc = useQueryClient()
+
+  const [eventType, setEventType] = useState(EVENT_TYPE_OPTIONS[0]!.value)
+  const [eventText, setEventText] = useState('')
+  const [eventUrl, setEventUrl] = useState('')
+
+  const [noteType, setNoteType] = useState(LOG_TYPE_OPTIONS[0]!.value)
+  const [noteText, setNoteText] = useState('')
+  const [noteUrl, setNoteUrl] = useState('')
+
+  const [newQ, setNewQ] = useState('')
+  const [newR, setNewR] = useState('')
+
+  const isApplied = application.applied === 1
+  const applyUrl = postings.find((p) => p.source_url)?.source_url ?? null
+
+  const EVENT_VALUES = new Set(EVENT_TYPE_OPTIONS.map((o) => o.value))
+  const LOG_VALUES = new Set(LOG_TYPE_OPTIONS.map((o) => o.value))
+  const eventLogs = logs.filter((l) => EVENT_VALUES.has(l.type_value))
+  const noteLogs = logs.filter((l) => LOG_VALUES.has(l.type_value))
+
+  async function handleAddEvent(e: React.FormEvent<HTMLFormElement>): Promise<void> {
+    e.preventDefault()
+    if (!eventText.trim()) return
+    await addLog.mutateAsync({ applicationId, type_value: eventType, log: eventText.trim(), url: eventUrl.trim() || undefined })
+    setEventText('')
+    setEventUrl('')
+    onDataChanged()
+  }
+
+  async function handleAddNote(e: React.FormEvent<HTMLFormElement>): Promise<void> {
+    e.preventDefault()
+    if (!noteText.trim()) return
+    await addLog.mutateAsync({ applicationId, type_value: noteType, log: noteText.trim(), url: noteUrl.trim() || undefined })
+    setNoteText('')
+    setNoteUrl('')
+    onDataChanged()
+  }
+
+  async function handleCreateQuestion(e: React.FormEvent<HTMLFormElement>): Promise<void> {
+    e.preventDefault()
+    if (!newQ.trim()) return
+    await createQuestion.mutateAsync({ applicationId, jobId, question: newQ.trim(), response: newR.trim() || undefined })
+    setNewQ('')
+    setNewR('')
+  }
+
+  async function handleGeneratePrompt(): Promise<void> {
+    const result = await generatePrompt.mutateAsync(applicationId)
+    setPromptText(result.prompt)
+  }
+
+  // ── DETAILS view ────────────────────────────────────────────────────────────
+  if (activeAction === 'details') {
+    return (
+      <>
+        <div className="mb-4">
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Apply URL</p>
+          {applyUrl ? (
+            <a
+              href={applyUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-accent hover:underline break-all"
+            >
+              {applyUrl}
+            </a>
+          ) : (
+            <span className="text-xs text-muted italic">—</span>
+          )}
+        </div>
+
+        <div className="mb-5">
+          <button
+            onClick={() => patch.mutate({ applicationId, updates: { applied: 1, application_status: 'applied' } })}
+            disabled={isApplied || patch.isPending}
+            className={`px-4 py-2 text-sm rounded transition-colors disabled:opacity-60 ${
+              isApplied ? 'bg-green/20 text-green cursor-default' : 'bg-accent text-bg hover:bg-accent/90'
+            }`}
+          >
+            {isApplied ? 'Applied ✓' : 'I APPLIED!'}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          <label className="block">
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Status</span>
+            <select
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              value={application.application_status}
+              onChange={(e) => patch.mutate({ applicationId, updates: { application_status: e.target.value } })}
+              disabled={patch.isPending}
+            >
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Apply Date</span>
+            <input
+              type="date"
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              defaultValue={application.apply_date ?? ''}
+              onBlur={(e) => {
+                const val = e.target.value
+                if (val !== (application.apply_date ?? ''))
+                  patch.mutate({ applicationId, updates: { apply_date: val || undefined } })
+              }}
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">End Date</span>
+            <input
+              type="date"
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              defaultValue={application.end_date ?? ''}
+              onBlur={(e) => {
+                const val = e.target.value
+                if (val !== (application.end_date ?? ''))
+                  patch.mutate({ applicationId, updates: { end_date: val || undefined } })
+              }}
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Requested Salary</span>
+            <input
+              type="text"
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
+              placeholder="e.g. $120k"
+              defaultValue={application.requested_salary ?? ''}
+              onBlur={(e) => {
+                const val = e.target.value.trim()
+                if (val !== (application.requested_salary ?? ''))
+                  patch.mutate({ applicationId, updates: { requested_salary: val || undefined } })
+              }}
+            />
+          </label>
+        </div>
+
+        <div>
+          <button
+            onClick={() => void handleGeneratePrompt()}
+            disabled={generatePrompt.isPending}
+            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 disabled:opacity-50 transition-colors"
+          >
+            {generatePrompt.isPending ? 'Generating…' : 'Generate External Eval + Tailored Resume'}
+          </button>
+          {generatePrompt.isError && (
+            <p className="text-red text-xs mt-1">{generatePrompt.error.message}</p>
+          )}
+        </div>
+
+        {promptText !== null && (
+          <PromptModal prompt={promptText} onClose={() => setPromptText(null)} />
+        )}
+      </>
+    )
+  }
+
+  // ── ADD EVENT view ──────────────────────────────────────────────────────────
+  if (activeAction === 'add-event') {
+    return (
+      <>
+        <form onSubmit={(e) => void handleAddEvent(e)} className="space-y-3 pb-4 border-b border-surface2 mb-4">
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Add Event</p>
+          <label className="block">
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Event Type</span>
+            <select
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              value={eventType}
+              onChange={(e) => setEventType(e.target.value)}
+            >
+              {EVENT_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Notes</span>
+            <textarea
+              className="mt-1 w-full h-20 bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent resize-y"
+              value={eventText}
+              onChange={(e) => setEventText(e.target.value)}
+              placeholder="Event notes…"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">URL</span>
+            <input
+              type="url"
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
+              value={eventUrl}
+              onChange={(e) => setEventUrl(e.target.value)}
+              placeholder="https://… (optional)"
+            />
+          </label>
+          {addLog.isError && <p className="text-red text-xs">{addLog.error.message}</p>}
+          <button
+            type="submit"
+            disabled={addLog.isPending || !eventText.trim()}
+            className="px-4 py-2 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+          >
+            {addLog.isPending ? 'Saving…' : 'Save Event'}
+          </button>
+        </form>
+
+        {eventLogs.length === 0 ? (
+          <p className="text-xs text-muted italic">No events logged yet.</p>
+        ) : (
+          <div>
+            {eventLogs.map((log) => (
+              <AppLogRow
+                key={log.id}
+                log={log}
+                typeOptions={EVENT_TYPE_OPTIONS}
+                applicationId={applicationId}
+                onDataChanged={onDataChanged}
+              />
+            ))}
+          </div>
+        )}
+      </>
+    )
+  }
+
+  // ── ADD APPLICATION NOTE view ────────────────────────────────────────────────
+  if (activeAction === 'add-note') {
+    return (
+      <>
+        <form onSubmit={(e) => void handleAddNote(e)} className="space-y-3 pb-4 border-b border-surface2 mb-4">
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Add Application Note</p>
+          <label className="block">
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Type</span>
+            <select
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              value={noteType}
+              onChange={(e) => setNoteType(e.target.value)}
+            >
+              {LOG_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Notes</span>
+            <textarea
+              className="mt-1 w-full h-20 bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent resize-y"
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder="Note…"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">URL</span>
+            <input
+              type="url"
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
+              value={noteUrl}
+              onChange={(e) => setNoteUrl(e.target.value)}
+              placeholder="https://… (optional)"
+            />
+          </label>
+          {addLog.isError && <p className="text-red text-xs">{addLog.error.message}</p>}
+          <button
+            type="submit"
+            disabled={addLog.isPending || !noteText.trim()}
+            className="px-4 py-2 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+          >
+            {addLog.isPending ? 'Saving…' : 'Save Note'}
+          </button>
+        </form>
+
+        {noteLogs.length === 0 ? (
+          <p className="text-xs text-muted italic">No notes yet.</p>
+        ) : (
+          <div>
+            {noteLogs.map((log) => (
+              <AppLogRow
+                key={log.id}
+                log={log}
+                typeOptions={LOG_TYPE_OPTIONS}
+                applicationId={applicationId}
+                canDelete
+                canEditTimestamp
+                onDataChanged={onDataChanged}
+              />
+            ))}
+          </div>
+        )}
+      </>
+    )
+  }
+
+  // ── APPLICATION QUESTIONS view ───────────────────────────────────────────────
+  if (activeAction === 'questions') {
+    return (
+      <>
+        <form onSubmit={(e) => void handleCreateQuestion(e)} className="space-y-3 pb-4 border-b border-surface2 mb-4">
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Application Questions</p>
+          <label className="block">
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Question</span>
+            <textarea
+              className="mt-1 w-full h-20 bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent resize-y"
+              value={newQ}
+              onChange={(e) => setNewQ(e.target.value)}
+              placeholder="Paste the application question…"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Response</span>
+            <textarea
+              className="mt-1 w-full h-20 bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent resize-y"
+              value={newR}
+              onChange={(e) => setNewR(e.target.value)}
+              placeholder="Your answer…"
+            />
+          </label>
+          {createQuestion.isError && (
+            <p className="text-red text-xs">{createQuestion.error.message}</p>
+          )}
+          <button
+            type="submit"
+            disabled={createQuestion.isPending || !newQ.trim()}
+            className="px-4 py-2 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+          >
+            {createQuestion.isPending ? 'Saving…' : 'Save'}
+          </button>
+        </form>
+
+        {questions.length === 0 ? (
+          <p className="text-xs text-muted italic">No application questions captured yet.</p>
+        ) : (
+          <div>
+            {questions.map((q) => (
+              <QuestionRow
+                key={q.id}
+                question={q}
+                applicationId={applicationId}
+                jobId={jobId}
+              />
+            ))}
+          </div>
+        )}
+      </>
+    )
+  }
+
+  // ── ADD LESSON view ──────────────────────────────────────────────────────────
+  return (
+    <LessonCapturePanel
+      applicationId={applicationId}
+      jobTitle={job.title}
+      companyName={job.company_name}
+      onFinalized={() => {
+        void qc.invalidateQueries({ queryKey: ['application', applicationId] })
+        void qc.invalidateQueries({ queryKey: ['activity-log', jobId] })
+      }}
+    />
+  )
+}
+
 // ─── Workspace page ───────────────────────────────────────────────────────────
 
 export default function JobDetailPage(): React.JSX.Element {
@@ -1613,6 +2586,9 @@ export default function JobDetailPage(): React.JSX.Element {
 
   // JOB DETAILS tab action state
   const [jobDetailsAction, setJobDetailsAction] = useState<JobDetailsAction>('evaluations')
+
+  // APPLICATION tab action state
+  const [activeAppAction, setActiveAppAction] = useState<AppAction>('details')
 
   // Import modal state
   const [importOpen, setImportOpen] = useState(false)
@@ -1753,7 +2729,14 @@ export default function JobDetailPage(): React.JSX.Element {
                 Nothing to configure yet.
               </p>
             )}
-            {/* APPLICATION left column — built in P11 */}
+            {activeTab === 'application' && (
+              <ApplicationLeft
+                active={activeAppAction}
+                onSelect={setActiveAppAction}
+                appStatus={appStatus}
+                job={job}
+              />
+            )}
           </div>
 
           {/* Right column */}
@@ -1787,7 +2770,26 @@ export default function JobDetailPage(): React.JSX.Element {
                 <p className="mt-4 text-xs font-mono text-muted/60">Coming soon.</p>
               </div>
             )}
-            {/* APPLICATION right column — built in P11 */}
+            {activeTab === 'application' && (
+              appLoading ? (
+                <div className="p-6 text-muted text-sm">Loading application…</div>
+              ) : appData && applicationId !== undefined ? (
+                <ApplicationRight
+                  jobId={jobId}
+                  job={job}
+                  applicationId={applicationId}
+                  application={appData.application}
+                  logs={appData.logs}
+                  postings={jobData.postings}
+                  activeAction={activeAppAction}
+                  onDataChanged={() => {
+                    void qc.invalidateQueries({ queryKey: ['activity-log', jobId] })
+                  }}
+                />
+              ) : (
+                <div className="p-6 text-muted text-sm">No application found.</div>
+              )
+            )}
           </div>
         </div>
       )}

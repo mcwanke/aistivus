@@ -155,11 +155,11 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 - [x] `Applications.tsx` → standalone list page; split-pane removed; row click navigates to `/jobs/:id?tab=application`; `AppHeader pageName="Applications"` added
 - [x] Workspace shell: `/jobs/:jobId` becomes full-page standalone route; sub-header (score, status, company, title, location, remote); tab bar (5 tabs); `?tab=` query param for tab state; 2-column grid (280px left / flex-1 right) for 4 tabs; 1-column for APPLICATION LOG
 - [x] JOB DETAILS tab: left column (ACTIONS: Evaluations/Job Description/Company Info; SUMMARY: excitement, my ratings, job info); right column (Evaluations with agg + rows + prompt expand + Import External Eval; Job Description with edit/copy/export; Company Info with inline add form + expandable rows)
-- [ ] APPLICATION tab: left column (ACTIONS: Details/Add Event/Add Application Note/Application Questions/Add Lesson; SUMMARY: company/title/status); right column (Details with apply URL/I APPLIED!/fields/Generate External Eval + Tailored Resume; Add Event inline form; Add Application Note inline form; Application Questions inline form + Q&A rows; Add Lesson panel)
+- [x] APPLICATION tab: left column (ACTIONS: Details/Add Event/Add Application Note/Application Questions/Add Lesson; SUMMARY: company/title/status); right column (Details with apply URL/I APPLIED!/fields/Generate External Eval + Tailored Resume; Add Event inline form; Add Application Note inline form; Application Questions inline form + Q&A rows; Add Lesson panel)
 - [x] APPLICATION LOG tab: 1-column unified timeline; `useActivityLog` hook; color-coded type badges; expandable rows with copy/delete/timestamp-edit
 - [x] RESUME/COVER tab: 2-column stub with placeholder card ("Coming in Phase 1.6")
 - [x] INTERVIEW tab: 2-column stub with placeholder card ("Coming soon")
-- [ ] `ApplicationDetailPage.tsx` and `ApplicationSummary.tsx` retired (deleted); routes `/application-detail/:id` and `/applications/:id` removed from `main.tsx`
+- [x] `ApplicationDetailPage.tsx` and `ApplicationSummary.tsx` retired (deleted); routes `/application-detail/:id` and `/applications/:id` removed from `main.tsx`
 - [ ] Backend tests: `application_questions` CRUD, activity log route, job detail `application_id`, `create_job()` audit records
 - [ ] Frontend tests: workspace tabs/sub-header, JOB DETAILS defaults, APPLICATION defaults, APPLICATION LOG, list page navigation, AppHeader variants
 - [ ] Visual consistency sweep: CSS/design pass verifying Design Foundation patterns applied consistently across all pages
