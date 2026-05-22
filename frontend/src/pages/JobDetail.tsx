@@ -122,7 +122,7 @@ function Collapsible({ title, defaultOpen = true, children }: CollapsibleProps):
     <div>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between py-2 text-left group"
+        className="w-full flex items-center justify-between py-2 text-left group cursor-pointer"
       >
         <span className="text-muted text-xs font-mono uppercase tracking-widest group-hover:text-text transition-colors">
           {title}
@@ -1671,7 +1671,7 @@ const BADGE_CLASSES: Record<string, string> = {
   application_log:      'bg-blue-500/15 text-blue-400',
   audit:                'bg-surface2 text-muted',
   company_log:          'bg-purple-500/15 text-purple-400',
-  job_posting:          'bg-surface2 text-dim',
+  job_posting:          'bg-surface2 text-muted/60',
   application_question: 'bg-blue-500/10 text-blue-400',
 }
 

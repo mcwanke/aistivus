@@ -1278,7 +1278,7 @@ Left column: a muted label "Nothing to configure yet."
 
 ## Priority 17 — Visual consistency sweep
 
-- [ ] **17. Light CSS pass — consistency and polish across all pages**
+- [x] **17. Light CSS pass — consistency and polish across all pages** — `text-dim` undefined token fixed in 3 places (JobDetail BADGE_CLASSES, AppHeader back link, status.tsx withdrawn badge) → `text-muted/60`; `cursor-pointer` added to Collapsible button; all other P4 patterns confirmed consistent
 
   **Files:** All page files modified in this phase; `tailwind.config.js` if token changes needed
 

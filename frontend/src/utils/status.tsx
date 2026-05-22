@@ -20,7 +20,7 @@ export const STATUS_COLORS: Record<ApplicationStatus, string> = {
   offer:         'bg-green/25 text-green',
   rejected:      'bg-red/15 text-red',
   ghosted:       'bg-red/10 text-red',
-  withdrawn:     'bg-surface2 text-dim',
+  withdrawn:     'bg-surface2 text-muted/60',
 }
 
 interface StatusBadgeProps {

@@ -10,7 +10,7 @@ export default function AppHeader({ pageName }: AppHeaderProps): React.JSX.Eleme
       <header className="sticky top-0 z-10 bg-bg border-b border-surface2 px-8 py-[18px] flex items-baseline gap-4">
         <Link
           to="/"
-          className="text-xs font-mono text-dim hover:text-muted transition-colors"
+          className="text-xs font-mono text-muted/60 hover:text-muted transition-colors"
         >
           ← Home
         </Link>
