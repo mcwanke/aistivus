@@ -13,7 +13,7 @@ Items discovered during Phase 1.5 testing. All are UI polish or minor behavior f
 | A5 | [x] | Company Info row header enhancements |
 | A6 | [x] | Export button → generate .md in inbox/done/ |
 | A7 | [x] | Move company name above job title in sub-header |
-| A8 | [ ] | Row background highlighting across wide row-based layouts |
+| A8 | [x] | Row background highlighting across wide row-based layouts |
 
 Status markers: `[ ]` todo · `[x]` done · `[~]` deferred
 
@@ -38,6 +38,11 @@ Status markers: `[ ]` todo · `[x]` done · `[~]` deferred
 
 - Frontend: 195 passed / 6 pre-existing failures (Evaluate.test.tsx) — 201 total (unchanged — no new frontend tests)
 - Backend: 486 passed / 0 errors (+4 new tests: TestExportJob)
+
+## Test Baseline (after A8)
+
+- Frontend: 195 passed / 6 pre-existing failures (Evaluate.test.tsx) — 201 total (unchanged — pure UI)
+- Backend: 486 passed / 0 errors (unchanged — no backend changes)
 
 ---
 

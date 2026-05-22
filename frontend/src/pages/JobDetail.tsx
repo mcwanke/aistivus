@@ -1,4 +1,4 @@
-import { useState, useRef, useLayoutEffect } from 'react'
+import { useState, useRef, useLayoutEffect, useEffect } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import AppHeader from '@/components/AppHeader'
@@ -492,10 +492,10 @@ function EvalRow({ evaluation }: { evaluation: EvalWithMeta }): React.JSX.Elemen
   }
 
   return (
-    <div className="border-b border-surface2 last:border-0">
+    <div className="bg-surface2 rounded mb-0.5 last:mb-0 hover:bg-[#2a2a2a] transition-colors">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-3 py-2.5 text-left group"
+        className="w-full flex items-center gap-3 px-3 py-2.5 text-left group"
       >
         <span className="text-[10px] font-mono text-muted w-24 shrink-0">{fmtDate(evaluation.evaluated_at)}</span>
         <span className="text-xs font-mono text-muted flex-1 group-hover:text-text transition-colors truncate">
@@ -517,7 +517,7 @@ function EvalRow({ evaluation }: { evaluation: EvalWithMeta }): React.JSX.Elemen
       </button>
 
       {open && (
-        <div className="pb-4 border-t border-surface2 pt-3 space-y-3">
+        <div className="px-3 pb-4 border-t border-surface pt-3 space-y-3">
           {/* Scores row */}
           <div className="flex items-center gap-4 flex-wrap">
             {([
@@ -687,10 +687,10 @@ const URL_TYPE_VALUES = new Set(['website', 'careerpage', 'culturepage', 'person
 
 interface CompanyLogRowProps {
   entry: CompanyLogEntry
-  collapseSignal: number
+  collapseSignal?: number
 }
 
-function CompanyLogRow({ entry, collapseSignal }: CompanyLogRowProps): React.JSX.Element {
+function CompanyLogRow({ entry, collapseSignal = 0 }: CompanyLogRowProps): React.JSX.Element {
   const [open, setOpen] = useState(true)
   const typeLabel = COMPANY_INFO_TYPES.find((t) => t.value === entry.type_value)?.label ?? entry.type_value
   const showUrlInHeader = URL_TYPE_VALUES.has(entry.type_value) && !!entry.url
@@ -700,10 +700,10 @@ function CompanyLogRow({ entry, collapseSignal }: CompanyLogRowProps): React.JSX
   }, [collapseSignal])
 
   return (
-    <div className="border-b border-surface2 last:border-0">
+    <div className="bg-surface2 rounded mb-0.5 last:mb-0 hover:bg-[#2a2a2a] transition-colors">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-2 py-1.5 text-left group"
+        className="w-full flex items-center gap-2 px-2 py-1.5 text-left group"
       >
         <span className="text-xs font-mono text-muted group-hover:text-text transition-colors shrink-0">{typeLabel}</span>
         {!open && showUrlInHeader && (
@@ -723,7 +723,7 @@ function CompanyLogRow({ entry, collapseSignal }: CompanyLogRowProps): React.JSX
         <span className="text-muted text-xs ml-auto">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
-        <div className="pb-2 space-y-1">
+        <div className="px-2 pb-2 space-y-1">
           {entry.log && (
             <p className="text-xs text-text leading-relaxed">{entry.log}</p>
           )}
@@ -1486,9 +1486,9 @@ function AppLogRow({
   }
 
   return (
-    <div className="border-b border-surface2 last:border-0">
+    <div className="bg-surface2 rounded mb-0.5 last:mb-0 hover:bg-[#2a2a2a] transition-colors">
       <div
-        className="flex items-center justify-between py-2 cursor-pointer select-none"
+        className="flex items-center justify-between px-2 py-2 cursor-pointer select-none"
         onClick={() => setOpen((o) => !o)}
       >
         <div className="flex items-center gap-3 min-w-0">
@@ -1525,7 +1525,7 @@ function AppLogRow({
         </div>
       </div>
       {open && (
-        <div className="pb-2 border-t border-surface2 pt-2 space-y-1">
+        <div className="px-2 pb-2 border-t border-surface pt-2 space-y-1">
           {log.log && <p className="text-xs text-text leading-relaxed whitespace-pre-wrap">{log.log}</p>}
           {log.url && (
             <a
@@ -1600,9 +1600,9 @@ function QuestionRow({ question, applicationId, jobId }: QuestionRowProps): Reac
   }
 
   return (
-    <div className="border-b border-surface2 last:border-0">
+    <div className="bg-surface2 rounded mb-0.5 last:mb-0 hover:bg-[#2a2a2a] transition-colors">
       <div
-        className="flex items-center gap-2 py-2 select-none"
+        className="flex items-center gap-2 px-2 py-2 select-none"
         onClick={() => { if (!editing) setOpen((o) => !o) }}
         style={{ cursor: editing ? 'default' : 'pointer' }}
       >
@@ -1635,7 +1635,7 @@ function QuestionRow({ question, applicationId, jobId }: QuestionRowProps): Reac
         </div>
       </div>
       {open && (
-        <div className="pb-3 border-t border-surface2 pt-2 space-y-3">
+        <div className="px-2 pb-3 border-t border-surface pt-2 space-y-3">
           {editing ? (
             <div className="space-y-2">
               <label className="block">
@@ -1748,8 +1748,8 @@ function ActivityLogRow({ entry, applicationId, onTimestampSaved }: ActivityLogR
   }
 
   return (
-    <div className="border-b border-surface2 last:border-0">
-      <div className="flex items-center gap-2 py-2 min-w-0">
+    <div className="bg-surface2 rounded mb-0.5 last:mb-0 hover:bg-[#2a2a2a] transition-colors">
+      <div className="flex items-center gap-2 px-2 py-2 min-w-0">
         {/* Timestamp */}
         <button
           className={`text-[10px] font-mono w-32 shrink-0 text-left ${
@@ -1823,7 +1823,7 @@ function ActivityLogRow({ entry, applicationId, onTimestampSaved }: ActivityLogR
 
       {/* Expanded content */}
       {open && (
-        <div className="pb-3 border-t border-surface2 pt-2 pl-2">
+        <div className="pb-3 border-t border-surface pt-2 px-2">
           {entry.text ? (
             <pre className="text-xs text-text leading-relaxed whitespace-pre-wrap font-mono break-words">
               {entry.text}
