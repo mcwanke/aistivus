@@ -191,6 +191,7 @@ async def process_file(
     title       = frontmatter.get("title")       or "Unknown Role"
     location    = frontmatter.get("location")
     remote_type = frontmatter.get("remote_type")
+    pay_band    = frontmatter.get("pay_band")
     apply_url   = frontmatter.get("url")
 
     print(f"  Company:  {company}")
@@ -210,6 +211,7 @@ async def process_file(
             job_title=title,
             location=location,
             remote_type=remote_type,
+            pay_band=pay_band,
             apply_url=apply_url,
         )
     except Exception as e:

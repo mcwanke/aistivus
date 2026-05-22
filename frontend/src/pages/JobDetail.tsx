@@ -2012,7 +2012,7 @@ function JobDetailsRight({
 }: JobDetailsRightProps): React.JSX.Element {
   const [editDescOpen, setEditDescOpen] = useState(false)
   const [descCopied, setDescCopied] = useState(false)
-  const [exportCopied, setExportCopied] = useState(false)
+  const [exportStatus, setExportStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [savedInfo, setSavedInfo] = useState(false)
   const [collapseSignal, setCollapseSignal] = useState(0)
 
@@ -2025,19 +2025,17 @@ function JobDetailsRight({
   }
 
   function exportJob(): void {
-    const lines = [
-      `Company: ${job.company_name}`,
-      `Title: ${job.title}`,
-      `Location: ${job.location ?? '—'}`,
-      `Remote: ${job.remote_type ?? '—'}`,
-      `Pay Band: ${job.pay_band ?? '—'}`,
-      '',
-      job.description_merged ?? '',
-    ]
-    void navigator.clipboard.writeText(lines.join('\n')).then(() => {
-      setExportCopied(true)
-      setTimeout(() => setExportCopied(false), 1500)
-    })
+    setExportStatus('loading')
+    fetch(`/api/v1/jobs/${jobId}/export`, { method: 'POST' })
+      .then((res) => {
+        if (!res.ok) throw new Error('export failed')
+        setExportStatus('done')
+        setTimeout(() => setExportStatus('idle'), 2000)
+      })
+      .catch(() => {
+        setExportStatus('error')
+        setTimeout(() => setExportStatus('idle'), 2000)
+      })
   }
 
   // ── EVALUATIONS view ────────────────────────────────────────────────────────
@@ -2114,9 +2112,10 @@ function JobDetailsRight({
           </button>
           <button
             onClick={exportJob}
-            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
+            disabled={exportStatus === 'loading'}
+            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50"
           >
-            {exportCopied ? 'Copied!' : 'Export Job'}
+            {exportStatus === 'loading' ? 'Exporting…' : exportStatus === 'done' ? 'Exported!' : exportStatus === 'error' ? 'Error' : 'Export Job'}
           </button>
         </div>
 

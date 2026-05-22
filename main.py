@@ -810,6 +810,49 @@ async def activate_job(request: Request, job_id: int):
     return JSONResponse(dict(updated))
 
 
+@app.post("/api/v1/jobs/{job_id}/export")
+@limiter.limit("30/minute")
+async def export_job(request: Request, job_id: int):
+    """Write a re-importable .md file to inbox/done/ containing the job's details."""
+    job = database.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found.")
+
+    job = dict(job)
+    postings = database.get_postings_for_job(job_id)
+    posting = dict(postings[0]) if postings else {}
+
+    source_url = posting.get("source_url") or ""
+    description = job.get("description_merged") or posting.get("description_raw") or ""
+
+    pay_band_val = job.get("pay_band") or ""
+    timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
+    filename = f"{job_id}-export-{timestamp}.md"
+
+    _, done_dir, _ = evaluate._get_inbox_paths()
+    done_dir.mkdir(parents=True, exist_ok=True)
+
+    lines = [
+        "---",
+        f"company: {job['company_name']}",
+        f"title: {job['title']}",
+        f"location: {job.get('location') or ''}",
+        f"remote_type: {job.get('remote_type') or ''}",
+        f"pay_band: {pay_band_val}",
+        f"url: {source_url}",
+        f"date_posted: ",
+        f"notes: ",
+        "---",
+        "",
+        description,
+    ]
+
+    dest = done_dir / filename
+    dest.write_text("\n".join(lines), encoding="utf-8")
+
+    return JSONResponse({"file_name": filename, "file_path": str(dest)})
+
+
 @app.get("/api/v1/jobs/{job_id}/activity-log")
 @limiter.limit("60/minute")
 async def get_activity_log(request: Request, job_id: int):

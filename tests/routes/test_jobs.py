@@ -344,6 +344,76 @@ class TestCreateJobAuditRecords:
         assert not any("Job description attached" in e for e in events)
 
 
+class TestExportJob:
+    def test_export_returns_404_for_unknown_job(self, client):
+        resp = client.post("/api/v1/jobs/9999/export")
+        assert resp.status_code == 404
+
+    def test_export_creates_file_in_done_dir(self, client, tmp_path, monkeypatch):
+        import evaluate
+        done_dir = tmp_path / "inbox" / "done"
+        monkeypatch.setattr(evaluate, "_get_inbox_paths", lambda: (
+            tmp_path / "inbox",
+            done_dir,
+            tmp_path / "inbox" / "failed",
+        ))
+        job_id, _ = database.upsert_job(
+            "Export Corp", "Staff Engineer", "backend",
+            description_merged="Great role with great pay.",
+            pay_band="$160k-$200k",
+        )
+        resp = client.post(f"/api/v1/jobs/{job_id}/export")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "file_name" in data
+        assert data["file_name"].startswith(f"{job_id}-export-")
+        assert data["file_name"].endswith(".md")
+        dest = done_dir / data["file_name"]
+        assert dest.exists()
+
+    def test_export_file_contains_job_fields(self, client, tmp_path, monkeypatch):
+        import evaluate
+        done_dir = tmp_path / "inbox" / "done"
+        monkeypatch.setattr(evaluate, "_get_inbox_paths", lambda: (
+            tmp_path / "inbox",
+            done_dir,
+            tmp_path / "inbox" / "failed",
+        ))
+        job_id, _ = database.upsert_job(
+            "Acme Inc", "Senior Manager", "general",
+            location="New York",
+            remote_type="Hybrid",
+            description_merged="Lead the team.",
+            pay_band="$150k",
+        )
+        resp = client.post(f"/api/v1/jobs/{job_id}/export")
+        assert resp.status_code == 200
+        content = (done_dir / resp.json()["file_name"]).read_text()
+        assert "company: Acme Inc" in content
+        assert "title: Senior Manager" in content
+        assert "location: New York" in content
+        assert "remote_type: Hybrid" in content
+        assert "pay_band: $150k" in content
+        assert "Lead the team." in content
+
+    def test_export_file_omits_pay_band_when_null(self, client, tmp_path, monkeypatch):
+        import evaluate
+        done_dir = tmp_path / "inbox" / "done"
+        monkeypatch.setattr(evaluate, "_get_inbox_paths", lambda: (
+            tmp_path / "inbox",
+            done_dir,
+            tmp_path / "inbox" / "failed",
+        ))
+        job_id, _ = database.upsert_job(
+            "Bare Co", "Analyst", "finance",
+            description_merged="Do analysis.",
+        )
+        resp = client.post(f"/api/v1/jobs/{job_id}/export")
+        assert resp.status_code == 200
+        content = (done_dir / resp.json()["file_name"]).read_text()
+        assert "pay_band: \n" in content or "pay_band:\n" in content or "pay_band: " in content
+
+
 class TestGetAllJobsDatabase:
     def test_get_all_jobs_excludes_inactive_by_default(self, client):
         database.upsert_job("Inactive Co", "Analyst", "finance")

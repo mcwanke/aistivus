@@ -26,6 +26,7 @@ company:
 title: 
 location: 
 remote_type: Remote
+pay_band: 
 url: 
 date_posted: 
 notes: 
