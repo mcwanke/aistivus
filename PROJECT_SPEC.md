@@ -84,17 +84,7 @@ running a local development environment.
 
 ## 5. Architecture Overview
 
-### Phase 0.4 (Current)
-```
-HTML pages (vanilla JS)
-        │ fetch
-FastAPI (main.py)
-evaluator.py │ llm_client.py │ database.py
-        │
-    jobs.db (SQLite)
-```
-
-### Phase 1.1+ (Target)
+### Phase 1.1+ (Current)
 ```
 React 18 / TypeScript / Vite
 React Query (server state)
@@ -613,66 +603,13 @@ On `main.py` startup:
 
 ---
 
-## 10. Jobs Page Specification
+## 10. Jobs Workspace Specification (Phase 1.5+)
 
-### Left Panel — Job Row Layout
-
-```
-┌────────────────────────────────────────────────────────────────────┐
-│ Company Name        R    SC    CU    CO   OVR  [Application Button] │
-│ Job Title          /5.  /5.   /5.   /5.  /10  [status-pill]        │
-│ 📍 Location                                                         │
-└────────────────────────────────────────────────────────────────────┘
-```
-
-- **R / SC / CU / CO:** `agg_role_fit`, `agg_scope_fit`, `agg_culture`, `agg_comp` (each /5)
-- **OVR:** `agg_score_overall` (/10)
-- Score columns show `—` when no evaluations exist
-- **Remote type pill:** stays
-- **Application Button:** "+ Start Application" (status = not-started) or "View Application →"
-  (status ≥ draft). Slightly larger than current.
-- **[status-pill]:** current `application_status` — right-aligned on title row
-- Removed from left panel: fit pill, eval count pill, Re-Evaluate button
-
-### Right Panel — Sections
-
-**Section 1 — Job Detail** (no collapse)
-- Company name, job title, location, remote status, `jobs.created_at` date
-- Edit button → modal to edit company name, job title, location, remote type
-
-**Section 2 — Application Status** (no collapse)
-- Current `application_status` pill
-- Apply date, excitement level (when status ≥ draft)
-- Apply URL (from `job_postings.source_url`)
-- "+ Start Application" / "View Application →" button (moved from left panel)
-
-**Section 3 — My Ratings** (no collapse)
-- Input fields: `my_role_fit` (/5), `my_scope_fit` (/5), `my_culture` (/5),
-  `my_comp` (/5), `my_score_overall` (/10)
-- Saves on blur / explicit Save button
-
-**Section 4 — Job Description** (collapsible, default expanded)
-- Full `description_merged` text
-- Edit button → modal for editing description
-- HR separator below section
-
-**Section 5 — Evaluations** (collapsible, default expanded)
-- All evaluation cards for this job, grouped by `evaluated_at`
-- Each card shows: model name, scores, fit type, archetype, recommendation,
-  domain_match, role_type_match, strengths, gaps, keywords, keyword_gaps
-- Re-Evaluate button (moved from left panel)
+Redesigned in Phase 1.5 as a full-page workspace. See `app_docs/WORKORDER-phase1.5_completed.md` and the Frontend Routing table in Section 5 for current structure.
 
 ---
 
-## 11. Evaluate Page Specification (Phase 1.1 UI changes)
-
-- **Animated right panel** while evaluation is running (replace static content with
-  animation indicating active processing)
-- **Clear/reset right panel** when a new evaluation is submitted — do not show
-  stale previous result during new run
-- **Dual timer:** count-up (existing, shows elapsed time) + count-down (new, based on
-  `llm_models.estimated_eval_time` for the selected model; shows estimated remaining)
-- Count-down timer only shown when `estimated_eval_time` is non-NULL for the selected model
+## 11. Evaluate Page — Phase 1.1 complete. See `app_docs/WORKORDER-phase1.2_completed.md`.
 
 ---
 
@@ -744,9 +681,6 @@ origins = ["http://localhost:3000", "http://localhost:8080"]
 ---
 
 ## 14. Logging
-
-### Phase 0.4 (Current)
-`print()` and stdout only.
 
 ### Phase 1.0+
 - Python stdlib `logging`, structured JSON
@@ -835,139 +769,23 @@ Core evaluation pipeline, HTML frontend, SQLite, Ollama, Anthropic provider,
 cloud evaluation confirmation dialog, application routes, settings routes,
 LLM usage routes, JSON import from Claude evaluation run.
 
-### Phase 1.0 — DB + Backend + Tests 🔄
-**Goal: Correct schema, fully instrumented backend, test coverage from day one.**
+### Phase 1.0 — DB + Backend + Tests ✅
+Schema v1.0, evaluation pipeline, llm_call_log, slowapi, structured logging, pytest. See `app_docs/WORKORDER-phase1.x_completed.md`.
 
-Deliverables:
-- New schema v1.0 (see Section 6) — clean slate, all tables
-- `system_types` seeded at init
-- `llm_models` table + startup migration from config.yaml
-- `companies` table replaced by `company_name` on jobs + `job_company_log`
-- Evaluator updated: populate domain_match, role_type_match, keyword_gaps;
-  write to llm_call_log; link evaluations via llm_call_log_id
-- `agg_*` score recalculation after each evaluation
-- Auto-create `not-started` application on job creation
-- `requested_salary` on applications
-- `/api/v1/` prefix on all routes
-- `slowapi` inbound rate limiting
-- `logger.py` structured JSON logging
-- `GET /api/v1/health` endpoint
-- pytest setup: fixtures, unit tests, integration tests, 80% coverage
-- GitHub Actions CI
+### Phase 1.1 — React Frontend ✅
+Full React/TypeScript/Vite frontend; all HTML pages retired; React Query; Vitest. See `app_docs/WORKORDER-phase1.2_completed.md`.
 
-### Phase 1.1 — React Frontend 🔲
-**Goal: Full React/TypeScript/Vite frontend replacing all HTML pages.**
+### Phase 1.2 — Job Search Profile Builder ✅
+AI-assisted jobsearch.md editor, SSE streaming chat, profile routes, lesson capture, version history. See `app_docs/WORKORDER-phase1.2_completed.md`.
 
-Pre-work: tech stack re-validation confirmation (React/TS/Vite — already validated,
-document decision formally).
+### Phase 1.3 — Multi-Server LLM Management ✅
+llm_servers table, named endpoints, Anthropic API key flow, Dashboard redesign. See `app_docs/WORKORDER-phase1.3_completed.md`.
 
-Deliverables:
-- Vite + React 18 + TypeScript + Tailwind scaffolding
-- React Query (TanStack Query) for all server state
-- TypeScript interfaces for all API responses in `frontend/src/types/`
-- All 6 pages rebuilt in React (HTML pages retired):
-  - `Dashboard.tsx` — stats, health indicators, recent activity
-  - `Jobs.tsx` / `JobDetail.tsx` — redesigned per Section 10
-  - `Evaluate.tsx` — animated panel, reset on new run, dual timer
-  - `Applications.tsx` — excludes not-started; create, status tracking
-  - `ApplicationDetail.tsx` — logs, audit, applied button, documents
-  - `Settings.tsx` — model management, system_types, jobsearch.md editor + history
-  - `LLMUsage.tsx` — llm_call_log viewer with copy-prompt button
-- Claude import modal preserved (modal on Evaluate page)
-- Vite dev proxy → FastAPI; FastAPI serves `frontend/dist/` in prod
-- Vitest + React Testing Library, 70% coverage
+### Phase 1.4 — Settings Improvements + Job Lifecycle ✅
+Server-aware model dropdown, jobs.is_active flag, activate flow on Evaluate page, Dashboard stats expansion. See `app_docs/WORKORDER-phase1.4_completed.md`.
 
-### Phase 1.2 — Job Search Profile Builder 🔲
-**Goal: AI-assisted editor for jobsearch.md — makes the tool usable for new grads,
-career changers, and non-technical users. Directly improves evaluation quality.**
-
-Deliverables:
-- Revised `JOBSEARCH_TEMPLATE.md` — Career Narrative section, Experience Level field,
-  new-grad Career History subsections, merged Model Behavior Rules section (9 sections total)
-- `lesson_learned` added to `system_types` seed
-- `jobsearch_versions` table-based versioning confirmed/restored; disk file always authoritative
-- SSE streaming support (`complete_stream()`) added to `llm_client.py`
-- Profile section parser utility in `database.py`
-- `profile_routes.py` — all profile API routes; registered in `main.py`
-- SSE streaming chat route (`POST /api/v1/profile/chat`) with Socratic / Directive modes
-- Propose-update endpoint (non-streaming synthesis of conversation → section draft)
-- One-shot routes: synthesize-insights (from app logs), coherence-check (cross-section alignment), quality-audit (per-section completeness + strength), generate-tailoring-rules
-- Lesson chat route on applications (`POST /api/v1/applications/{id}/lesson-chat`)
-- TypeScript interfaces in `frontend/src/types/profile.ts`
-- Custom hooks: `useProfileHealth`, `useProfileSections`, `useProfileVersions`,
-  `useProfileChat` (streaming), `useLessonChat` (streaming)
-- `JobSearchProfile.tsx` — two-column layout (section cards left, chat panel right)
-  with per-section status badges, collapsible section cards, view/edit toggle (styled div → textarea),
-  AI chat, Socratic/Directive toggle, proposed-update Accept/Discard flow, special handling for
-  paste-only and generate-button sections, page-scoped model selector, Review · Alignment and
-  Review · Quality buttons (both with loading animation and modal output)
-- Left nav entry: "Job Search Profile"
-- Dashboard: Profile Strength widget (completion % + link to profile page)
-- ApplicationDetail: "Capture a lesson" button → lesson chat → saves to `application_logs`
-  with `lesson_learned` type + proposes addition to Section 8
-- Settings My Data: jobsearch_versions history with preview + restore
-- Backend tests: all profile routes (80% coverage)
-- Frontend tests: Job Search Profile page (70% coverage)
-
-**Multi-user note:** Each user gets a separate Docker container (Phase 1.5).
-No multi-profile switching needed in this phase.
-
-**See:** `app_docs/WORKORDER-phase1.2.md` for full item-by-item build spec.
-
-### Phase 1.3 — Multi-Server LLM Management + Dashboard Redesign 🔲
-**Goal: Named server records replace raw endpoint strings. Support multiple Ollama instances
-and Anthropic cloud from the Settings page. Redesign the Dashboard with the original
-top-header + tile layout from the HTML prototype.**
-
-Deliverables:
-- `llm_servers` table with CRUD routes and Settings UI
-- Anthropic API key read from `.env` at startup; Settings shows key-present status only (no UI write path)
-- "Add AI/Server" popup: Local (Ollama) and Remote (Anthropic) flows
-- Per-server "Test Connection" button; fix existing availability check bug
-- Auto-import model list from Ollama servers; pre-populated Claude model list for Anthropic
-- `estimated_eval_time` auto-updated from actual call latencies (no longer user-entered)
-- Model selectors throughout app use `<optgroup>` to group by server name
-- Settings model row: server name displayed in place of endpoint (endpoint removed from model record)
-- Fix `_call_anthropic()` in `llm_client.py` to use `AsyncAnthropic` (align with streaming path)
-- Anthropic connection test explicitly handles `AuthenticationError` with clear user message
-- `AppHeader.tsx` — reusable top-header component (wordmark, tagline, Settings link)
-- Dashboard: standalone route outside sidebar Layout; full redesign with header, hero, stats bar, nav tiles
-
-**Note on Claude Pro vs. Anthropic API:** AIstivus calls Claude programmatically via the
-Anthropic API SDK, which requires a paid API key (`ANTHROPIC_API_KEY` in `.env`). Claude Pro
-($20/month) is a consumer web product — there is no way to use it for programmatic server-side
-calls. These are separate Anthropic products with separate auth. The manual "copy prompt →
-paste into Claude.ai → import JSON" workflow from Phase 0 is the only path for Claude Pro users
-and is preserved via the import modal on the Evaluate page.
-
-### Phase 1.4 — Settings Improvements + Job Lifecycle 🔲
-**Goal: Server-aware model selection in Settings and an explicit job activation flow on the Evaluate page.**
-
-Deliverables:
-- Settings "Add Model": model name replaced with server-aware dropdown (populated from server's available models; filtered to exclude already-added models on that server; refresh button; error state when server unreachable — no free-text fallback)
-- Settings "AI Servers": Actions column widened (delete button overflow fix); "MODELS" header renamed to "IN USE"
-- `jobs.is_active` flag (DEFAULT 0) — new jobs start inactive; DB wipe required
-- `activate_job()` in `database.py`; `GET /api/v1/jobs` returns active-only by default; dashboard stats count active jobs only
-- `POST /api/v1/jobs/{id}/activate` route
-- `Evaluate.tsx`: post-evaluation CTA banner — displays LLM recommendation, prompts user to activate or skip; "Yes" navigates to `/jobs/{jobId}`; "No" resets Evaluate page for fresh JD entry
-- `GET /api/v1/stats` extended: `jobs_applied_to` (applications.applied = 1 count) and `applications_in_process` (status IN applied/screening/interview/offer)
-- `StatsResponse` TypeScript interface updated with new stat fields
-- Dashboard hero restructured: two-column layout — large "Find Me My Ideal Job" Jobs tile (left) + hero text (right)
-- Dashboard stats bar relabeled: "Evaluations Run" / "Open Jobs" / "Jobs Applied To" / "Applications In Process"
-- Dashboard TOOLS section: "Evaluate" tile renamed "Evaluate a Job"; Jobs tile removed (promoted to hero)
-- Dashboard: new DATA section (between PROFILE and MODELS) containing Applications and LLM Usage tiles
-- Backend + frontend tests
-
-**See:** `app_docs/WORKORDER-phase1.4.md` for full item-by-item build spec.
-
-### Phase 1.5 — Navigation & Header Rollout 🔲
-**Goal: Bring the top-header navigation model from the Dashboard to all pages; remove the sidebar.**
-
-Deliverables:
-- `AppHeader.tsx` applied to all pages
-- Sidebar (`<Layout>` wrapper) removed from all non-Dashboard pages
-- CSS/design pass to pull forward visual details from original HTML pages in `pages/`
-- Additional page-specific rework (TBD — see `app_docs/WORKORDER-phase1.5.md`)
+### Phase 1.5 — Navigation & Workspace Overhaul ✅
+AppHeader on all pages, sidebar removed, Jobs/Applications as standalone list pages, full job workspace with 5-tab layout, unified activity log, application questions. See `app_docs/WORKORDER-phase1.5_completed.md`.
 
 ### Phase 1.6 — Typst / Documents 🔲
 **Goal: Import, compile, and view Typst resume files within the app.**
@@ -1019,94 +837,47 @@ Deliverables:
 
 ## 18. Project Structure
 
-### Phase 1.0 Target
 ```
 aistivus/
 ├── CLAUDE.md
 ├── PROJECT_SPEC.md
-├── FEATURES.md
-├── LEGAL_DISCLAIMER.md
-├── LICENSE
-├── README.md
-├── .env.example
-├── .gitignore
-├── config.yaml                 (gitignored)
-├── jobsearch.md                (gitignored)
 ├── requirements.txt
-│
 ├── main.py
 ├── database.py
 ├── evaluator.py
 ├── evaluate.py
 ├── llm_client.py
-├── logger.py                   (new Phase 1.0)
-│
+├── logger.py
+├── profile_routes.py
+├── env_utils.py
 ├── templates/
 │   ├── CONFIG_TEMPLATE.yaml
 │   ├── JOBSEARCH_TEMPLATE.md
-│   ├── INBOX_TEMPLATE.md
-│   └── typst/                  (Phase 1.2 — bundled templates)
-│
-├── pages/                      (read-only reference; retired after Phase 1.1)
-│
-├── tests/                      (new Phase 1.0)
+│   └── typst/              (Phase 1.6 — bundled resume templates)
+├── pages/                  (read-only reference; retired Phase 1.1)
+├── tests/
 │   ├── conftest.py
 │   ├── test_database.py
 │   ├── test_evaluator.py
 │   ├── test_llm_client.py
 │   └── routes/
-│       ├── test_jobs.py
-│       ├── test_evaluations.py
-│       ├── test_applications.py
-│       └── test_settings.py
-│
-├── frontend/                   (new Phase 1.1)
+├── frontend/
 │   ├── package.json
 │   ├── tsconfig.json
 │   ├── vite.config.ts
 │   └── src/
 │       ├── types/
+│       ├── hooks/
 │       ├── components/
-│       └── pages/
-│           ├── Dashboard.tsx
-│           ├── Jobs.tsx
-│           ├── Evaluate.tsx
-│           ├── Applications.tsx
-│           ├── ApplicationDetail.tsx
-│           ├── LLMUsage.tsx
-│           └── Settings.tsx
-│
-├── inbox/                      (gitignored)
-├── data/                       (gitignored)
-├── generated/                  (gitignored)
-├── reports/                    (gitignored)
-└── logs/                       (gitignored)
-```
-
-### Phase 1.2 Additions
-```
-aistivus/
-└── profile_routes.py
-
-frontend/src/
-├── types/
-│   └── profile.ts
-├── hooks/
-│   ├── useProfileHealth.ts
-│   ├── useProfileSections.ts
-│   ├── useProfileVersions.ts
-│   ├── useProfileChat.ts
-│   └── useLessonChat.ts
-└── pages/
-    └── JobSearchProfile.tsx
-```
-
-### Phase 1.7 Additions
-```
-aistivus/
-├── Dockerfile
-├── docker-compose.yml
-└── .dockerignore
+│       ├── pages/
+│       └── utils/
+├── app_docs/               (planning docs, workorders)
+├── my_data/                (gitignored — user PII)
+├── inbox/                  (gitignored)
+├── data/                   (gitignored)
+├── generated/              (gitignored)
+├── reports/                (gitignored)
+└── logs/                   (gitignored)
 ```
 
 ---

@@ -75,6 +75,7 @@ SPA catch-all (Phase 1.1+):
 import os
 import re
 import time
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -240,6 +241,21 @@ app.include_router(profile_routes.router, prefix="/api/v1")
 _frontend_assets = Path("frontend/dist/assets")
 if _frontend_assets.exists():
     app.mount("/assets", StaticFiles(directory=str(_frontend_assets)), name="frontend-assets")
+
+
+# ─────────────────────────────────────────────────────────────
+# Utilities
+# ─────────────────────────────────────────────────────────────
+
+def strip_utm_params(url: str | None) -> str | None:
+    """Remove all utm_* query parameters from a URL before storing."""
+    if not url:
+        return url
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query, keep_blank_values=True)
+    cleaned = {k: v for k, v in params.items() if not k.lower().startswith("utm_")}
+    new_query = urlencode(cleaned, doseq=True)
+    return urlunparse(parsed._replace(query=new_query))
 
 
 # ─────────────────────────────────────────────────────────────
@@ -574,7 +590,7 @@ async def evaluate_endpoint(request: Request, body: EvaluateRequest):
         job_title=body.job_title,
         location=body.location,
         remote_type=body.remote_type,
-        apply_url=body.apply_url,
+        apply_url=strip_utm_params(body.apply_url),
         pay_band=body.pay_band,
         llm_model_id=body.llm_model_id,
     )

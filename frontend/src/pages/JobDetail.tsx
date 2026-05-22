@@ -81,7 +81,7 @@ function WorkspaceSubHeader({ job, appStatus, appLoading }: WorkspaceSubHeaderPr
           <span className="font-mono text-xs text-muted">/ 10</span>
         </div>
 
-        {/* Status + company */}
+        {/* Status */}
         <div className="flex flex-col gap-1 shrink-0">
           <span className="text-[10px] font-mono text-muted uppercase tracking-widest">Status</span>
           <div className="flex items-center gap-2">
@@ -91,11 +91,11 @@ function WorkspaceSubHeader({ job, appStatus, appLoading }: WorkspaceSubHeaderPr
               <StatusBadge status={appStatus} />
             )}
           </div>
-          <span className="text-sm text-muted">{job.company_name}</span>
         </div>
 
-        {/* Title + location/remote */}
+        {/* Company → Title → location/remote */}
         <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+          <span className="text-xs text-muted font-mono">{job.company_name}</span>
           <span className="font-serif text-lg text-text leading-tight">{job.title}</span>
           <span className="text-xs text-muted font-mono">
             {[job.location ? `📍 ${job.location}` : null, job.remote_type]
@@ -680,6 +680,7 @@ const COMPANY_INFO_TYPES = [
   { value: 'industry',    label: 'Industry' },
   { value: 'size',        label: 'Size' },
   { value: 'notes',       label: 'Notes' },
+  { value: 'person',      label: 'Person / LinkedIn Profile' },
 ]
 
 interface CompanyLogRowProps {

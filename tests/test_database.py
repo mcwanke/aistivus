@@ -33,7 +33,7 @@ class TestInitDb:
 
     def test_seeds_system_types(self, tmp_db):
         types = database.get_all_system_types()
-        assert len(types) == 22
+        assert len(types) == 23
 
     def test_seeds_all_expected_type_names(self, tmp_db):
         names = {r["type_name"] for r in database.get_all_system_types()}
@@ -53,7 +53,7 @@ class TestInitDb:
     def test_seeds_company_info_values(self, tmp_db):
         rows = database.get_all_system_types("company_info")
         values = {r["type_value"] for r in rows}
-        assert values == {"website", "careerpage", "culturepage", "industry", "size", "notes"}
+        assert values == {"website", "careerpage", "culturepage", "industry", "size", "notes", "person"}
 
     def test_seeds_application_document_values(self, tmp_db):
         rows = database.get_all_system_types("application_document")
@@ -66,7 +66,7 @@ class TestInitDb:
     def test_idempotent(self, tmp_db):
         database.init_db()
         database.init_db()
-        assert len(database.get_all_system_types()) == 22
+        assert len(database.get_all_system_types()) == 23
         assert database.get_schema_version() == "1.5"
 
     def test_no_auto_seed_without_config(self, tmp_db):
@@ -80,7 +80,7 @@ class TestInitDb:
 
 class TestSystemTypes:
     def test_get_all_returns_all(self, tmp_db):
-        assert len(database.get_all_system_types()) == 22
+        assert len(database.get_all_system_types()) == 23
 
     def test_get_filtered_by_type_name(self, tmp_db):
         rows = database.get_all_system_types("application_log")
@@ -883,7 +883,7 @@ class TestUtilities:
         assert result["schema_version"] == "1.5"
         assert "tables" in result
         assert "system_types" in result["tables"]
-        assert len(result["tables"]["system_types"]) == 22
+        assert len(result["tables"]["system_types"]) == 23
 
 
 # ─────────────────────────────────────────────────────────────

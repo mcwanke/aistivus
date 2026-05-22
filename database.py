@@ -388,6 +388,7 @@ _SYSTEM_TYPES_SEED: list[tuple[str, str]] = [
     ("company_info", "industry"),
     ("company_info", "size"),
     ("company_info", "notes"),
+    ("company_info", "person"),
     ("application_document", "resume"),
     ("application_document", "cover_letter"),
 ]
