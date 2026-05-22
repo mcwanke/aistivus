@@ -6,6 +6,7 @@ Routes covered:
   GET  /api/v1/jobs
   GET  /api/v1/jobs/{id}
   GET  /api/v1/jobs/{id}/application
+  GET  /api/v1/jobs/{id}/activity-log
   POST /api/v1/jobs/{id}/activate
   GET  /api/v1/stats
 """
@@ -238,6 +239,109 @@ class TestStats:
                 database.update_application_status(app_row["id"], status)
         resp = client.get("/api/v1/stats")
         assert resp.json()["applications_in_process"] == 0
+
+
+class TestJobDetailApplicationId:
+    def test_job_detail_includes_application_id(self, seeded_client):
+        sc = seeded_client
+        resp = sc["client"].get(f"/api/v1/jobs/{sc['job_id']}")
+        assert resp.status_code == 200
+        assert "application_id" in resp.json()["job"]
+        assert resp.json()["job"]["application_id"] == sc["app_id"]
+
+    def test_job_detail_application_id_not_none(self, client):
+        # upsert_job always auto-creates an application, so application_id is always set
+        job_id, _ = database.upsert_job("App Co", "Dev", "backend")
+        resp = client.get(f"/api/v1/jobs/{job_id}")
+        assert resp.status_code == 200
+        assert resp.json()["job"]["application_id"] is not None
+
+
+class TestActivityLog:
+    def test_404_for_unknown_job(self, client):
+        resp = client.get("/api/v1/jobs/9999/activity-log")
+        assert resp.status_code == 404
+
+    def test_returns_entries_key(self, seeded_client):
+        sc = seeded_client
+        resp = sc["client"].get(f"/api/v1/jobs/{sc['job_id']}/activity-log")
+        assert resp.status_code == 200
+        assert "entries" in resp.json()
+
+    def test_new_job_has_audit_entries(self, seeded_client):
+        sc = seeded_client
+        resp = sc["client"].get(f"/api/v1/jobs/{sc['job_id']}/activity-log")
+        entries = resp.json()["entries"]
+        # seeded job has description_merged — expects Job Created + Job Description
+        audit_entries = [e for e in entries if e["entry_type"] == "audit"]
+        assert len(audit_entries) >= 2
+
+    def test_job_created_precedes_job_description_in_log(self, seeded_client):
+        sc = seeded_client
+        resp = sc["client"].get(f"/api/v1/jobs/{sc['job_id']}/activity-log")
+        entries = resp.json()["entries"]
+        audit_entries = [e for e in entries if e["entry_type"] == "audit"]
+        created_idx = next(
+            (i for i, e in enumerate(audit_entries) if "Job created" in (e["text"] or "")), None
+        )
+        desc_idx = next(
+            (i for i, e in enumerate(audit_entries) if "Job description attached" in (e["text"] or "")), None
+        )
+        assert created_idx is not None, "Expected 'Job created' audit entry"
+        assert desc_idx is not None, "Expected 'Job description attached' audit entry"
+        assert created_idx < desc_idx
+
+    def test_job_without_description_has_no_description_entry(self, client):
+        job_id, _ = database.upsert_job("No Desc Co", "Analyst", "general")
+        resp = client.get(f"/api/v1/jobs/{job_id}/activity-log")
+        entries = resp.json()["entries"]
+        audit_texts = [e["text"] or "" for e in entries if e["entry_type"] == "audit"]
+        assert any("Job created" in t for t in audit_texts)
+        assert not any("Job description attached" in t for t in audit_texts)
+
+    def test_entry_shape_has_required_fields(self, seeded_client):
+        sc = seeded_client
+        resp = sc["client"].get(f"/api/v1/jobs/{sc['job_id']}/activity-log")
+        entry = resp.json()["entries"][0]
+        for field in ("entry_type", "timestamp", "activity_type", "source", "text",
+                      "url", "raw_id", "can_delete", "can_edit_timestamp"):
+            assert field in entry, f"Missing field: {field}"
+
+
+class TestCreateJobAuditRecords:
+    def test_create_job_writes_job_created_audit(self, client):
+        job_id, _ = database.upsert_job("Audit Co", "Dev", "backend")
+        app_row = database.get_application_for_job(job_id)
+        audit = database.get_application_audit(app_row["id"])
+        events = [dict(a)["event"] for a in audit]
+        assert any("Job created" in e for e in events)
+
+    def test_create_job_audit_has_job_id_set(self, client):
+        job_id, _ = database.upsert_job("Audit Co", "Dev", "backend")
+        with database.get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM application_audit WHERE job_id = ?", (job_id,)
+            ).fetchall()
+        assert len(rows) >= 1
+        for row in rows:
+            assert dict(row)["job_id"] == job_id
+
+    def test_create_job_with_description_writes_description_audit(self, client):
+        job_id, _ = database.upsert_job(
+            "Desc Co", "Eng", "backend",
+            description_merged="We are looking for an engineer.",
+        )
+        app_row = database.get_application_for_job(job_id)
+        audit = database.get_application_audit(app_row["id"])
+        events = [dict(a)["event"] for a in audit]
+        assert any("Job description attached" in e for e in events)
+
+    def test_create_job_without_description_skips_description_audit(self, client):
+        job_id, _ = database.upsert_job("No Desc Co", "Analyst", "general")
+        app_row = database.get_application_for_job(job_id)
+        audit = database.get_application_audit(app_row["id"])
+        events = [dict(a)["event"] for a in audit]
+        assert not any("Job description attached" in e for e in events)
 
 
 class TestGetAllJobsDatabase:

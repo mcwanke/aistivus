@@ -1180,7 +1180,7 @@ Left column: a muted label "Nothing to configure yet."
 
 ## Priority 15 — Backend tests
 
-- [ ] **15. Backend tests for new routes and schema**
+- [x] **15. Backend tests for new routes and schema** — `test_application_questions.py` (17 tests: CRUD happy paths, 404s, 400 empty question); `test_jobs.py` extended with `TestJobDetailApplicationId` (2), `TestActivityLog` (6), `TestCreateJobAuditRecords` (4); 475 backend total, 0 failures
 
   **Files:** `tests/routes/test_jobs.py` (update), new `tests/routes/test_application_questions.py`
 
@@ -1224,7 +1224,7 @@ Left column: a muted label "Nothing to configure yet."
 
 ## Priority 16 — Frontend tests
 
-- [ ] **16. Frontend tests for workspace, list pages, AppHeader**
+- [x] **16. Frontend tests for workspace, list pages, AppHeader** — `AppHeader.test.tsx` (new, 10 tests: dashboard/page mode variants); `JobDetail.test.tsx` extended (9 new: null score, tab activation, action defaults, I APPLIED!, questions zero state, APPLICATION LOG full-width); `Jobs.test.tsx` + `Applications.test.tsx` extended (2 each: no right panel, navigate on row click); mock `handlers.ts` updated (application_id + applied fields fixed, 5 new endpoint handlers); 195 frontend passed / 6 pre-existing Evaluate.test.tsx failures
 
   **Files:** `frontend/src/pages/JobDetail.test.tsx` (rewrite),
   `frontend/src/pages/Jobs.test.tsx` (update),

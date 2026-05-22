@@ -6,6 +6,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
 import { server } from '@/test/mocks/server'
+import { MOCK_JOB_DETAIL } from '@/test/mocks/handlers'
 import JobDetailPage from './JobDetail'
 
 function renderWorkspace(jobId = 1, tab?: string): void {
@@ -120,5 +121,75 @@ describe('JobDetailPage workspace', () => {
   it('renders score in sub-header', async () => {
     renderWorkspace()
     await waitFor(() => expect(screen.getByText('/ 10')).toBeInTheDocument())
+  })
+
+  it('shows — when agg_score_overall is null', async () => {
+    server.use(
+      http.get('/api/v1/jobs/:id', () =>
+        HttpResponse.json({
+          ...MOCK_JOB_DETAIL,
+          job: { ...MOCK_JOB_DETAIL.job, agg_score_overall: null },
+        }),
+      ),
+    )
+    renderWorkspace()
+    await waitFor(() => expect(screen.getAllByText('—').length).toBeGreaterThan(0))
+  })
+
+  it('activates APPLICATION tab from ?tab=application URL param', async () => {
+    renderWorkspace(1, 'application')
+    await waitFor(() => {
+      const tabBtn = screen.getByText('Application').closest('button')
+      expect(tabBtn?.className).toContain('text-accent')
+    })
+  })
+
+  it('shows EVALUATIONS action active by default on JOB DETAILS tab', async () => {
+    renderWorkspace()
+    await waitFor(() => screen.getByText('Evaluations'))
+    const btn = screen.getByText('Evaluations').closest('button')
+    expect(btn?.className).toContain('text-accent')
+  })
+
+  it('switches right column when JOB DESCRIPTION action is clicked', async () => {
+    const user = userEvent.setup()
+    renderWorkspace()
+    await waitFor(() => screen.getByText('Job Description'))
+    await user.click(screen.getByText('Job Description'))
+    await waitFor(() =>
+      expect(screen.getByText('Job Description').closest('button')?.className).toContain('text-accent'),
+    )
+  })
+
+  it('shows DETAILS action active by default on APPLICATION tab', async () => {
+    renderWorkspace(1, 'application')
+    await waitFor(() => screen.getByText('Details'))
+    const btn = screen.getByText('Details').closest('button')
+    expect(btn?.className).toContain('text-accent')
+  })
+
+  it('shows I APPLIED! button when applied is 0', async () => {
+    renderWorkspace(1, 'application')
+    await waitFor(() => expect(screen.getByText('I APPLIED!')).toBeInTheDocument())
+  })
+
+  it('shows APPLICATION LOG tab full-width with no left column', async () => {
+    renderWorkspace(1, 'application-log')
+    await waitFor(() => {
+      const logTab = screen.getAllByText('Application Log').map((el) => el.closest('button')).find(Boolean)
+      expect(logTab?.className).toContain('text-accent')
+    })
+  })
+
+  it('shows APPLICATION QUESTIONS zero state when no questions exist', async () => {
+    const user = userEvent.setup()
+    renderWorkspace(1, 'application')
+    await waitFor(() => screen.getByText('Application Questions'))
+    await user.click(screen.getByText('Application Questions'))
+    await waitFor(() =>
+      expect(
+        screen.getByText(/No application questions captured yet/),
+      ).toBeInTheDocument(),
+    )
   })
 })

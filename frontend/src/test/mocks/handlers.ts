@@ -131,6 +131,7 @@ export const MOCK_JOB_DETAIL: JobDetailResponse = {
     created_at: '2024-01-01T00:00:00',
     project_id: null,
     is_active: 0,
+    application_id: 1,
   },
   evaluations: [],
   postings: [],
@@ -144,6 +145,7 @@ export const MOCK_APPLICATION: ApplicationListItem = {
   end_date: null,
   requested_salary: null,
   application_status: 'applied',
+  applied: 0,
   project_id: null,
   company_name: 'Acme Corp',
   title: 'Senior Engineer',
@@ -161,6 +163,7 @@ export const MOCK_APPLICATION_DETAIL: ApplicationDetailResponse = {
     end_date: null,
     requested_salary: null,
     application_status: 'applied',
+    applied: 0,
     project_id: null,
   },
   job: MOCK_JOB_DETAIL.job,
@@ -329,5 +332,20 @@ export const handlers = [
   ),
   http.get('/api/v1/settings/anthropic-key', () =>
     HttpResponse.json({ anthropic_key_present: false }),
+  ),
+  http.get('/api/v1/jobs/:id/activity-log', () =>
+    HttpResponse.json({ entries: [] }),
+  ),
+  http.get('/api/v1/applications/:id/questions', () =>
+    HttpResponse.json([]),
+  ),
+  http.post('/api/v1/applications/:id/questions', () =>
+    HttpResponse.json({ id: 1, application_id: 1, question: 'Q', response: null, created_at: '2024-01-01T00:00:00' }, { status: 201 }),
+  ),
+  http.patch('/api/v1/applications/:id/questions/:qid', () =>
+    HttpResponse.json({ id: 1, application_id: 1, question: 'Q', response: null, created_at: '2024-01-01T00:00:00' }),
+  ),
+  http.delete('/api/v1/applications/:id/questions/:qid', () =>
+    HttpResponse.json({ deleted: true }),
   ),
 ]

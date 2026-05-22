@@ -160,8 +160,8 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 - [x] RESUME/COVER tab: 2-column stub with placeholder card ("Coming in Phase 1.6")
 - [x] INTERVIEW tab: 2-column stub with placeholder card ("Coming soon")
 - [x] `ApplicationDetailPage.tsx` and `ApplicationSummary.tsx` retired (deleted); routes `/application-detail/:id` and `/applications/:id` removed from `main.tsx`
-- [ ] Backend tests: `application_questions` CRUD, activity log route, job detail `application_id`, `create_job()` audit records
-- [ ] Frontend tests: workspace tabs/sub-header, JOB DETAILS defaults, APPLICATION defaults, APPLICATION LOG, list page navigation, AppHeader variants
+- [x] Backend tests: `application_questions` CRUD, activity log route, job detail `application_id`, `create_job()` audit records — 29 new tests across `test_application_questions.py` (new) and `test_jobs.py` (expanded); 475 total, 0 failures
+- [x] Frontend tests: workspace tabs/sub-header, JOB DETAILS defaults, APPLICATION defaults, APPLICATION LOG, list page navigation, AppHeader variants — 22 new tests across `AppHeader.test.tsx` (new), `JobDetail.test.tsx`, `Jobs.test.tsx`, `Applications.test.tsx`; 195 passed / 6 pre-existing Evaluate.test.tsx failures
 - [ ] Visual consistency sweep: CSS/design pass verifying Design Foundation patterns applied consistently across all pages
 
 ### Phase 1.6 Checklist 🔲

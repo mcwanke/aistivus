@@ -652,7 +652,7 @@ applications must be re-entered after upgrade.
 
 ## Security Checklist
 
-- [ ] All SQL parameterized — no string interpolation
-- [ ] `activate_job()` uses `WHERE id = ?` — no user-controlled SQL
-- [ ] No new external data exposure in activate response (returns same Job object as existing routes)
-- [ ] Stats query additions use parameterized IN clause or hardcoded string literals (no user input)
+- [x] All SQL parameterized — no string interpolation
+- [x] `activate_job()` uses `WHERE id = ?` — no user-controlled SQL
+- [x] No new external data exposure in activate response (returns same Job object as existing routes)
+- [x] Stats query additions use parameterized IN clause or hardcoded string literals (no user input)
