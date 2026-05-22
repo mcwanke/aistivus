@@ -1325,10 +1325,10 @@ Left column: a muted label "Nothing to configure yet."
 
 ## Security Checklist
 
-- [ ] All SQL in new `application_questions` functions uses parameterized statements
-- [ ] `get_activity_log()` UNION query uses parameterized `job_id` — no string interpolation
-- [ ] `application_id` validated against DB before any question CRUD operation (404 not 500)
-- [ ] No user-controlled SQL in activity log query; all filters are `WHERE job_id = ?`
-- [ ] Application questions `question` and `response` fields are stored as-supplied — no
+- [x] All SQL in new `application_questions` functions uses parameterized statements
+- [x] `get_activity_log()` UNION query uses parameterized `job_id` — no string interpolation
+- [x] `application_id` validated against DB before any question CRUD operation (404 not 500)
+- [x] No user-controlled SQL in activity log query; all filters are `WHERE job_id = ?`
+- [x] Application questions `question` and `response` fields are stored as-supplied — no
       server-side transformation that could inadvertently expose data
-- [ ] CORS unchanged — still `localhost:3000` / `localhost:8080` only
+- [x] CORS unchanged — still `localhost:3000` / `localhost:8080` only
