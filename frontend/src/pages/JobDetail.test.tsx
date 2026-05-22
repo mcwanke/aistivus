@@ -43,7 +43,7 @@ describe('JobDetailPage workspace', () => {
 
   it('renders company name in sub-header', async () => {
     renderWorkspace()
-    await waitFor(() => expect(screen.getByText('Acme Corp')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText('Acme Corp').length).toBeGreaterThan(0))
   })
 
   it('renders location in sub-header', async () => {
@@ -111,7 +111,8 @@ describe('JobDetailPage workspace', () => {
   it('opens APPLICATION LOG tab when ?tab=application-log in URL', async () => {
     renderWorkspace(1, 'application-log')
     await waitFor(() => {
-      const logTab = screen.getByText('Application Log').closest('button')
+      // tab button is one of multiple "Application Log" elements — find the one inside a button
+      const logTab = screen.getAllByText('Application Log').map((el) => el.closest('button')).find(Boolean)
       expect(logTab?.className).toContain('text-accent')
     })
   })

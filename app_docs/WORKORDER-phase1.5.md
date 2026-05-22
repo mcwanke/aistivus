@@ -849,7 +849,7 @@ Left column: a muted label "Nothing to configure yet."
 
 ## Priority 10 — JOB DETAILS tab
 
-- [ ] **10. Build JOB DETAILS tab — left column + right column with 3 action sections**
+- [x] **10. Build JOB DETAILS tab — left column + right column with 3 action sections** — JobDetailsLeft (actions: EVALUATIONS/JOB DESCRIPTION/COMPANY INFO + SUMMARY: excitement/my ratings/job info); JobDetailsRight (evaluations with expandable rows + prompt copy, job description with edit/copy/export, company info inline form + rows); get_evaluations_for_job extended with LEFT JOIN llm_call_log.prompt; JobDetailResponse.evaluations typed with model_name + prompt
 
   **Files:** `frontend/src/pages/JobDetail.tsx`
 
@@ -1036,7 +1036,7 @@ Left column: a muted label "Nothing to configure yet."
 
 ## Priority 12 — APPLICATION LOG tab
 
-- [ ] **12. Build APPLICATION LOG tab — 1-column unified timeline**
+- [x] **12. Build APPLICATION LOG tab — 1-column unified timeline** — ActivityLogRow component (timestamp/badge/type/source/copy/delete/expand); TimestampModal (reusable, wired to usePatchLogTimestamp + usePatchAuditTimestamp); badge colors per entry_type; loading/error/empty states; only loaded when tab is active
 
   **Files:** `frontend/src/pages/JobDetail.tsx`
 

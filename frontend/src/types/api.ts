@@ -208,7 +208,7 @@ export interface CompanyLogEntry {
 
 export interface JobDetailResponse {
   job: Job
-  evaluations: Array<Evaluation & { report_path: string | null }>
+  evaluations: Array<Evaluation & { report_path: string | null; model_name: string; prompt: string | null }>
   postings: JobPosting[]
   company_log: CompanyLogEntry[]
 }

@@ -1224,12 +1224,13 @@ def insert_evaluation(job_id: int, llm_model_id: int, **kwargs) -> int:
 
 
 def get_evaluations_for_job(job_id: int) -> list[sqlite3.Row]:
-    """Return all evaluations for a job with model name, newest first."""
+    """Return all evaluations for a job with model name and LLM prompt, newest first."""
     with get_connection() as conn:
         return conn.execute(
-            """SELECT e.*, m.model AS model_name
+            """SELECT e.*, m.model AS model_name, l.prompt AS prompt
                FROM evaluations e
                JOIN llm_models m ON m.id = e.llm_model_id
+               LEFT JOIN llm_call_log l ON l.id = e.llm_call_log_id
                WHERE e.job_id = ?
                ORDER BY e.evaluated_at DESC, e.id DESC""",
             (job_id,)
