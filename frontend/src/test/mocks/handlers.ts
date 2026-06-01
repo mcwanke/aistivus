@@ -100,6 +100,7 @@ export const MOCK_JOB: JobListItem = {
   is_active: 0,
   application_id: 1,
   application_status: 'draft',
+  eval_count: 2,
 }
 
 export const MOCK_JOB_DETAIL: JobDetailResponse = {

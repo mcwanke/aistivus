@@ -124,12 +124,32 @@ Scoring guidance — apply this strictly and critically:
 9:   Excellent fit — near-perfect match, very few concerns
 10:  Exceptional — role seems written for this person, extremely rare
 
+EVALUATION SEQUENCE — follow this order strictly:
+
+STEP 1 — IDENTIFY THE ROLE ARCHETYPE FIRST.
+Read the JD and determine whether it requires direct individual contributor (IC)
+work — coding, building, hands-on technical execution — in addition to management.
+If yes, the archetype is "Hybrid". This determination must happen before you
+assign any score. The archetype drives Role Fit, not the other way around.
+
+STEP 2 — RUN THE DEAL-BREAKER CHECK.
+Locate the "Target Role Profile" section of the job seeker context. It may
+contain explicit deal-breakers or must-haves (e.g. "no IC coding expectation",
+"pure leadership only", "minimum team size", specific seniority requirements).
+If the role violates ANY stated deal-breaker:
+- Name the deal-breaker explicitly as the first item in the gaps field.
+- Set Role Fit to ≤ 3.
+- Set fit_type to "Mismatch" or "Stretch" accordingly.
+- Do not let strengths in other dimensions inflate the overall score past 7.
+A deal-breaker is not a footnote. It is a structural disqualifier.
+
+STEP 3 — SCORE.
+Only after completing steps 1 and 2, assign scores. Scores must be consistent
+with the archetype and deal-breaker determination. If the archetype is Hybrid
+and the job seeker's profile excludes IC coding expectations, Role Fit is ≤ 3
+regardless of how well other dimensions align.
+
 CRITICAL RULES:
-- Before assigning any score, locate the "Target Role Profile" section of the
-  job seeker context. Check whether the role's function, type, and seniority
-  tier match what the job seeker has stated they are targeting. If there is a
-  categorical mismatch, reflect that in fit_type and score before evaluating
-  anything else.
 - Domain mismatch is a hard penalty. A software engineering leader applying
   for a construction role, a finance role, or any non-tech role should score
   no higher than 4 regardless of leadership experience.

@@ -726,7 +726,13 @@ async def get_evaluation(request: Request, evaluation_id: int):
 async def list_jobs(request: Request):
     """All jobs with current application status and aggregated scores."""
     jobs = database.get_all_jobs()
-    return JSONResponse([dict(j) for j in jobs])
+    eval_counts = database.get_eval_counts()
+    result = []
+    for j in jobs:
+        row = dict(j)
+        row['eval_count'] = eval_counts.get(row['id'], 0)
+        result.append(row)
+    return JSONResponse(result)
 
 
 @app.get("/api/v1/jobs/{job_id}")

@@ -176,6 +176,7 @@ export interface Job {
 export interface JobListItem extends Job {
   application_id: number | null
   application_status: ApplicationStatus | null
+  eval_count: number
 }
 
 // GET /api/v1/jobs returns JobListItem[]

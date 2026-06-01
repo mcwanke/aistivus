@@ -943,6 +943,8 @@ def get_all_jobs(include_inactive: bool = False) -> list[sqlite3.Row]:
         return conn.execute(
             f"""SELECT j.*,
                       a.id AS application_id,
+                      a.application_status,
+                      a.id AS application_id,
                       a.application_status
                FROM jobs j
                LEFT JOIN applications a ON a.id = (
@@ -957,6 +959,15 @@ def get_all_jobs(include_inactive: bool = False) -> list[sqlite3.Row]:
                {where}
                ORDER BY j.last_seen_date DESC, j.created_at DESC"""
         ).fetchall()
+
+
+def get_eval_counts() -> dict[int, int]:
+    """Return a mapping of job_id → evaluation count for all jobs."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT job_id, COUNT(*) FROM evaluations GROUP BY job_id"
+        ).fetchall()
+    return {row[0]: row[1] for row in rows}
 
 
 def activate_job(job_id: int) -> None:
