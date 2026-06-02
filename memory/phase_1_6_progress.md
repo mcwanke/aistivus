@@ -40,12 +40,16 @@ Phase 1.6 Document Management — work in progress. Work order at `app_docs/WORK
 - `database._audit_application()` called directly from document_routes (underscore-prefix function — only way without touching database.py)
 - Upload and copy-template responses re-fetch via `get_document_by_id` after insert to include `created_at` from DB
 
+**Batch E (Priorities 8+9):**
+- `frontend/src/types/documents.ts` (new): all document interfaces — `ApplicationDocument`, `DocumentUploadResult`, `CompileResult`, `FinalizeResult`, `TypstTemplate`, `TypstTemplateList`, `DocumentsStorageInfo`
+- `frontend/src/hooks/useDocuments.ts` (new): 10 hooks — `useApplicationDocuments`, `useDocumentContent`, `useTypstTemplates`, `useDocumentsStorage` (queries); `useUploadDocument`, `useDeleteDocument`, `useCompileDocument`, `useFinalizeDocument`, `useSaveDocumentContent`, `useCopyTemplate` (mutations)
+- `frontend/src/types/api.ts`: added `typst_available: boolean` to `HealthResponse`
+- TypeScript `tsc --noEmit` clean after all three changes
+
 ## In Progress / Next
 
-- **Batch D** — Priority 7: SKIPPED — templates already exist; user will add any new ones manually
-- **Batch E** — Priorities 8+9: `frontend/src/types/documents.ts` + `frontend/src/hooks/useDocuments.ts`
+- **Batch G** — Priority 12: backend tests (`tests/routes/test_documents.py`) — do this BEFORE Batch F to surface route bugs early
 - **Batch F** — Priorities 10+11: RESUME/COVER tab in JobDetail + Document Storage card in Settings
-- **Batch G** — Priority 12: backend tests (`tests/routes/test_documents.py`)
 - **Batch H** — Priority 13: frontend tests for RESUME/COVER tab
 
 ## Test Baseline (unchanged this session)
@@ -53,4 +57,4 @@ Phase 1.6 Document Management — work in progress. Work order at `app_docs/WORK
 Frontend: 195 passed / 6 pre-existing Evaluate.test.tsx failures (201 total)
 Backend: 486 passed / 0 errors
 
-**How to apply:** Start at Batch C next session. Check this file for progress before starting.
+**How to apply:** Start at Batch G next session (backend tests). Check this file for progress before starting.

@@ -59,6 +59,7 @@ export interface HealthResponse {
   database: { schema_version: string }
   models: LlmModelHealth[]
   anthropic_configured: boolean
+  typst_available: boolean
   version: string
 }
 
