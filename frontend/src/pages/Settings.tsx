@@ -19,6 +19,7 @@ import {
   useSaveResumeTemplate,
   useResumeTemplateBackup,
 } from '@/hooks/useSettings'
+import { useDocumentsStorage } from '@/hooks/useDocuments'
 import {
   useServers,
   useCreateServer,
@@ -1559,9 +1560,67 @@ function InfoSection(): React.JSX.Element {
   )
 }
 
+// ─── Document storage ─────────────────────────────────────────────────────────
+
+function DocumentStorageSection(): React.JSX.Element {
+  const { data, isLoading, error } = useDocumentsStorage()
+
+  return (
+    <section className="mb-10">
+      <SectionHeader title="Document Storage" />
+      {isLoading && <p className="text-sm text-muted">Loading…</p>}
+      {error && <p className="text-sm text-red">{(error as Error).message}</p>}
+      {data && (
+        <div className="space-y-4 max-w-sm">
+          <div className="bg-surface2 rounded-lg px-4 py-3 space-y-1">
+            <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-2">Typst</p>
+            {data.typst_available ? (
+              <>
+                <p className="text-sm font-mono text-green">● Available</p>
+                <p className="text-xs font-mono text-muted">
+                  Binary: <span className="text-text">{data.typst_binary}</span>
+                </p>
+              </>
+            ) : (
+              <div className="space-y-1">
+                <p className="text-sm font-mono text-red">✗ Not found — compile disabled</p>
+                <p className="text-xs font-mono text-muted">
+                  Install: <span className="text-text">brew install typst</span> (macOS)
+                </p>
+                <p className="text-xs font-mono text-muted">
+                  {'         '}<span className="text-text">snap install typst</span> (Linux)
+                </p>
+                <p className="text-xs font-mono text-muted">
+                  Restart the server after installing.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-surface2 rounded-lg px-4 py-3 space-y-1">
+            <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-2">
+              Generated files
+            </p>
+            {data.file_count === 0 && data.total_bytes === 0 ? (
+              <p className="text-sm font-mono text-muted">No generated files yet.</p>
+            ) : (
+              <>
+                <p className="text-sm font-mono text-text">
+                  {data.file_count} {data.file_count === 1 ? 'file' : 'files'} · {data.total_mb} MB
+                </p>
+                <p className="text-xs font-mono text-muted">{data.generated_dir}</p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'app-settings' | 'system-types' | 'servers' | 'models' | 'my-data' | 'info'
+type Tab = 'app-settings' | 'system-types' | 'servers' | 'models' | 'my-data' | 'storage' | 'info'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'app-settings', label: 'App Settings' },
@@ -1569,6 +1628,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'servers', label: 'AI Servers' },
   { id: 'models', label: 'Models' },
   { id: 'my-data', label: 'My Data' },
+  { id: 'storage', label: 'Storage' },
   { id: 'info', label: 'System Info' },
 ]
 
@@ -1608,6 +1668,7 @@ export default function Settings(): React.JSX.Element {
             <ResumeTemplateSection />
           </>
         )}
+        {activeTab === 'storage' && <DocumentStorageSection />}
         {activeTab === 'info' && <InfoSection />}
       </div>
       </div>

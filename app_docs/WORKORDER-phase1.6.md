@@ -307,7 +307,7 @@ Two types in `system_types`:
 ## Priority 4 — Document Routes: Core CRUD + Template Routes
 *New file `document_routes.py`. Registered in `main.py`.*
 
-- [ ] **4. Create `document_routes.py`**
+- [x] **4. Create `document_routes.py`** — all 12 routes: upload, list, delete, serve, content GET/PUT, template list/copy; registered in main.py
 
   **Files:** `document_routes.py` (new), `main.py` (register router + import)
 
@@ -536,7 +536,7 @@ Two types in `system_types`:
 ## Priority 5 — Compile + Finalize Routes
 *Added to `document_routes.py`. Depends on Priority 4 being complete.*
 
-- [ ] **5. Add compile and finalize routes to `document_routes.py`**
+- [x] **5. Add compile and finalize routes to `document_routes.py`** — compile (DRAFT_ naming, 30s timeout, replace-on-recompile, 503 if unavailable), finalize (structured final filename, is_final flag, prior final cleared)
 
   **Files:** `document_routes.py`
 
@@ -697,7 +697,7 @@ Two types in `system_types`:
 ## Priority 8 — TypeScript Interfaces
 *Define all types before building any React component.*
 
-- [ ] **8. Create `frontend/src/types/documents.ts`**
+- [x] **8. Create `frontend/src/types/documents.ts`** — all document interfaces + `typst_available` added to HealthResponse
 
   **Files:** `frontend/src/types/documents.ts` (new)
 
@@ -771,7 +771,7 @@ Two types in `system_types`:
 ## Priority 9 — React Hooks
 *All server state and mutation logic lives in hooks.*
 
-- [ ] **9. Create `frontend/src/hooks/useDocuments.ts`**
+- [x] **9. Create `frontend/src/hooks/useDocuments.ts`** — 10 hooks: 4 queries + 6 mutations covering all document routes
 
   **Files:** `frontend/src/hooks/useDocuments.ts` (new)
 
@@ -826,7 +826,7 @@ Two types in `system_types`:
 ## Priority 10 — RESUME/COVER Tab (JobDetail)
 *Fills the currently-empty RESUME/COVER tab on the job workspace.*
 
-- [ ] **10. Build the RESUME/COVER tab content**
+- [x] **10. Build the RESUME/COVER tab content** — DocRow + ResumeCoverTab components added to JobDetail.tsx; health query wired for typst_available; left column shows Typst status, right column renders tab
 
   **Files:** Read the current JobDetail implementation before touching anything.
   Only modify files directly responsible for the RESUME/COVER tab content.
@@ -917,7 +917,7 @@ Two types in `system_types`:
 ## Priority 11 — Settings: Document Storage Card
 *New card on the existing Settings page.*
 
-- [ ] **11. Add Document Storage card to `frontend/src/pages/Settings.tsx`**
+- [x] **11. Add Document Storage card to `frontend/src/pages/Settings.tsx`** — DocumentStorageSection component added; 'storage' tab added to Settings nav; useDocumentsStorage() wired
 
   **Files:** `frontend/src/pages/Settings.tsx`
 
@@ -949,7 +949,7 @@ Two types in `system_types`:
 
 ## Priority 12 — Backend Tests
 
-- [ ] **12. Backend tests for document routes**
+- [x] **12. Backend tests for document routes** — 57 tests in `tests/routes/test_documents.py`; all pass in isolation and full suite (543 total backend passing)
 
   **Files:** `tests/routes/test_documents.py` (new)
 

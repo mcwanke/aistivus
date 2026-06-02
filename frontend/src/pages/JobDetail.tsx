@@ -1,6 +1,6 @@
 import { useState, useRef, useLayoutEffect, useEffect } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import AppHeader from '@/components/AppHeader'
 import { useJobDetail, usePatchJob, useAddCompanyLog, useActivityLog } from '@/hooks/useJobs'
 import {
@@ -20,6 +20,18 @@ import {
 } from '@/hooks/useApplicationQuestions'
 import { useLessonChat } from '@/hooks/useLessonChat'
 import { useImportEvaluationMutation, useModels, type ImportPayload } from '@/hooks/useEvaluate'
+import {
+  useApplicationDocuments,
+  useUploadDocument,
+  useDeleteDocument,
+  useCompileDocument,
+  useFinalizeDocument,
+  useDocumentContent,
+  useSaveDocumentContent,
+  useTypstTemplates,
+  useCopyTemplate,
+} from '@/hooks/useDocuments'
+import type { ApplicationDocument } from '@/types/documents'
 import { StatusBadge, STATUSES } from '@/utils/status'
 import { fmtScore } from '@/utils/formatting'
 import type { LessonChatFinalizeResponse } from '@/types/profile'
@@ -2610,6 +2622,389 @@ function ApplicationRight({
   )
 }
 
+// ─── Document row ─────────────────────────────────────────────────────────────
+
+interface DocRowProps {
+  doc: ApplicationDocument
+  applicationId: number
+  typstAvailable: boolean
+}
+
+function DocRow({ doc, applicationId, typstAvailable }: DocRowProps): React.JSX.Element {
+  const [editing, setEditing] = useState(false)
+  const [editContent, setEditContent] = useState('')
+  const [editError, setEditError] = useState('')
+  const [compileError, setCompileError] = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const contentInitRef = useRef(false)
+
+  const isTyp = doc.extension === '.typ'
+  const isPdf = doc.extension === '.pdf'
+  const isDraft = isPdf && doc.filename.startsWith('DRAFT_')
+  const isFinal = doc.is_final === 1
+  const isMissing = !doc.file_exists
+
+  const compile = useCompileDocument(applicationId)
+  const finalize = useFinalizeDocument(applicationId)
+  const del = useDeleteDocument(applicationId)
+  const saveContent = useSaveDocumentContent(applicationId)
+  const { data: contentData, isLoading: contentLoading } = useDocumentContent(
+    applicationId,
+    editing ? doc.id : null
+  )
+
+  useEffect(() => {
+    if (contentData?.content != null && editing && !contentInitRef.current) {
+      setEditContent(contentData.content)
+      contentInitRef.current = true
+    }
+  }, [contentData, editing])
+
+  async function handleCompile(): Promise<void> {
+    setCompileError('')
+    const result = await compile.mutateAsync(doc.id)
+    if (!result.success) {
+      setCompileError(result.detail ?? result.error ?? 'Compilation failed')
+    }
+  }
+
+  async function handleSaveContent(): Promise<void> {
+    setEditError('')
+    if (!editContent.trim()) {
+      setEditError('Content cannot be empty.')
+      return
+    }
+    if (new TextEncoder().encode(editContent).length > 5 * 1024 * 1024) {
+      setEditError('Content exceeds 5 MB limit.')
+      return
+    }
+    try {
+      await saveContent.mutateAsync({ docId: doc.id, content: editContent })
+      setEditing(false)
+      setEditContent('')
+    } catch (e) {
+      setEditError((e as Error).message)
+    }
+  }
+
+  function handleOpenEditor(): void {
+    contentInitRef.current = false
+    setEditing(true)
+    setEditContent('')
+    setEditError('')
+    setCompileError('')
+  }
+
+  function handleCancelEdit(): void {
+    setEditing(false)
+    setEditContent('')
+    setEditError('')
+  }
+
+  const typeBadge = doc.type_value === 'resume'
+    ? <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-accent/15 text-accent shrink-0">resume</span>
+    : <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 shrink-0">cover letter</span>
+
+  return (
+    <div className="bg-surface2 rounded mb-1 last:mb-0">
+      {/* Row header */}
+      <div className="flex items-start gap-3 px-3 py-2.5">
+        {/* Filename + badges */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            <span className={`text-sm font-mono truncate ${isMissing ? 'text-red/70' : 'text-text'}`}>
+              {doc.filename}
+            </span>
+            {isMissing && (
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-red/15 text-red shrink-0">
+                ⚠ File missing
+              </span>
+            )}
+            {isFinal && !isMissing && (
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-green/15 text-green border border-green/30 shrink-0">
+                Final
+              </span>
+            )}
+            {typeBadge}
+          </div>
+          <span className="text-[10px] font-mono text-muted">{fmtDate(doc.created_at)}</span>
+        </div>
+
+        {/* Buttons — normal state */}
+        {!deleteConfirm ? (
+          <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+            {isTyp && !isMissing && (
+              <button
+                onClick={handleOpenEditor}
+                className="text-xs font-mono text-muted hover:text-text border border-surface2 rounded px-2 py-0.5 transition-colors hover:border-accent/40"
+              >
+                Edit
+              </button>
+            )}
+            {isTyp && typstAvailable && !isMissing && (
+              <button
+                onClick={() => void handleCompile()}
+                disabled={compile.isPending}
+                className="text-xs font-mono text-muted hover:text-text border border-surface2 rounded px-2 py-0.5 transition-colors hover:border-accent/40 disabled:opacity-50"
+              >
+                {compile.isPending ? 'Compiling…' : 'Compile'}
+              </button>
+            )}
+            {isDraft && !isMissing && (
+              <button
+                onClick={() => finalize.mutate(doc.id)}
+                disabled={finalize.isPending}
+                className="text-xs font-mono text-muted hover:text-accent border border-surface2 rounded px-2 py-0.5 transition-colors hover:border-accent/40 disabled:opacity-50"
+              >
+                {finalize.isPending ? 'Finalizing…' : 'Finalize'}
+              </button>
+            )}
+            {isPdf && !isMissing && (
+              <>
+                <button
+                  onClick={() => { window.open(`/api/v1/documents/file/${doc.id}`, '_blank') }}
+                  className="text-xs font-mono text-muted hover:text-text border border-surface2 rounded px-2 py-0.5 transition-colors hover:border-accent/40"
+                >
+                  Open
+                </button>
+                <button
+                  onClick={() => { window.open(`/api/v1/documents/file/${doc.id}?download=true`, '_blank') }}
+                  className="text-xs font-mono text-muted hover:text-text border border-surface2 rounded px-2 py-0.5 transition-colors hover:border-accent/40"
+                >
+                  Download
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => setDeleteConfirm(true)}
+              className="text-xs font-mono text-muted hover:text-red border border-surface2 rounded px-2 py-0.5 transition-colors hover:border-red/40"
+            >
+              Delete
+            </button>
+          </div>
+        ) : (
+          /* Delete confirmation */
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs font-mono text-muted">Delete {doc.filename}?</span>
+            <button
+              onClick={() => del.mutate(doc.id)}
+              disabled={del.isPending}
+              className="text-xs font-mono text-red border border-red/40 rounded px-2 py-0.5 transition-colors hover:bg-red/10 disabled:opacity-50"
+            >
+              {del.isPending ? '…' : 'Confirm'}
+            </button>
+            <button
+              onClick={() => setDeleteConfirm(false)}
+              className="text-xs font-mono text-muted border border-surface2 rounded px-2 py-0.5 transition-colors hover:text-text"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Compile error */}
+      {compileError && !editing && (
+        <div className="px-3 pb-2">
+          <pre className="text-xs font-mono text-red bg-red/5 rounded p-2 whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
+            {compileError}
+          </pre>
+        </div>
+      )}
+
+      {/* Inline .typ editor */}
+      {editing && (
+        <div className="px-3 pb-3 border-t border-surface pt-2 space-y-2">
+          {contentLoading ? (
+            <p className="text-xs text-muted">Loading…</p>
+          ) : (
+            <>
+              <textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                rows={12}
+                className="w-full bg-surface border border-surface2 rounded px-3 py-2 text-xs font-mono text-text focus:outline-none focus:border-accent/50 resize-y"
+              />
+              {editError && <p className="text-xs font-mono text-red">{editError}</p>}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => void handleSaveContent()}
+                  disabled={saveContent.isPending}
+                  className="px-3 py-1.5 text-xs bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+                >
+                  {saveContent.isPending ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  className="px-3 py-1.5 text-xs text-muted hover:text-text transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── RESUME/COVER tab ─────────────────────────────────────────────────────────
+
+interface ResumeCoverTabProps {
+  applicationId: number
+  typstAvailable: boolean
+}
+
+function ResumeCoverTab({ applicationId, typstAvailable }: ResumeCoverTabProps): React.JSX.Element {
+  const [docType, setDocType] = useState<'resume' | 'cover_letter'>('resume')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [uploadError, setUploadError] = useState('')
+  const [templateError, setTemplateError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const { data: documents = [], isLoading: docsLoading } = useApplicationDocuments(applicationId)
+  const { data: templates } = useTypstTemplates()
+  const upload = useUploadDocument(applicationId)
+  const copyTemplate = useCopyTemplate(applicationId)
+
+  const hasTemplates =
+    (templates?.resume.length ?? 0) > 0 || (templates?.cover_letter.length ?? 0) > 0
+
+  async function handleUpload(e: React.FormEvent<HTMLFormElement>): Promise<void> {
+    e.preventDefault()
+    if (!selectedFile) return
+    setUploadError('')
+    try {
+      await upload.mutateAsync({ file: selectedFile, doc_type: docType })
+      setSelectedFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    } catch (err) {
+      setUploadError((err as Error).message)
+    }
+  }
+
+  async function handleCopyTemplate(
+    filename: string,
+    category: 'resume' | 'cover_letter'
+  ): Promise<void> {
+    setTemplateError('')
+    try {
+      await copyTemplate.mutateAsync({ template_filename: filename, category })
+    } catch (err) {
+      setTemplateError((err as Error).message)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Section A — Typst unavailable banner */}
+      {!typstAvailable && (
+        <div className="flex items-start gap-3 bg-surface2 border border-surface2 rounded-lg px-4 py-3">
+          <span className="text-accent shrink-0 mt-0.5">⚠</span>
+          <div className="space-y-1">
+            <p className="text-sm font-sans text-text">Typst not found — compilation disabled.</p>
+            <p className="text-xs font-mono text-muted">
+              Install:{' '}
+              <span className="text-text">brew install typst</span> (macOS) ·{' '}
+              <span className="text-text">snap install typst</span> (Linux)
+            </p>
+            <p className="text-xs font-mono text-muted">Restart the server after installing.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Section B — Template picker */}
+      {hasTemplates && (
+        <div>
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">
+            New from template
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {templates?.resume.map((t) => (
+              <button
+                key={t.filename}
+                onClick={() => void handleCopyTemplate(t.filename, 'resume')}
+                disabled={copyTemplate.isPending}
+                className="text-xs font-mono text-muted border border-surface2 rounded px-2.5 py-1 hover:text-accent hover:border-accent/40 transition-colors disabled:opacity-50"
+              >
+                {t.display_name}{' '}
+                <span className="text-muted/60">(resume)</span>
+              </button>
+            ))}
+            {templates?.cover_letter.map((t) => (
+              <button
+                key={t.filename}
+                onClick={() => void handleCopyTemplate(t.filename, 'cover_letter')}
+                disabled={copyTemplate.isPending}
+                className="text-xs font-mono text-muted border border-surface2 rounded px-2.5 py-1 hover:text-accent hover:border-accent/40 transition-colors disabled:opacity-50"
+              >
+                {t.display_name}{' '}
+                <span className="text-muted/60">(cover)</span>
+              </button>
+            ))}
+          </div>
+          {templateError && (
+            <p className="text-xs font-mono text-red mt-1">{templateError}</p>
+          )}
+        </div>
+      )}
+
+      {/* Upload form */}
+      <form onSubmit={(e) => void handleUpload(e)}>
+        <div className="flex items-center gap-3 flex-wrap">
+          <select
+            value={docType}
+            onChange={(e) => setDocType(e.target.value as 'resume' | 'cover_letter')}
+            className="bg-surface2 rounded px-3 py-1.5 text-sm font-mono text-text focus:outline-none focus:ring-1 focus:ring-accent"
+          >
+            <option value="resume">Resume</option>
+            <option value="cover_letter">Cover Letter</option>
+          </select>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".typ,.pdf"
+            onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+            className="text-sm font-mono text-muted file:mr-2 file:px-3 file:py-1 file:rounded file:border-0 file:bg-surface2 file:text-muted file:text-xs file:font-mono hover:file:text-text file:cursor-pointer"
+          />
+          <button
+            type="submit"
+            disabled={!selectedFile || upload.isPending}
+            className="px-3 py-1.5 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+          >
+            {upload.isPending ? 'Uploading…' : 'Upload'}
+          </button>
+        </div>
+        {uploadError && <p className="text-xs font-mono text-red mt-2">{uploadError}</p>}
+      </form>
+
+      {/* Section C — Document list */}
+      <div>
+        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Documents</p>
+        {docsLoading ? (
+          <p className="text-sm text-muted">Loading…</p>
+        ) : documents.length === 0 ? (
+          <p className="text-sm text-muted italic">
+            No documents yet. Upload a file or start from a template above.
+          </p>
+        ) : (
+          <div>
+            {documents.map((doc) => (
+              <DocRow
+                key={doc.id}
+                doc={doc}
+                applicationId={applicationId}
+                typstAvailable={typstAvailable}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Workspace page ───────────────────────────────────────────────────────────
 
 export default function JobDetailPage(): React.JSX.Element {
@@ -2636,6 +3031,15 @@ export default function JobDetailPage(): React.JSX.Element {
   const importMutation = useImportEvaluationMutation()
   const { data: models = [] } = useModels()
   const qc = useQueryClient()
+  const { data: healthData } = useQuery({
+    queryKey: ['health'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/health')
+      if (!res.ok) throw new Error(`health ${res.status}`)
+      return res.json() as Promise<{ typst_available: boolean }>
+    },
+  })
+  const typstAvailable = healthData?.typst_available ?? false
 
   function setTab(tab: TabId): void {
     setSearchParams({ tab }, { replace: true })
@@ -2764,7 +3168,15 @@ export default function JobDetailPage(): React.JSX.Element {
                 onSelect={setJobDetailsAction}
               />
             )}
-            {(activeTab === 'resume-cover' || activeTab === 'interview') && (
+            {activeTab === 'resume-cover' && (
+              <div className="space-y-1">
+                <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Typst</p>
+                <p className={`text-xs font-mono ${typstAvailable ? 'text-green' : 'text-red'}`}>
+                  {typstAvailable ? '● Available' : '✗ Not found'}
+                </p>
+              </div>
+            )}
+            {activeTab === 'interview' && (
               <p className="text-[10px] font-mono text-muted uppercase tracking-widest">
                 Nothing to configure yet.
               </p>
@@ -2792,14 +3204,11 @@ export default function JobDetailPage(): React.JSX.Element {
               />
             )}
             {activeTab === 'resume-cover' && (
-              <div className="bg-surface border border-surface2 rounded-xl p-6 max-w-lg">
-                <p className="font-serif text-accent text-lg mb-2">Resume & Cover Letter</p>
-                <p className="text-sm text-muted leading-relaxed">
-                  Upload and manage your resume and cover letter documents.
-                  Connect to Typst for PDF compilation and tailored resume generation.
-                </p>
-                <p className="mt-4 text-xs font-mono text-muted/60">Coming in Phase 1.6.</p>
-              </div>
+              applicationId !== undefined ? (
+                <ResumeCoverTab applicationId={applicationId} typstAvailable={typstAvailable} />
+              ) : (
+                <p className="text-sm text-muted italic">Application not found.</p>
+              )
             )}
             {activeTab === 'interview' && (
               <div className="bg-surface border border-surface2 rounded-xl p-6 max-w-lg">

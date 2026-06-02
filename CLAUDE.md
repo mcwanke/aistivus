@@ -75,18 +75,18 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 ## Current Phase: PHASE 1.6 — Document Management
 
 ### Phase 1.6 Checklist 🔲
-- [ ] Config: `typst:` section in `CONFIG_TEMPLATE.yaml` (`binary_path`, `generated_dir`; moved from `output:`)
-- [ ] DB: `application_info` system_type seed; `get_document_by_id()`; `get_document_by_file_path()`
-- [ ] Startup: Typst binary check → `app.state.typst_available`; create `generated/` on startup; extend health endpoint with `typst_available`
-- [ ] `document_routes.py`: upload (3 types, 5MB/.typ 20MB/.pdf, sanitize, audit log), list, delete (file + record + audit log), file serve route
-- [ ] Compile route: Option A naming convention, 30s timeout, replace-on-compile, 503 if unavailable
-- [ ] `GET /api/v1/settings/documents-storage` endpoint (disk usage + Typst status)
-- [ ] Two bundled Typst templates in `templates/typst/` (modern-cv, simple-technical-resume — MIT)
-- [ ] TypeScript interfaces in `frontend/src/types/documents.ts`
-- [ ] React hooks: `useApplicationDocuments`, `useUploadDocument`, `useDeleteDocument`, `useCompileDocument`, `useDocumentsStorage`
-- [ ] Document section on ApplicationDetail (4th tab: file list, type-selector upload, compile/open/delete, Typst-unavailable banner)
-- [ ] Settings: Document Storage card (Typst status + `generated/` disk usage)
-- [ ] Backend tests for all document routes
+- [x] Config: `typst:` section in `CONFIG_TEMPLATE.yaml` (`binary_path`, `generated_dir`; moved from `output:`)
+- [x] DB: `get_document_by_id()`; `get_document_by_file_path()`; `set_document_final()`; `is_final` delta migration (`application_info` type dropped from Phase 1.6)
+- [x] Startup: Typst binary check → `app.state.typst_available`; create `generated/` on startup; extend health endpoint with `typst_available`
+- [x] `document_routes.py`: upload (5MB/.typ 20MB/.pdf, sanitize, audit log), list, delete (file + record + audit log), file serve route, content GET/PUT, compile, finalize, template list/copy
+- [x] Compile route: DRAFT_ naming convention, 30s timeout, replace-on-compile, 503 if unavailable
+- [x] `GET /api/v1/settings/documents-storage` endpoint (disk usage + Typst status)
+- [ ] Two bundled Typst templates in `templates/typst/` (resume/ and cover-letter/ subdirs)
+- [x] TypeScript interfaces in `frontend/src/types/documents.ts`
+- [x] React hooks: `useApplicationDocuments`, `useUploadDocument`, `useDeleteDocument`, `useCompileDocument`, `useDocumentsStorage`, and more in `useDocuments.ts`
+- [x] Document section on ApplicationDetail (RESUME/COVER tab: file list, type-selector upload, template picker, compile/open/delete, Typst-unavailable banner)
+- [x] Settings: Document Storage card (Typst status + `generated/` disk usage)
+- [x] Backend tests for all document routes (57 tests in `tests/routes/test_documents.py`)
 - [ ] Frontend tests for Document tab on ApplicationDetail
 
 ### Phase 1.7 Checklist 🔲
