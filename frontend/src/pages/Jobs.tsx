@@ -7,6 +7,18 @@ import AppHeader from '@/components/AppHeader'
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type SortKey = 'score' | 'status'
+type FilterKey = 'not-applied' | 'applied' | 'in-process' | 'closed-out'
+
+// ─── Filter config ────────────────────────────────────────────────────────────
+
+const FILTER_GROUPS: { key: FilterKey; label: string; statuses: string[] }[] = [
+  { key: 'not-applied', label: 'Not Applied', statuses: ['not-started', 'draft'] },
+  { key: 'applied',     label: 'Applied',     statuses: ['applied'] },
+  { key: 'in-process',  label: 'In Process',  statuses: ['screening', 'interview', 'offer'] },
+  { key: 'closed-out',  label: 'Closed Out',  statuses: ['rejected', 'ghosted', 'withdrawn'] },
+]
+
+const DEFAULT_FILTERS = new Set<FilterKey>(['not-applied', 'applied', 'in-process'])
 
 // ─── Status config ────────────────────────────────────────────────────────────
 
@@ -140,9 +152,15 @@ function JobRow({ job, onSelect }: { job: JobListItem; onSelect: () => void }): 
   )
 }
 
-// ─── Sort toolbar ─────────────────────────────────────────────────────────────
+// ─── Toolbar ──────────────────────────────────────────────────────────────────
 
-function SortToolbar({ sort, onSort }: { sort: SortKey; onSort: (k: SortKey) => void }): React.JSX.Element {
+function Toolbar({
+  sort, onSort,
+  activeFilters, onToggleFilter,
+}: {
+  sort: SortKey; onSort: (k: SortKey) => void
+  activeFilters: Set<FilterKey>; onToggleFilter: (k: FilterKey) => void
+}): React.JSX.Element {
   return (
     <div className="flex items-center gap-2 px-4 py-2 border-b border-surface2 shrink-0">
       <span className="text-[0.58rem] font-mono text-muted uppercase tracking-wider mr-1">Sort</span>
@@ -157,6 +175,21 @@ function SortToolbar({ sort, onSort }: { sort: SortKey; onSort: (k: SortKey) => 
           {key === 'score' ? 'Score' : 'Status'}
         </button>
       ))}
+
+      <div className="ml-auto flex items-center gap-2">
+        <span className="text-[0.58rem] font-mono text-muted uppercase tracking-wider mr-1">Filter</span>
+        {FILTER_GROUPS.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => onToggleFilter(key)}
+            className={`text-[0.62rem] font-mono px-2.5 py-1 rounded border transition-colors ${
+              activeFilters.has(key) ? 'border-accent text-accent' : 'border-surface2 text-muted hover:border-muted'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
@@ -167,16 +200,36 @@ export default function Jobs(): React.JSX.Element {
   const navigate = useNavigate()
   const { data: jobs, isLoading, isError } = useJobs()
   const [sort, setSort] = useState<SortKey>('score')
+  const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(DEFAULT_FILTERS)
 
-  const sorted = useMemo(() => {
+  function toggleFilter(key: FilterKey): void {
+    setActiveFilters(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
+
+  const allowedStatuses = useMemo(() => {
+    const statuses = new Set<string>()
+    for (const group of FILTER_GROUPS) {
+      if (activeFilters.has(group.key)) {
+        group.statuses.forEach(s => statuses.add(s))
+      }
+    }
+    return statuses
+  }, [activeFilters])
+
+  const visible = useMemo(() => {
     if (!jobs) return []
-    return [...jobs].sort((a, b) => {
+    const filtered = jobs.filter(j => allowedStatuses.has(j.application_status ?? 'not-started'))
+    return filtered.sort((a, b) => {
       if (sort === 'score') {
         return (b.agg_score_overall ?? -1) - (a.agg_score_overall ?? -1)
       }
       return statusSortKey(a.application_status) - statusSortKey(b.application_status)
     })
-  }, [jobs, sort])
+  }, [jobs, sort, allowedStatuses])
 
   return (
     <div className="flex flex-col h-screen">
@@ -184,15 +237,23 @@ export default function Jobs(): React.JSX.Element {
       <div className="px-4 py-3 border-b border-surface2 shrink-0 flex items-baseline gap-3">
         <h1 className="font-serif text-accent text-xl">Jobs</h1>
         {jobs && (
-          <span className="text-muted text-[0.65rem] font-mono">{jobs.length} jobs</span>
+          <span className="text-muted text-[0.65rem] font-mono">{visible.length} of {jobs.length} jobs</span>
         )}
       </div>
-      <SortToolbar sort={sort} onSort={setSort} />
+      <Toolbar sort={sort} onSort={setSort} activeFilters={activeFilters} onToggleFilter={toggleFilter} />
       <div className="flex-1 overflow-y-auto">
         {isLoading && <p className="text-muted text-sm p-4">Loading jobs…</p>}
         {isError && <p className="text-red text-sm p-4">Failed to load jobs.</p>}
-        {jobs?.length === 0 && <p className="text-muted text-sm p-4">No jobs yet.</p>}
-        {sorted.map((job) => (
+        {!isLoading && !isError && activeFilters.size === 0 && (
+          <p className="text-muted text-sm p-4 text-center mt-8">No filters selected.</p>
+        )}
+        {!isLoading && !isError && activeFilters.size > 0 && jobs?.length === 0 && (
+          <p className="text-muted text-sm p-4">No jobs yet.</p>
+        )}
+        {!isLoading && !isError && activeFilters.size > 0 && jobs && jobs.length > 0 && visible.length === 0 && (
+          <p className="text-muted text-sm p-4">No jobs match the selected filters.</p>
+        )}
+        {visible.map((job) => (
           <JobRow key={job.id} job={job} onSelect={() => navigate(`/jobs/${job.id}`)} />
         ))}
       </div>

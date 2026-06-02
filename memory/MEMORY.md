@@ -8,3 +8,4 @@
 - [DB Policy Change](db_policy_change.md) — Wipe policy RETIRED; user has real data; all schema changes must be delta migrations from now on
 - [Deferred Jobs Layout](deferred_jobs_layout.md) — Jobs list row layout unsatisfying; two failed attempts; needs proper redesign
 - [User Feedback — Response Style](user_feedback_response_style.md) — State diagnosis clearly, don't deliberate out loud; explain prompt/logic changes before applying
+- [Phase 1.6 Design Decisions](phase_1_6_design.md) — Document Management: folder structure, DRAFT/final naming, is_final flag, template picker, textarea editor; work order written, no code started
