@@ -9,4 +9,5 @@
 - [Deferred Jobs Layout](deferred_jobs_layout.md) — Jobs list row layout unsatisfying; two failed attempts; needs proper redesign
 - [User Feedback — Response Style](user_feedback_response_style.md) — State diagnosis clearly, don't deliberate out loud; explain prompt/logic changes before applying
 - [Phase 1.6 Design Decisions](phase_1_6_design.md) — Document Management: folder structure, DRAFT/final naming, is_final flag, template picker, textarea editor; Batch A complete (config + DB)
-- [Phase 1.6 Progress](phase_1_6_progress.md) — Batch A done; next: Batch B (main.py startup) then Batch C (document_routes.py)
+- [Phase 1.6 Progress](phase_1_6_progress.md) — Batches A–G done; next: Batch F (Priority 7+10+11: templates + RESUME/COVER tab + Settings card) then Batch H (frontend tests)
+- [Test Baseline — Phase 1.6 Batch G](test_baseline_phase1_5.md) — Frontend: 195 passed / 6 pre-existing Evaluate.test.tsx failures; Backend: 543 passed / 0 errors

@@ -46,15 +46,20 @@ Phase 1.6 Document Management — work in progress. Work order at `app_docs/WORK
 - `frontend/src/types/api.ts`: added `typst_available: boolean` to `HealthResponse`
 - TypeScript `tsc --noEmit` clean after all three changes
 
+**Batch G (Priority 12):**
+- `tests/routes/test_documents.py` (new): 57 integration tests — upload, list, delete, serve, content GET/PUT, compile, finalize, templates, storage; all pass in isolation and full suite
+- `document_routes.py` bug fix: renamed `filename` → `doc_filename` in three `log.info()` extra= dicts (Python reserved LogRecord field conflict)
+- `doc_client` fixture saves/restores `app.state` after yield for cross-suite isolation; tests that temporarily override app.state mid-test use `monkeypatch.setattr`
+
 ## In Progress / Next
 
-- **Batch G** — Priority 12: backend tests (`tests/routes/test_documents.py`) — do this BEFORE Batch F to surface route bugs early
-- **Batch F** — Priorities 10+11: RESUME/COVER tab in JobDetail + Document Storage card in Settings
+- **Batch F** — Priorities 7+10+11 (bundle): Typst templates + RESUME/COVER tab on JobDetail + Document Storage card in Settings
 - **Batch H** — Priority 13: frontend tests for RESUME/COVER tab
+- **Workorder:** Priority 12 checkbox needs to be marked `[x]` at start of next session
 
-## Test Baseline (unchanged this session)
+## Test Baseline
 
 Frontend: 195 passed / 6 pre-existing Evaluate.test.tsx failures (201 total)
-Backend: 486 passed / 0 errors
+Backend: 543 passed / 0 errors (57 new tests added this session; was 486)
 
-**How to apply:** Start at Batch G next session (backend tests). Check this file for progress before starting.
+**How to apply:** Start at Batch F next session (Typst templates + frontend tab + Settings card). Mark Priority 12 done in workorder first.

@@ -186,7 +186,7 @@ async def upload_document(
     database._audit_application(
         application_id, f"document_uploaded: {target_path.name} ({doc_type})"
     )
-    log.info("document_uploaded", extra={"application_id": application_id, "filename": target_path.name})
+    log.info("document_uploaded", extra={"application_id": application_id, "doc_filename": target_path.name})
 
     doc = dict(database.get_document_by_id(doc_id))
     return JSONResponse({
@@ -250,7 +250,7 @@ async def delete_document(request: Request, application_id: int, doc_id: int):
     database._audit_application(
         application_id, f"document_deleted: {filename} ({type_value})"
     )
-    log.info("document_deleted", extra={"doc_id": doc_id, "filename": filename})
+    log.info("document_deleted", extra={"doc_id": doc_id, "doc_filename": filename})
     return JSONResponse({"success": True})
 
 
@@ -360,7 +360,7 @@ async def save_document_content(
 
     resolved.write_text(body.content, encoding="utf-8")
     database._audit_application(application_id, f"document_edited: {resolved.name}")
-    log.info("document_edited", extra={"doc_id": doc_id, "filename": resolved.name})
+    log.info("document_edited", extra={"doc_id": doc_id, "doc_filename": resolved.name})
     return JSONResponse({"success": True})
 
 
