@@ -53,6 +53,7 @@ API routes:
   PUT  /api/v1/settings/jobsearch
   GET  /api/v1/settings/jobsearch/versions
   GET  /api/v1/settings/jobsearch/versions/{id}
+  GET  /api/v1/settings/documents-storage
   GET  /api/v1/inbox/files
   POST /api/v1/inbox/process
   GET  /api/v1/profile/health
@@ -74,6 +75,7 @@ SPA catch-all (Phase 1.1+):
 
 import os
 import re
+import subprocess
 import time
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 from contextlib import asynccontextmanager
@@ -195,6 +197,34 @@ async def lifespan(app: FastAPI):
     database.seed_llm_models_from_config()
 
     await _update_model_availability(app.state)
+
+    cfg = _load_config()
+    typst_binary = cfg.get("typst", {}).get("binary_path", "typst")
+    generated_dir = Path(cfg.get("typst", {}).get("generated_dir", "./generated"))
+
+    generated_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        typst_result = subprocess.run(
+            [typst_binary, "--version"],
+            capture_output=True,
+            timeout=5,
+        )
+        typst_available = typst_result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        typst_available = False
+
+    app.state.typst_available = typst_available
+    app.state.typst_binary = typst_binary
+    app.state.generated_dir = generated_dir
+
+    if typst_available:
+        log.info("typst_available", extra={"binary": typst_binary})
+    else:
+        log.warning("typst_not_found", extra={
+            "binary": typst_binary,
+            "hint": "document compilation disabled; install typst to enable",
+        })
 
     jobsearch_path = Path("jobsearch.md")
     if not jobsearch_path.exists():
@@ -536,6 +566,7 @@ async def health_check(request: Request):
         "database": {"schema_version": db_version},
         "models": models_out,
         "anthropic_configured": bool(os.environ.get("ANTHROPIC_API_KEY")),
+        "typst_available": getattr(request.app.state, "typst_available", False),
         "version": "1.0.0",
     })
 
@@ -602,6 +633,21 @@ async def evaluate_endpoint(request: Request, body: EvaluateRequest):
             "success": result.get("success"),
         },
     )
+
+    if result.get("success") and result.get("job_id"):
+        try:
+            from document_routes import _get_application_folder
+            app_row = database.get_application_for_job(result["job_id"])
+            if app_row:
+                app_folder = _get_application_folder(
+                    request.app.state.generated_dir,
+                    dict(app_row)["id"],
+                    body.company_name,
+                )
+                app_folder.mkdir(parents=True, exist_ok=True)
+        except Exception as _folder_exc:
+            log.warning("application_folder_create_failed", extra={"error": str(_folder_exc)})
+
     return EvaluateResponse(**result)
 
 
@@ -1690,6 +1736,32 @@ async def update_app_setting(request: Request, key: str, body: UpdateAppSettingR
     """Update a single app_settings value by key."""
     database.set_app_setting(key, body.value)
     return JSONResponse({"success": True, "key": key, "value": body.value})
+
+
+@app.get("/api/v1/settings/documents-storage")
+@limiter.limit("30/minute")
+async def get_documents_storage(request: Request):
+    """Disk usage for generated documents and Typst availability status."""
+    generated_dir: Path = getattr(request.app.state, "generated_dir", Path("./generated"))
+    typst_available: bool = getattr(request.app.state, "typst_available", False)
+    typst_binary: str = getattr(request.app.state, "typst_binary", "typst")
+
+    total_bytes = 0
+    file_count = 0
+    if generated_dir.exists():
+        for f in generated_dir.rglob("*"):
+            if f.is_file():
+                total_bytes += f.stat().st_size
+                file_count += 1
+
+    return JSONResponse({
+        "generated_dir": str(generated_dir),
+        "total_bytes": total_bytes,
+        "total_mb": round(total_bytes / 1048576, 1),
+        "file_count": file_count,
+        "typst_available": typst_available,
+        "typst_binary": typst_binary,
+    })
 
 
 # ─────────────────────────────────────────────────────────────

@@ -146,7 +146,7 @@ Two types in `system_types`:
 ## Priority 1 — Config Template
 *No code changes. Must be done first — all Typst routes read from this config structure.*
 
-- [ ] **1. Update `templates/CONFIG_TEMPLATE.yaml`**
+- [x] **1. Update `templates/CONFIG_TEMPLATE.yaml`** — removed `generated_dir` from `output:`, added `typst:` section with `binary_path` and `generated_dir`
 
   **Files:** `templates/CONFIG_TEMPLATE.yaml`
 
@@ -169,7 +169,7 @@ Two types in `system_types`:
 ## Priority 2 — Database: Schema Delta + Functions
 *Delta migration only — never wipes or recreates existing data.*
 
-- [ ] **2. Update `database.py`**
+- [x] **2. Update `database.py`** — `is_final` ALTER TABLE delta in `init_db()`; added `get_document_by_id()`, `get_document_by_file_path()`, `set_document_final()`
 
   **Files:** `database.py`
 
@@ -229,7 +229,7 @@ Two types in `system_types`:
 ## Priority 3 — Startup Validation + Job Creation Hook
 *Adds Typst check to startup. Hooks folder creation into the job creation route.*
 
-- [ ] **3. Update `main.py`**
+- [x] **3. Update `main.py`** — Typst binary check + generated/ creation + app.state; typst_available in health; folder creation hook in evaluate_endpoint (lazy import of _get_application_folder, non-fatal); note: no POST /api/v1/jobs route exists — hook placed in evaluate_endpoint instead
 
   **Files:** `main.py`
 
@@ -641,7 +641,7 @@ Two types in `system_types`:
 ## Priority 6 — Documents Storage Endpoint
 *New lightweight endpoint. No impact on existing routes.*
 
-- [ ] **6. Add `GET /api/v1/settings/documents-storage` to `main.py`**
+- [x] **6. Add `GET /api/v1/settings/documents-storage` to `main.py`** — walks generated_dir via rglob, returns total_bytes, total_mb, file_count, typst_available, typst_binary from app.state
 
   **Files:** `main.py`
 
