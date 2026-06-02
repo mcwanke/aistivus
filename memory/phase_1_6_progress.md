@@ -29,9 +29,19 @@ Phase 1.6 Document Management — work in progress. Work order at `app_docs/WORK
 - Work order's Priority 3 Part E said to hook folder creation into `POST /api/v1/jobs`, but that route does not exist — job creation flows through `POST /api/v1/evaluate` → `evaluator.evaluate_jd()`. Hook placed in `evaluate_endpoint()` instead. Inbox processing path relies on the upload route's safety-net folder creation.
 - Typst binary templates already exist in repo — no new templates needed for Batch D (Priority 7 skipped; user will provide templates).
 
+**Batch C (Priorities 4+5):**
+- `document_routes.py` (new file): all 12 routes — upload, list, delete, serve, get/save content, list templates, copy template, compile, finalize
+- `main.py`: added `import document_routes` + `app.include_router(document_routes.router, prefix="/api/v1")` + updated route comment block
+- Added `python-multipart>=0.0.9` to `requirements.txt` (required for UploadFile/Form)
+- Backend tests: 486 passed / 0 errors (baseline held)
+
+## Key Decisions Made During Coding
+
+- `database._audit_application()` called directly from document_routes (underscore-prefix function — only way without touching database.py)
+- Upload and copy-template responses re-fetch via `get_document_by_id` after insert to include `created_at` from DB
+
 ## In Progress / Next
 
-- **Batch C** — Priorities 4+5: new `document_routes.py` (all CRUD + template + compile + finalize routes), registered in `main.py`
 - **Batch D** — Priority 7: SKIPPED — templates already exist; user will add any new ones manually
 - **Batch E** — Priorities 8+9: `frontend/src/types/documents.ts` + `frontend/src/hooks/useDocuments.ts`
 - **Batch F** — Priorities 10+11: RESUME/COVER tab in JobDetail + Document Storage card in Settings

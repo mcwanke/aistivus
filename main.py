@@ -54,6 +54,16 @@ API routes:
   GET  /api/v1/settings/jobsearch/versions
   GET  /api/v1/settings/jobsearch/versions/{id}
   GET  /api/v1/settings/documents-storage
+  POST /api/v1/applications/{id}/documents
+  GET  /api/v1/applications/{id}/documents
+  DELETE /api/v1/applications/{id}/documents/{doc_id}
+  GET  /api/v1/applications/{id}/documents/{doc_id}/content
+  PUT  /api/v1/applications/{id}/documents/{doc_id}/content
+  POST /api/v1/applications/{id}/documents/{doc_id}/compile
+  POST /api/v1/applications/{id}/documents/{doc_id}/finalize
+  POST /api/v1/applications/{id}/documents/from-template
+  GET  /api/v1/documents/file/{doc_id}
+  GET  /api/v1/templates/typst
   GET  /api/v1/inbox/files
   POST /api/v1/inbox/process
   GET  /api/v1/profile/health
@@ -95,6 +105,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 import database
+import document_routes
 import evaluate
 import evaluator
 import llm_client
@@ -267,6 +278,7 @@ app.add_middleware(
 )
 
 app.include_router(profile_routes.router, prefix="/api/v1")
+app.include_router(document_routes.router, prefix="/api/v1")
 
 _frontend_assets = Path("frontend/dist/assets")
 if _frontend_assets.exists():
