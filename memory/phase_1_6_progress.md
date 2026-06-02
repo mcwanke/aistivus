@@ -1,65 +1,35 @@
 ---
 name: phase-1-6-progress
-description: Phase 1.6 implementation progress — what's done, what's next, key decisions made during coding
+description: Phase 1.6 Document Management — COMPLETE. All 13 priorities done.
 metadata:
   type: project
 ---
 
-Phase 1.6 Document Management — work in progress. Work order at `app_docs/WORKORDER-phase1.6.md`.
+Phase 1.6 Document Management — **COMPLETE**. Work order at `app_docs/WORKORDER-phase1.6.md`.
 
 **Why:** Enabling upload → edit → compile → finalize → download for Typst resume/cover letter files per application.
 
-## Completed
+## All Priorities Complete
 
-**Batch A (Priorities 1–2):**
-- `templates/CONFIG_TEMPLATE.yaml`: removed `generated_dir` from `output:`, added `typst:` section (`binary_path`, `generated_dir`)
-- `database.py`: `is_final` ALTER TABLE delta in `init_db()` (try/except pattern); added `get_document_by_id()`, `get_document_by_file_path()`, `set_document_final()` after `delete_application_document`
+- **Priority 1** — `templates/CONFIG_TEMPLATE.yaml`: typst section added
+- **Priority 2** — `database.py`: is_final delta, get_document_by_id, get_document_by_file_path, set_document_final
+- **Priority 3** — `main.py`: Typst binary startup check, generated/ dir creation, health endpoint extended
+- **Priority 4** — `document_routes.py`: all 12 routes (upload, list, delete, serve, content GET/PUT, templates, compile, finalize)
+- **Priority 5** — Compile + finalize routes in document_routes.py
+- **Priority 6** — `GET /api/v1/settings/documents-storage` in main.py
+- **Priority 7** — `templates/typst/` directories created, README.md added; .typ template files added manually by user
+- **Priority 8** — `frontend/src/types/documents.ts`: all document interfaces + typst_available on HealthResponse
+- **Priority 9** — `frontend/src/hooks/useDocuments.ts`: 10 hooks
+- **Priority 10** — RESUME/COVER tab in JobDetail.tsx (DocRow + ResumeCoverTab components)
+- **Priority 11** — Document Storage card in Settings.tsx
+- **Priority 12** — 57 backend tests in `tests/routes/test_documents.py`
+- **Priority 13** — 21 frontend tests in `frontend/src/pages/JobDetail.test.tsx`; MSW handlers in `frontend/src/test/mocks/handlers.ts`
 
-**Batch B (Priorities 3 + 6):**
-- `main.py`: added `import subprocess`
-- `main.py` `lifespan()`: loads config, reads `typst.binary_path` / `typst.generated_dir`, creates `generated/` dir on startup, checks Typst binary via `subprocess.run([typst_binary, "--version"])`, stores `app.state.typst_available / typst_binary / generated_dir`
-- `main.py` `health_check()`: added `typst_available` field to response (reads from `app.state`)
-- `main.py` `evaluate_endpoint()`: added post-evaluation folder creation hook — lazy `from document_routes import _get_application_folder` inside try/except (non-fatal; will silently fail until Batch C creates that file)
-- `main.py`: added `GET /api/v1/settings/documents-storage` endpoint (disk usage + Typst status)
-- Route comment at top of `main.py` updated
+## Test Baseline (Final)
 
-## Key Decisions Made During Coding
+Frontend: 216 passed / 6 pre-existing Evaluate.test.tsx failures (222 total)
+Backend: 543 passed / 0 errors
 
-- Work order references `create_application_document()` in document_routes — existing function is `insert_application_document()`. Will use existing name in Batch C, no rename needed.
-- Work order's Priority 3 Part E said to hook folder creation into `POST /api/v1/jobs`, but that route does not exist — job creation flows through `POST /api/v1/evaluate` → `evaluator.evaluate_jd()`. Hook placed in `evaluate_endpoint()` instead. Inbox processing path relies on the upload route's safety-net folder creation.
-- Typst binary templates already exist in repo — no new templates needed for Batch D (Priority 7 skipped; user will provide templates).
+## Next Phase
 
-**Batch C (Priorities 4+5):**
-- `document_routes.py` (new file): all 12 routes — upload, list, delete, serve, get/save content, list templates, copy template, compile, finalize
-- `main.py`: added `import document_routes` + `app.include_router(document_routes.router, prefix="/api/v1")` + updated route comment block
-- Added `python-multipart>=0.0.9` to `requirements.txt` (required for UploadFile/Form)
-- Backend tests: 486 passed / 0 errors (baseline held)
-
-## Key Decisions Made During Coding
-
-- `database._audit_application()` called directly from document_routes (underscore-prefix function — only way without touching database.py)
-- Upload and copy-template responses re-fetch via `get_document_by_id` after insert to include `created_at` from DB
-
-**Batch E (Priorities 8+9):**
-- `frontend/src/types/documents.ts` (new): all document interfaces — `ApplicationDocument`, `DocumentUploadResult`, `CompileResult`, `FinalizeResult`, `TypstTemplate`, `TypstTemplateList`, `DocumentsStorageInfo`
-- `frontend/src/hooks/useDocuments.ts` (new): 10 hooks — `useApplicationDocuments`, `useDocumentContent`, `useTypstTemplates`, `useDocumentsStorage` (queries); `useUploadDocument`, `useDeleteDocument`, `useCompileDocument`, `useFinalizeDocument`, `useSaveDocumentContent`, `useCopyTemplate` (mutations)
-- `frontend/src/types/api.ts`: added `typst_available: boolean` to `HealthResponse`
-- TypeScript `tsc --noEmit` clean after all three changes
-
-**Batch G (Priority 12):**
-- `tests/routes/test_documents.py` (new): 57 integration tests — upload, list, delete, serve, content GET/PUT, compile, finalize, templates, storage; all pass in isolation and full suite
-- `document_routes.py` bug fix: renamed `filename` → `doc_filename` in three `log.info()` extra= dicts (Python reserved LogRecord field conflict)
-- `doc_client` fixture saves/restores `app.state` after yield for cross-suite isolation; tests that temporarily override app.state mid-test use `monkeypatch.setattr`
-
-## In Progress / Next
-
-- **Batch F** — Priorities 7+10+11 (bundle): Typst templates + RESUME/COVER tab on JobDetail + Document Storage card in Settings
-- **Batch H** — Priority 13: frontend tests for RESUME/COVER tab
-- **Workorder:** Priority 12 checkbox needs to be marked `[x]` at start of next session
-
-## Test Baseline
-
-Frontend: 195 passed / 6 pre-existing Evaluate.test.tsx failures (201 total)
-Backend: 543 passed / 0 errors (57 new tests added this session; was 486)
-
-**How to apply:** Start at Batch F next session (Typst templates + frontend tab + Settings card). Mark Priority 12 done in workorder first.
+Phase 1.7 — Docker (Dockerfile, docker-compose.yml, .dockerignore, README Docker setup)

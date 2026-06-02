@@ -17,6 +17,7 @@ import type {
   EvaluateResponse,
 } from '@/types/api'
 import type { ProfileHealth, ProfileSections, CoherenceCheckResponse, ProposedUpdate } from '@/types/profile'
+import type { ApplicationDocument, TypstTemplateList, DocumentsStorageInfo } from '@/types/documents'
 
 // ─── Fixture data ─────────────────────────────────────────────────────────────
 
@@ -58,6 +59,7 @@ export const MOCK_HEALTH: HealthResponse = {
   database: { schema_version: '1.0' },
   models: [{ id: 1, model: 'llama3', endpoint: 'http://localhost:11434', available: true, default_flag: true }],
   anthropic_configured: false,
+  typst_available: true,
   version: '1.0.0',
 }
 
@@ -269,6 +271,53 @@ export const MOCK_PROPOSED_UPDATE: ProposedUpdate = {
   section_id: 'career_history',
 }
 
+// ─── Document fixtures ────────────────────────────────────────────────────────
+
+export const MOCK_TYP_DOC: ApplicationDocument = {
+  id: 10, application_id: 1, type_id: 1, type_value: 'resume',
+  file_path: 'generated/1_acme_corp/resume_v1.typ',
+  filename: 'resume_v1.typ', extension: '.typ',
+  file_exists: true, is_final: 0, created_at: '2024-01-01T00:00:00',
+}
+
+export const MOCK_DRAFT_PDF: ApplicationDocument = {
+  id: 11, application_id: 1, type_id: 1, type_value: 'resume',
+  file_path: 'generated/1_acme_corp/DRAFT_resume_v1.pdf',
+  filename: 'DRAFT_resume_v1.pdf', extension: '.pdf',
+  file_exists: true, is_final: 0, created_at: '2024-01-01T00:00:00',
+}
+
+export const MOCK_FINAL_PDF: ApplicationDocument = {
+  id: 12, application_id: 1, type_id: 1, type_value: 'resume',
+  file_path: 'generated/1_acme_corp/jane_acme_corp_senior_engineer.pdf',
+  filename: 'jane_acme_corp_senior_engineer.pdf', extension: '.pdf',
+  file_exists: true, is_final: 1, created_at: '2024-01-01T00:00:00',
+}
+
+export const MOCK_UPLOADED_PDF: ApplicationDocument = {
+  id: 13, application_id: 1, type_id: 2, type_value: 'cover_letter',
+  file_path: 'generated/1_acme_corp/cover.pdf',
+  filename: 'cover.pdf', extension: '.pdf',
+  file_exists: true, is_final: 0, created_at: '2024-01-01T00:00:00',
+}
+
+export const MOCK_MISSING_TYP: ApplicationDocument = {
+  id: 14, application_id: 1, type_id: 2, type_value: 'cover_letter',
+  file_path: 'generated/1_acme_corp/missing.typ',
+  filename: 'missing.typ', extension: '.typ',
+  file_exists: false, is_final: 0, created_at: '2024-01-01T00:00:00',
+}
+
+export const MOCK_TYPST_TEMPLATES: TypstTemplateList = {
+  resume: [{ filename: 'simple-resume.typ', display_name: 'Simple Resume', category: 'resume' }],
+  cover_letter: [{ filename: 'simple-cover-letter.typ', display_name: 'Simple Cover Letter', category: 'cover_letter' }],
+}
+
+export const MOCK_DOCUMENTS_STORAGE: DocumentsStorageInfo = {
+  generated_dir: './generated', total_bytes: 1048576, total_mb: 1.0,
+  file_count: 5, typst_available: true, typst_binary: 'typst',
+}
+
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
 export const handlers = [
@@ -348,5 +397,36 @@ export const handlers = [
   ),
   http.delete('/api/v1/applications/:id/questions/:qid', () =>
     HttpResponse.json({ deleted: true }),
+  ),
+  // Document routes
+  http.get('/api/v1/applications/:id/documents', () =>
+    HttpResponse.json([MOCK_TYP_DOC, MOCK_DRAFT_PDF, MOCK_FINAL_PDF, MOCK_UPLOADED_PDF, MOCK_MISSING_TYP]),
+  ),
+  http.post('/api/v1/applications/:id/documents/from-template', () =>
+    HttpResponse.json(MOCK_TYP_DOC, { status: 201 }),
+  ),
+  http.post('/api/v1/applications/:id/documents', () =>
+    HttpResponse.json(MOCK_TYP_DOC, { status: 201 }),
+  ),
+  http.delete('/api/v1/applications/:id/documents/:docId', () =>
+    HttpResponse.json({ success: true }),
+  ),
+  http.get('/api/v1/applications/:id/documents/:docId/content', () =>
+    HttpResponse.json({ content: '#let name = "Test"\n\nHello world', filename: 'resume_v1.typ' }),
+  ),
+  http.put('/api/v1/applications/:id/documents/:docId/content', () =>
+    HttpResponse.json({ success: true }),
+  ),
+  http.post('/api/v1/applications/:id/documents/:docId/compile', () =>
+    HttpResponse.json({ success: true, pdf_doc_id: 11, filename: 'DRAFT_resume_v1.pdf', file_path: 'generated/1_acme_corp/DRAFT_resume_v1.pdf' }),
+  ),
+  http.post('/api/v1/applications/:id/documents/:docId/finalize', () =>
+    HttpResponse.json({ success: true, final_doc_id: 12, filename: 'jane_acme_corp_senior_engineer.pdf', file_path: 'generated/1_acme_corp/jane_acme_corp_senior_engineer.pdf' }),
+  ),
+  http.get('/api/v1/templates/typst', () =>
+    HttpResponse.json(MOCK_TYPST_TEMPLATES),
+  ),
+  http.get('/api/v1/settings/documents-storage', () =>
+    HttpResponse.json(MOCK_DOCUMENTS_STORAGE),
   ),
 ]

@@ -667,7 +667,7 @@ Two types in `system_types`:
 ## Priority 7 — Typst Templates
 *Content task. No Python or TypeScript code. Can be done in any order relative to other items.*
 
-- [ ] **7. Add bundled Typst templates to `templates/typst/`**
+- [x] **7. Add bundled Typst templates to `templates/typst/`** — directories created (`templates/typst/resume/`, `templates/typst/cover-letter/`), README.md added; template .typ files will be added manually by user
 
   **Files:** `templates/typst/resume/`, `templates/typst/cover-letter/` (new directories + files)
 
@@ -1021,7 +1021,7 @@ Two types in `system_types`:
 
 ## Priority 13 — Frontend Tests
 
-- [ ] **13. Frontend tests for RESUME/COVER tab**
+- [x] **13. Frontend tests for RESUME/COVER tab** — 21 new tests in JobDetail.test.tsx; MSW handlers + fixtures added to handlers.ts; stale stub tests removed/updated; 216 passed / 6 pre-existing Evaluate.test.tsx failures
 
   **Files:** Read the current JobDetail test file before touching anything.
   Add tests to the existing test file — do not create a new file unless none exists.
