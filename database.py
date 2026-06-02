@@ -405,6 +405,13 @@ def init_db() -> None:
     with get_connection() as conn:
         conn.executescript(SCHEMA)
 
+        try:
+            conn.execute(
+                "ALTER TABLE application_documents ADD COLUMN is_final INTEGER NOT NULL DEFAULT 0"
+            )
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
         for type_name, type_value in _SYSTEM_TYPES_SEED:
             existing = conn.execute(
                 "SELECT id FROM system_types WHERE type_name = ? AND type_value = ?",
@@ -1562,6 +1569,42 @@ def delete_application_document(doc_id: int) -> bool:
     with get_connection() as conn:
         conn.execute("DELETE FROM application_documents WHERE id = ?", (doc_id,))
         return conn.total_changes > 0
+
+
+def get_document_by_id(doc_id: int) -> sqlite3.Row | None:
+    """Return a single application_document with type info joined, or None."""
+    with get_connection() as conn:
+        return conn.execute(
+            """SELECT ad.*, st.type_name, st.type_value
+               FROM application_documents ad
+               JOIN system_types st ON st.id = ad.type_id
+               WHERE ad.id = ?""",
+            (doc_id,)
+        ).fetchone()
+
+
+def get_document_by_file_path(application_id: int, file_path: str) -> sqlite3.Row | None:
+    """Return a document matching application_id + file_path, or None.
+    Used by compile route to find an existing DRAFT PDF before replacing it."""
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT * FROM application_documents WHERE application_id = ? AND file_path = ?",
+            (application_id, file_path)
+        ).fetchone()
+
+
+def set_document_final(doc_id: int, application_id: int, type_id: int) -> None:
+    """Mark doc_id as final; clear is_final on all other docs of same type for this application.
+    Enforces the one-final-per-type-per-application constraint."""
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE application_documents SET is_final = 0 WHERE application_id = ? AND type_id = ? AND id != ?",
+            (application_id, type_id, doc_id)
+        )
+        conn.execute(
+            "UPDATE application_documents SET is_final = 1 WHERE id = ?",
+            (doc_id,)
+        )
 
 
 # ─────────────────────────────────────────────────────────────
