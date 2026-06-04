@@ -188,6 +188,29 @@ class TestUpdateApplication:
         )
         assert resp.status_code == 200
 
+    def test_applied_flag_sets_apply_date_when_null(self, seeded_client):
+        resp = seeded_client["client"].patch(
+            f"/api/v1/applications/{seeded_client['app_id']}",
+            json={"applied": 1, "application_status": "applied"},
+        )
+        assert resp.status_code == 200
+        app = database.get_application(seeded_client["app_id"])
+        assert app["apply_date"] is not None
+        import re
+        assert re.match(r"^\d{4}-\d{2}-\d{2}$", app["apply_date"])
+
+    def test_applied_flag_does_not_overwrite_existing_apply_date(self, seeded_client):
+        seeded_client["client"].patch(
+            f"/api/v1/applications/{seeded_client['app_id']}",
+            json={"apply_date": "2024-01-15"},
+        )
+        seeded_client["client"].patch(
+            f"/api/v1/applications/{seeded_client['app_id']}",
+            json={"applied": 1},
+        )
+        app = database.get_application(seeded_client["app_id"])
+        assert app["apply_date"] == "2024-01-15"
+
 
 # ─────────────────────────────────────────────────────────────
 # POST /api/v1/applications/{id}/logs

@@ -91,7 +91,7 @@ describe('JobDetailPage workspace', () => {
     renderWorkspace()
     await waitFor(() => screen.getByText('Resume / Cover'))
     await user.click(screen.getByText('Resume / Cover'))
-    await waitFor(() => expect(screen.getByText('Upload')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Upload' })).toBeInTheDocument())
   })
 
   it('shows INTERVIEW stub card when that tab is active', async () => {
@@ -429,7 +429,7 @@ describe('JobDetailPage workspace', () => {
 
     it('upload form renders type selector and file picker', async () => {
       renderWorkspace(1, 'resume-cover')
-      await waitFor(() => expect(screen.getByText('Upload')).toBeInTheDocument())
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Upload' })).toBeInTheDocument())
       expect(screen.getByRole('combobox')).toBeInTheDocument()
     })
 
@@ -445,7 +445,7 @@ describe('JobDetailPage workspace', () => {
         ),
       )
       renderWorkspace(1, 'resume-cover')
-      await waitFor(() => expect(screen.getByText('Upload')).toBeInTheDocument())
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Upload' })).toBeInTheDocument())
       expect(screen.queryByText('New from template')).not.toBeInTheDocument()
     })
 

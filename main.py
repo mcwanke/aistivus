@@ -472,7 +472,7 @@ class SaveResumeTemplateRequest(BaseModel):
 
 # Valid application status values per spec
 _VALID_STATUSES = frozenset({
-    "not-started", "draft", "applied", "screening", "interview",
+    "not-started", "draft", "skipped", "applied", "screening", "interview",
     "offer", "rejected", "ghosted", "withdrawn",
 })
 
@@ -1113,6 +1113,12 @@ async def update_application(
         k: v for k, v in body.model_dump().items()
         if k != "application_status" and v is not None
     }
+
+    # Auto-set apply_date when marking as applied, if not already set
+    if body.applied == 1 and "apply_date" not in field_updates:
+        if not dict(app_row).get("apply_date"):
+            field_updates["apply_date"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
     if field_updates:
         database.update_application(application_id, **field_updates)
 

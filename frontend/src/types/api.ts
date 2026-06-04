@@ -31,6 +31,7 @@ export interface AnthropicKeyStatus {
 export type ApplicationStatus =
   | 'not-started'
   | 'draft'
+  | 'skipped'
   | 'applied'
   | 'screening'
   | 'interview'

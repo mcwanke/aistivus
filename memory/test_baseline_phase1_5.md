@@ -1,19 +1,17 @@
 ---
 name: test-baseline-phase-1-6-complete
-description: Test counts after Phase 1.6 is fully complete (all 13 priorities done)
+description: Test counts after FOLLOWUPS-A A1–A4 complete
 metadata:
   type: project
 ---
 
-Phase 1.6 complete. All 13 priorities done.
+Phase 1.6 complete + FOLLOWUPS-A items A1–A4 done.
 
-**Why:** Baseline established at end of Phase 1.6 after Priority 13 (frontend tests) was added.
+**Why:** Baseline updated after A1 (skipped status), A2 (move generate eval button), A3 (RESUME/COVER GENERATE+UPLOAD label), A4 (I Applied! sets apply_date).
 
 **Frontend:** 216 passed / 6 pre-existing Evaluate.test.tsx failures (222 total)
-**Backend:** 543 passed / 0 errors
+**Backend:** 545 passed / 0 errors
 
-**New this session (Priority 13):** 21 new tests in `frontend/src/pages/JobDetail.test.tsx`; MSW handlers and fixtures added to `frontend/src/test/mocks/handlers.ts`; stale stub tests removed/updated.
+**Pre-existing failures (6):** All in `Evaluate.test.tsx` — unrelated to this work.
 
-**Pre-existing failures (6):** All in `Evaluate.test.tsx` — unrelated to Phase 1.6 work.
-
-**How to apply:** Start of next session (Phase 1.7 — Docker) can skip baseline test run. Known baseline: Frontend 216/6, Backend 543/0.
+**How to apply:** Start of next FOLLOWUPS-A session (A5+) can skip baseline test run. Known baseline: Frontend 216/6, Backend 545/0.

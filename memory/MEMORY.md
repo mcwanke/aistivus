@@ -11,3 +11,4 @@
 - [Phase 1.6 Design Decisions](phase_1_6_design.md) — Document Management: folder structure, DRAFT/final naming, is_final flag, template picker, textarea editor; Batch A complete (config + DB)
 - [Phase 1.6 Progress](phase_1_6_progress.md) — COMPLETE. All 13 priorities done. Next: Phase 1.7 (Docker)
 - [Test Baseline — Phase 1.6 Complete](test_baseline_phase1_5.md) — Frontend: 216 passed / 6 pre-existing Evaluate.test.tsx failures; Backend: 543 passed / 0 errors
+- [Phase 1.6 FOLLOWUPS-A Plan](phase_1_6_followups_a.md) — 10 items (A1–A10) defined; key decisions: Company Summary in job_company_log, Generate Resume/Cover stubbed, modal sizing, Application subtab combine deferred

@@ -2,6 +2,7 @@ import type { ApplicationStatus } from '@/types/api'
 
 export const STATUSES: ApplicationStatus[] = [
   'draft',
+  'skipped',
   'applied',
   'screening',
   'interview',
@@ -14,6 +15,7 @@ export const STATUSES: ApplicationStatus[] = [
 export const STATUS_COLORS: Record<ApplicationStatus, string> = {
   'not-started': 'bg-surface2 text-muted',
   draft:         'bg-surface2 text-muted',
+  skipped:       'bg-surface2 text-muted/60',
   applied:       'bg-accent/15 text-accent',
   screening:     'bg-accent/25 text-accent',
   interview:     'bg-green/15 text-green',

@@ -2008,6 +2008,7 @@ function JobDetailsLeft({ jobId, job, active, onSelect }: JobDetailsLeftProps): 
 interface JobDetailsRightProps {
   jobId: number
   job: Job
+  applicationId: number
   evaluations: EvalWithMeta[]
   companyLog: CompanyLogEntry[]
   activeAction: JobDetailsAction
@@ -2017,6 +2018,7 @@ interface JobDetailsRightProps {
 function JobDetailsRight({
   jobId,
   job,
+  applicationId,
   evaluations,
   companyLog,
   activeAction,
@@ -2027,6 +2029,13 @@ function JobDetailsRight({
   const [exportStatus, setExportStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [savedInfo, setSavedInfo] = useState(false)
   const [collapseSignal, setCollapseSignal] = useState(0)
+  const [promptText, setPromptText] = useState<string | null>(null)
+  const generatePrompt = useGeneratePrompt()
+
+  async function handleGeneratePrompt(): Promise<void> {
+    const result = await generatePrompt.mutateAsync(applicationId)
+    setPromptText(result.prompt)
+  }
 
   function copyDescription(): void {
     if (!job.description_merged) return
@@ -2073,13 +2082,25 @@ function JobDetailsRight({
               </div>
             ))}
           </div>
-          <button
-            onClick={onOpenImport}
-            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors shrink-0"
-          >
-            Import External Eval
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={onOpenImport}
+              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
+            >
+              Import External Eval
+            </button>
+            <button
+              onClick={() => void handleGeneratePrompt()}
+              disabled={generatePrompt.isPending}
+              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 disabled:opacity-50 transition-colors"
+            >
+              {generatePrompt.isPending ? 'Generating…' : 'Generate External Eval'}
+            </button>
+          </div>
         </div>
+        {generatePrompt.isError && (
+          <p className="text-red text-xs mb-2">{generatePrompt.error.message}</p>
+        )}
 
         {/* Evaluation rows */}
         {evaluations.length === 0 ? (
@@ -2092,6 +2113,10 @@ function JobDetailsRight({
               <EvalRow key={ev.id} evaluation={ev} />
             ))}
           </div>
+        )}
+
+        {promptText !== null && (
+          <PromptModal prompt={promptText} onClose={() => setPromptText(null)} />
         )}
 
         {editDescOpen && (
@@ -2251,10 +2276,8 @@ function ApplicationRight({
   activeAction,
   onDataChanged,
 }: ApplicationRightProps): React.JSX.Element {
-  const [promptText, setPromptText] = useState<string | null>(null)
   const patch = usePatchApplication()
   const addLog = useAddLog()
-  const generatePrompt = useGeneratePrompt()
   const { data: questions = [] } = useApplicationQuestions(applicationId)
   const createQuestion = useCreateApplicationQuestion()
   const qc = useQueryClient()
@@ -2302,11 +2325,6 @@ function ApplicationRight({
     await createQuestion.mutateAsync({ applicationId, jobId, question: newQ.trim(), response: newR.trim() || undefined })
     setNewQ('')
     setNewR('')
-  }
-
-  async function handleGeneratePrompt(): Promise<void> {
-    const result = await generatePrompt.mutateAsync(applicationId)
-    setPromptText(result.prompt)
   }
 
   // ── DETAILS view ────────────────────────────────────────────────────────────
@@ -2400,22 +2418,6 @@ function ApplicationRight({
           </label>
         </div>
 
-        <div>
-          <button
-            onClick={() => void handleGeneratePrompt()}
-            disabled={generatePrompt.isPending}
-            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 disabled:opacity-50 transition-colors"
-          >
-            {generatePrompt.isPending ? 'Generating…' : 'Generate External Eval + Tailored Resume'}
-          </button>
-          {generatePrompt.isError && (
-            <p className="text-red text-xs mt-1">{generatePrompt.error.message}</p>
-          )}
-        </div>
-
-        {promptText !== null && (
-          <PromptModal prompt={promptText} onClose={() => setPromptText(null)} />
-        )}
       </>
     )
   }
@@ -2896,6 +2898,10 @@ function ResumeCoverTab({ applicationId, typstAvailable }: ResumeCoverTabProps):
     }
   }
 
+  function handleComingSoon(): void {
+    alert('Coming soon — document generation will be available in a future update.')
+  }
+
   return (
     <div className="space-y-6">
       {/* Section A — Typst unavailable banner */}
@@ -2914,7 +2920,26 @@ function ResumeCoverTab({ applicationId, typstAvailable }: ResumeCoverTabProps):
         </div>
       )}
 
-      {/* Section B — Template picker */}
+      {/* Section B — Generate (stubbed) */}
+      <div>
+        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Generate</p>
+        <div className="flex gap-2">
+          <button
+            onClick={handleComingSoon}
+            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
+          >
+            Generate Resume
+          </button>
+          <button
+            onClick={handleComingSoon}
+            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
+          >
+            Generate Cover Letter
+          </button>
+        </div>
+      </div>
+
+      {/* Section C — Template picker */}
       {hasTemplates && (
         <div>
           <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">
@@ -2950,36 +2975,39 @@ function ResumeCoverTab({ applicationId, typstAvailable }: ResumeCoverTabProps):
         </div>
       )}
 
-      {/* Upload form */}
-      <form onSubmit={(e) => void handleUpload(e)}>
-        <div className="flex items-center gap-3 flex-wrap">
-          <select
-            value={docType}
-            onChange={(e) => setDocType(e.target.value as 'resume' | 'cover_letter')}
-            className="bg-surface2 rounded px-3 py-1.5 text-sm font-mono text-text focus:outline-none focus:ring-1 focus:ring-accent"
-          >
-            <option value="resume">Resume</option>
-            <option value="cover_letter">Cover Letter</option>
-          </select>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".typ,.pdf"
-            onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
-            className="text-sm font-mono text-muted file:mr-2 file:px-3 file:py-1 file:rounded file:border-0 file:bg-surface2 file:text-muted file:text-xs file:font-mono hover:file:text-text file:cursor-pointer"
-          />
-          <button
-            type="submit"
-            disabled={!selectedFile || upload.isPending}
-            className="px-3 py-1.5 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
-          >
-            {upload.isPending ? 'Uploading…' : 'Upload'}
-          </button>
-        </div>
-        {uploadError && <p className="text-xs font-mono text-red mt-2">{uploadError}</p>}
-      </form>
+      {/* Section D — Upload */}
+      <div>
+        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Upload</p>
+        <form onSubmit={(e) => void handleUpload(e)}>
+          <div className="flex items-center gap-3 flex-wrap">
+            <select
+              value={docType}
+              onChange={(e) => setDocType(e.target.value as 'resume' | 'cover_letter')}
+              className="bg-surface2 rounded px-3 py-1.5 text-sm font-mono text-text focus:outline-none focus:ring-1 focus:ring-accent"
+            >
+              <option value="resume">Resume</option>
+              <option value="cover_letter">Cover Letter</option>
+            </select>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".typ,.pdf"
+              onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+              className="text-sm font-mono text-muted file:mr-2 file:px-3 file:py-1 file:rounded file:border-0 file:bg-surface2 file:text-muted file:text-xs file:font-mono hover:file:text-text file:cursor-pointer"
+            />
+            <button
+              type="submit"
+              disabled={!selectedFile || upload.isPending}
+              className="px-3 py-1.5 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+            >
+              {upload.isPending ? 'Uploading…' : 'Upload'}
+            </button>
+          </div>
+          {uploadError && <p className="text-xs font-mono text-red mt-2">{uploadError}</p>}
+        </form>
+      </div>
 
-      {/* Section C — Document list */}
+      {/* Section E — Document list */}
       <div>
         <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Documents</p>
         {docsLoading ? (
@@ -3197,6 +3225,7 @@ export default function JobDetailPage(): React.JSX.Element {
               <JobDetailsRight
                 jobId={jobId}
                 job={job}
+                applicationId={applicationId ?? 0}
                 evaluations={evaluations}
                 companyLog={jobData.company_log}
                 activeAction={jobDetailsAction}

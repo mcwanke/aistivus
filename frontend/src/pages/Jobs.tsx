@@ -15,7 +15,7 @@ const FILTER_GROUPS: { key: FilterKey; label: string; statuses: string[] }[] = [
   { key: 'not-applied', label: 'Not Applied', statuses: ['not-started', 'draft'] },
   { key: 'applied',     label: 'Applied',     statuses: ['applied'] },
   { key: 'in-process',  label: 'In Process',  statuses: ['screening', 'interview', 'offer'] },
-  { key: 'closed-out',  label: 'Closed Out',  statuses: ['rejected', 'ghosted', 'withdrawn'] },
+  { key: 'closed-out',  label: 'Closed Out',  statuses: ['skipped', 'rejected', 'ghosted', 'withdrawn'] },
 ]
 
 const DEFAULT_FILTERS = new Set<FilterKey>(['not-applied', 'applied', 'in-process'])
@@ -29,9 +29,10 @@ const STATUS_ORDER: Record<string, number> = {
   applied:       3,
   draft:         4,
   'not-started': 5,
-  rejected:      6,
-  ghosted:       7,
-  withdrawn:     8,
+  skipped:       6,
+  rejected:      7,
+  ghosted:       8,
+  withdrawn:     9,
 }
 
 function statusSortKey(status: ApplicationStatus | null): number {
@@ -48,6 +49,7 @@ function statusClass(status: ApplicationStatus | null): string {
   if (!status || status === 'not-started') return 'text-muted border-surface2'
   if (status === 'interview' || status === 'offer') return 'text-green border-green'
   if (status === 'applied' || status === 'screening') return 'text-accent border-accent'
+  if (status === 'skipped') return 'text-muted border-surface2'
   if (status === 'rejected' || status === 'ghosted' || status === 'withdrawn') return 'text-red border-red'
   return 'text-muted border-surface2'
 }
