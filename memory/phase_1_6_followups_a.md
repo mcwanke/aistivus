@@ -15,10 +15,10 @@ Phase 1.6 FOLLOWUPS-A planning complete. Workorder at `app_docs/FOLLOWUPS-A-phas
 - **A2** — Move "Generate External Eval" button to Job Details tab
 - **A3** — RESUME/COVER: GENERATE section (stubbed) + UPLOAD label
 - **A4** — "I Applied!" sets Apply Date to today (bug fix)
-- **A5** — JOB DETAILS left nav rework + new Job Details content section
-- **A6** — JOB DETAILS: new ACTIONS section at bottom (move Export Job)
-- **A7** — Company Info add-form layout fix (Type+URL row 1, Notes textarea row 2)
-- **A8** — Company Info entry list: COMPANY INFO header label
+- **A5** ✓ — JOB DETAILS left nav rework + new Job Details content section
+- **A6** ✓ — JOB DETAILS: new ACTIONS section at bottom (move Export Job)
+- **A7** ✓ — Company Info add-form layout fix (Type+URL row 1, Notes textarea row 2)
+- **A8** ✓ — Company Info entry list: COMPANY INFO header label
 - **A9** — Company Summary feature (backend + frontend)
 - **A10** — Edit Description + Edit Summary modal size increase
 
@@ -30,7 +30,7 @@ Phase 1.6 FOLLOWUPS-A planning complete. Workorder at `app_docs/FOLLOWUPS-A-phas
 - **A9 delta migration:** `INSERT OR IGNORE INTO system_types (type_name, type_value) VALUES ('company_info', 'summary')` — safe for live data
 - **Generate External Summary prompt (A9):** Exact copy to be provided by user during A9 implementation; placeholder in workorder
 - **TanStack DevTools button:** Deferred — acceptable in local dev build, will be hidden post-Docker migration
-- **JOB DETAILS nav naming:** First option = "Job Details" (not "Job Info"); Application subtab first option renamed "Details" → "App Details"
+- **JOB DETAILS nav naming:** First nav item = "Job Detail Summary" (not "Job Details" — avoids collision with the tab button of the same name); Application subtab first option = "App Detail Summary"
 - **Modal sizing (A10):** `max-w-2xl / h-64` → approximately `max-w-4xl / h-[32rem]`; exact values confirmed at execution
 
 ## How to apply

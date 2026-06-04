@@ -1116,7 +1116,7 @@ function CompanyInfoInlineForm({ jobId, onSaved }: CompanyInfoInlineFormProps): 
   return (
     <div className="pb-4 border-b border-surface2 mb-4 space-y-2">
       <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Add Company Info</p>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-[3fr_7fr] gap-2">
         <label className="block">
           <span className="text-[10px] font-mono text-muted uppercase tracking-widest block mb-1">Type</span>
           <select
@@ -1130,18 +1130,6 @@ function CompanyInfoInlineForm({ jobId, onSaved }: CompanyInfoInlineFormProps): 
           </select>
         </label>
         <label className="block">
-          <span className="text-[10px] font-mono text-muted uppercase tracking-widest block mb-1">Notes</span>
-          <input
-            type="text"
-            className="w-full bg-surface2 rounded px-2 py-1.5 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-            value={log}
-            onChange={(e) => setLog(e.target.value)}
-            placeholder="Optional notes…"
-          />
-        </label>
-      </div>
-      <div className="grid grid-cols-2 gap-2 items-end">
-        <label className="block">
           <span className="text-[10px] font-mono text-muted uppercase tracking-widest block mb-1">URL</span>
           <input
             type="url"
@@ -1151,7 +1139,19 @@ function CompanyInfoInlineForm({ jobId, onSaved }: CompanyInfoInlineFormProps): 
             placeholder="https://…"
           />
         </label>
-        <div>
+      </div>
+      <div className="flex gap-2 items-end">
+        <label className="block flex-1">
+          <span className="text-[10px] font-mono text-muted uppercase tracking-widest block mb-1">Notes</span>
+          <textarea
+            rows={3}
+            className="w-full bg-surface2 rounded px-2 py-1.5 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent resize-none"
+            value={log}
+            onChange={(e) => setLog(e.target.value)}
+            placeholder="Optional notes…"
+          />
+        </label>
+        <div className="shrink-0 w-24 pb-0.5">
           {addLog.isError && <p className="text-red text-xs mb-1">{addLog.error.message}</p>}
           <button
             onClick={() => void handleSave()}
@@ -1870,39 +1870,43 @@ function ActivityLogRow({ entry, applicationId, onTimestampSaved }: ActivityLogR
 
 // ─── JOB DETAILS tab — left column ───────────────────────────────────────────
 
-type JobDetailsAction = 'evaluations' | 'job-description' | 'company-info'
+type JobDetailsAction = 'job-details' | 'evaluations' | 'job-description' | 'company-info'
 
 interface JobDetailsLeftProps {
   jobId: number
-  job: Job
   active: JobDetailsAction
   onSelect: (a: JobDetailsAction) => void
 }
 
-function JobDetailsLeft({ jobId, job, active, onSelect }: JobDetailsLeftProps): React.JSX.Element {
-  const [ratingsOpen, setRatingsOpen] = useState(false)
-  const [jobInfoOpen, setJobInfoOpen] = useState(false)
+function JobDetailsLeft({ jobId, active, onSelect }: JobDetailsLeftProps): React.JSX.Element {
+  const [exportStatus, setExportStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
 
   const actions: { id: JobDetailsAction; label: string }[] = [
+    { id: 'job-details',     label: 'Job Detail Summary' },
     { id: 'evaluations',     label: 'Evaluations' },
     { id: 'job-description', label: 'Job Description' },
     { id: 'company-info',    label: 'Company Info' },
   ]
 
-  function fmtRating(val: number | null, max: number): string {
-    if (val === null || val === undefined) return '—'
-    return `${val.toFixed(1)} /${max}`
+  function exportJob(): void {
+    setExportStatus('loading')
+    fetch(`/api/v1/jobs/${jobId}/export`, { method: 'POST' })
+      .then((res) => {
+        if (!res.ok) throw new Error('export failed')
+        setExportStatus('done')
+        setTimeout(() => setExportStatus('idle'), 2000)
+      })
+      .catch(() => {
+        setExportStatus('error')
+        setTimeout(() => setExportStatus('idle'), 2000)
+      })
   }
-
-  const excitementNum = job.excitement_level !== null
-    ? (isNaN(parseInt(job.excitement_level, 10)) ? null : parseInt(job.excitement_level, 10))
-    : null
 
   return (
     <>
-      {/* ACTIONS */}
+      {/* JOB INFO */}
       <div className="space-y-0.5 mb-4">
-        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Actions</p>
+        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Job Info</p>
         {actions.map(({ id, label }) => (
           <button
             key={id}
@@ -1920,85 +1924,20 @@ function JobDetailsLeft({ jobId, job, active, onSelect }: JobDetailsLeftProps): 
 
       <hr className="border-surface2 my-4" />
 
-      {/* SUMMARY */}
-      <div className="space-y-5">
-        <p className="font-serif text-lg text-text">{job.company_name}</p>
-
-        {/* Excitement */}
-        <div>
-          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1.5">Excitement</p>
-          <div className="flex items-center gap-0.5">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <span
-                key={i}
-                className={`text-lg leading-none ${i <= (excitementNum ?? 0) ? 'text-accent' : 'text-muted/30'}`}
-              >
-                ★
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* My Ratings */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <p className="text-[10px] font-mono text-muted uppercase tracking-widest">My Ratings</p>
-            <button
-              onClick={() => setRatingsOpen(true)}
-              className="text-xs text-muted hover:text-text px-2 py-0.5 border border-surface2 rounded transition-colors"
-            >
-              Edit
-            </button>
-          </div>
-          <div className="space-y-1">
-            {([
-              ['Role',    job.my_role_fit,      5],
-              ['Scope',   job.my_scope_fit,     5],
-              ['Culture', job.my_culture,       5],
-              ['Comp',    job.my_comp,          5],
-              ['Overall', job.my_score_overall, 10],
-            ] as [string, number | null, number][]).map(([label, val, max]) => (
-              <div key={label} className="flex items-baseline gap-2">
-                <span className="text-[10px] font-mono text-muted w-14 shrink-0">{label}</span>
-                <span className="text-xs font-mono text-text">{fmtRating(val, max)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Job Info */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Job Info</p>
-            <button
-              onClick={() => setJobInfoOpen(true)}
-              className="text-xs text-muted hover:text-text px-2 py-0.5 border border-surface2 rounded transition-colors"
-            >
-              Edit
-            </button>
-          </div>
-          <div className="space-y-1">
-            {([
-              ['Location', job.location],
-              ['Remote',   job.remote_type],
-              ['Pay Band', job.pay_band],
-              ['Keyword',  job.role_keyword],
-            ] as [string, string | null][]).map(([label, val]) => (
-              <div key={label} className="flex items-baseline gap-2">
-                <span className="text-[10px] font-mono text-muted w-14 shrink-0">{label}</span>
-                <span className="text-xs text-text">{val ?? '—'}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* ACTIONS */}
+      <div className="space-y-2">
+        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Actions</p>
+        <button
+          onClick={exportJob}
+          disabled={exportStatus === 'loading'}
+          className="w-full text-left px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50"
+        >
+          {exportStatus === 'loading' ? 'Exporting…' : exportStatus === 'done' ? 'Exported!' : exportStatus === 'error' ? 'Error' : 'Export Job'}
+        </button>
+        <p className="text-[10px] text-muted leading-snug">
+          Exports main job data to the reports/ folder. Use this to save a copy or import into a new instance.
+        </p>
       </div>
-
-      {ratingsOpen && (
-        <EditRatingsModal jobId={jobId} job={job} onClose={() => setRatingsOpen(false)} />
-      )}
-      {jobInfoOpen && (
-        <EditJobInfoModal jobId={jobId} initial={job} onClose={() => setJobInfoOpen(false)} />
-      )}
     </>
   )
 }
@@ -2026,11 +1965,21 @@ function JobDetailsRight({
 }: JobDetailsRightProps): React.JSX.Element {
   const [editDescOpen, setEditDescOpen] = useState(false)
   const [descCopied, setDescCopied] = useState(false)
-  const [exportStatus, setExportStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [savedInfo, setSavedInfo] = useState(false)
   const [collapseSignal, setCollapseSignal] = useState(0)
   const [promptText, setPromptText] = useState<string | null>(null)
+  const [ratingsOpen, setRatingsOpen] = useState(false)
+  const [jobInfoOpen, setJobInfoOpen] = useState(false)
   const generatePrompt = useGeneratePrompt()
+
+  function fmtRating(val: number | null, max: number): string {
+    if (val === null || val === undefined) return '—'
+    return `${val.toFixed(1)} /${max}`
+  }
+
+  const excitementNum = job.excitement_level !== null
+    ? (isNaN(parseInt(job.excitement_level, 10)) ? null : parseInt(job.excitement_level, 10))
+    : null
 
   async function handleGeneratePrompt(): Promise<void> {
     const result = await generatePrompt.mutateAsync(applicationId)
@@ -2045,18 +1994,90 @@ function JobDetailsRight({
     })
   }
 
-  function exportJob(): void {
-    setExportStatus('loading')
-    fetch(`/api/v1/jobs/${jobId}/export`, { method: 'POST' })
-      .then((res) => {
-        if (!res.ok) throw new Error('export failed')
-        setExportStatus('done')
-        setTimeout(() => setExportStatus('idle'), 2000)
-      })
-      .catch(() => {
-        setExportStatus('error')
-        setTimeout(() => setExportStatus('idle'), 2000)
-      })
+  // ── JOB DETAILS view ────────────────────────────────────────────────────────
+  if (activeAction === 'job-details') {
+    return (
+      <>
+        <div className="space-y-5">
+          <p className="font-serif text-lg text-text">{job.company_name}</p>
+
+          {/* Excitement */}
+          <div>
+            <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1.5">Excitement</p>
+            <div className="flex items-center gap-0.5">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <span
+                  key={i}
+                  className={`text-lg leading-none ${i <= (excitementNum ?? 0) ? 'text-accent' : 'text-muted/30'}`}
+                >
+                  ★
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* My Ratings */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-[10px] font-mono text-muted uppercase tracking-widest">My Ratings</p>
+              <button
+                onClick={() => setRatingsOpen(true)}
+                className="text-xs text-muted hover:text-text px-2 py-0.5 border border-surface2 rounded transition-colors"
+              >
+                Edit
+              </button>
+            </div>
+            <div className="space-y-1">
+              {([
+                ['Role',    job.my_role_fit,      5],
+                ['Scope',   job.my_scope_fit,     5],
+                ['Culture', job.my_culture,       5],
+                ['Comp',    job.my_comp,          5],
+                ['Overall', job.my_score_overall, 10],
+              ] as [string, number | null, number][]).map(([label, val, max]) => (
+                <div key={label} className="flex items-baseline gap-2">
+                  <span className="text-[10px] font-mono text-muted w-14 shrink-0">{label}</span>
+                  <span className="text-xs font-mono text-text">{fmtRating(val, max)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Job Info */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Job Info</p>
+              <button
+                onClick={() => setJobInfoOpen(true)}
+                className="text-xs text-muted hover:text-text px-2 py-0.5 border border-surface2 rounded transition-colors"
+              >
+                Edit
+              </button>
+            </div>
+            <div className="space-y-1">
+              {([
+                ['Location', job.location],
+                ['Remote',   job.remote_type],
+                ['Pay Band', job.pay_band],
+                ['Keyword',  job.role_keyword],
+              ] as [string, string | null][]).map(([label, val]) => (
+                <div key={label} className="flex items-baseline gap-2">
+                  <span className="text-[10px] font-mono text-muted w-14 shrink-0">{label}</span>
+                  <span className="text-xs text-text">{val ?? '—'}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {ratingsOpen && (
+          <EditRatingsModal jobId={jobId} job={job} onClose={() => setRatingsOpen(false)} />
+        )}
+        {jobInfoOpen && (
+          <EditJobInfoModal jobId={jobId} initial={job} onClose={() => setJobInfoOpen(false)} />
+        )}
+      </>
+    )
   }
 
   // ── EVALUATIONS view ────────────────────────────────────────────────────────
@@ -2147,13 +2168,6 @@ function JobDetailsRight({
           >
             {descCopied ? 'Copied!' : 'Copy JD'}
           </button>
-          <button
-            onClick={exportJob}
-            disabled={exportStatus === 'loading'}
-            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50"
-          >
-            {exportStatus === 'loading' ? 'Exporting…' : exportStatus === 'done' ? 'Exported!' : exportStatus === 'error' ? 'Error' : 'Export Job'}
-          </button>
         </div>
 
         {job.description_merged ? (
@@ -2181,6 +2195,8 @@ function JobDetailsRight({
   return (
     <>
       <CompanyInfoInlineForm jobId={jobId} onSaved={() => setSavedInfo(!savedInfo)} />
+
+      <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Company Info</p>
 
       {companyLog.length === 0 ? (
         <p className="text-sm text-muted italic">No company info yet.</p>
@@ -2216,7 +2232,7 @@ interface ApplicationLeftProps {
 
 function ApplicationLeft({ active, onSelect, appStatus, job }: ApplicationLeftProps): React.JSX.Element {
   const actions: { id: AppAction; label: string }[] = [
-    { id: 'details',   label: 'Details' },
+    { id: 'details',   label: 'App Detail Summary' },
     { id: 'add-event', label: 'Add Event' },
     { id: 'add-note',  label: 'Add Application Note' },
     { id: 'questions', label: 'Application Questions' },
@@ -3048,7 +3064,7 @@ export default function JobDetailPage(): React.JSX.Element {
     useActivityLog(activeTab === 'application-log' ? jobId : undefined)
 
   // JOB DETAILS tab action state
-  const [jobDetailsAction, setJobDetailsAction] = useState<JobDetailsAction>('evaluations')
+  const [jobDetailsAction, setJobDetailsAction] = useState<JobDetailsAction>('job-details')
 
   // APPLICATION tab action state
   const [activeAppAction, setActiveAppAction] = useState<AppAction>('details')
@@ -3191,7 +3207,6 @@ export default function JobDetailPage(): React.JSX.Element {
             {activeTab === 'job-details' && (
               <JobDetailsLeft
                 jobId={jobId}
-                job={job}
                 active={jobDetailsAction}
                 onSelect={setJobDetailsAction}
               />

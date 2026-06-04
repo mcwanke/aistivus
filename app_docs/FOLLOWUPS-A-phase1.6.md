@@ -10,10 +10,10 @@ Items identified after Phase 1.6 completion. Goal: get the app to "fully usable"
 | A2 | [x] | Move "Generate External Eval" button to Job Details tab |
 | A3 | [x] | RESUME/COVER tab: add GENERATE section (stubbed) + UPLOAD label |
 | A4 | [x] | "I Applied!" sets Apply Date to today |
-| A5 | [ ] | JOB DETAILS left nav rework + Job Details content section |
-| A6 | [ ] | JOB DETAILS: new ACTIONS section at bottom |
-| A7 | [ ] | Company Info add-form layout fix |
-| A8 | [ ] | Company Info entry list: COMPANY INFO header label |
+| A5 | [x] | JOB DETAILS left nav rework + Job Details content section |
+| A6 | [x] | JOB DETAILS: new ACTIONS section at bottom |
+| A7 | [x] | Company Info add-form layout fix |
+| A8 | [x] | Company Info entry list: COMPANY INFO header label |
 | A9 | [ ] | Company Summary feature (backend + frontend) |
 | A10 | [ ] | Edit Description + Edit Summary modal: increase size |
 
@@ -30,6 +30,11 @@ Status markers: `[ ]` todo · `[x]` done · `[~]` deferred
 
 - Frontend: 216 passed / 6 pre-existing failures (Evaluate.test.tsx) — 222 total
 - Backend: 545 passed / 0 errors (+2 new tests for A4 apply_date behavior)
+
+## Test Baseline (after A5–A8)
+
+- Frontend: 216 passed / 6 pre-existing failures (Evaluate.test.tsx) — 222 total
+- Backend: 545 passed / 0 errors (no backend changes)
 
 ---
 

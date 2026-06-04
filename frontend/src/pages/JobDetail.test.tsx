@@ -150,10 +150,10 @@ describe('JobDetailPage workspace', () => {
     })
   })
 
-  it('shows EVALUATIONS action active by default on JOB DETAILS tab', async () => {
+  it('shows JOB DETAIL SUMMARY action active by default on JOB DETAILS tab', async () => {
     renderWorkspace()
-    await waitFor(() => screen.getByText('Evaluations'))
-    const btn = screen.getByText('Evaluations').closest('button')
+    await waitFor(() => screen.getByText('Job Detail Summary'))
+    const btn = screen.getByText('Job Detail Summary').closest('button')
     expect(btn?.className).toContain('text-accent')
   })
 
@@ -167,10 +167,10 @@ describe('JobDetailPage workspace', () => {
     )
   })
 
-  it('shows DETAILS action active by default on APPLICATION tab', async () => {
+  it('shows APP DETAIL SUMMARY action active by default on APPLICATION tab', async () => {
     renderWorkspace(1, 'application')
-    await waitFor(() => screen.getByText('Details'))
-    const btn = screen.getByText('Details').closest('button')
+    await waitFor(() => screen.getByText('App Detail Summary'))
+    const btn = screen.getByText('App Detail Summary').closest('button')
     expect(btn?.className).toContain('text-accent')
   })
 
