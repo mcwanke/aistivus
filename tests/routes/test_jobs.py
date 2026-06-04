@@ -414,6 +414,35 @@ class TestExportJob:
         assert "pay_band: \n" in content or "pay_band:\n" in content or "pay_band: " in content
 
 
+class TestCompanySummaryRoute:
+    def test_put_company_summary_returns_200(self, client):
+        job_id, _ = database.upsert_job("Summary Corp", "Engineer", "backend")
+        resp = client.put(
+            f"/api/v1/jobs/{job_id}/company-summary",
+            json={"text": "Great company with strong engineering culture."},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+
+    def test_put_company_summary_persists_to_log(self, client):
+        job_id, _ = database.upsert_job("Summary Corp 2", "Designer", "general")
+        client.put(
+            f"/api/v1/jobs/{job_id}/company-summary",
+            json={"text": "Mid-size SaaS company."},
+        )
+        log = database.get_job_company_log(job_id)
+        summary_entries = [e for e in log if dict(e)["type_value"] == "summary"]
+        assert len(summary_entries) == 1
+        assert dict(summary_entries[0])["log"] == "Mid-size SaaS company."
+
+    def test_put_company_summary_404_for_unknown_job(self, client):
+        resp = client.put(
+            "/api/v1/jobs/9999/company-summary",
+            json={"text": "Some text."},
+        )
+        assert resp.status_code == 404
+
+
 class TestGetAllJobsDatabase:
     def test_get_all_jobs_excludes_inactive_by_default(self, client):
         database.upsert_job("Inactive Co", "Analyst", "finance")

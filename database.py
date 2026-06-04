@@ -389,6 +389,7 @@ _SYSTEM_TYPES_SEED: list[tuple[str, str]] = [
     ("company_info", "size"),
     ("company_info", "notes"),
     ("company_info", "person"),
+    ("company_info", "summary"),
     ("application_document", "resume"),
     ("application_document", "cover_letter"),
 ]
@@ -1102,6 +1103,37 @@ def add_job_company_log(
             (job_id, type_id, log, url)
         )
         return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def upsert_company_summary(job_id: int, text: str) -> None:
+    """
+    Insert or update the single 'summary' company log entry for a job.
+    Uses explicit SELECT + INSERT/UPDATE — never INSERT OR REPLACE.
+    """
+    with get_connection() as conn:
+        type_row = conn.execute(
+            "SELECT id FROM system_types WHERE type_name = 'company_info' AND type_value = 'summary'"
+        ).fetchone()
+        if not type_row:
+            raise ValueError("system_types seed missing: company_info/summary")
+        type_id = type_row["id"]
+
+        existing = conn.execute(
+            """SELECT jcl.id FROM job_company_log jcl
+               WHERE jcl.job_id = ? AND jcl.type_id = ?""",
+            (job_id, type_id)
+        ).fetchone()
+
+        if existing:
+            conn.execute(
+                "UPDATE job_company_log SET log = ? WHERE id = ?",
+                (text, existing["id"])
+            )
+        else:
+            conn.execute(
+                "INSERT INTO job_company_log (job_id, type_id, log) VALUES (?, ?, ?)",
+                (job_id, type_id, text)
+            )
 
 
 def get_job_company_log(

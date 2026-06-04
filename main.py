@@ -377,6 +377,10 @@ class AddCompanyLogRequest(BaseModel):
     url: str | None = None
 
 
+class CompanySummaryRequest(BaseModel):
+    text: str
+
+
 class UpdateApplicationRequest(BaseModel):
     application_status: str | None = None
     apply_date: str | None = None
@@ -850,6 +854,17 @@ async def add_job_company_log_entry(request: Request, job_id: int, body: AddComp
         raise HTTPException(status_code=400, detail=f"Unknown company_info type: {body.type_value}")
     log_id = database.add_job_company_log(job_id, type_id, body.log, body.url)
     return JSONResponse({"success": True, "id": log_id})
+
+
+@app.put("/api/v1/jobs/{job_id}/company-summary")
+@limiter.limit("30/minute")
+async def update_company_summary(request: Request, job_id: int, body: CompanySummaryRequest):
+    """Insert or update the single company summary entry for a job."""
+    job = database.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found.")
+    database.upsert_company_summary(job_id, body.text)
+    return JSONResponse({"success": True})
 
 
 @app.get("/api/v1/jobs/{job_id}/application")

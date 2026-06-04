@@ -107,6 +107,23 @@ export function useAddCompanyLog() {
   })
 }
 
+export function useUpdateCompanySummary() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ jobId, text }: { jobId: number; text: string }) => {
+      const res = await fetch(`/api/v1/jobs/${jobId}/company-summary`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
+      if (!res.ok) throw new Error(`update company summary ${res.status}`)
+    },
+    onSuccess: (_data, { jobId }) => {
+      void qc.invalidateQueries({ queryKey: ['job', jobId] })
+    },
+  })
+}
+
 export function useActivateJob() {
   const qc = useQueryClient()
   return useMutation({

@@ -2,7 +2,7 @@ import { useState, useRef, useLayoutEffect, useEffect } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import AppHeader from '@/components/AppHeader'
-import { useJobDetail, usePatchJob, useAddCompanyLog, useActivityLog } from '@/hooks/useJobs'
+import { useJobDetail, usePatchJob, useAddCompanyLog, useUpdateCompanySummary, useActivityLog } from '@/hooks/useJobs'
 import {
   useApplicationDetail,
   usePatchApplication,
@@ -256,10 +256,10 @@ function EditDescriptionModal({ jobId, initial, onClose }: EditDescriptionModalP
 
   return (
     <div className="fixed inset-0 bg-bg/80 flex items-center justify-center z-50">
-      <div className="bg-surface rounded p-6 w-full max-w-2xl space-y-4">
+      <div className="bg-surface rounded p-6 w-full max-w-4xl space-y-4">
         <h2 className="font-serif text-accent text-lg">Edit Description</h2>
         <textarea
-          className="w-full h-64 bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent resize-y"
+          className="w-full h-[32rem] bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent resize-y"
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
@@ -276,6 +276,52 @@ function EditDescriptionModal({ jobId, initial, onClose }: EditDescriptionModalP
             className="px-4 py-1.5 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
           >
             {patch.isPending ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Edit Summary modal ───────────────────────────────────────────────────────
+
+interface EditSummaryModalProps {
+  jobId: number
+  initial: string
+  onClose: () => void
+}
+
+function EditSummaryModal({ jobId, initial, onClose }: EditSummaryModalProps): React.JSX.Element {
+  const [text, setText] = useState(initial)
+  const updateSummary = useUpdateCompanySummary()
+
+  async function handleSave(): Promise<void> {
+    await updateSummary.mutateAsync({ jobId, text })
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-bg/80 flex items-center justify-center z-50">
+      <div className="bg-surface rounded p-6 w-full max-w-4xl space-y-4">
+        <h2 className="font-serif text-accent text-lg">Edit Company Summary</h2>
+        <textarea
+          className="w-full h-[32rem] bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent resize-y"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 text-sm text-muted hover:text-text transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => void handleSave()}
+            disabled={updateSummary.isPending}
+            className="px-4 py-1.5 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+          >
+            {updateSummary.isPending ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>
@@ -1205,7 +1251,7 @@ function TimestampModal({ current, onSave, onClose }: TimestampModalProps): Reac
 
 // ─── Prompt modal (APPLICATION tab — generate external eval + tailored resume) ─
 
-function PromptModal({ prompt, onClose }: { prompt: string; onClose: () => void }): React.JSX.Element {
+function PromptModal({ prompt, onClose, title = 'External Eval + Tailored Resume Prompt' }: { prompt: string; onClose: () => void; title?: string }): React.JSX.Element {
   const [copied, setCopied] = useState(false)
 
   function handleCopy(): void {
@@ -1219,7 +1265,7 @@ function PromptModal({ prompt, onClose }: { prompt: string; onClose: () => void 
     <div className="fixed inset-0 bg-bg/80 flex items-center justify-center z-50 p-4">
       <div className="bg-surface rounded p-6 w-full max-w-2xl flex flex-col gap-4 max-h-[80vh]">
         <div className="flex items-center justify-between">
-          <h2 className="font-serif text-accent text-lg">External Eval + Tailored Resume Prompt</h2>
+          <h2 className="font-serif text-accent text-lg">{title}</h2>
           <div className="flex items-center gap-2">
             <button
               onClick={handleCopy}
@@ -1970,6 +2016,8 @@ function JobDetailsRight({
   const [promptText, setPromptText] = useState<string | null>(null)
   const [ratingsOpen, setRatingsOpen] = useState(false)
   const [jobInfoOpen, setJobInfoOpen] = useState(false)
+  const [editSummaryOpen, setEditSummaryOpen] = useState(false)
+  const [summaryPromptText, setSummaryPromptText] = useState<string | null>(null)
   const generatePrompt = useGeneratePrompt()
 
   function fmtRating(val: number | null, max: number): string {
@@ -2194,6 +2242,47 @@ function JobDetailsRight({
   // ── COMPANY INFO view ────────────────────────────────────────────────────────
   return (
     <>
+      {/* COMPANY SUMMARY */}
+      <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Company Summary</p>
+      {(() => {
+        const summaryEntry = companyLog.find((e) => e.type_value === 'summary')
+        return summaryEntry?.log ? (
+          <p className="text-sm text-text leading-relaxed mb-3">{summaryEntry.log}</p>
+        ) : (
+          <p className="text-sm text-muted italic mb-3">No summary yet.</p>
+        )
+      })()}
+      <div className="flex gap-2 mb-6">
+        <button
+          onClick={() => setEditSummaryOpen(true)}
+          className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
+        >
+          Edit Summary
+        </button>
+        <button
+          onClick={() => {
+            const websiteEntry = companyLog.find((e) => e.type_value === 'website')
+            const url = websiteEntry?.url ?? ''
+            const prompt = `You are helping a job seeker quickly evaluate a company before applying. Research the following company and write a concise 2-3 paragraph summary for personal reference.
+
+*Company Name*: ${job.company_name}
+*Company URL*: ${url}
+*Job Title*: ${job.title}
+
+Cover the following in your summary:
+- What the company does, what market it operates in, and its approximate size
+- General company culture and, if relevant to the job title, engineering or technical culture specifically
+- Public reputation and employee sentiment (draw from sources like Glassdoor, Blind, or Reddit — keep research brief)
+
+Write in plain, conversational prose. No headers or bullet points. Keep it tight — this is a quick reference, not a deep dive. If the URL is blank or a detail can't be found, skip it rather than guessing.`
+            setSummaryPromptText(prompt)
+          }}
+          className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
+        >
+          Generate External Summary
+        </button>
+      </div>
+
       <CompanyInfoInlineForm jobId={jobId} onSaved={() => setSavedInfo(!savedInfo)} />
 
       <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Company Info</p>
@@ -2214,6 +2303,21 @@ function JobDetailsRight({
             <CompanyLogRow key={entry.id} entry={entry} collapseSignal={collapseSignal} />
           ))}
         </div>
+      )}
+
+      {editSummaryOpen && (
+        <EditSummaryModal
+          jobId={jobId}
+          initial={companyLog.find((e) => e.type_value === 'summary')?.log ?? ''}
+          onClose={() => setEditSummaryOpen(false)}
+        />
+      )}
+      {summaryPromptText !== null && (
+        <PromptModal
+          prompt={summaryPromptText}
+          title="Generate External Summary Prompt"
+          onClose={() => setSummaryPromptText(null)}
+        />
       )}
     </>
   )

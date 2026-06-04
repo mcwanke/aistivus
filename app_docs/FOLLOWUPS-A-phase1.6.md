@@ -14,8 +14,8 @@ Items identified after Phase 1.6 completion. Goal: get the app to "fully usable"
 | A6 | [x] | JOB DETAILS: new ACTIONS section at bottom |
 | A7 | [x] | Company Info add-form layout fix |
 | A8 | [x] | Company Info entry list: COMPANY INFO header label |
-| A9 | [ ] | Company Summary feature (backend + frontend) |
-| A10 | [ ] | Edit Description + Edit Summary modal: increase size |
+| A9 | [x] | Company Summary feature (backend + frontend) |
+| A10 | [x] | Edit Description + Edit Summary modal: increase size |
 
 Status markers: `[ ]` todo · `[x]` done · `[~]` deferred
 
@@ -35,6 +35,11 @@ Status markers: `[ ]` todo · `[x]` done · `[~]` deferred
 
 - Frontend: 216 passed / 6 pre-existing failures (Evaluate.test.tsx) — 222 total
 - Backend: 545 passed / 0 errors (no backend changes)
+
+## Test Baseline (after A9–A10)
+
+- Frontend: 216 passed / 6 pre-existing failures (Evaluate.test.tsx) — 222 total
+- Backend: 550 passed / 0 errors (+5 new tests: 2 DB + 3 route)
 
 ---
 
