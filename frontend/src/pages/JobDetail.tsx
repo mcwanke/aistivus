@@ -1916,7 +1916,7 @@ function ActivityLogRow({ entry, applicationId, onTimestampSaved }: ActivityLogR
 
 // ─── JOB DETAILS tab — left column ───────────────────────────────────────────
 
-type JobDetailsAction = 'job-details' | 'evaluations' | 'job-description' | 'company-info'
+type JobDetailsAction = 'job-details' | 'evaluations' | 'job-description' | 'company-info' | 'job-actions'
 
 interface JobDetailsLeftProps {
   jobId: number
@@ -1924,36 +1924,20 @@ interface JobDetailsLeftProps {
   onSelect: (a: JobDetailsAction) => void
 }
 
-function JobDetailsLeft({ jobId, active, onSelect }: JobDetailsLeftProps): React.JSX.Element {
-  const [exportStatus, setExportStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
-
-  const actions: { id: JobDetailsAction; label: string }[] = [
+function JobDetailsLeft({ jobId: _jobId, active, onSelect }: JobDetailsLeftProps): React.JSX.Element {
+  const infoActions: { id: JobDetailsAction; label: string }[] = [
     { id: 'job-details',     label: 'Job Detail Summary' },
     { id: 'evaluations',     label: 'Evaluations' },
     { id: 'job-description', label: 'Job Description' },
     { id: 'company-info',    label: 'Company Info' },
   ]
 
-  function exportJob(): void {
-    setExportStatus('loading')
-    fetch(`/api/v1/jobs/${jobId}/export`, { method: 'POST' })
-      .then((res) => {
-        if (!res.ok) throw new Error('export failed')
-        setExportStatus('done')
-        setTimeout(() => setExportStatus('idle'), 2000)
-      })
-      .catch(() => {
-        setExportStatus('error')
-        setTimeout(() => setExportStatus('idle'), 2000)
-      })
-  }
-
   return (
     <>
       {/* JOB INFO */}
       <div className="space-y-0.5 mb-4">
         <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Job Info</p>
-        {actions.map(({ id, label }) => (
+        {infoActions.map(({ id, label }) => (
           <button
             key={id}
             onClick={() => onSelect(id)}
@@ -1971,18 +1955,18 @@ function JobDetailsLeft({ jobId, active, onSelect }: JobDetailsLeftProps): React
       <hr className="border-surface2 my-4" />
 
       {/* ACTIONS */}
-      <div className="space-y-2">
+      <div className="space-y-0.5">
         <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Actions</p>
         <button
-          onClick={exportJob}
-          disabled={exportStatus === 'loading'}
-          className="w-full text-left px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50"
+          onClick={() => onSelect('job-actions')}
+          className={`w-full text-left px-3 py-2 text-sm font-mono rounded-r transition-colors ${
+            active === 'job-actions'
+              ? 'bg-surface2 text-accent border-l-2 border-accent'
+              : 'text-muted hover:text-text'
+          }`}
         >
-          {exportStatus === 'loading' ? 'Exporting…' : exportStatus === 'done' ? 'Exported!' : exportStatus === 'error' ? 'Error' : 'Export Job'}
+          Job Actions
         </button>
-        <p className="text-[10px] text-muted leading-snug">
-          Exports main job data to the reports/ folder. Use this to save a copy or import into a new instance.
-        </p>
       </div>
     </>
   )
@@ -2018,7 +2002,23 @@ function JobDetailsRight({
   const [jobInfoOpen, setJobInfoOpen] = useState(false)
   const [editSummaryOpen, setEditSummaryOpen] = useState(false)
   const [summaryPromptText, setSummaryPromptText] = useState<string | null>(null)
+  const [exportStatus, setExportStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const generatePrompt = useGeneratePrompt()
+  const patch = usePatchJob()
+
+  function exportJob(): void {
+    setExportStatus('loading')
+    fetch(`/api/v1/jobs/${jobId}/export`, { method: 'POST' })
+      .then((res) => {
+        if (!res.ok) throw new Error('export failed')
+        setExportStatus('done')
+        setTimeout(() => setExportStatus('idle'), 2000)
+      })
+      .catch(() => {
+        setExportStatus('error')
+        setTimeout(() => setExportStatus('idle'), 2000)
+      })
+  }
 
   function fmtRating(val: number | null, max: number): string {
     if (val === null || val === undefined) return '—'
@@ -2052,16 +2052,10 @@ function JobDetailsRight({
           {/* Excitement */}
           <div>
             <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1.5">Excitement</p>
-            <div className="flex items-center gap-0.5">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <span
-                  key={i}
-                  className={`text-lg leading-none ${i <= (excitementNum ?? 0) ? 'text-accent' : 'text-muted/30'}`}
-                >
-                  ★
-                </span>
-              ))}
-            </div>
+            <StarRating
+              value={excitementNum}
+              onChange={(val) => patch.mutate({ jobId, updates: { excitement_level: String(val) } })}
+            />
           </div>
 
           {/* My Ratings */}
@@ -2239,6 +2233,24 @@ function JobDetailsRight({
     )
   }
 
+  // ── JOB ACTIONS view ─────────────────────────────────────────────────────────
+  if (activeAction === 'job-actions') {
+    return (
+      <div className="space-y-3">
+        <button
+          onClick={exportJob}
+          disabled={exportStatus === 'loading'}
+          className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50"
+        >
+          {exportStatus === 'loading' ? 'Exporting…' : exportStatus === 'done' ? 'Exported!' : exportStatus === 'error' ? 'Error' : 'Export Job'}
+        </button>
+        <p className="text-[10px] text-muted leading-snug">
+          Exports main job data to the reports/ folder. Use this to save a copy or import into a new instance.
+        </p>
+      </div>
+    )
+  }
+
   // ── COMPANY INFO view ────────────────────────────────────────────────────────
   return (
     <>
@@ -2274,12 +2286,12 @@ Cover the following in your summary:
 - General company culture and, if relevant to the job title, engineering or technical culture specifically
 - Public reputation and employee sentiment (draw from sources like Glassdoor, Blind, or Reddit — keep research brief)
 
-Write in plain, conversational prose. No headers or bullet points. Keep it tight — this is a quick reference, not a deep dive. If the URL is blank or a detail can't be found, skip it rather than guessing.`
+Write in plain, conversational prose. No headers or bullet points. Keep it tight — this is a quick reference, not a deep dive. If the URL is blank or a detail can't be found, skip it rather than guessing. Output your summary inside a markdown code block.`
             setSummaryPromptText(prompt)
           }}
           className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
         >
-          Generate External Summary
+          Generate External Summary Prompt
         </button>
       </div>
 
@@ -2330,11 +2342,9 @@ type AppAction = 'details' | 'add-event' | 'add-note' | 'questions' | 'lesson'
 interface ApplicationLeftProps {
   active: AppAction
   onSelect: (a: AppAction) => void
-  appStatus: ApplicationStatus | null
-  job: Job
 }
 
-function ApplicationLeft({ active, onSelect, appStatus, job }: ApplicationLeftProps): React.JSX.Element {
+function ApplicationLeft({ active, onSelect }: ApplicationLeftProps): React.JSX.Element {
   const actions: { id: AppAction; label: string }[] = [
     { id: 'details',   label: 'App Detail Summary' },
     { id: 'add-event', label: 'Add Event' },
@@ -2344,32 +2354,22 @@ function ApplicationLeft({ active, onSelect, appStatus, job }: ApplicationLeftPr
   ]
 
   return (
-    <>
-      <div className="space-y-0.5 mb-4">
-        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Actions</p>
-        {actions.map(({ id, label }) => (
-          <button
-            key={id}
-            onClick={() => onSelect(id)}
-            className={`w-full text-left px-3 py-2 text-sm font-mono rounded-r transition-colors ${
-              active === id
-                ? 'bg-surface2 text-accent border-l-2 border-accent'
-                : 'text-muted hover:text-text'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <hr className="border-surface2 my-4" />
-
-      <div className="space-y-2">
-        <p className="font-serif text-lg text-text">{job.company_name}</p>
-        <p className="text-sm text-muted leading-snug">{job.title}</p>
-        <StatusBadge status={appStatus} />
-      </div>
-    </>
+    <div className="space-y-0.5">
+      <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Application Info</p>
+      {actions.map(({ id, label }) => (
+        <button
+          key={id}
+          onClick={() => onSelect(id)}
+          className={`w-full text-left px-3 py-2 text-sm font-mono rounded-r transition-colors ${
+            active === id
+              ? 'bg-surface2 text-accent border-l-2 border-accent'
+              : 'text-muted hover:text-text'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -3332,8 +3332,6 @@ export default function JobDetailPage(): React.JSX.Element {
               <ApplicationLeft
                 active={activeAppAction}
                 onSelect={setActiveAppAction}
-                appStatus={appStatus}
-                job={job}
               />
             )}
           </div>

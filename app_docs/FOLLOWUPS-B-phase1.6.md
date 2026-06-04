@@ -6,10 +6,10 @@ Items identified after FOLLOWUPS-A completion. Goal: APPLICATION tab rework, JOB
 
 | # | Status | Title |
 |---|--------|-------|
-| B1 | [ ] | Bug: Excitement Level stars not clickable |
-| B2 | [ ] | Company Summary: button rename + prompt tweak |
-| B3 | [ ] | JOB DETAILS: "Job Actions" nav subpage |
-| B4 | [ ] | APPLICATION subtab: left nav cleanup |
+| B1 | [x] | Bug: Excitement Level stars not clickable |
+| B2 | [x] | Company Summary: button rename + prompt tweak |
+| B3 | [x] | JOB DETAILS: "Job Actions" nav subpage |
+| B4 | [x] | APPLICATION subtab: left nav cleanup |
 | B5 | [ ] | "Change Application Status" section (was "Add Event") |
 | B6 | [ ] | App Detail Summary: status field → read-only text |
 | B7 | [ ] | "Add Application Note" → "Add App Note/Comms" + new types |

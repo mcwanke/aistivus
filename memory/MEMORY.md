@@ -12,3 +12,4 @@
 - [Phase 1.6 Progress](phase_1_6_progress.md) — COMPLETE. All 13 priorities done. Next: Phase 1.7 (Docker)
 - [Test Baseline — FOLLOWUPS-A Complete (A1–A10)](test_baseline_phase1_5.md) — Frontend: 216/6 pre-existing; Backend: 550 passed / 0 errors
 - [Phase 1.6 FOLLOWUPS-A Plan](phase_1_6_followups_a.md) — 10 items (A1–A10) defined; key decisions: Company Summary in job_company_log, Generate Resume/Cover stubbed, modal sizing, Application subtab combine deferred
+- [FOLLOWUPS-B B1–B4 Session](session_followups_b_b1_b4.md) — B1–B4 complete (star fix, prompt tweak, Job Actions nav, App left nav cleanup); B5–B8 next (APPLICATION tab functionality + backend)
