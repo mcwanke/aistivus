@@ -10,7 +10,9 @@
 - [User Feedback — Response Style](user_feedback_response_style.md) — State diagnosis clearly, don't deliberate out loud; explain prompt/logic changes before applying
 - [Phase 1.6 Design Decisions](phase_1_6_design.md) — Document Management: folder structure, DRAFT/final naming, is_final flag, template picker, textarea editor; Batch A complete (config + DB)
 - [Phase 1.6 Progress](phase_1_6_progress.md) — COMPLETE. All 13 priorities done. Next: Phase 1.7 (Docker)
-- [Test Baseline — FOLLOWUPS-B Complete (B1–B8)](test_baseline_phase1_5.md) — Frontend: 216/6 pre-existing; Backend: 551 passed / 0 errors
+- [Test Baseline — FOLLOWUPS-C C1+C8 done](test_baseline_followups_c.md) — Frontend: 216/6 pre-existing; Backend: 559/0 (+8 new tests)
 - [Phase 1.6 FOLLOWUPS-A Plan](phase_1_6_followups_a.md) — 10 items (A1–A10) defined; key decisions: Company Summary in job_company_log, Generate Resume/Cover stubbed, modal sizing, Application subtab combine deferred
 - [FOLLOWUPS-B B1–B4 Session](session_followups_b_b1_b4.md) — B1–B4 complete (star fix, prompt tweak, Job Actions nav, App left nav cleanup); B5–B8 next (APPLICATION tab functionality + backend)
 - [FOLLOWUPS-B B5–B8 Session](session_followups_b_b5_b8.md) — All FOLLOWUPS-B done; Change Application Status, read-only status, Add App Note/Comms + new types, seed cleanup
+- [FOLLOWUPS-C Planning + C1/C8 Session](session_followups_c_planning.md) — C1+C8 complete; C2/C3/C4+C5/C6+C7 remaining; one-time migration SQL in memory
+- [Feedback — Prompt Logging Rule](feedback_prompt_logging_rule.md) — All external prompts must be backend-constructed, logged to application_logs with a named sub-type before modal opens

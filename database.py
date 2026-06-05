@@ -371,6 +371,10 @@ _SYSTEM_TYPES_SEED: list[tuple[str, str]] = [
     ("application_log", "compensation"),
     ("application_log", "general"),
     ("application_log", "prompt"),
+    ("application_log", "prompt_eval"),
+    ("application_log", "prompt_orgsummary"),
+    ("application_log", "prompt_resume"),
+    ("application_log", "prompt_cover"),
     ("application_log", "lesson_learned"),
     ("application_log", "recruiter_outreach"),
     ("application_log", "phone_screen"),
@@ -1958,11 +1962,19 @@ def get_activity_log(job_id: int) -> list[dict]:
                    WHERE al.application_id = ?""",
                 (app_id,)
             ).fetchall()
+            _PROMPT_LABELS = {
+                "prompt_eval":       "EVAL PROMPT",
+                "prompt_orgsummary": "ORG SUMMARY PROMPT",
+                "prompt_resume":     "RESUME PROMPT",
+                "prompt_cover":      "COVER PROMPT",
+            }
             for row in log_rows:
+                tv = row["type_value"] or ""
+                activity_label = _PROMPT_LABELS.get(tv) or (tv or "LOG").upper().replace("_", " ")
                 results.append({
                     "entry_type": "application_log",
                     "timestamp": row["ts"],
-                    "activity_type": (row["type_value"] or "LOG").upper().replace("_", " "),
+                    "activity_type": activity_label,
                     "source": "",
                     "text": row["log"],
                     "url": row["url"],

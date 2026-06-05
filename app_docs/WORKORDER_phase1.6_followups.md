@@ -48,3 +48,37 @@ This looks weird. It should be TYPE then URL on the first line with TYPE being 3
 - [X] next we should rename the "Add Application Note" to "Add App Note/Comms" and the options on this page should now be: General, Compensation, Feedback, Email Comms, Phone Comms, Feedback, Offer, Rejection (B7)
 
 - [X] we are dropping or changing a bunch of the fields from these two pages, things like: Phone Screen, On-site Interview, etc. This is ok. Most of these should be items in the INTERVIEW subpage anyways. That will be worked on in a future FOLLOWUPS item. (B8)
+
+# FOLLOWUPS-C - this is the third collection of follow ups to phase 1.6
+
+- a quick walkthrough page-by-page:
+  - JOB DETAILS -> Job Detail Summary - looks good to me
+  - JOB DETAILS -> Evaluations - also looking good and working well
+  - JOB DETAILS -> Job Description - working well, good to go
+  - JOB DETAILS -> Company Info - I like the changes we made, happy with this for now
+  - JOB DETAILS -> Job Actions - ok for now. I have a few idae for more actions here, but they can wait
+  - APPLICATION -> App Detail Summary - page is good for now
+  - APPLICATION -> Change Application Status - the Save button here does not clear the fields, otherwise this page is good
+  - APPLICATION -> Add App Note/Comms - I like te results of the changes, this page is good
+  - APPLICATION -> Application Questions - page is good for now
+  - APPLICATION -> Add Lesson - probably good, haven't re-tested it in a while but last time I checked it was working ok
+
+- now on to the RESUME / COVER page. The uploading and typst functions are working well here. I have been using them actively. The first thing I would change is that it would be nice to have a "Rename" button on a line that pops up a textbox where I can change the name of a file and this change will propagate to the db and disk.
+
+-next, on the RESUME / COVER page we need to define the workflows for the "Generate Resume" and "Generate Cover Letter" buttons. For these, they need to both generate prompts like we do on the JOB DETAILS -> Evaluations page with the "Generate External Eval" button - so show the popup with a copy button. This will be the first pass. Once we get that working I will see about how I want to modify the workflow to use any defined AIs for automatic generation. I will provide the prompt text at the point that we are actually building the functions, not now.
+
+-we will save the INTERVIEW subpage for another followups round as I want to add a few things there.
+
+-the final piece to tackle here is the APPLICATION LOG subpage. There are a number of changes and tweaks that are needed here.
+  - we need to clarly define the columns that are shown on these rows. Right now they aren't consistent and some things (like some timestamps) wrap. So here is the target columns:
+  | timestamp | log type label | info | actions | dropdown arrow|
+  -a LOT of these lines have lots and lots of extra space. Let's use it. Here is the target space by % to consider (but we need review here in case these spaces seem off!):
+  | 20% | 15% | 50% | 10% | 5% |
+  -some of these lines have actions - the COPY action should stay and really be the only actionable button on the rolled-up row. Clicking anywhere else on the unrolled row should unroll it. Then clicking anywhere else (besides the copy button) on the unrolled row header should roll it back up
+  -since we just changed the row header action, now we need to address the functions that were available on the row header. First, let's define the space in an unrolled row:
+  | reserved/20% | info/65% | actions/10% | reserved/5% |
+  This spacing should match the row header with the central info section spanning 3 of the header rows. Now for the functions. The first is the ability to edit timestamps. If the timestamd is editable, then in the first reserved/20% column add a button to "Edit Timestamp". The other one I see right now is that some rows have a Delete button. This should move into the actions/10% column in the unrolled view so that actions like delete take a bit more effort to get to. Also as part of this a review should be done to see if any additional actions need to be considered here.
+  -now for some of the extra data. For audit records, the current data looks like:
+  | (timestamp) | audit (label) | AUDIT (text) | Copy (button) | roll down/up arrow |
+  we should go ahead and change the AUDIT (text) here to the actual audit value, one example from my data is: "Status updated to: rejected". We will also show this in the unrolled row data, but there isn't any reason to not show it in the rolled-up view.
+  -next, I want to review all of the prompts that are generated and the return values and see if we can't get them all into the application log here. Let's review this together and see what we can come up with as part of this effort.

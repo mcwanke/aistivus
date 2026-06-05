@@ -358,8 +358,16 @@ class TestGeneratePrompt:
             f"/api/v1/applications/{seeded_client['app_id']}/generate-prompt"
         )
         logs = database.get_application_logs(seeded_client["app_id"])
-        prompt_logs = [l for l in logs if dict(l)["type_value"] == "prompt"]
+        prompt_logs = [l for l in logs if dict(l)["type_value"] == "prompt_eval"]
         assert len(prompt_logs) == 1
+
+    def test_prompt_log_uses_prompt_eval_type(self, seeded_client):
+        seeded_client["client"].post(
+            f"/api/v1/applications/{seeded_client['app_id']}/generate-prompt"
+        )
+        logs = database.get_application_logs(seeded_client["app_id"])
+        assert len(logs) == 1
+        assert dict(logs[0])["type_value"] == "prompt_eval"
 
 
 # ─────────────────────────────────────────────────────────────

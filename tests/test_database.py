@@ -33,7 +33,7 @@ class TestInitDb:
 
     def test_seeds_system_types(self, tmp_db):
         types = database.get_all_system_types()
-        assert len(types) == 27
+        assert len(types) == 31
 
     def test_seeds_all_expected_type_names(self, tmp_db):
         names = {r["type_name"] for r in database.get_all_system_types()}
@@ -43,7 +43,9 @@ class TestInitDb:
         rows = database.get_all_system_types("application_log")
         values = {r["type_value"] for r in rows}
         assert values == {
-            "compensation", "general", "prompt", "lesson_learned",
+            "compensation", "general", "prompt",
+            "prompt_eval", "prompt_orgsummary", "prompt_resume", "prompt_cover",
+            "lesson_learned",
             "recruiter_outreach", "phone_screen", "onsite_interview",
             "offer_received", "rejection_received", "withdrawal",
             "application_communication",
@@ -67,7 +69,7 @@ class TestInitDb:
     def test_idempotent(self, tmp_db):
         database.init_db()
         database.init_db()
-        assert len(database.get_all_system_types()) == 27
+        assert len(database.get_all_system_types()) == 31
         assert database.get_schema_version() == "1.5"
 
     def test_no_auto_seed_without_config(self, tmp_db):
@@ -81,11 +83,11 @@ class TestInitDb:
 
 class TestSystemTypes:
     def test_get_all_returns_all(self, tmp_db):
-        assert len(database.get_all_system_types()) == 27
+        assert len(database.get_all_system_types()) == 31
 
     def test_get_filtered_by_type_name(self, tmp_db):
         rows = database.get_all_system_types("application_log")
-        assert len(rows) == 17
+        assert len(rows) == 21
         assert all(r["type_name"] == "application_log" for r in rows)
 
     def test_get_system_type_id_found(self, tmp_db):
@@ -884,7 +886,7 @@ class TestUtilities:
         assert result["schema_version"] == "1.5"
         assert "tables" in result
         assert "system_types" in result["tables"]
-        assert len(result["tables"]["system_types"]) == 27
+        assert len(result["tables"]["system_types"]) == 31
 
 
 # ─────────────────────────────────────────────────────────────

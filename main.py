@@ -19,6 +19,7 @@ API routes:
   PATCH /api/v1/jobs/{id}
   GET  /api/v1/jobs/{id}/application
   POST /api/v1/jobs/{id}/activate
+  POST /api/v1/jobs/{id}/generate-orgsummary-prompt
   GET  /api/v1/settings/llm-servers
   POST /api/v1/settings/llm-servers
   PUT  /api/v1/settings/llm-servers/{id}
@@ -943,6 +944,66 @@ async def get_activity_log(request: Request, job_id: int):
     return JSONResponse({"entries": entries})
 
 
+@app.post("/api/v1/jobs/{job_id}/generate-orgsummary-prompt")
+@limiter.limit("10/minute")
+async def generate_orgsummary_prompt(request: Request, job_id: int):
+    """
+    Build an org-summary prompt for the given job and log it to application_logs.
+    Returns the prompt text.
+    """
+    job = database.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found.")
+    job_dict = dict(job)
+
+    # Resolve application_id — earliest application for this job, same as get_activity_log
+    with database.get_connection() as conn:
+        row = conn.execute(
+            "SELECT id FROM applications WHERE job_id = ? ORDER BY id ASC LIMIT 1",
+            (job_id,)
+        ).fetchone()
+    if not row:
+        raise HTTPException(
+            status_code=404, detail=f"No application found for job {job_id}."
+        )
+    application_id = row["id"]
+
+    # Pull website URL from company log if present
+    company_log = database.get_job_company_log(job_id, type_name="company_info")
+    website_url = ""
+    for entry in company_log:
+        if dict(entry).get("type_value") == "website":
+            website_url = dict(entry).get("url") or ""
+            break
+
+    company_name = job_dict.get("company_name") or "N/A"
+    title = job_dict.get("title") or "N/A"
+
+    prompt = f"""You are helping a job seeker quickly evaluate a company before applying. Research the following company and write a concise 2-3 paragraph summary for personal reference.
+
+*Company Name*: {company_name}
+*Company URL*: {website_url}
+*Job Title*: {title}
+
+Cover the following in your summary:
+- What the company does, what market it operates in, and its approximate size
+- General company culture and, if relevant to the job title, engineering or technical culture specifically
+- Public reputation and employee sentiment (draw from sources like Glassdoor, Blind, or Reddit — keep research brief)
+
+Write in plain, conversational prose. No headers or bullet points. Keep it tight — this is a quick reference, not a deep dive. If the URL is blank or a detail can't be found, skip it rather than guessing. Output your summary inside a markdown code block."""
+
+    prompt_type_id = database.get_system_type_id("application_log", "prompt_orgsummary")
+    if prompt_type_id is None:
+        raise HTTPException(status_code=500, detail="system_types not seeded correctly.")
+
+    log_id = database.add_application_log(
+        application_id=application_id,
+        type_id=prompt_type_id,
+        log=prompt,
+    )
+    return JSONResponse({"success": True, "log_id": log_id, "prompt": prompt})
+
+
 # ─────────────────────────────────────────────────────────────
 # Models
 # ─────────────────────────────────────────────────────────────
@@ -1355,7 +1416,7 @@ EVALUATION_JSON_START
 EVALUATION_JSON_END
 """
 
-    prompt_type_id = database.get_system_type_id("application_log", "prompt")
+    prompt_type_id = database.get_system_type_id("application_log", "prompt_eval")
     if prompt_type_id is None:
         raise HTTPException(status_code=500, detail="system_types not seeded correctly.")
 

@@ -161,6 +161,14 @@ class TestSystemTypes:
         assert "prompt" in values
         assert "general" in values
 
+    def test_prompt_subtype_seeds_present(self, client):
+        resp = client.get("/api/v1/system-types?type_name=application_log")
+        values = {t["type_value"] for t in resp.json()}
+        assert "prompt_eval" in values
+        assert "prompt_orgsummary" in values
+        assert "prompt_resume" in values
+        assert "prompt_cover" in values
+
     def test_unknown_type_name_returns_empty(self, client):
         resp = client.get("/api/v1/system-types?type_name=nonexistent")
         assert resp.status_code == 200
