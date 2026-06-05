@@ -41,6 +41,8 @@ API routes:
   PATCH /api/v1/applications/{id}/logs/{log_id}/timestamp
   PATCH /api/v1/applications/{id}/audit/{audit_id}/timestamp
   POST /api/v1/applications/{id}/generate-prompt
+  POST /api/v1/applications/{id}/generate-resume-prompt
+  POST /api/v1/applications/{id}/generate-cover-prompt
   POST /api/v1/applications/{id}/lesson-chat
   GET  /api/v1/llm-call-log
   GET  /api/v1/system-types
@@ -1280,8 +1282,8 @@ async def update_audit_timestamp(
 @limiter.limit("10/minute")
 async def generate_prompt(request: Request, application_id: int):
     """
-    Build a structured AI prompt for this application and store it as a log entry.
-    Returns the generated prompt text and its log id.
+    Build a job evaluation prompt for this application and log it.
+    Returns the prompt text for use with an external AI (eval only).
     """
     app_row = database.get_application(application_id)
     if not app_row:
@@ -1296,7 +1298,6 @@ async def generate_prompt(request: Request, application_id: int):
             status_code=404, detail=f"Job {app_dict['job_id']} not found."
         )
     job_dict = dict(job)
-    eval_row = database.get_latest_evaluation(app_dict["job_id"])
 
     company_name = job_dict.get("company_name") or "N/A"
     title = job_dict.get("title") or "N/A"
@@ -1304,99 +1305,103 @@ async def generate_prompt(request: Request, application_id: int):
     pay_band = job_dict.get("pay_band") or "Not listed"
     jd_text = job_dict.get("description_merged") or ""
 
-    def _fmt_sub(v: object) -> str:
-        return f"{v}/5" if v is not None else "N/A"
+    prompt = f"""## CONTEXT FILES
 
-    if eval_row:
-        e = dict(eval_row)
-        score_display = f"{e.get('score_overall')}/10" if e.get("score_overall") is not None else "N/A"
-        fit_type = e.get("fit_type") or "N/A"
-        archetype = e.get("archetype") or "N/A"
-        recommendation = e.get("recommendation") or "N/A"
-        model_label = e.get("model_name") or "N/A"
-        strengths = e.get("strengths") or "N/A"
-        gaps = e.get("gaps") or "N/A"
-        keywords = e.get("keywords") or "N/A"
-        score_role_fit_display = _fmt_sub(e.get("score_role_fit"))
-        score_scope_display = _fmt_sub(e.get("score_scope_fit"))
-        score_culture_display = _fmt_sub(e.get("score_culture"))
-        score_comp_display = _fmt_sub(e.get("score_comp"))
-    else:
-        score_display = fit_type = archetype = recommendation = model_label = "N/A"
-        strengths = gaps = keywords = "N/A"
-        score_role_fit_display = score_scope_display = "N/A"
-        score_culture_display = score_comp_display = "N/A"
+You have been provided the following file. Read it completely before
+doing anything else:
 
-    prompt = f"""Read this information and the attached jobsearch.md file before starting.
-When evaluating, apply the Section 7 framework exactly as written.
-When tailoring, apply all Section 6 Always and Never rules without exception.
-Treat Section 9 session instructions as active constraints throughout this session.
+- **jobsearch.md** — candidate profile, career history, target role
+  preferences, deal-breakers, compensation targets, tailoring rules,
+  and model behavior rules.
 
+Confirm you have read jobsearch.md before proceeding.
 
-JOB DETAILS:
+---
+
+## CLARIFICATION GATE
+
+Before beginning any evaluation, check the following. If anything is
+missing or ambiguous, ask a single clarifying question — do not guess:
+
+- Is a job description present below? If not, ask for it.
+- Is the company name, role title, and location clearly stated?
+  If any are missing, ask.
+- If the JD does not include a salary band, note that comp scoring
+  will be estimated based on market norms for the role level —
+  do not ask, just flag it in the scorecard.
+
+Do not proceed until all required inputs are present.
+
+---
+
+## JOB DETAILS
+
 Company: {company_name}
 Title: {title}
 Location: {location}
 Pay Band: {pay_band}
 
-JOB DESCRIPTION:
+---
+
+## JOB DESCRIPTION
+
 {jd_text}
 
-LOCAL AI EVALUATION RESULTS:
-Dimension Scores: Role fit: {score_role_fit_display} | Scope fit: {score_scope_display} | Culture: {score_culture_display} | Comp: {score_comp_display}
-Overall Score: {score_display}
-Fit Type: {fit_type}
-Role Archetype: {archetype}
-Recommendation: {recommendation}
-Model Used: {model_label}
+---
 
-Strengths identified:
-{strengths}
+## TASK: EVALUATION SCORECARD
 
-Gaps identified:
-{gaps}
+Produce a full evaluation scorecard using the framework below.
+Use jobsearch.md as the sole source of truth for all candidate facts.
+Apply the model behavior rules in jobsearch.md throughout.
 
-ATS Keywords extracted:
-{keywords}
+### Scoring Framework
 
-Keyword gaps (tailoring targets):
-Identify any keywords or phrases from the JD above that appear in
-neither the ATS keywords list above nor the master resume in Section 5
-of the attached jobsearch.md. List these separately as tailoring targets
-when producing resume changes.
+**Dimension scores (1–5 each):**
+- **Role fit:** Does the role type, title, and day-to-day responsibilities
+  match what the candidate is targeting? Reference the Target Role Profile
+  section of jobsearch.md.
+- **Scope fit:** Does the team size, org scope, and leadership depth match
+  the candidate's background and stated preferences?
+- **Culture signals:** Does the JD language, company type, and mission
+  suggest a culture compatible with the candidate's values?
+- **Comp signals:** How does the stated or estimated pay band align with
+  the candidate's compensation target? Reference jobsearch.md.
 
-TASKS:
-1. Produce a full evaluation scorecard using the Section 7 framework
-   in the attached jobsearch.md. Include:
-   - Dimension scores (1-5 each): Role fit / Scope fit / Culture
-     signals / Comp signals
-   - Overall score (1-10) and one-sentence verdict
-   - Fit type: Core Fit / Stretch / Mismatch with reasoning
-   - Role archetype
-   - Strengths of this match (bullets)
-   - Gaps or concerns (bullets)
-   - Interview process analysis: if the JD above includes interview
-     stages, flag any stage that conflicts with known gaps or
-     deal-breakers from Section 4 of the attached jobsearch.md
-   - Recommended action: Apply / Apply with modifications / Skip
-   Use the local evaluation above as a reference, not as ground truth.
+**Overall score:** 1–10 composite with one-sentence verdict.
 
-2. Assess overall fit for this role. What is your honest assessment
-   of the candidate's likelihood of success?
+**Fit type:** Core Fit / Stretch / Mismatch — with one-sentence reasoning.
 
-3. Stop and ask if I want to proceed with the next phase or not.
+**Role archetype:** A concise label describing the nature of the role
+(e.g. "Hybrid: People Leadership + Platform Technical Direction" or
+"Pure People Leadership: EM-scale").
 
-If I want to proceed then complete the following tasks:
+**Strengths of this match:** Bullet list. Be specific — cite actual
+experience from jobsearch.md that maps to a specific JD requirement.
 
-1. Using the attached resume_template.typ as the exact structural
-and formatting base, generate a complete, ready-to-compile
-.typ file tailored to this role. Populate every [CONTENT: ...]
-block using jobsearch.md as the sole source of truth for facts.
-Apply all Always and Never rules from Section 6 without
-exception. Target output: 2 pages when compiled.
+**Gaps or concerns:** Bullet list. Be honest — if a gap is real, name
+it. Flag anything that could surface as a challenge in an interview.
 
-2. After you deliver the evaluation scorecard and before asking whether
-   to proceed, output the following block exactly:
+**Interview process analysis:** If the JD includes a described interview
+process, analyze each stage for conflicts with known gaps or deal-breakers
+from jobsearch.md. Surface these here — not later.
+
+**ATS keyword analysis:**
+- List 25–35 ATS-relevant keywords extracted from the JD.
+- Cross-reference against the master resume copy in jobsearch.md.
+- Call out any JD keywords not present in the master resume as
+  tailoring targets.
+
+**Recommended action:** Apply / Apply with modifications / Skip
+Include one sentence of reasoning.
+
+---
+
+## MACHINE-READABLE OUTPUT BLOCK
+
+After the full scorecard, output the following block exactly as
+formatted. Do not alter field names or structure — this block is
+parsed programmatically by the job search application.
 
 EVALUATION_JSON_START
 {{
@@ -1411,12 +1416,452 @@ EVALUATION_JSON_START
   "gaps": "<bullet 1|bullet 2>",
   "recommendation": "<Apply | Apply with modifications | Skip>",
   "keywords": "<comma-separated ATS keywords, 25-35 terms>",
+  "keyword_gaps": "<comma-separated keywords from JD not in master resume>",
   "log_entry": "<one-sentence verdict>"
 }}
 EVALUATION_JSON_END
-"""
+
+---
+
+## STOP
+
+After delivering the scorecard and JSON block, stop and ask:
+
+> "Want to proceed to resume tailoring for this role, or would you
+>  like to review anything in the evaluation first?"
+
+Do not generate resume or cover letter materials in this response."""
 
     prompt_type_id = database.get_system_type_id("application_log", "prompt_eval")
+    if prompt_type_id is None:
+        raise HTTPException(status_code=500, detail="system_types not seeded correctly.")
+
+    log_id = database.add_application_log(
+        application_id=application_id,
+        type_id=prompt_type_id,
+        log=prompt,
+    )
+    return JSONResponse({"success": True, "log_id": log_id, "prompt": prompt})
+
+
+@app.post("/api/v1/applications/{application_id}/generate-resume-prompt")
+@limiter.limit("10/minute")
+async def generate_resume_prompt(request: Request, application_id: int):
+    """
+    Build a tailored resume generation prompt for this application and log it.
+    Returns the prompt text for use with an external AI.
+    """
+    app_row = database.get_application(application_id)
+    if not app_row:
+        raise HTTPException(
+            status_code=404, detail=f"Application {application_id} not found."
+        )
+    app_dict = dict(app_row)
+
+    job = database.get_job(app_dict["job_id"])
+    if not job:
+        raise HTTPException(
+            status_code=404, detail=f"Job {app_dict['job_id']} not found."
+        )
+    job_dict = dict(job)
+
+    eval_row = database.get_latest_evaluation(app_dict["job_id"])
+
+    company_name = job_dict.get("company_name") or "N/A"
+    title = job_dict.get("title") or "N/A"
+    location = job_dict.get("location") or "N/A"
+    pay_band = job_dict.get("pay_band") or "Not listed"
+    jd_text = job_dict.get("description_merged") or ""
+
+    if eval_row:
+        e = dict(eval_row)
+        keywords_text = e.get("keywords") or "Not provided — will extract from JD"
+        keyword_gaps_text = e.get("keyword_gaps") or "Not provided — will extract from JD"
+    else:
+        keywords_text = "Not provided — will extract from JD"
+        keyword_gaps_text = "Not provided — will extract from JD"
+
+    prompt = f"""## CONTEXT FILES
+
+You have been provided the following files. Read both completely before
+doing anything else:
+
+- **jobsearch.md** — candidate profile, career history, tailoring rules
+  (Always/Never), and model behavior rules. Every factual claim in the
+  resume must be sourced from here.
+- **resume_template.typ** — the structural and formatting base. Populate
+  every [CONTENT: ...] block. Do not modify any formatting, font, color,
+  layout, or helper function code — structure is fixed.
+
+Confirm you have read both files before proceeding.
+
+---
+
+## CLARIFICATION GATE
+
+Before generating anything, verify the following. If anything is
+missing or ambiguous, ask a single clarifying question — do not guess
+or assume:
+
+- Is a job description present below? If not, ask for it.
+- Is a company name and role title present? If not, ask.
+- If evaluation output (ATS keywords + keyword gaps) from a prior
+  evaluation is not provided, note that you will extract keywords
+  directly from the JD and flag any gaps you identify.
+- If the role type or seniority level is ambiguous, ask before
+  proceeding — this affects summary framing, which content to
+  emphasize, and which tailoring rules apply.
+
+Do not generate the resume until all required inputs are confirmed.
+
+---
+
+## JOB DETAILS
+
+Company: {company_name}
+Title: {title}
+Location: {location}
+Pay Band: {pay_band}
+
+---
+
+## JOB DESCRIPTION
+
+{jd_text}
+
+---
+
+## EVALUATION INPUT (optional — paste if available)
+
+If a prior evaluation was run for this role, paste the ATS keywords
+and keyword gaps here. The resume will confirm coverage against these
+and flag any gaps that cannot be addressed without fabrication.
+
+ATS Keywords: {keywords_text}
+Keyword Gaps: {keyword_gaps_text}
+
+---
+
+## TASK: GENERATE TAILORED RESUME
+
+Using **resume_template.typ** as the exact structural and formatting
+base, generate a complete, ready-to-compile .typ file tailored to
+this role.
+
+### Rules — non-negotiable
+
+- Use **jobsearch.md as the sole source of truth** for all facts.
+  Never fabricate, inflate, or soften claims beyond what is documented.
+- Apply **all Always and Never rules from the tailoring rules section
+  of jobsearch.md** without exception. If a rule conflicts with a
+  tailoring decision, apply the rule and flag the conflict — do not
+  silently override.
+- Do **not** modify any Typst formatting code — only populate
+  [CONTENT: ...] blocks.
+- **Target output: 2 pages when compiled.** If content runs long,
+  compress experience bullets — do not adjust margins or font size.
+
+### Tailoring priorities
+
+Apply these in order based on the role type inferred from the JD.
+All content must be drawn from jobsearch.md — these are selection
+and ordering instructions, not content.
+
+1. **Summary:** Lead with years of experience and domain breadth.
+   Mirror the JD's language for the role's core responsibility.
+   Close with a belief statement. Apply all style rules from the
+   Never section of jobsearch.md (e.g. sentence construction rules).
+
+2. **Key Impacts:** 6–8 bullets selected and ordered by relevance
+   to this specific JD. Use the candidate's documented achievements
+   from jobsearch.md. Apply the following selection logic:
+
+   - **People development / manager pipeline:** Include when the role
+     involves developing managers or building leadership depth. Drop
+     or compress for IC-heavy or technical roles where this is low signal.
+   - **AI tooling adoption:** Include for most roles. Compress if space
+     is tight. Drop only if the JD has zero AI/tooling signal and a
+     stronger bullet serves better.
+   - **Largest scale / growth metric:** Include for growth, consumer,
+     acquisition, or product-scale roles. Use the candidate's strongest
+     documented scale signal from jobsearch.md.
+   - **Regulated/compliance delivery:** Include for regulated, enterprise,
+     government, or healthcare-adjacent roles.
+   - **Cloud/platform delivery:** Include for platform, SaaS, or
+     cloud-infrastructure roles.
+   - **0-to-1 product launch:** Include for hardware, IoT, or
+     build-from-scratch roles.
+   - **Distributed remote team leadership:** Include when the JD
+     explicitly values distributed or async team management.
+   - **Operational excellence / incident response:** Include when the
+     JD calls out reliability, observability, or engineering process rigor.
+
+3. **Core Competencies:** Two columns as defined in the template.
+   Prioritize competencies that mirror JD language directly.
+   Source from jobsearch.md skills and strengths sections.
+
+4. **Experience — most recent role(s):** Always include. Tailor the
+   intro paragraph and bullets to emphasize what is most relevant to
+   this JD. The template defines the sub-section structure — follow it.
+   Compress or expand sub-sections based on relevance, but preserve
+   the structure defined in the template.
+
+5. **Experience — earlier roles:** Include and frame based on role type
+   using the tailoring guidance in jobsearch.md. Earlier roles should
+   compress as tenure recedes — preserve the most relevant signal and
+   drop lower-signal detail to protect page budget.
+
+   - For roles where early-career IC work is low signal: default to a
+     single sentence with no bullets.
+   - For roles where early-career domain experience is directly relevant
+     (e.g. data platform, embedded systems, enterprise data): expand to
+     1–2 bullets surfacing the specific signal. Source from jobsearch.md.
+   - Apply all Never rules from jobsearch.md to early-career entries —
+     honesty framing on contributed-to vs. led is especially important
+     for early IC work.
+
+### Keyword coverage check
+
+After completing the resume, output a brief keyword coverage note:
+
+> **Keyword Coverage:**
+> - Covered: [keywords confirmed present in the resume]
+> - Gaps remaining: [JD keywords not addressable without fabrication,
+>   with a one-sentence note on why]
+
+### Flagging rule
+
+If any bullet in the tailored resume could be challenged in an
+interview based on the Never rules in jobsearch.md, flag it inline:
+`// ⚠ FLAG: [reason]`
+
+---
+
+## OUTPUT FORMAT
+
+Deliver the complete .typ file content. Do not include explanatory
+prose before or after — just the file, ready to compile."""
+
+    prompt_type_id = database.get_system_type_id("application_log", "prompt_resume")
+    if prompt_type_id is None:
+        raise HTTPException(status_code=500, detail="system_types not seeded correctly.")
+
+    log_id = database.add_application_log(
+        application_id=application_id,
+        type_id=prompt_type_id,
+        log=prompt,
+    )
+    return JSONResponse({"success": True, "log_id": log_id, "prompt": prompt})
+
+
+@app.post("/api/v1/applications/{application_id}/generate-cover-prompt")
+@limiter.limit("10/minute")
+async def generate_cover_prompt(request: Request, application_id: int):
+    """
+    Build a cover letter generation prompt for this application and log it.
+    Returns the prompt text for use with an external AI.
+    """
+    app_row = database.get_application(application_id)
+    if not app_row:
+        raise HTTPException(
+            status_code=404, detail=f"Application {application_id} not found."
+        )
+    app_dict = dict(app_row)
+
+    job = database.get_job(app_dict["job_id"])
+    if not job:
+        raise HTTPException(
+            status_code=404, detail=f"Job {app_dict['job_id']} not found."
+        )
+    job_dict = dict(job)
+
+    company_log = database.get_job_company_log(app_dict["job_id"], type_name="company_info")
+    website_url = ""
+    for entry in company_log:
+        if dict(entry).get("type_value") == "website":
+            website_url = dict(entry).get("url") or ""
+            break
+
+    company_name = job_dict.get("company_name") or "N/A"
+    title = job_dict.get("title") or "N/A"
+    jd_text = job_dict.get("description_merged") or ""
+    website_display = website_url or "Not available — provide the company URL before proceeding"
+
+    prompt = f"""## CONTEXT FILES
+
+You have been provided the following files. Read all completely before
+doing anything else:
+
+- **jobsearch.md** — candidate profile, career history, and tailoring
+  rules. The master factual source of truth for all claims.
+- **jobsearch_cover.md** — cover letter voice, Always/Never rules,
+  reusable content blocks, hook guidance, and generation instructions.
+  Apply the Voice & Rules section and Pre-Draft Checklist without
+  exception.
+- **cover_letter_template.typ** — the structural and formatting base.
+  Populate every [CONTENT: ...] block. Do not modify any formatting,
+  font, color, layout, or helper function code.
+
+Confirm you have read all three files before proceeding.
+
+---
+
+## ⛔ HARD STOP RULE
+
+**Do not write a single word of the cover letter until the user has
+confirmed the salutation, tone descriptor, and hook.** Propose first.
+Write second. Always.
+
+---
+
+## CLARIFICATION GATE
+
+Before doing anything else, verify the following. If anything is
+missing, ask a single clarifying question — do not guess or assume:
+
+- Is a job description present below? If not, ask for it.
+- Is a company name, role title, and company website URL present?
+  If the URL is missing, ask for it — company research is required
+  before proposing a hook, and a generic letter is worse than no letter.
+- Is any personal hook seed, scratchpad note, or context about this
+  company provided? If not, note that you will propose a hook based
+  on research — the user can accept, override, or request alternatives.
+- If jobsearch_cover.md defines any scope framing rules that apply to
+  this role type (e.g. a specific intent statement for certain
+  seniority levels), flag whether it should be included and ask for
+  confirmation.
+
+Do not begin company research or proposal until all required inputs
+are present.
+
+---
+
+## JOB DETAILS
+
+Company: {company_name}
+Role Title: {title}
+Company Website: {website_display}
+Hook Seed (optional):
+
+---
+
+## JOB DESCRIPTION
+
+{jd_text}
+
+---
+
+## STEP 1 — COMPANY RESEARCH
+
+Fetch and read the company website. Prioritize: About, Mission, Culture,
+Values, and Team pages. Note specific language, themes, and values worth
+mirroring in the letter.
+
+If web browsing is not available in this session, ask the user to paste
+the relevant About/Mission/Culture page content before proceeding.
+Do not skip this step or substitute generic assumptions.
+
+---
+
+## STEP 2 — PRE-DRAFT CHECKLIST
+
+Before proposing anything, run the Pre-Draft Checklist from the
+Pre-Draft Checklist section of jobsearch_cover.md. Complete every
+item — do not skip or summarize.
+
+---
+
+## STEP 3 — PROPOSAL (wait for confirmation before drafting)
+
+After completing research and the checklist, propose the following.
+Ask the user to confirm, adjust, or override before writing the letter:
+
+**SALUTATION:** Suggested salutation with a one-sentence rationale.
+  Apply the salutation guidance from jobsearch_cover.md — personable
+  is the default bias unless the context calls for formal. Explain
+  the choice.
+
+**TONE:** One-word tone descriptor with a one-sentence rationale
+  based on your company culture read. Reference the tone guidance in
+  jobsearch_cover.md.
+
+**HOOK:** A 2–3 sentence description of the opening angle you propose,
+  grounded specifically in your company research. Explain why this hook
+  is specific to this company and could not appear in any other letter.
+  Reference the hook guidance and hook bank in jobsearch_cover.md for
+  principles — do not reuse archived hooks verbatim.
+
+**GAP FLAG:** If a meaningful gap exists between the candidate's
+  background and this role, name it and ask whether to include the
+  optional gap acknowledgment block defined in jobsearch_cover.md.
+
+Then ask:
+> "Want to proceed with these, or would you like to adjust anything
+>  before I draft?"
+
+**Do not write the letter until the user replies with confirmation.**
+
+---
+
+## STEP 4 — GENERATE COVER LETTER
+
+After confirmation, generate the complete cover letter using
+**cover_letter_template.typ** as the exact structural and formatting
+base. Populate every [CONTENT: ...] block.
+
+### Rules — non-negotiable
+
+- Use **jobsearch.md and jobsearch_cover.md as the sole sources of
+  truth** for all facts, voice, and reusable block content.
+- Apply **all Always and Never rules from jobsearch_cover.md** and
+  **jobsearch.md** without exception.
+- Do **not** modify any Typst formatting code — only populate
+  [CONTENT: ...] blocks.
+- **Target: one page.** One page is the constraint — word count is a
+  byproduct. If the draft runs long, tighten the body before
+  delivering. Do not ask the user to cut it. Do not adjust margins
+  or font size to compensate.
+- The closing block defined in the template is fixed — do not modify it.
+
+### Letter architecture
+
+Follow the letter architecture defined in jobsearch_cover.md. Apply
+the block selection and ordering guidance from the Generation
+Instructions section — including which blocks are defaults, which are
+conditional, and when to lead with a domain opener vs. the engineering
+pillar directly.
+
+### Flagging rule
+
+If any claim in the letter could be challenged in an interview based
+on the Never rules in jobsearch.md, flag it inline:
+`// ⚠ FLAG: [reason]`
+
+### Final check before delivering
+
+Verify the company-specific closing line has been updated for this
+company — this is the most common copy-paste error. Do not deliver
+without confirming it.
+
+---
+
+## OUTPUT FORMAT
+
+Deliver the complete .typ file content. Do not include explanatory
+prose before or after — just the file, ready to compile.
+
+---
+
+## STEP 5 — POST-DELIVERY CHECK
+
+After delivering the letter, note the following if applicable:
+
+> "Block [X] had a strong variation in this letter worth archiving.
+>  Want me to update jobsearch_cover.md?"
+
+The user confirms before any update is written."""
+
+    prompt_type_id = database.get_system_type_id("application_log", "prompt_cover")
     if prompt_type_id is None:
         raise HTTPException(status_code=500, detail="system_types not seeded correctly.")
 

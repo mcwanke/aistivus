@@ -10,6 +10,8 @@ Routes covered:
   POST   /api/v1/applications/{id}/logs
   DELETE /api/v1/applications/{id}/logs/{log_id}
   POST   /api/v1/applications/{id}/generate-prompt
+  POST   /api/v1/applications/{id}/generate-resume-prompt
+  POST   /api/v1/applications/{id}/generate-cover-prompt
   POST   /api/v1/applications/{id}/lesson-chat
 """
 
@@ -368,6 +370,102 @@ class TestGeneratePrompt:
         logs = database.get_application_logs(seeded_client["app_id"])
         assert len(logs) == 1
         assert dict(logs[0])["type_value"] == "prompt_eval"
+
+    def test_prompt_contains_job_details_not_eval_scores(self, seeded_client):
+        resp = seeded_client["client"].post(
+            f"/api/v1/applications/{seeded_client['app_id']}/generate-prompt"
+        )
+        prompt = resp.json()["prompt"]
+        # New eval-only prompt — no resume instructions or local eval score injection
+        assert "LOCAL AI EVALUATION RESULTS" not in prompt
+        assert "EVALUATION_JSON_START" in prompt
+        assert "keyword_gaps" in prompt
+
+
+# ─────────────────────────────────────────────────────────────
+# POST /api/v1/applications/{id}/generate-resume-prompt
+# ─────────────────────────────────────────────────────────────
+
+class TestGenerateResumePrompt:
+    def test_404_for_unknown_application(self, client):
+        resp = client.post("/api/v1/applications/9999/generate-resume-prompt")
+        assert resp.status_code == 404
+
+    def test_returns_prompt_text(self, seeded_client):
+        resp = seeded_client["client"].post(
+            f"/api/v1/applications/{seeded_client['app_id']}/generate-resume-prompt"
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert "prompt" in data
+        assert len(data["prompt"]) > 100
+
+    def test_prompt_contains_job_details(self, seeded_client):
+        resp = seeded_client["client"].post(
+            f"/api/v1/applications/{seeded_client['app_id']}/generate-resume-prompt"
+        )
+        prompt = resp.json()["prompt"]
+        assert "Test Corp" in prompt
+        assert "Software Engineer" in prompt
+
+    def test_prompt_includes_keyword_fallback_without_eval(self, seeded_client):
+        resp = seeded_client["client"].post(
+            f"/api/v1/applications/{seeded_client['app_id']}/generate-resume-prompt"
+        )
+        prompt = resp.json()["prompt"]
+        assert "Not provided — will extract from JD" in prompt
+
+    def test_prompt_logged_with_prompt_resume_type(self, seeded_client):
+        seeded_client["client"].post(
+            f"/api/v1/applications/{seeded_client['app_id']}/generate-resume-prompt"
+        )
+        logs = database.get_application_logs(seeded_client["app_id"])
+        resume_logs = [l for l in logs if dict(l)["type_value"] == "prompt_resume"]
+        assert len(resume_logs) == 1
+
+
+# ─────────────────────────────────────────────────────────────
+# POST /api/v1/applications/{id}/generate-cover-prompt
+# ─────────────────────────────────────────────────────────────
+
+class TestGenerateCoverPrompt:
+    def test_404_for_unknown_application(self, client):
+        resp = client.post("/api/v1/applications/9999/generate-cover-prompt")
+        assert resp.status_code == 404
+
+    def test_returns_prompt_text(self, seeded_client):
+        resp = seeded_client["client"].post(
+            f"/api/v1/applications/{seeded_client['app_id']}/generate-cover-prompt"
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert "prompt" in data
+        assert len(data["prompt"]) > 100
+
+    def test_prompt_contains_job_details(self, seeded_client):
+        resp = seeded_client["client"].post(
+            f"/api/v1/applications/{seeded_client['app_id']}/generate-cover-prompt"
+        )
+        prompt = resp.json()["prompt"]
+        assert "Test Corp" in prompt
+        assert "Software Engineer" in prompt
+
+    def test_prompt_includes_website_fallback_without_company_log(self, seeded_client):
+        resp = seeded_client["client"].post(
+            f"/api/v1/applications/{seeded_client['app_id']}/generate-cover-prompt"
+        )
+        prompt = resp.json()["prompt"]
+        assert "Not available" in prompt
+
+    def test_prompt_logged_with_prompt_cover_type(self, seeded_client):
+        seeded_client["client"].post(
+            f"/api/v1/applications/{seeded_client['app_id']}/generate-cover-prompt"
+        )
+        logs = database.get_application_logs(seeded_client["app_id"])
+        cover_logs = [l for l in logs if dict(l)["type_value"] == "prompt_cover"]
+        assert len(cover_logs) == 1
 
 
 # ─────────────────────────────────────────────────────────────

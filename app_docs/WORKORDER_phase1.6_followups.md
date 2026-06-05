@@ -82,3 +82,10 @@ This looks weird. It should be TYPE then URL on the first line with TYPE being 3
   | (timestamp) | audit (label) | AUDIT (text) | Copy (button) | roll down/up arrow |
   we should go ahead and change the AUDIT (text) here to the actual audit value, one example from my data is: "Status updated to: rejected". We will also show this in the unrolled row data, but there isn't any reason to not show it in the rolled-up view.
   -next, I want to review all of the prompts that are generated and the return values and see if we can't get them all into the application log here. Let's review this together and see what we can come up with as part of this effort.
+
+
+  # FOLLOWUPS-D and beyond...
+
+  -first thing I want to do is to review the current state of the application and look for identifying information. I found in previous work that the prompts were becoming personalized to me. They said things like "check with Kevin". I consider this akin to PII that is leaking out here. We should do a pass through the app and look for any other isntances of this and clean it up! There is a reason that we have .gitignored files like my_data/ and jobsearch.md that are meant to hold "PII-like" user data. 
+
+  -I checked the templates/ folder and want to make a pass through the templates. I noted that we have now added a jobsearch_cover.md but don't have a template for it. I also want to review the jobsearch.md template (currently at JOBSEARCH_TEMPLATE.md) and ensure that it is up to date

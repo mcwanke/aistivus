@@ -9,6 +9,8 @@ import {
   useAddLog,
   useDeleteLog,
   useGeneratePrompt,
+  useGenerateResumePrompt,
+  useGenerateCoverPrompt,
   usePatchLogTimestamp,
   usePatchAuditTimestamp,
 } from '@/hooks/useApplications'
@@ -3013,12 +3015,16 @@ function ResumeCoverTab({ applicationId, typstAvailable }: ResumeCoverTabProps):
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState('')
   const [templateError, setTemplateError] = useState('')
+  const [resumePromptText, setResumePromptText] = useState<string | null>(null)
+  const [coverPromptText, setCoverPromptText] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: documents = [], isLoading: docsLoading } = useApplicationDocuments(applicationId)
   const { data: templates } = useTypstTemplates()
   const upload = useUploadDocument(applicationId)
   const copyTemplate = useCopyTemplate(applicationId)
+  const generateResume = useGenerateResumePrompt()
+  const generateCover = useGenerateCoverPrompt()
 
   const hasTemplates =
     (templates?.resume.length ?? 0) > 0 || (templates?.cover_letter.length ?? 0) > 0
@@ -3048,8 +3054,14 @@ function ResumeCoverTab({ applicationId, typstAvailable }: ResumeCoverTabProps):
     }
   }
 
-  function handleComingSoon(): void {
-    alert('Coming soon — document generation will be available in a future update.')
+  async function handleGenerateResume(): Promise<void> {
+    const result = await generateResume.mutateAsync(applicationId)
+    setResumePromptText(result.prompt)
+  }
+
+  async function handleGenerateCover(): Promise<void> {
+    const result = await generateCover.mutateAsync(applicationId)
+    setCoverPromptText(result.prompt)
   }
 
   return (
@@ -3070,23 +3082,31 @@ function ResumeCoverTab({ applicationId, typstAvailable }: ResumeCoverTabProps):
         </div>
       )}
 
-      {/* Section B — Generate (stubbed) */}
+      {/* Section B — Generate prompts */}
       <div>
         <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Generate</p>
         <div className="flex gap-2">
           <button
-            onClick={handleComingSoon}
-            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
+            onClick={() => void handleGenerateResume()}
+            disabled={generateResume.isPending}
+            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50"
           >
-            Generate Resume
+            {generateResume.isPending ? 'Generating…' : 'Generate Resume'}
           </button>
           <button
-            onClick={handleComingSoon}
-            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
+            onClick={() => void handleGenerateCover()}
+            disabled={generateCover.isPending}
+            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50"
           >
-            Generate Cover Letter
+            {generateCover.isPending ? 'Generating…' : 'Generate Cover Letter'}
           </button>
         </div>
+        {generateResume.isError && (
+          <p className="text-red text-xs mt-1">{generateResume.error.message}</p>
+        )}
+        {generateCover.isError && (
+          <p className="text-red text-xs mt-1">{generateCover.error.message}</p>
+        )}
       </div>
 
       {/* Section C — Template picker */}
@@ -3179,6 +3199,21 @@ function ResumeCoverTab({ applicationId, typstAvailable }: ResumeCoverTabProps):
           </div>
         )}
       </div>
+
+      {resumePromptText !== null && (
+        <PromptModal
+          prompt={resumePromptText}
+          title="Generate Resume Prompt"
+          onClose={() => setResumePromptText(null)}
+        />
+      )}
+      {coverPromptText !== null && (
+        <PromptModal
+          prompt={coverPromptText}
+          title="Generate Cover Letter Prompt"
+          onClose={() => setCoverPromptText(null)}
+        />
+      )}
     </div>
   )
 }

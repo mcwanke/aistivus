@@ -121,6 +121,38 @@ export function useGeneratePrompt() {
   })
 }
 
+export function useGenerateResumePrompt() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (applicationId: number): Promise<{ prompt: string; log_id: number }> => {
+      const res = await fetch(`/api/v1/applications/${applicationId}/generate-resume-prompt`, {
+        method: 'POST',
+      })
+      if (!res.ok) throw new Error(`generate resume prompt ${res.status}`)
+      return res.json() as Promise<{ prompt: string; log_id: number }>
+    },
+    onSuccess: (_data, applicationId) => {
+      void qc.invalidateQueries({ queryKey: ['application', applicationId] })
+    },
+  })
+}
+
+export function useGenerateCoverPrompt() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (applicationId: number): Promise<{ prompt: string; log_id: number }> => {
+      const res = await fetch(`/api/v1/applications/${applicationId}/generate-cover-prompt`, {
+        method: 'POST',
+      })
+      if (!res.ok) throw new Error(`generate cover prompt ${res.status}`)
+      return res.json() as Promise<{ prompt: string; log_id: number }>
+    },
+    onSuccess: (_data, applicationId) => {
+      void qc.invalidateQueries({ queryKey: ['application', applicationId] })
+    },
+  })
+}
+
 interface PatchLogTimestampPayload {
   applicationId: number
   logId: number
