@@ -30,6 +30,7 @@ import {
   useSaveDocumentContent,
   useTypstTemplates,
   useCopyTemplate,
+  useRenameDocument,
 } from '@/hooks/useDocuments'
 import type { ApplicationDocument } from '@/types/documents'
 import { StatusBadge } from '@/utils/status'
@@ -2715,6 +2716,9 @@ function DocRow({ doc, applicationId, typstAvailable }: DocRowProps): React.JSX.
   const [editError, setEditError] = useState('')
   const [compileError, setCompileError] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const [renameValue, setRenameValue] = useState('')
+  const [renameError, setRenameError] = useState('')
   const contentInitRef = useRef(false)
 
   const isTyp = doc.extension === '.typ'
@@ -2727,6 +2731,7 @@ function DocRow({ doc, applicationId, typstAvailable }: DocRowProps): React.JSX.
   const finalize = useFinalizeDocument(applicationId)
   const del = useDeleteDocument(applicationId)
   const saveContent = useSaveDocumentContent(applicationId)
+  const rename = useRenameDocument(applicationId)
   const { data: contentData, isLoading: contentLoading } = useDocumentContent(
     applicationId,
     editing ? doc.id : null
@@ -2778,6 +2783,35 @@ function DocRow({ doc, applicationId, typstAvailable }: DocRowProps): React.JSX.
     setEditing(false)
     setEditContent('')
     setEditError('')
+  }
+
+  function handleOpenRename(): void {
+    const stem = doc.filename.replace(/\.[^.]+$/, '')
+    setRenameValue(stem)
+    setRenameError('')
+    setRenaming(true)
+  }
+
+  function handleCancelRename(): void {
+    setRenaming(false)
+    setRenameValue('')
+    setRenameError('')
+  }
+
+  async function handleSaveRename(): Promise<void> {
+    setRenameError('')
+    const trimmed = renameValue.trim()
+    if (!/^[a-zA-Z0-9_-]{1,64}$/.test(trimmed)) {
+      setRenameError('1–64 chars: letters, digits, underscores, hyphens only.')
+      return
+    }
+    try {
+      await rename.mutateAsync({ docId: doc.id, new_name: trimmed })
+      setRenaming(false)
+      setRenameValue('')
+    } catch (e) {
+      setRenameError((e as Error).message)
+    }
   }
 
   const typeBadge = doc.type_value === 'resume'
@@ -2855,6 +2889,12 @@ function DocRow({ doc, applicationId, typstAvailable }: DocRowProps): React.JSX.
               </>
             )}
             <button
+              onClick={handleOpenRename}
+              className="text-xs font-mono text-muted hover:text-text border border-surface2 rounded px-2 py-0.5 transition-colors hover:border-accent/40"
+            >
+              Rename
+            </button>
+            <button
               onClick={() => setDeleteConfirm(true)}
               className="text-xs font-mono text-muted hover:text-red border border-surface2 rounded px-2 py-0.5 transition-colors hover:border-red/40"
             >
@@ -2888,6 +2928,39 @@ function DocRow({ doc, applicationId, typstAvailable }: DocRowProps): React.JSX.
           <pre className="text-xs font-mono text-red bg-red/5 rounded p-2 whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
             {compileError}
           </pre>
+        </div>
+      )}
+
+      {/* Inline rename */}
+      {renaming && (
+        <div className="px-3 pb-3 border-t border-surface pt-2 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={renameValue}
+              onChange={(e) => { setRenameValue(e.target.value); setRenameError('') }}
+              className="flex-1 text-xs font-mono bg-surface border border-surface2 rounded px-2 py-1 text-text focus:outline-none focus:border-accent/50"
+              placeholder="new-filename"
+              autoFocus
+            />
+            <span className="text-xs font-mono text-muted shrink-0">{doc.extension}</span>
+            <button
+              onClick={() => void handleSaveRename()}
+              disabled={rename.isPending}
+              className="text-xs font-mono text-accent border border-accent/40 rounded px-2 py-0.5 transition-colors hover:bg-accent/10 disabled:opacity-50"
+            >
+              {rename.isPending ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              onClick={handleCancelRename}
+              className="text-xs font-mono text-muted border border-surface2 rounded px-2 py-0.5 transition-colors hover:text-text"
+            >
+              Cancel
+            </button>
+          </div>
+          {renameError && (
+            <p className="text-xs font-mono text-red">{renameError}</p>
+          )}
         </div>
       )}
 

@@ -6,6 +6,7 @@ Routes covered:
   POST   /api/v1/applications/{id}/documents
   GET    /api/v1/applications/{id}/documents
   DELETE /api/v1/applications/{id}/documents/{doc_id}
+  PATCH  /api/v1/applications/{id}/documents/{doc_id}/rename
   GET    /api/v1/documents/file/{doc_id}
   GET    /api/v1/applications/{id}/documents/{doc_id}/content
   PUT    /api/v1/applications/{id}/documents/{doc_id}/content
@@ -643,6 +644,89 @@ class TestTemplateRoutes:
 # ─────────────────────────────────────────────────────────────
 # GET /api/v1/settings/documents-storage
 # ─────────────────────────────────────────────────────────────
+
+class TestRenameDocument:
+    def test_rename_happy_path(self, doc_client):
+        c, app_id = doc_client["client"], doc_client["app_id"]
+        resp = _upload(c, app_id, "original_name.typ", b"#set page()")
+        doc_id = resp.json()["id"]
+
+        r = c.patch(
+            f"/api/v1/applications/{app_id}/documents/{doc_id}/rename",
+            json={"new_name": "renamed_file"},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["filename"] == "renamed_file.typ"
+        assert data["id"] == doc_id
+
+    def test_rename_updates_db_record(self, doc_client):
+        c, app_id = doc_client["client"], doc_client["app_id"]
+        resp = _upload(c, app_id, "old_name.typ", b"#set page()")
+        doc_id = resp.json()["id"]
+
+        c.patch(
+            f"/api/v1/applications/{app_id}/documents/{doc_id}/rename",
+            json={"new_name": "new_name"},
+        )
+        doc = database.get_document_by_id(doc_id)
+        assert dict(doc)["file_path"].endswith("new_name.typ")
+
+    def test_rename_collision_returns_409(self, doc_client):
+        c, app_id = doc_client["client"], doc_client["app_id"]
+        _upload(c, app_id, "taken_name.typ", b"#set page()")
+        resp2 = _upload(c, app_id, "other_name.typ", b"#set page()")
+        doc2_id = resp2.json()["id"]
+
+        r = c.patch(
+            f"/api/v1/applications/{app_id}/documents/{doc2_id}/rename",
+            json={"new_name": "taken_name"},
+        )
+        assert r.status_code == 409
+
+    def test_rename_invalid_name_returns_422(self, doc_client):
+        c, app_id = doc_client["client"], doc_client["app_id"]
+        resp = _upload(c, app_id, "valid_name.typ", b"#set page()")
+        doc_id = resp.json()["id"]
+
+        for bad_name in ["bad name", "bad/name", "a" * 65, ""]:
+            r = c.patch(
+                f"/api/v1/applications/{app_id}/documents/{doc_id}/rename",
+                json={"new_name": bad_name},
+            )
+            assert r.status_code == 422, f"Expected 422 for name={bad_name!r}"
+
+    def test_rename_not_found_returns_404(self, doc_client):
+        c, app_id = doc_client["client"], doc_client["app_id"]
+        r = c.patch(
+            f"/api/v1/applications/{app_id}/documents/99999/rename",
+            json={"new_name": "anything"},
+        )
+        assert r.status_code == 404
+
+    def test_rename_wrong_application_returns_404(self, doc_client):
+        c, app_id = doc_client["client"], doc_client["app_id"]
+        resp = _upload(c, app_id, "myfile.typ", b"#set page()")
+        doc_id = resp.json()["id"]
+
+        r = c.patch(
+            f"/api/v1/applications/99999/documents/{doc_id}/rename",
+            json={"new_name": "newname"},
+        )
+        assert r.status_code == 404
+
+    def test_rename_creates_audit_entry(self, doc_client):
+        c, app_id = doc_client["client"], doc_client["app_id"]
+        resp = _upload(c, app_id, "audit_test.typ", b"#set page()")
+        doc_id = resp.json()["id"]
+
+        c.patch(
+            f"/api/v1/applications/{app_id}/documents/{doc_id}/rename",
+            json={"new_name": "audited_rename"},
+        )
+        audits = database.get_application_audit(app_id)
+        assert any("document_renamed" in a["event"] for a in audits)
+
 
 class TestDocumentsStorage:
     def test_returns_correct_count_and_size(self, doc_client):

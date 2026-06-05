@@ -114,6 +114,10 @@ class CopyTemplateRequest(BaseModel):
     category: str  # "resume" | "cover_letter"
 
 
+class RenameDocumentRequest(BaseModel):
+    new_name: str  # base name only, no extension
+
+
 # ─────────────────────────────────────────────────────────────
 # Constants
 # ─────────────────────────────────────────────────────────────
@@ -252,6 +256,67 @@ async def delete_document(request: Request, application_id: int, doc_id: int):
     )
     log.info("document_deleted", extra={"doc_id": doc_id, "doc_filename": filename})
     return JSONResponse({"success": True})
+
+
+# ─────────────────────────────────────────────────────────────
+# Rename
+# ─────────────────────────────────────────────────────────────
+
+_RENAME_PATTERN = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
+
+@router.patch("/applications/{application_id}/documents/{document_id}/rename")
+async def rename_document(
+    request: Request,
+    application_id: int,
+    document_id: int,
+    body: RenameDocumentRequest,
+):
+    """Rename a document file. new_name is the base filename without extension."""
+    doc = database.get_document_by_id(document_id)
+    if not doc or dict(doc)["application_id"] != application_id:
+        raise HTTPException(status_code=404, detail=f"Document {document_id} not found.")
+
+    new_name = body.new_name.strip()
+    if not _RENAME_PATTERN.match(new_name):
+        raise HTTPException(
+            status_code=422,
+            detail="Name must be 1–64 characters: letters, digits, underscores, hyphens only.",
+        )
+
+    doc_dict = dict(doc)
+    old_path = Path(doc_dict["file_path"])
+    ext = old_path.suffix  # preserves original extension (.typ or .pdf)
+    new_filename = new_name + ext
+    new_path = old_path.parent / new_filename
+
+    generated_dir: Path = getattr(request.app.state, "generated_dir", Path("./generated"))
+    _validate_within_generated(str(new_path), generated_dir)
+
+    if new_path.exists() and new_path != old_path:
+        raise HTTPException(status_code=409, detail=f"A file named '{new_filename}' already exists.")
+
+    if new_path != old_path:
+        try:
+            old_path.rename(new_path)
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=f"File rename failed: {e}") from e
+
+    database.rename_application_document(document_id, str(new_path))
+    database._audit_application(
+        application_id, f"document_renamed: {old_path.name} → {new_filename}"
+    )
+    log.info("document_renamed", extra={"doc_id": document_id, "old": old_path.name, "new": new_filename})
+
+    updated = dict(database.get_document_by_id(document_id))
+    return JSONResponse({
+        "id": updated["id"],
+        "application_id": updated["application_id"],
+        "type_value": updated["type_value"],
+        "file_path": updated["file_path"],
+        "filename": os.path.basename(updated["file_path"]),
+        "is_final": updated.get("is_final", 0),
+        "created_at": updated["created_at"],
+    })
 
 
 # ─────────────────────────────────────────────────────────────

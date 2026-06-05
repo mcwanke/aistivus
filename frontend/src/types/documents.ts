@@ -58,3 +58,7 @@ export interface DocumentsStorageInfo {
   typst_available: boolean
   typst_binary: string
 }
+
+export interface RenameDocumentRequest {
+  new_name: string  // base name only, no extension
+}

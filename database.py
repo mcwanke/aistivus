@@ -1646,6 +1646,16 @@ def set_document_final(doc_id: int, application_id: int, type_id: int) -> None:
         )
 
 
+def rename_application_document(doc_id: int, new_file_path: str) -> None:
+    """Update the file_path for a document record. Caller is responsible for
+    the actual filesystem rename and collision checks."""
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE application_documents SET file_path = ? WHERE id = ?",
+            (new_file_path, doc_id)
+        )
+
+
 # ─────────────────────────────────────────────────────────────
 # Application Questions
 # ─────────────────────────────────────────────────────────────

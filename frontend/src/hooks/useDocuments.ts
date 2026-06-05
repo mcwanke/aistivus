@@ -6,6 +6,7 @@ import type {
   FinalizeResult,
   TypstTemplateList,
   DocumentsStorageInfo,
+  RenameDocumentRequest,
 } from '@/types/documents'
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
@@ -159,6 +160,28 @@ export function useSaveDocumentContent(applicationId: number) {
       void qc.invalidateQueries({
         queryKey: ['document-content', applicationId, payload.docId],
       }),
+  })
+}
+
+export function useRenameDocument(applicationId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: { docId: number } & RenameDocumentRequest) => {
+      const res = await fetch(
+        `/api/v1/applications/${applicationId}/documents/${payload.docId}/rename`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ new_name: payload.new_name }),
+        }
+      )
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw Object.assign(new Error(err.detail ?? `rename ${res.status}`), { status: res.status })
+      }
+      return res.json() as Promise<DocumentUploadResult>
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['documents', applicationId] }),
   })
 }
 
