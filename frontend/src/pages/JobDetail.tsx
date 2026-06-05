@@ -1779,6 +1779,10 @@ function ActivityLogRow({ entry, applicationId, onTimestampSaved }: ActivityLogR
   const deleteLog = useDeleteLog()
 
   const badgeClass = BADGE_CLASSES[entry.entry_type] ?? 'bg-surface2 text-muted'
+  const hasContent = !!(entry.text ?? entry.url)
+
+  // C5: for audit rows surface the event text in the info column; all others use source
+  const headerInfoText = entry.entry_type === 'audit' ? (entry.text ?? entry.source) : entry.source
 
   function copyText(): void {
     const content = entry.text ?? entry.url ?? ''
@@ -1807,36 +1811,32 @@ function ActivityLogRow({ entry, applicationId, onTimestampSaved }: ActivityLogR
 
   return (
     <div className="bg-surface2 rounded mb-0.5 last:mb-0 hover:bg-[#2a2a2a] transition-colors">
-      <div className="flex items-center gap-2 px-2 py-2 min-w-0">
-        {/* Timestamp */}
-        <button
-          className={`text-[10px] font-mono w-32 shrink-0 text-left ${
-            entry.can_edit_timestamp ? 'text-muted hover:text-accent cursor-pointer' : 'text-muted cursor-default'
-          }`}
-          onClick={() => entry.can_edit_timestamp && setTsModalOpen(true)}
-          disabled={!entry.can_edit_timestamp}
-        >
+      {/* Rolled-up header — click anywhere toggles; Copy and Toggle are stopPropagation */}
+      <div
+        className="flex items-center px-2 py-2 cursor-pointer select-none"
+        onClick={() => setOpen((o) => !o)}
+      >
+        {/* Timestamp 20% — plain, non-interactive */}
+        <span className="text-[10px] font-mono text-muted shrink-0 w-1/5 truncate pr-1">
           {fmtDateTime(entry.timestamp)}
-        </button>
+        </span>
 
-        {/* Badge */}
-        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded shrink-0 ${badgeClass}`}>
+        {/* Type badge 15% */}
+        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded shrink-0 w-[15%] truncate ${badgeClass}`}>
           {entry.entry_type.replace('_', ' ')}
         </span>
 
-        {/* Activity type */}
-        <span className="text-[10px] font-mono text-muted uppercase tracking-wider w-28 shrink-0 truncate">
-          {entry.activity_type}
+        {/* Info 50% — source text; audit entries show event text (C5) */}
+        <span className="text-[10px] font-mono text-muted flex-1 truncate min-w-0 px-1">
+          {headerInfoText}
         </span>
 
-        {/* Source */}
-        <span className="text-[10px] font-mono text-muted flex-1 truncate min-w-0">
-          {entry.source}
-        </span>
-
-        {/* Actions */}
-        <div className="flex items-center gap-1 shrink-0">
-          {(entry.text ?? entry.url) && (
+        {/* Copy 10% — stopPropagation */}
+        <div
+          className="shrink-0 w-[10%] flex justify-center"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {hasContent && (
             <button
               onClick={copyText}
               className="text-[10px] font-mono text-muted hover:text-accent transition-colors px-1.5 py-0.5 border border-surface2 rounded"
@@ -1844,62 +1844,86 @@ function ActivityLogRow({ entry, applicationId, onTimestampSaved }: ActivityLogR
               {copied ? '✓' : 'Copy'}
             </button>
           )}
-          {entry.can_delete && (
-            <button
-              onClick={() => {
-                if (deleteConfirm) {
-                  if (applicationId !== null && entry.raw_id !== null) {
-                    deleteLog.mutate(
-                      { applicationId, logId: entry.raw_id },
-                      { onSuccess: () => { setDeleteConfirm(false); onTimestampSaved() } },
-                    )
-                  } else {
-                    setDeleteConfirm(false)
-                  }
-                } else {
-                  setDeleteConfirm(true)
-                  setTimeout(() => setDeleteConfirm(false), 3000)
-                }
-              }}
-              className={`text-[10px] font-mono px-1.5 py-0.5 border rounded transition-colors ${
-                deleteConfirm
-                  ? 'border-red text-red'
-                  : 'border-surface2 text-muted hover:text-red hover:border-red'
-              }`}
-            >
-              {deleteConfirm ? 'Confirm' : 'Delete'}
-            </button>
-          )}
-          <button
-            onClick={() => setOpen((o) => !o)}
-            className="text-[10px] text-muted hover:text-text transition-colors px-1"
-          >
-            {open ? '▲' : '▼'}
-          </button>
         </div>
+
+        {/* Toggle 5% — stopPropagation */}
+        <button
+          className="shrink-0 w-[5%] text-[10px] text-muted hover:text-text transition-colors text-center"
+          onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }}
+        >
+          {open ? '▲' : '▼'}
+        </button>
       </div>
 
-      {/* Expanded content */}
+      {/* Expanded row */}
       {open && (
-        <div className="pb-3 border-t border-surface pt-2 px-2">
-          {entry.text ? (
-            <pre className="text-xs text-text leading-relaxed whitespace-pre-wrap font-mono break-words">
-              {entry.text}
-            </pre>
-          ) : null}
-          {entry.url ? (
-            <a
-              href={entry.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-accent hover:underline break-all block mt-1"
-            >
-              {entry.url}
-            </a>
-          ) : null}
-          {!entry.text && !entry.url && (
-            <p className="text-xs text-muted italic">No content.</p>
-          )}
+        <div className="flex items-start border-t border-surface pt-2 pb-3 px-2 gap-2">
+          {/* Reserved 20% — Edit Timestamp button */}
+          <div className="shrink-0 w-1/5">
+            {entry.can_edit_timestamp && (
+              <button
+                className="text-[10px] font-mono text-muted hover:text-accent underline decoration-dotted"
+                onClick={() => setTsModalOpen(true)}
+              >
+                Edit Timestamp
+              </button>
+            )}
+          </div>
+
+          {/* Info 65% — text / url content */}
+          <div className="flex-1 min-w-0 space-y-1">
+            {entry.text ? (
+              <pre className="text-xs text-text leading-relaxed whitespace-pre-wrap font-mono break-words">
+                {entry.text}
+              </pre>
+            ) : null}
+            {entry.url ? (
+              <a
+                href={entry.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-accent hover:underline break-all block"
+              >
+                {entry.url}
+              </a>
+            ) : null}
+            {!entry.text && !entry.url && (
+              <p className="text-xs text-muted italic">No content.</p>
+            )}
+          </div>
+
+          {/* Delete 10% */}
+          <div className="shrink-0 w-[10%] flex justify-end">
+            {entry.can_delete && (
+              <button
+                onClick={() => {
+                  if (deleteConfirm) {
+                    if (applicationId !== null && entry.raw_id !== null) {
+                      deleteLog.mutate(
+                        { applicationId, logId: entry.raw_id },
+                        { onSuccess: () => { setDeleteConfirm(false); onTimestampSaved() } },
+                      )
+                    } else {
+                      setDeleteConfirm(false)
+                    }
+                  } else {
+                    setDeleteConfirm(true)
+                    setTimeout(() => setDeleteConfirm(false), 3000)
+                  }
+                }}
+                className={`text-[10px] font-mono px-1.5 py-0.5 border rounded transition-colors ${
+                  deleteConfirm
+                    ? 'border-red text-red'
+                    : 'border-surface2 text-muted hover:text-red hover:border-red'
+                }`}
+              >
+                {deleteConfirm ? 'Confirm' : 'Delete'}
+              </button>
+            )}
+          </div>
+
+          {/* Reserved 5% */}
+          <div className="shrink-0 w-[5%]" />
         </div>
       )}
 

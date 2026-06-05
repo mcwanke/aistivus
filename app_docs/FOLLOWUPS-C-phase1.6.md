@@ -10,8 +10,8 @@ workflows, APPLICATION LOG rework, and prompt sub-typing/logging audit.
 | C1 | [x] | Bug: Change Application Status Save doesn't clear Reason field |
 | C2 | [x] | RESUME/COVER: File Rename |
 | C3 | [x] | RESUME/COVER: Generate Resume + Generate Cover Letter popups |
-| C4 | [ ] | APPLICATION LOG: Row layout rework |
-| C5 | [ ] | APPLICATION LOG: Show audit event text in rolled-up row |
+| C4 | [x] | APPLICATION LOG: Row layout rework |
+| C5 | [x] | APPLICATION LOG: Show audit event text in rolled-up row |
 | C6 | [ ] | APPLICATION LOG: Rich expanded view for llm_call entries |
 | C7 | [ ] | APPLICATION LOG: Structured evaluation expanded view |
 | C8 | [x] | Prompt sub-typing + logging audit |

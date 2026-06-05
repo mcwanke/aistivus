@@ -488,4 +488,127 @@ describe('JobDetailPage workspace', () => {
       expect(screen.getByText('⚠ File missing')).toBeInTheDocument()
     })
   })
+
+  describe('APPLICATION LOG ActivityLogRow', () => {
+    const MOCK_APP_LOG_ENTRY = {
+      entry_type: 'application_log',
+      timestamp: '2024-06-01T10:00:00',
+      activity_type: 'GENERAL',
+      source: 'general note',
+      text: 'This is the log text',
+      url: null,
+      raw_id: 42,
+      can_delete: true,
+      can_edit_timestamp: true,
+    }
+
+    const MOCK_AUDIT_ENTRY = {
+      entry_type: 'audit',
+      timestamp: '2024-06-01T11:00:00',
+      activity_type: 'STATUS CHANGE',
+      source: '',
+      text: 'Status updated to: rejected',
+      url: null,
+      raw_id: 7,
+      can_delete: false,
+      can_edit_timestamp: true,
+    }
+
+    const MOCK_EVAL_ENTRY = {
+      entry_type: 'evaluation',
+      timestamp: '2024-06-01T09:00:00',
+      activity_type: 'EVALUATION',
+      source: 'GPT-4',
+      text: null,
+      url: null,
+      raw_id: 3,
+      can_delete: false,
+      can_edit_timestamp: false,
+    }
+
+    it('clicking the header row toggles expanded content', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.get('/api/v1/jobs/:id/activity-log', () =>
+          HttpResponse.json({ entries: [MOCK_APP_LOG_ENTRY] }),
+        ),
+      )
+      renderWorkspace(1, 'application-log')
+      // wait for row to render — header shows source text
+      await waitFor(() => expect(screen.getByText('general note')).toBeInTheDocument())
+      // expanded text not yet visible
+      expect(screen.queryByText('This is the log text')).not.toBeInTheDocument()
+      // click the header row
+      await user.click(screen.getByText('general note'))
+      // expanded content now visible
+      await waitFor(() => expect(screen.getByText('This is the log text')).toBeInTheDocument())
+    })
+
+    it('Delete button appears in expanded view, not in collapsed header', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.get('/api/v1/jobs/:id/activity-log', () =>
+          HttpResponse.json({ entries: [MOCK_APP_LOG_ENTRY] }),
+        ),
+      )
+      renderWorkspace(1, 'application-log')
+      await waitFor(() => expect(screen.getByText('general note')).toBeInTheDocument())
+      // Delete not visible while collapsed
+      expect(screen.queryByText('Delete')).not.toBeInTheDocument()
+      // expand the row
+      await user.click(screen.getByText('general note'))
+      await waitFor(() => expect(screen.getByText('Delete')).toBeInTheDocument())
+    })
+
+    it('Edit Timestamp button appears in expanded view when can_edit_timestamp', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.get('/api/v1/jobs/:id/activity-log', () =>
+          HttpResponse.json({ entries: [MOCK_APP_LOG_ENTRY] }),
+        ),
+      )
+      renderWorkspace(1, 'application-log')
+      await waitFor(() => expect(screen.getByText('general note')).toBeInTheDocument())
+      // not visible while collapsed
+      expect(screen.queryByText('Edit Timestamp')).not.toBeInTheDocument()
+      // expand
+      await user.click(screen.getByText('general note'))
+      await waitFor(() => expect(screen.getByText('Edit Timestamp')).toBeInTheDocument())
+    })
+
+    it('Edit Timestamp button absent when can_edit_timestamp is false', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.get('/api/v1/jobs/:id/activity-log', () =>
+          HttpResponse.json({ entries: [MOCK_EVAL_ENTRY] }),
+        ),
+      )
+      renderWorkspace(1, 'application-log')
+      await waitFor(() => expect(screen.getByText('GPT-4')).toBeInTheDocument())
+      await user.click(screen.getByText('GPT-4'))
+      await waitFor(() => expect(screen.getByText('No content.')).toBeInTheDocument())
+      expect(screen.queryByText('Edit Timestamp')).not.toBeInTheDocument()
+    })
+
+    it('C5: audit entry shows event text in info column of collapsed header', async () => {
+      server.use(
+        http.get('/api/v1/jobs/:id/activity-log', () =>
+          HttpResponse.json({ entries: [MOCK_AUDIT_ENTRY] }),
+        ),
+      )
+      renderWorkspace(1, 'application-log')
+      // The audit event text should be visible in the collapsed header
+      await waitFor(() => expect(screen.getByText('Status updated to: rejected')).toBeInTheDocument())
+    })
+
+    it('non-audit entry shows source in info column of collapsed header', async () => {
+      server.use(
+        http.get('/api/v1/jobs/:id/activity-log', () =>
+          HttpResponse.json({ entries: [MOCK_APP_LOG_ENTRY] }),
+        ),
+      )
+      renderWorkspace(1, 'application-log')
+      await waitFor(() => expect(screen.getByText('general note')).toBeInTheDocument())
+    })
+  })
 })
