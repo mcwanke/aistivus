@@ -583,7 +583,7 @@ class TestSynthesizeInsights:
         # Create a job and application log so synthesize-insights has something to read
         job_id, _ = database.upsert_job("Test Corp", "Engineer", "eng")
         app_row = database.get_application_for_job(job_id)
-        type_id = database.get_system_type_id("application_log", "recruiter_call")
+        type_id = database.get_system_type_id("application_log", "general")
         database.add_application_log(
             application_id=app_row["id"],
             type_id=type_id,
@@ -592,7 +592,7 @@ class TestSynthesizeInsights:
 
         c.post("/api/v1/profile/synthesize-insights")
         assert len(captured_prompts) == 1
-        assert "recruiter_call" in captured_prompts[0]
+        assert "general" in captured_prompts[0]
         assert "Great call with the recruiter" in captured_prompts[0]
 
     def test_synthesize_no_model_returns_503(self, profile_client):

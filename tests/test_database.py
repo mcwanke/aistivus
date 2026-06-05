@@ -33,7 +33,7 @@ class TestInitDb:
 
     def test_seeds_system_types(self, tmp_db):
         types = database.get_all_system_types()
-        assert len(types) == 24
+        assert len(types) == 27
 
     def test_seeds_all_expected_type_names(self, tmp_db):
         names = {r["type_name"] for r in database.get_all_system_types()}
@@ -43,11 +43,12 @@ class TestInitDb:
         rows = database.get_all_system_types("application_log")
         values = {r["type_value"] for r in rows}
         assert values == {
-            "recruiter_call", "interview_feedback", "compensation",
-            "general", "repost_alert", "prompt", "lesson_learned",
+            "compensation", "general", "prompt", "lesson_learned",
             "recruiter_outreach", "phone_screen", "onsite_interview",
             "offer_received", "rejection_received", "withdrawal",
             "application_communication",
+            "status_change", "feedback", "email_comms", "phone_comms",
+            "offer", "rejection",
         }
 
     def test_seeds_company_info_values(self, tmp_db):
@@ -66,7 +67,7 @@ class TestInitDb:
     def test_idempotent(self, tmp_db):
         database.init_db()
         database.init_db()
-        assert len(database.get_all_system_types()) == 24
+        assert len(database.get_all_system_types()) == 27
         assert database.get_schema_version() == "1.5"
 
     def test_no_auto_seed_without_config(self, tmp_db):
@@ -80,11 +81,11 @@ class TestInitDb:
 
 class TestSystemTypes:
     def test_get_all_returns_all(self, tmp_db):
-        assert len(database.get_all_system_types()) == 24
+        assert len(database.get_all_system_types()) == 27
 
     def test_get_filtered_by_type_name(self, tmp_db):
         rows = database.get_all_system_types("application_log")
-        assert len(rows) == 14
+        assert len(rows) == 17
         assert all(r["type_name"] == "application_log" for r in rows)
 
     def test_get_system_type_id_found(self, tmp_db):
@@ -702,11 +703,11 @@ class TestApplicationLogs:
         assert isinstance(log_id, int)
 
     def test_get_logs_includes_type_info(self, tmp_db, app_id):
-        type_id = database.get_system_type_id("application_log", "recruiter_call")
+        type_id = database.get_system_type_id("application_log", "general")
         database.add_application_log(app_id, type_id, log="Spoke with recruiter")
         logs = database.get_application_logs(app_id)
         assert len(logs) == 1
-        assert logs[0]["type_value"] == "recruiter_call"
+        assert logs[0]["type_value"] == "general"
 
     def test_get_logs_oldest_first(self, tmp_db, app_id):
         type_id = database.get_system_type_id("application_log", "general")
@@ -883,7 +884,7 @@ class TestUtilities:
         assert result["schema_version"] == "1.5"
         assert "tables" in result
         assert "system_types" in result["tables"]
-        assert len(result["tables"]["system_types"]) == 24
+        assert len(result["tables"]["system_types"]) == 27
 
 
 # ─────────────────────────────────────────────────────────────

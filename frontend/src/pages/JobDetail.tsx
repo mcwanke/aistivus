@@ -32,7 +32,7 @@ import {
   useCopyTemplate,
 } from '@/hooks/useDocuments'
 import type { ApplicationDocument } from '@/types/documents'
-import { StatusBadge, STATUSES } from '@/utils/status'
+import { StatusBadge } from '@/utils/status'
 import { fmtScore } from '@/utils/formatting'
 import type { LessonChatFinalizeResponse } from '@/types/profile'
 import type {
@@ -1490,23 +1490,20 @@ function LessonCapturePanel({
 
 // ─── Application log type options ─────────────────────────────────────────────
 
-const EVENT_TYPE_OPTIONS = [
-  { value: 'recruiter_outreach',        label: 'Recruiter Outreach' },
-  { value: 'phone_screen',              label: 'Phone Screen' },
-  { value: 'onsite_interview',          label: 'On-site Interview' },
-  { value: 'offer_received',            label: 'Offer Received' },
-  { value: 'rejection_received',        label: 'Rejection Received' },
-  { value: 'withdrawal',                label: 'Withdrawal' },
-  { value: 'application_communication', label: 'Application Communication' },
+const LOG_TYPE_OPTIONS = [
+  { value: 'general',      label: 'General' },
+  { value: 'compensation', label: 'Compensation' },
+  { value: 'feedback',     label: 'Feedback' },
+  { value: 'email_comms',  label: 'Email Comms' },
+  { value: 'phone_comms',  label: 'Phone Comms' },
+  { value: 'offer',        label: 'Offer' },
+  { value: 'rejection',    label: 'Rejection' },
 ]
 
-const LOG_TYPE_OPTIONS = [
-  { value: 'recruiter_call',     label: 'Recruiter Call' },
-  { value: 'interview_feedback', label: 'Interview Feedback' },
-  { value: 'compensation',       label: 'Compensation' },
-  { value: 'repost_alert',       label: 'Repost Alert' },
-  { value: 'general',            label: 'General' },
-]
+const ALL_STATUSES = [
+  'not-started', 'draft', 'skipped', 'applied', 'screening',
+  'interview', 'offer', 'rejected', 'ghosted', 'withdrawn',
+] as const
 
 // ─── Expandable log row (ADD EVENT + ADD APPLICATION NOTE sections) ────────────
 
@@ -2337,7 +2334,7 @@ Write in plain, conversational prose. No headers or bullet points. Keep it tight
 
 // ─── APPLICATION tab — left column ───────────────────────────────────────────
 
-type AppAction = 'details' | 'add-event' | 'add-note' | 'questions' | 'lesson'
+type AppAction = 'details' | 'change-status' | 'add-note' | 'questions' | 'lesson'
 
 interface ApplicationLeftProps {
   active: AppAction
@@ -2346,11 +2343,11 @@ interface ApplicationLeftProps {
 
 function ApplicationLeft({ active, onSelect }: ApplicationLeftProps): React.JSX.Element {
   const actions: { id: AppAction; label: string }[] = [
-    { id: 'details',   label: 'App Detail Summary' },
-    { id: 'add-event', label: 'Add Event' },
-    { id: 'add-note',  label: 'Add Application Note' },
-    { id: 'questions', label: 'Application Questions' },
-    { id: 'lesson',    label: 'Add Lesson' },
+    { id: 'details',       label: 'App Detail Summary' },
+    { id: 'change-status', label: 'Change Application Status' },
+    { id: 'add-note',      label: 'Add App Note/Comms' },
+    { id: 'questions',     label: 'Application Questions' },
+    { id: 'lesson',        label: 'Add Lesson' },
   ]
 
   return (
@@ -2402,9 +2399,8 @@ function ApplicationRight({
   const createQuestion = useCreateApplicationQuestion()
   const qc = useQueryClient()
 
-  const [eventType, setEventType] = useState(EVENT_TYPE_OPTIONS[0]!.value)
-  const [eventText, setEventText] = useState('')
-  const [eventUrl, setEventUrl] = useState('')
+  const [newStatus, setNewStatus] = useState(application.application_status)
+  const [statusNote, setStatusNote] = useState('')
 
   const [noteType, setNoteType] = useState(LOG_TYPE_OPTIONS[0]!.value)
   const [noteText, setNoteText] = useState('')
@@ -2416,17 +2412,15 @@ function ApplicationRight({
   const isApplied = application.applied === 1
   const applyUrl = postings.find((p) => p.source_url)?.source_url ?? null
 
-  const EVENT_VALUES = new Set(EVENT_TYPE_OPTIONS.map((o) => o.value))
   const LOG_VALUES = new Set(LOG_TYPE_OPTIONS.map((o) => o.value))
-  const eventLogs = logs.filter((l) => EVENT_VALUES.has(l.type_value))
   const noteLogs = logs.filter((l) => LOG_VALUES.has(l.type_value))
 
-  async function handleAddEvent(e: React.FormEvent<HTMLFormElement>): Promise<void> {
+  async function handleChangeStatus(e: React.FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault()
-    if (!eventText.trim()) return
-    await addLog.mutateAsync({ applicationId, type_value: eventType, log: eventText.trim(), url: eventUrl.trim() || undefined })
-    setEventText('')
-    setEventUrl('')
+    const logText = statusNote.trim() || `Status changed to ${newStatus}`
+    await patch.mutateAsync({ applicationId, updates: { application_status: newStatus } })
+    await addLog.mutateAsync({ applicationId, type_value: 'status_change', log: logText })
+    setStatusNote('')
     onDataChanged()
   }
 
@@ -2480,19 +2474,10 @@ function ApplicationRight({
         </div>
 
         <div className="grid grid-cols-2 gap-3 mb-5">
-          <label className="block">
+          <div className="block">
             <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Status</span>
-            <select
-              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-              value={application.application_status}
-              onChange={(e) => patch.mutate({ applicationId, updates: { application_status: e.target.value } })}
-              disabled={patch.isPending}
-            >
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </label>
+            <span className="mt-1 block text-sm text-text font-mono">{application.application_status}</span>
+          </div>
 
           <label className="block">
             <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Apply Date</span>
@@ -2542,69 +2527,47 @@ function ApplicationRight({
     )
   }
 
-  // ── ADD EVENT view ──────────────────────────────────────────────────────────
-  if (activeAction === 'add-event') {
+  // ── CHANGE APPLICATION STATUS view ──────────────────────────────────────────
+  if (activeAction === 'change-status') {
     return (
-      <>
-        <form onSubmit={(e) => void handleAddEvent(e)} className="space-y-3 pb-4 border-b border-surface2 mb-4">
-          <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Add Event</p>
-          <label className="block">
-            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Event Type</span>
-            <select
-              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-              value={eventType}
-              onChange={(e) => setEventType(e.target.value)}
-            >
-              {EVENT_TYPE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Notes</span>
-            <textarea
-              className="mt-1 w-full h-20 bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent resize-y"
-              value={eventText}
-              onChange={(e) => setEventText(e.target.value)}
-              placeholder="Event notes…"
-            />
-          </label>
-          <label className="block">
-            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">URL</span>
-            <input
-              type="url"
-              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
-              value={eventUrl}
-              onChange={(e) => setEventUrl(e.target.value)}
-              placeholder="https://… (optional)"
-            />
-          </label>
-          {addLog.isError && <p className="text-red text-xs">{addLog.error.message}</p>}
-          <button
-            type="submit"
-            disabled={addLog.isPending || !eventText.trim()}
-            className="px-4 py-2 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+      <form onSubmit={(e) => void handleChangeStatus(e)} className="space-y-3">
+        <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Change Application Status</p>
+        <div>
+          <span className="text-[10px] font-mono text-muted uppercase tracking-widest block mb-1">Current Status</span>
+          <span className="text-sm text-text font-mono">{application.application_status}</span>
+        </div>
+        <label className="block">
+          <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">New Status</span>
+          <select
+            className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+            value={newStatus}
+            onChange={(e) => setNewStatus(e.target.value)}
           >
-            {addLog.isPending ? 'Saving…' : 'Save Event'}
-          </button>
-        </form>
-
-        {eventLogs.length === 0 ? (
-          <p className="text-xs text-muted italic">No events logged yet.</p>
-        ) : (
-          <div>
-            {eventLogs.map((log) => (
-              <AppLogRow
-                key={log.id}
-                log={log}
-                typeOptions={EVENT_TYPE_OPTIONS}
-                applicationId={applicationId}
-                onDataChanged={onDataChanged}
-              />
+            {ALL_STATUSES.map((s) => (
+              <option key={s} value={s}>{s}</option>
             ))}
-          </div>
+          </select>
+        </label>
+        <label className="block">
+          <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Reason for change (optional)</span>
+          <textarea
+            className="mt-1 w-full h-20 bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent resize-y"
+            value={statusNote}
+            onChange={(e) => setStatusNote(e.target.value)}
+            placeholder="Add a note…"
+          />
+        </label>
+        {(patch.isError || addLog.isError) && (
+          <p className="text-red text-xs">{patch.error?.message ?? addLog.error?.message}</p>
         )}
-      </>
+        <button
+          type="submit"
+          disabled={patch.isPending || addLog.isPending}
+          className="px-4 py-2 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+        >
+          {(patch.isPending || addLog.isPending) ? 'Saving…' : 'Save'}
+        </button>
+      </form>
     )
   }
 
@@ -2613,7 +2576,7 @@ function ApplicationRight({
     return (
       <>
         <form onSubmit={(e) => void handleAddNote(e)} className="space-y-3 pb-4 border-b border-surface2 mb-4">
-          <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Add Application Note</p>
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Add App Note/Comms</p>
           <label className="block">
             <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Type</span>
             <select

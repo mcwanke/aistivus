@@ -157,7 +157,7 @@ class TestSystemTypes:
     def test_application_log_seed_values(self, client):
         resp = client.get("/api/v1/system-types?type_name=application_log")
         values = {t["type_value"] for t in resp.json()}
-        assert "recruiter_call" in values
+        assert "status_change" in values
         assert "prompt" in values
         assert "general" in values
 

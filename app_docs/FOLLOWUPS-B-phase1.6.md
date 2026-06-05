@@ -10,10 +10,10 @@ Items identified after FOLLOWUPS-A completion. Goal: APPLICATION tab rework, JOB
 | B2 | [x] | Company Summary: button rename + prompt tweak |
 | B3 | [x] | JOB DETAILS: "Job Actions" nav subpage |
 | B4 | [x] | APPLICATION subtab: left nav cleanup |
-| B5 | [ ] | "Change Application Status" section (was "Add Event") |
-| B6 | [ ] | App Detail Summary: status field → read-only text |
-| B7 | [ ] | "Add Application Note" → "Add App Note/Comms" + new types |
-| B8 | [ ] | Remove deprecated type options from UI |
+| B5 | [x] | "Change Application Status" section (was "Add Event") |
+| B6 | [x] | App Detail Summary: status field → read-only text |
+| B7 | [x] | "Add Application Note" → "Add App Note/Comms" + new types |
+| B8 | [x] | Remove deprecated type options from UI |
 
 Status markers: `[ ]` todo · `[x]` done · `[~]` deferred
 

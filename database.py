@@ -368,11 +368,8 @@ _APP_SETTINGS_SEED: list[tuple[str, str]] = [
 ]
 
 _SYSTEM_TYPES_SEED: list[tuple[str, str]] = [
-    ("application_log", "recruiter_call"),
-    ("application_log", "interview_feedback"),
     ("application_log", "compensation"),
     ("application_log", "general"),
-    ("application_log", "repost_alert"),
     ("application_log", "prompt"),
     ("application_log", "lesson_learned"),
     ("application_log", "recruiter_outreach"),
@@ -382,6 +379,12 @@ _SYSTEM_TYPES_SEED: list[tuple[str, str]] = [
     ("application_log", "rejection_received"),
     ("application_log", "withdrawal"),
     ("application_log", "application_communication"),
+    ("application_log", "status_change"),
+    ("application_log", "feedback"),
+    ("application_log", "email_comms"),
+    ("application_log", "phone_comms"),
+    ("application_log", "offer"),
+    ("application_log", "rejection"),
     ("company_info", "website"),
     ("company_info", "careerpage"),
     ("company_info", "culturepage"),

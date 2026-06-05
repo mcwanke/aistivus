@@ -257,7 +257,7 @@ class TestAddLog:
         resp = seeded_client["client"].post(
             f"/api/v1/applications/{seeded_client['app_id']}/logs",
             json={
-                "type_value": "recruiter_call",
+                "type_value": "general",
                 "log": "Call scheduled.",
                 "url": "https://calendly.com/slot",
             },
@@ -266,8 +266,8 @@ class TestAddLog:
 
     def test_all_valid_type_values_accepted(self, seeded_client):
         valid_types = [
-            "recruiter_call", "interview_feedback", "compensation",
-            "general", "repost_alert", "prompt",
+            "compensation", "general", "prompt", "feedback",
+            "email_comms", "phone_comms", "offer", "rejection", "status_change",
         ]
         for t in valid_types:
             resp = seeded_client["client"].post(
@@ -275,6 +275,17 @@ class TestAddLog:
                 json={"type_value": t, "log": f"Test {t}"},
             )
             assert resp.status_code == 200, f"Expected 200 for type_value={t!r}"
+
+    def test_status_change_log_type_accepted(self, seeded_client):
+        resp = seeded_client["client"].post(
+            f"/api/v1/applications/{seeded_client['app_id']}/logs",
+            json={"type_value": "status_change", "log": "Status changed to applied"},
+        )
+        assert resp.status_code == 200
+        logs = seeded_client["client"].get(
+            f"/api/v1/applications/{seeded_client['app_id']}"
+        ).json()["logs"]
+        assert any(l["type_value"] == "status_change" for l in logs)
 
 
 # ─────────────────────────────────────────────────────────────
