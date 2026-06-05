@@ -1915,7 +1915,10 @@ def get_activity_log(job_id: int) -> list[dict]:
         # 1. Evaluations
         evals = conn.execute(
             """SELECT e.id, e.evaluated_at AS ts, e.score_overall, e.fit_type,
-                      e.recommendation, m.model AS model_name
+                      e.recommendation, m.model AS model_name,
+                      e.score_role_fit, e.score_scope_fit, e.score_culture, e.score_comp,
+                      e.archetype, e.strengths, e.gaps, e.keywords, e.keyword_gaps,
+                      e.domain_match, e.role_type_match
                FROM evaluations e
                JOIN llm_models m ON m.id = e.llm_model_id
                WHERE e.job_id = ?""",
@@ -1938,6 +1941,22 @@ def get_activity_log(job_id: int) -> list[dict]:
                 "raw_id": row["id"],
                 "can_delete": False,
                 "can_edit_timestamp": False,
+                "eval_data": {
+                    "score_overall":    row["score_overall"],
+                    "score_role_fit":   row["score_role_fit"],
+                    "score_scope_fit":  row["score_scope_fit"],
+                    "score_culture":    row["score_culture"],
+                    "score_comp":       row["score_comp"],
+                    "fit_type":         row["fit_type"],
+                    "archetype":        row["archetype"],
+                    "recommendation":   row["recommendation"],
+                    "strengths":        row["strengths"],
+                    "gaps":             row["gaps"],
+                    "keywords":         row["keywords"],
+                    "keyword_gaps":     row["keyword_gaps"],
+                    "domain_match":     row["domain_match"],
+                    "role_type_match":  row["role_type_match"],
+                },
             })
 
         # 2. LLM call log entries for this job

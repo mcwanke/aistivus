@@ -308,6 +308,34 @@ class TestActivityLog:
                       "url", "raw_id", "can_delete", "can_edit_timestamp"):
             assert field in entry, f"Missing field: {field}"
 
+    def test_evaluation_entry_includes_eval_data(self, client, model_id):
+        job_id, _ = database.upsert_job("Eval Co", "Engineer", "backend",
+                                         description_merged="We need engineers.")
+        database.insert_evaluation(
+            job_id, model_id,
+            score_overall=8.5, score_role_fit=7.0, score_scope_fit=8.0,
+            score_culture=9.0, score_comp=6.5,
+            fit_type="Core Fit", archetype="People Leader",
+            recommendation="Apply",
+            strengths="Great leadership", gaps="Needs Python",
+            keywords="Python, leadership", keyword_gaps="Kubernetes",
+            domain_match="Same domain", role_type_match="Target match",
+        )
+        resp = client.get(f"/api/v1/jobs/{job_id}/activity-log")
+        entries = resp.json()["entries"]
+        eval_entries = [e for e in entries if e["entry_type"] == "evaluation"]
+        assert len(eval_entries) == 1
+        ed = eval_entries[0].get("eval_data")
+        assert ed is not None, "eval_data missing from evaluation entry"
+        for field in ("score_overall", "score_role_fit", "score_scope_fit",
+                      "score_culture", "score_comp", "fit_type", "archetype",
+                      "recommendation", "strengths", "gaps", "keywords",
+                      "keyword_gaps", "domain_match", "role_type_match"):
+            assert field in ed, f"eval_data missing field: {field}"
+        assert ed["score_overall"] == 8.5
+        assert ed["fit_type"] == "Core Fit"
+        assert ed["strengths"] == "Great leadership"
+
 
 class TestCreateJobAuditRecords:
     def test_create_job_writes_job_created_audit(self, client):

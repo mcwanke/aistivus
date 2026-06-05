@@ -12,8 +12,8 @@ workflows, APPLICATION LOG rework, and prompt sub-typing/logging audit.
 | C3 | [x] | RESUME/COVER: Generate Resume + Generate Cover Letter popups |
 | C4 | [x] | APPLICATION LOG: Row layout rework |
 | C5 | [x] | APPLICATION LOG: Show audit event text in rolled-up row |
-| C6 | [ ] | APPLICATION LOG: Rich expanded view for llm_call entries |
-| C7 | [ ] | APPLICATION LOG: Structured evaluation expanded view |
+| C6 | [x] | APPLICATION LOG: Rich expanded view for llm_call entries |
+| C7 | [x] | APPLICATION LOG: Structured evaluation expanded view |
 | C8 | [x] | Prompt sub-typing + logging audit |
 
 Status markers: `[ ]` todo · `[x]` done · `[~]` deferred

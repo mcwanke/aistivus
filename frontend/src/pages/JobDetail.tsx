@@ -21,6 +21,8 @@ import {
   useDeleteApplicationQuestion,
 } from '@/hooks/useApplicationQuestions'
 import { useLessonChat } from '@/hooks/useLessonChat'
+import { useLlmCallLog } from '@/hooks/useLLMUsage'
+import { LlmExpandedRow } from '@/components/LlmCallExpandedView'
 import { useImportEvaluationMutation, useModels, type ImportPayload } from '@/hooks/useEvaluate'
 import {
   useApplicationDocuments,
@@ -41,6 +43,7 @@ import type { LessonChatFinalizeResponse } from '@/types/profile'
 import type {
   Evaluation,
   LlmModel,
+  LlmCallLogEntry,
   CompanyLogEntry,
   ApplicationStatus,
   Job,
@@ -49,6 +52,7 @@ import type {
   JobPosting,
   ApplicationQuestion,
   ActivityLogEntry,
+  ActivityLogEvalData,
 } from '@/types/api'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1751,6 +1755,104 @@ function QuestionRow({ question, applicationId, jobId }: QuestionRowProps): Reac
   )
 }
 
+// ─── Evaluation expanded card (C7) ───────────────────────────────────────────
+
+function fmtScoreLabel(val: number | null): string {
+  return val != null ? `${val.toFixed(1)}/10` : '—'
+}
+
+function EvalExpandedCard({ evalData }: { evalData: ActivityLogEvalData }): React.JSX.Element {
+  const scores: Array<[string, number | null]> = [
+    ['Overall',  evalData.score_overall],
+    ['Role Fit', evalData.score_role_fit],
+    ['Scope',    evalData.score_scope_fit],
+    ['Culture',  evalData.score_culture],
+    ['Comp',     evalData.score_comp],
+  ]
+  const recColor =
+    evalData.recommendation === 'Apply'       ? 'text-green' :
+    evalData.recommendation === 'Skip'        ? 'text-red'   :
+    evalData.recommendation === 'Apply with modifications' ? 'text-accent' :
+    'text-text'
+
+  return (
+    <div className="space-y-2 py-1">
+      {/* Scores row */}
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        {scores.map(([label, val]) => (
+          <span key={label} className="text-[10px] font-mono text-muted">
+            <span className="uppercase tracking-wider">{label}</span>
+            <span className="text-text ml-1">{fmtScoreLabel(val)}</span>
+          </span>
+        ))}
+      </div>
+
+      {/* Fit type · archetype · recommendation */}
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-mono">
+        {evalData.fit_type && (
+          <span className="text-muted">
+            Fit: <span className="text-text">{evalData.fit_type}</span>
+          </span>
+        )}
+        {evalData.archetype && (
+          <span className="text-muted">
+            Archetype: <span className="text-text">{evalData.archetype}</span>
+          </span>
+        )}
+        {evalData.recommendation && (
+          <span className="text-muted">
+            Rec: <span className={recColor}>{evalData.recommendation}</span>
+          </span>
+        )}
+      </div>
+
+      {/* Domain / role type */}
+      {(evalData.domain_match || evalData.role_type_match) && (
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-mono text-muted">
+          {evalData.domain_match && (
+            <span>Domain: <span className="text-text">{evalData.domain_match}</span></span>
+          )}
+          {evalData.role_type_match && (
+            <span>Role: <span className="text-text">{evalData.role_type_match}</span></span>
+          )}
+        </div>
+      )}
+
+      {/* Strengths */}
+      {evalData.strengths && (
+        <div>
+          <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-0.5">Strengths</p>
+          <p className="text-xs text-text leading-relaxed">{evalData.strengths}</p>
+        </div>
+      )}
+
+      {/* Gaps */}
+      {evalData.gaps && (
+        <div>
+          <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-0.5">Gaps</p>
+          <p className="text-xs text-text leading-relaxed">{evalData.gaps}</p>
+        </div>
+      )}
+
+      {/* Keywords */}
+      {evalData.keywords && (
+        <div>
+          <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-0.5">Keywords</p>
+          <p className="text-xs font-mono text-muted leading-relaxed">{evalData.keywords}</p>
+        </div>
+      )}
+
+      {/* Keyword gaps */}
+      {evalData.keyword_gaps && (
+        <div>
+          <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-0.5">Keyword Gaps</p>
+          <p className="text-xs font-mono text-muted leading-relaxed">{evalData.keyword_gaps}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Activity log row ─────────────────────────────────────────────────────────
 
 const BADGE_CLASSES: Record<string, string> = {
@@ -1767,9 +1869,10 @@ interface ActivityLogRowProps {
   entry: ActivityLogEntry
   applicationId: number | null
   onTimestampSaved: () => void
+  llmCallEntry?: LlmCallLogEntry
 }
 
-function ActivityLogRow({ entry, applicationId, onTimestampSaved }: ActivityLogRowProps): React.JSX.Element {
+function ActivityLogRow({ entry, applicationId, onTimestampSaved, llmCallEntry }: ActivityLogRowProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [tsModalOpen, setTsModalOpen] = useState(false)
@@ -1870,25 +1973,33 @@ function ActivityLogRow({ entry, applicationId, onTimestampSaved }: ActivityLogR
             )}
           </div>
 
-          {/* Info 65% — text / url content */}
+          {/* Info 65% — rich view per entry_type */}
           <div className="flex-1 min-w-0 space-y-1">
-            {entry.text ? (
-              <pre className="text-xs text-text leading-relaxed whitespace-pre-wrap font-mono break-words">
-                {entry.text}
-              </pre>
-            ) : null}
-            {entry.url ? (
-              <a
-                href={entry.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-accent hover:underline break-all block"
-              >
-                {entry.url}
-              </a>
-            ) : null}
-            {!entry.text && !entry.url && (
-              <p className="text-xs text-muted italic">No content.</p>
+            {entry.entry_type === 'llm_call' && llmCallEntry ? (
+              <LlmExpandedRow entry={llmCallEntry} />
+            ) : entry.entry_type === 'evaluation' && entry.eval_data ? (
+              <EvalExpandedCard evalData={entry.eval_data} />
+            ) : (
+              <>
+                {entry.text ? (
+                  <pre className="text-xs text-text leading-relaxed whitespace-pre-wrap font-mono break-words">
+                    {entry.text}
+                  </pre>
+                ) : null}
+                {entry.url ? (
+                  <a
+                    href={entry.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-accent hover:underline break-all block"
+                  >
+                    {entry.url}
+                  </a>
+                ) : null}
+                {!entry.text && !entry.url && (
+                  <p className="text-xs text-muted italic">No content.</p>
+                )}
+              </>
             )}
           </div>
 
@@ -3255,6 +3366,9 @@ export default function JobDetailPage(): React.JSX.Element {
   const { data: appData, isLoading: appLoading } = useApplicationDetail(applicationId)
   const { data: activityData, isLoading: activityLoading, isError: activityError } =
     useActivityLog(activeTab === 'application-log' ? jobId : undefined)
+  const { data: llmCallLogData = [] } =
+    useLlmCallLog(activeTab === 'application-log' ? { job_id: jobId } : {})
+  const llmCallMap = Object.fromEntries(llmCallLogData.map((e) => [e.id, e])) as Record<number, LlmCallLogEntry>
 
   // JOB DETAILS tab action state
   const [jobDetailsAction, setJobDetailsAction] = useState<JobDetailsAction>('job-details')
@@ -3387,6 +3501,7 @@ export default function JobDetailPage(): React.JSX.Element {
                   entry={entry}
                   applicationId={applicationId ?? null}
                   onTimestampSaved={() => void qc.invalidateQueries({ queryKey: ['activity-log', jobId] })}
+                  llmCallEntry={entry.entry_type === 'llm_call' && entry.raw_id != null ? llmCallMap[entry.raw_id] : undefined}
                 />
               ))}
             </div>

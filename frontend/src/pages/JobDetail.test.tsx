@@ -524,6 +524,47 @@ describe('JobDetailPage workspace', () => {
       raw_id: 3,
       can_delete: false,
       can_edit_timestamp: false,
+      // no eval_data — falls back to "No content." (used by existing test)
+    }
+
+    const MOCK_EVAL_ENTRY_WITH_DATA = {
+      entry_type: 'evaluation',
+      timestamp: '2024-06-01T09:00:00',
+      activity_type: 'EVALUATION',
+      source: 'GPT-4',
+      text: 'Score: 8.5/10 · Core Fit · Apply',
+      url: null,
+      raw_id: 3,
+      can_delete: false,
+      can_edit_timestamp: false,
+      eval_data: {
+        score_overall: 8.5,
+        score_role_fit: 7.0,
+        score_scope_fit: 8.0,
+        score_culture: 9.0,
+        score_comp: 6.5,
+        fit_type: 'Core Fit',
+        archetype: 'People Leader',
+        recommendation: 'Apply',
+        strengths: 'Great leadership skills',
+        gaps: 'Needs more Python',
+        keywords: 'Python, leadership',
+        keyword_gaps: 'Kubernetes',
+        domain_match: 'Same domain',
+        role_type_match: 'Target match',
+      },
+    }
+
+    const MOCK_LLM_CALL_ENTRY = {
+      entry_type: 'llm_call',
+      timestamp: '2024-06-01T08:00:00',
+      activity_type: 'EVALUATION',
+      source: 'gpt-4',
+      text: 'Evaluate this job.',
+      url: null,
+      raw_id: 1,  // matches MOCK_LLM_LOG[0].id = 1 in default handlers
+      can_delete: false,
+      can_edit_timestamp: false,
     }
 
     it('clicking the header row toggles expanded content', async () => {
@@ -609,6 +650,36 @@ describe('JobDetailPage workspace', () => {
       )
       renderWorkspace(1, 'application-log')
       await waitFor(() => expect(screen.getByText('general note')).toBeInTheDocument())
+    })
+
+    it('C7: expanded evaluation entry shows structured eval card when eval_data present', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.get('/api/v1/jobs/:id/activity-log', () =>
+          HttpResponse.json({ entries: [MOCK_EVAL_ENTRY_WITH_DATA] }),
+        ),
+      )
+      renderWorkspace(1, 'application-log')
+      await waitFor(() => expect(screen.getByText('GPT-4')).toBeInTheDocument())
+      await user.click(screen.getByText('GPT-4'))
+      await waitFor(() => expect(screen.getByText('Strengths')).toBeInTheDocument())
+      expect(screen.getByText('Great leadership skills')).toBeInTheDocument()
+      expect(screen.getByText('Gaps')).toBeInTheDocument()
+      expect(screen.getByText('Needs more Python')).toBeInTheDocument()
+    })
+
+    it('C6: expanded llm_call entry shows rich LLM view with prompt and raw response', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.get('/api/v1/jobs/:id/activity-log', () =>
+          HttpResponse.json({ entries: [MOCK_LLM_CALL_ENTRY] }),
+        ),
+      )
+      renderWorkspace(1, 'application-log')
+      await waitFor(() => expect(screen.getByText('gpt-4')).toBeInTheDocument())
+      await user.click(screen.getByText('gpt-4'))
+      await waitFor(() => expect(screen.getByText(/Raw response/i)).toBeInTheDocument())
+      expect(screen.getByText('Evaluate this job.')).toBeInTheDocument()
     })
   })
 })

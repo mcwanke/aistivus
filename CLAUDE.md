@@ -74,7 +74,7 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 ## Current Phase: PHASE 1.6 — Document Management
 
-### Phase 1.6 Checklist 🔲
+### Phase 1.6 Checklist ✅
 - [x] Config: `typst:` section in `CONFIG_TEMPLATE.yaml` (`binary_path`, `generated_dir`; moved from `output:`)
 - [x] DB: `get_document_by_id()`; `get_document_by_file_path()`; `set_document_final()`; `is_final` delta migration (`application_info` type dropped from Phase 1.6)
 - [x] Startup: Typst binary check → `app.state.typst_available`; create `generated/` on startup; extend health endpoint with `typst_available`

@@ -412,6 +412,23 @@ export type ActivityEntryType =
   | 'job_posting'
   | 'application_question'
 
+export interface ActivityLogEvalData {
+  score_overall:   number | null
+  score_role_fit:  number | null
+  score_scope_fit: number | null
+  score_culture:   number | null
+  score_comp:      number | null
+  fit_type:        string | null
+  archetype:       string | null
+  recommendation:  string | null
+  strengths:       string | null
+  gaps:            string | null
+  keywords:        string | null
+  keyword_gaps:    string | null
+  domain_match:    string | null
+  role_type_match: string | null
+}
+
 export interface ActivityLogEntry {
   entry_type: ActivityEntryType
   timestamp: string
@@ -422,6 +439,7 @@ export interface ActivityLogEntry {
   raw_id: number | null
   can_delete: boolean
   can_edit_timestamp: boolean
+  eval_data?: ActivityLogEvalData | null
 }
 
 export interface ActivityLogResponse {
