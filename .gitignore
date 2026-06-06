@@ -13,6 +13,7 @@ prompts.md
 config.yaml
 .env
 ignore/
+memory/
 
 # Python
 __pycache__/
