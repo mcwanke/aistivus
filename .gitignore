@@ -12,6 +12,7 @@ resume_template.typ
 prompts.md
 config.yaml
 .env
+ignore/
 
 # Python
 __pycache__/
