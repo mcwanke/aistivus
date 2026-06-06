@@ -12,17 +12,17 @@ Items identified before Phase 1.7 (Docker). Goals:
 
 | # | Status | Title |
 |---|--------|-------|
-| D1 | [ ] | Retire reports/ — remove write code, serve endpoint, TS types |
-| D2 | [ ] | Rename generated/ → application_docs/ — config key + code defaults |
-| D3 | [ ] | Create user_data/ + app_data/; move remaining directories |
-| D4 | [ ] | Python path defaults update (all affected files) |
-| D5 | [ ] | config.yaml + CONFIG_TEMPLATE.yaml path updates |
-| D6 | [ ] | .gitignore update |
-| D7 | [ ] | Root cleanup: move typ_resumes/ → ignore/ |
-| D8 | [ ] | templates/: rename COVER_LETTER_TEMPLATE.md → JOBSEARCH_COVER_TEMPLATE.md |
-| D9 | [ ] | templates/typst/: add simple starter .typ files (resume + cover letter) |
-| D10 | [ ] | templates/typst/README.md: review and update for accuracy |
-| D11 | [ ] | CLAUDE.md + PROJECT_SPEC.md: update structure diagrams + phase notes |
+| D1 | [x] | Retire reports/ — remove write code, serve endpoint, TS types |
+| D2 | [x] | Rename generated/ → application_docs/ — config key + code defaults |
+| D3 | [x] | Create user_data/ + app_data/; move remaining directories |
+| D4 | [x] | Python path defaults update (all affected files) |
+| D5 | [x] | config.yaml + CONFIG_TEMPLATE.yaml path updates |
+| D6 | [x] | .gitignore update |
+| D7 | [x] | Root cleanup: move typ_resumes/ → ignore/ |
+| D8 | [x] | templates/: rename COVER_LETTER_TEMPLATE.md → JOBSEARCH_COVER_TEMPLATE.md |
+| D9 | [x] | templates/typst/: add simple starter .typ files (resume + cover letter) |
+| D10 | [x] | templates/typst/README.md: review and update for accuracy |
+| D11 | [x] | CLAUDE.md + PROJECT_SPEC.md: update structure diagrams + phase notes |
 
 Status markers: `[ ]` todo · `[x]` done · `[~]` deferred
 

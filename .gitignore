@@ -1,16 +1,7 @@
 # User data — never commit these
-data/
-logs/
-reports/
-typ_resumes/
-generated/
-inbox/
-my_data/
-jobsearch.md
-jobsearch.md.old
-resume_template.typ
+user_data/
+app_data/
 prompts.md
-config.yaml
 .env
 ignore/
 memory/

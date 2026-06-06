@@ -92,7 +92,7 @@ React Query (server state)
 FastAPI (main.py)
 evaluator.py │ llm_client.py │ database.py │ logger.py
         │
-    jobs.db (SQLite)      /reports/    /generated/    /logs/
+    jobs.db (SQLite)      /app_data/application_docs/    /app_data/logs/
 ```
 
 ### Phase 1.5+ (Docker)
@@ -528,7 +528,6 @@ via Settings after any schema-breaking upgrade.
 
 **config.yaml owns (infrastructure only):**
 - `database.db_path`
-- `output.reports_dir`
 - `inbox.*` paths
 - `server.host`, `server.port`
 - `logging.*`
@@ -622,9 +621,9 @@ Redesigned in Phase 1.5 as a full-page workspace. See `app_docs/WORKORDER-phase1
 - File management: list, download, delete documents per application
 
 ### Storage
-- All files stored in `/generated/{application_id}/`
+- All files stored in `app_data/application_docs/{application_id}/`
 - Path components sanitized: `[a-zA-Z0-9_-]` only, max 64 chars
-- Paths validated within `/generated/` before any read/write
+- Paths validated within `app_data/application_docs/` before any read/write
 - Records in `application_documents` table; `file_path` stores relative path
 
 ### Startup Validation
@@ -733,26 +732,23 @@ server:
   port: 8080
 
 database:
-  db_path: ./data/jobs.db
+  db_path: ./app_data/data/jobs.db
   llm_call_log_retention_days: 90   # 0 = keep forever
 
-output:
-  reports_dir: ./reports
-
 inbox:
-  done_path: ./inbox/done
-  failed_path: ./inbox/failed
+  done_path: ./app_data/inbox/done
+  failed_path: ./app_data/inbox/failed
 
 evaluation:
-  jobsearch_md_path: ./jobsearch.md
+  jobsearch_md_path: ./user_data/my_data/jobsearch.md
 
 typst:
-  binary_path: typst   # Phase 1.2; name or full path; resolved via PATH if just name
-  generated_dir: ./generated
+  binary_path: typst   # name or full path; resolved via PATH if just name
+  application_docs_dir: ./app_data/application_docs
 
 logging:
   level: INFO
-  file: ./logs/app.log
+  file: ./app_data/logs/app.log
   max_bytes: 10485760   # 10MB
   backup_count: 5
   retention_days: 30
@@ -804,7 +800,7 @@ Deliverables:
 
 Deliverables:
 - `Dockerfile` — Python + Node build, single container
-- `docker-compose.yml` — volume mounts for `data/`, `generated/`, `reports/`, `logs/`
+- `docker-compose.yml` — volume mounts for `user_data/`, `app_data/`
 - `.dockerignore`
 - First-run wizard: network exposure warning, Typst binary note
 - README updated with Docker setup instructions and per-user container pattern
@@ -872,12 +868,15 @@ aistivus/
 │       ├── pages/
 │       └── utils/
 ├── app_docs/               (planning docs, workorders)
-├── my_data/                (gitignored — user PII)
-├── inbox/                  (gitignored)
-├── data/                   (gitignored)
-├── generated/              (gitignored)
-├── reports/                (gitignored)
-└── logs/                   (gitignored)
+├── user_data/              (gitignored — user-authored; Docker volume)
+│   ├── config.yaml
+│   └── my_data/
+├── app_data/               (gitignored — app-generated; Docker volume)
+│   ├── data/
+│   ├── application_docs/
+│   ├── logs/
+│   └── inbox/
+└── ignore/                 (gitignored — local archive)
 ```
 
 ---

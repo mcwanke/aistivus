@@ -75,9 +75,9 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 ## Current Phase: PHASE 1.6 — Document Management
 
 ### Phase 1.6 Checklist ✅
-- [x] Config: `typst:` section in `CONFIG_TEMPLATE.yaml` (`binary_path`, `generated_dir`; moved from `output:`)
+- [x] Config: `typst:` section in `CONFIG_TEMPLATE.yaml` (`binary_path`, `application_docs_dir`; moved from `output:`)
 - [x] DB: `get_document_by_id()`; `get_document_by_file_path()`; `set_document_final()`; `is_final` delta migration (`application_info` type dropped from Phase 1.6)
-- [x] Startup: Typst binary check → `app.state.typst_available`; create `generated/` on startup; extend health endpoint with `typst_available`
+- [x] Startup: Typst binary check → `app.state.typst_available`; create `app_data/application_docs/` on startup; extend health endpoint with `typst_available`
 - [x] `document_routes.py`: upload (5MB/.typ 20MB/.pdf, sanitize, audit log), list, delete (file + record + audit log), file serve route, content GET/PUT, compile, finalize, template list/copy
 - [x] Compile route: DRAFT_ naming convention, 30s timeout, replace-on-compile, 503 if unavailable
 - [x] `GET /api/v1/settings/documents-storage` endpoint (disk usage + Typst status)
@@ -85,13 +85,13 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 - [x] TypeScript interfaces in `frontend/src/types/documents.ts`
 - [x] React hooks: `useApplicationDocuments`, `useUploadDocument`, `useDeleteDocument`, `useCompileDocument`, `useDocumentsStorage`, and more in `useDocuments.ts`
 - [x] Document section on ApplicationDetail (RESUME/COVER tab: file list, type-selector upload, template picker, compile/open/delete, Typst-unavailable banner)
-- [x] Settings: Document Storage card (Typst status + `generated/` disk usage)
+- [x] Settings: Document Storage card (Typst status + `app_data/application_docs/` disk usage)
 - [x] Backend tests for all document routes (57 tests in `tests/routes/test_documents.py`)
 - [x] Frontend tests for Document tab on ApplicationDetail
 
 ### Phase 1.7 Checklist 🔲
 - [ ] Dockerfile
-- [ ] docker-compose.yml (volume mounts: data/, generated/, reports/, logs/)
+- [ ] docker-compose.yml (volume mounts: user_data/, app_data/)
 - [ ] .dockerignore
 - [ ] README Docker setup instructions
 
@@ -106,43 +106,50 @@ aistivus/
 ├── evaluator.py
 ├── evaluate.py
 ├── llm_client.py
-├── logger.py               (Phase 1.0 — new)
-├── profile_routes.py       (Phase 1.2 — new)
-├── templates/
-│   └── typst/              (Phase 1.6)
-├── pages/                  (read-only reference; retired Phase 1.1)
-├── tests/                  (Phase 1.0 — new)
+├── logger.py
+├── profile_routes.py
+├── document_routes.py
+├── env_utils.py
+├── templates/              (committed — ships with repo)
+│   ├── CONFIG_TEMPLATE.yaml
+│   ├── JOBSEARCH_TEMPLATE.md
+│   ├── JOBSEARCH_COVER_TEMPLATE.md
+│   ├── INBOX_TEMPLATE.md
+│   └── typst/
+│       ├── README.md
+│       ├── resume/
+│       │   └── simple-resume.typ
+│       └── cover-letter/
+│           └── simple-cover-letter.typ
+├── tests/
 │   ├── conftest.py
 │   ├── test_database.py
 │   ├── test_evaluator.py
 │   ├── test_llm_client.py
 │   └── routes/
-├── frontend/               (Phase 1.1 — new)
+├── frontend/
 │   ├── package.json
 │   ├── tsconfig.json
 │   ├── vite.config.ts
 │   └── src/
 │       ├── types/
-│       │   └── profile.ts  (Phase 1.2 — new)
 │       ├── hooks/
-│       │   ├── useProfileHealth.ts    (Phase 1.2 — new)
-│       │   ├── useProfileSections.ts  (Phase 1.2 — new)
-│       │   ├── useProfileVersions.ts  (Phase 1.2 — new)
-│       │   ├── useProfileChat.ts      (Phase 1.2 — new)
-│       │   └── useLessonChat.ts       (Phase 1.2 — new)
 │       ├── components/
 │       └── pages/
-│           └── JobSearchProfile.tsx   (Phase 1.2 — new)
 ├── app_docs/               (planning docs, workorders)
-├── my_data/                (gitignored — user PII)
-│   ├── jobsearch.md
-│   └── resume_templates/
-│       └── resume_template.typ
-├── inbox/                  (gitignored)
-├── data/                   (gitignored)
-├── generated/              (gitignored)
-├── reports/                (gitignored)
-└── logs/                   (gitignored)
+├── user_data/              (gitignored — user-authored; Docker volume)
+│   ├── config.yaml
+│   └── my_data/
+│       ├── jobsearch.md
+│       ├── jobsearch_cover.md
+│       └── resume_templates/
+├── app_data/               (gitignored — app-generated; Docker volume)
+│   ├── data/
+│   ├── application_docs/
+│   ├── logs/
+│   └── inbox/
+├── ignore/                 (gitignored — local archive; never volume-mounted)
+└── memory/                 (gitignored — Claude tooling; stays at root)
 ```
 
 ---

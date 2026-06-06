@@ -9,7 +9,7 @@ In AIstivus, open any job's **Resume / Cover** tab and use the "New from templat
 Alternatively, copy manually:
 
 ```bash
-cp templates/typst/resume/simple-resume.typ generated/{your_app_folder}/my-resume.typ
+cp templates/typst/resume/simple-resume.typ app_data/application_docs/{your_app_folder}/my-resume.typ
 ```
 
 ## Adding your own templates
