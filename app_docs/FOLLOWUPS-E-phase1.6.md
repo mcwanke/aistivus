@@ -10,23 +10,45 @@ produce a stable foundation to reorganize from.
 
 ## Status
 
+**DEFERRED — 2026-06-06**
+
+All items deferred. See Decision below.
+
 | # | Status | Title |
 |---|--------|-------|
-| E1 | [ ] | Move Python source files → backend/ |
-| E2 | [ ] | Update pytest + conftest.py for new import paths |
-| E3 | [ ] | Update uvicorn startup command |
-| E4 | [ ] | Update CLAUDE.md + PROJECT_SPEC.md |
+| E1 | [~] | Move Python source files → backend/ |
+| E2 | [~] | Update pytest + conftest.py for new import paths |
+| E3 | [~] | Update uvicorn startup command |
+| E4 | [~] | Update CLAUDE.md + PROJECT_SPEC.md |
 
 Status markers: `[ ]` todo · `[x]` done · `[~]` deferred
 
 ---
 
+## Decision
+
+Deferred after evaluating the runtime import problem and Docker impact.
+
+**The problem:** After moving files to `backend/`, bare module imports (`import database`,
+`from evaluator import ...`) break at runtime because `backend/` is not on `sys.path`
+when running `uvicorn backend.main:app` from the project root. Fixes require either:
+- `PYTHONPATH=backend` in every launch context (uvicorn command, Dockerfile ENV, CI), or
+- Converting all inter-module imports to relative package style (`from . import database`)
+  throughout every Python file — significant code change with no functional benefit.
+
+**Why deferred:** The cosmetic benefit (symmetric `backend/` + `frontend/` at root) does
+not justify the permanent complexity added to the startup command, Dockerfile, and every
+deployment context. Python source files at the project root is conventional and all tooling
+works cleanly today.
+
+**Revisit:** After Phase 1.7 Docker is complete and working, this restructure could be
+done cleanly — moving files and updating the Dockerfile CMD + ENV in one pass.
+
+---
+
 ## Test Baseline (going in)
 
-Run fresh after FOLLOWUPS-D is complete and green. Record here before starting.
-
-- Frontend: TBD
-- Backend: TBD
+Not recorded — work deferred before starting.
 
 ---
 
