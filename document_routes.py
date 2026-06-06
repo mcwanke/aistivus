@@ -29,7 +29,7 @@ router = APIRouter()
 # ─────────────────────────────────────────────────────────────
 
 def _load_config() -> dict:
-    config_path = Path("config.yaml")
+    config_path = Path("user_data/config.yaml")
     if config_path.exists():
         with open(config_path) as f:
             return yaml.safe_load(f) or {}
@@ -40,11 +40,11 @@ def _load_config() -> dict:
 # Path / filename helpers (also imported by main.py)
 # ─────────────────────────────────────────────────────────────
 
-def _get_application_folder(generated_dir: Path, application_id: int, company_name: str) -> Path:
+def _get_application_folder(application_docs_dir: Path, application_id: int, company_name: str) -> Path:
     """Compute the document storage folder for an application."""
     sanitized = re.sub(r'[^a-zA-Z0-9_-]', '_', company_name.lower())
     sanitized = re.sub(r'_+', '_', sanitized).strip('_')[:40]
-    return generated_dir / f"{application_id}_{sanitized}"
+    return application_docs_dir / f"{application_id}_{sanitized}"
 
 
 def _sanitize_filename(name: str) -> str:
@@ -93,10 +93,10 @@ def _get_candidate_name(jobsearch_path: str) -> str | None:
     return None
 
 
-def _validate_within_generated(file_path: str, generated_dir: Path) -> Path:
-    """Resolve path and verify it is within generated_dir. Raises 403 if not."""
+def _validate_within_generated(file_path: str, application_docs_dir: Path) -> Path:
+    """Resolve path and verify it is within application_docs_dir. Raises 403 if not."""
     resolved = Path(file_path).resolve()
-    if not str(resolved).startswith(str(generated_dir.resolve())):
+    if not str(resolved).startswith(str(application_docs_dir.resolve())):
         raise HTTPException(status_code=403, detail="Access denied.")
     return resolved
 
@@ -171,12 +171,12 @@ async def upload_document(
             detail="Filename contains no valid characters after sanitization.",
         )
 
-    generated_dir: Path = getattr(request.app.state, "generated_dir", Path("./generated"))
+    application_docs_dir: Path = getattr(request.app.state, "application_docs_dir", Path("./app_data/application_docs"))
     app_dict = dict(app_row)
     job = database.get_job(app_dict["job_id"])
     company_name = dict(job)["company_name"] if job else "unknown"
 
-    folder = _get_application_folder(generated_dir, application_id, company_name)
+    folder = _get_application_folder(application_docs_dir, application_id, company_name)
     folder.mkdir(parents=True, exist_ok=True)
 
     target_path = _unique_path(folder, sanitized)
@@ -289,8 +289,8 @@ async def rename_document(
     new_filename = new_name + ext
     new_path = old_path.parent / new_filename
 
-    generated_dir: Path = getattr(request.app.state, "generated_dir", Path("./generated"))
-    _validate_within_generated(str(new_path), generated_dir)
+    application_docs_dir: Path = getattr(request.app.state, "application_docs_dir", Path("./app_data/application_docs"))
+    _validate_within_generated(str(new_path), application_docs_dir)
 
     if new_path.exists() and new_path != old_path:
         raise HTTPException(status_code=409, detail=f"A file named '{new_filename}' already exists.")
@@ -335,8 +335,8 @@ async def serve_document(
         raise HTTPException(status_code=404, detail=f"Document {doc_id} not found.")
 
     doc_dict = dict(doc)
-    generated_dir: Path = getattr(request.app.state, "generated_dir", Path("./generated"))
-    resolved = _validate_within_generated(doc_dict["file_path"], generated_dir)
+    application_docs_dir: Path = getattr(request.app.state, "application_docs_dir", Path("./app_data/application_docs"))
+    resolved = _validate_within_generated(doc_dict["file_path"], application_docs_dir)
 
     if not resolved.exists():
         raise HTTPException(status_code=404, detail="File not found on disk.")
@@ -378,8 +378,8 @@ async def get_document_content(request: Request, application_id: int, doc_id: in
             status_code=422, detail="Content endpoint is for .typ files only."
         )
 
-    generated_dir: Path = getattr(request.app.state, "generated_dir", Path("./generated"))
-    resolved = _validate_within_generated(doc_dict["file_path"], generated_dir)
+    application_docs_dir: Path = getattr(request.app.state, "application_docs_dir", Path("./app_data/application_docs"))
+    resolved = _validate_within_generated(doc_dict["file_path"], application_docs_dir)
 
     if not resolved.exists():
         raise HTTPException(status_code=404, detail="File not found on disk.")
@@ -420,8 +420,8 @@ async def save_document_content(
     if len(body.content.encode("utf-8")) > _MAX_TYP_BYTES:
         raise HTTPException(status_code=413, detail=".typ content must be 5 MB or smaller.")
 
-    generated_dir: Path = getattr(request.app.state, "generated_dir", Path("./generated"))
-    resolved = _validate_within_generated(doc_dict["file_path"], generated_dir)
+    application_docs_dir: Path = getattr(request.app.state, "application_docs_dir", Path("./app_data/application_docs"))
+    resolved = _validate_within_generated(doc_dict["file_path"], application_docs_dir)
 
     resolved.write_text(body.content, encoding="utf-8")
     database._audit_application(application_id, f"document_edited: {resolved.name}")
@@ -497,12 +497,12 @@ async def copy_template(
             detail=f"Template '{body.template_filename}' not found.",
         )
 
-    generated_dir: Path = getattr(request.app.state, "generated_dir", Path("./generated"))
+    application_docs_dir: Path = getattr(request.app.state, "application_docs_dir", Path("./app_data/application_docs"))
     app_dict = dict(app_row)
     job = database.get_job(app_dict["job_id"])
     company_name = dict(job)["company_name"] if job else "unknown"
 
-    folder = _get_application_folder(generated_dir, application_id, company_name)
+    folder = _get_application_folder(application_docs_dir, application_id, company_name)
     folder.mkdir(parents=True, exist_ok=True)
 
     default_name = (
@@ -565,8 +565,8 @@ async def compile_document(request: Request, application_id: int, doc_id: int):
             status_code=422, detail="Only .typ files can be compiled."
         )
 
-    generated_dir: Path = getattr(request.app.state, "generated_dir", Path("./generated"))
-    source_path = _validate_within_generated(doc_dict["file_path"], generated_dir)
+    application_docs_dir: Path = getattr(request.app.state, "application_docs_dir", Path("./app_data/application_docs"))
+    source_path = _validate_within_generated(doc_dict["file_path"], application_docs_dir)
 
     if not source_path.exists():
         raise HTTPException(status_code=404, detail="Source .typ file not found on disk.")
@@ -650,8 +650,8 @@ async def finalize_document(request: Request, application_id: int, doc_id: int):
             detail="Only DRAFT files can be finalized. Compile a .typ file first.",
         )
 
-    generated_dir: Path = getattr(request.app.state, "generated_dir", Path("./generated"))
-    source_path = _validate_within_generated(doc_dict["file_path"], generated_dir)
+    application_docs_dir: Path = getattr(request.app.state, "application_docs_dir", Path("./app_data/application_docs"))
+    source_path = _validate_within_generated(doc_dict["file_path"], application_docs_dir)
 
     if not source_path.exists():
         raise HTTPException(status_code=404, detail="DRAFT file not found on disk.")

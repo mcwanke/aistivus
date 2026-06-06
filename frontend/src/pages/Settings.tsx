@@ -1608,7 +1608,7 @@ function DocumentStorageSection(): React.JSX.Element {
                 <p className="text-sm font-mono text-text">
                   {data.file_count} {data.file_count === 1 ? 'file' : 'files'} · {data.total_mb} MB
                 </p>
-                <p className="text-xs font-mono text-muted">{data.generated_dir}</p>
+                <p className="text-xs font-mono text-muted">{data.application_docs_dir}</p>
               </>
             )}
           </div>

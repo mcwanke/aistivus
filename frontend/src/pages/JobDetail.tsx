@@ -542,7 +542,7 @@ function MyRatingsSection({ jobId, job }: MyRatingsSectionProps): React.JSX.Elem
 
 // ─── Evaluation card (expandable row) ─────────────────────────────────────────
 
-type EvalWithMeta = Evaluation & { report_path: string | null; model_name: string; prompt: string | null }
+type EvalWithMeta = Evaluation & { model_name: string; prompt: string | null }
 
 function EvalRow({ evaluation }: { evaluation: EvalWithMeta }): React.JSX.Element {
   const [open, setOpen] = useState(false)
@@ -668,69 +668,6 @@ function EvalRow({ evaluation }: { evaluation: EvalWithMeta }): React.JSX.Elemen
             </div>
           )}
         </div>
-      )}
-    </div>
-  )
-}
-
-// ─── Legacy EvalCard (kept for compatibility) ─────────────────────────────────
-
-function EvalCard({ evaluation }: { evaluation: Evaluation & { report_path: string | null } }): React.JSX.Element {
-  return (
-    <div className="bg-surface2 rounded p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-muted text-xs font-mono">{fmtDate(evaluation.evaluated_at)}</span>
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-mono text-muted">
-            OVR <span className="text-text">{fmtScore(evaluation.score_overall)}</span>/10
-          </span>
-          {evaluation.fit_type && (
-            <span className={`text-xs font-mono px-2 py-0.5 rounded ${
-              evaluation.fit_type === 'Core Fit'
-                ? 'bg-green/20 text-green'
-                : evaluation.fit_type === 'Stretch'
-                ? 'bg-accent/20 text-accent'
-                : 'bg-red/20 text-red'
-            }`}>
-              {evaluation.fit_type}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div className="flex items-center gap-4 flex-wrap">
-        {(['role_fit', 'scope_fit', 'culture', 'comp'] as const).map((key) => {
-          const labels: Record<string, string> = { role_fit: 'R', scope_fit: 'SC', culture: 'CU', comp: 'CO' }
-          const val = evaluation[`score_${key}` as keyof Evaluation] as number | null
-          return (
-            <div key={key} className="flex flex-col items-center">
-              <span className="text-[10px] font-mono text-muted uppercase">{labels[key]}</span>
-              <span className="text-sm font-mono text-text">{fmtScore(val)}/5</span>
-            </div>
-          )
-        })}
-      </div>
-
-      {evaluation.archetype && (
-        <p className="text-xs text-muted">
-          <span className="text-muted">Archetype: </span>
-          <span className="text-text">{evaluation.archetype}</span>
-        </p>
-      )}
-
-      {evaluation.recommendation && (
-        <p className="text-xs">
-          <span className="text-muted">Rec: </span>
-          <span className={`font-mono ${
-            evaluation.recommendation === 'Apply'
-              ? 'text-green'
-              : evaluation.recommendation === 'Skip'
-              ? 'text-red'
-              : 'text-accent'
-          }`}>
-            {evaluation.recommendation}
-          </span>
-        </p>
       )}
     </div>
   )
@@ -2381,7 +2318,7 @@ function JobDetailsRight({
           {exportStatus === 'loading' ? 'Exporting…' : exportStatus === 'done' ? 'Exported!' : exportStatus === 'error' ? 'Error' : 'Export Job'}
         </button>
         <p className="text-[10px] text-muted leading-snug">
-          Exports main job data to the reports/ folder. Use this to save a copy or import into a new instance.
+          Exports main job data to the inbox/done/ folder. Use this to save a copy or import into a new instance.
         </p>
       </div>
     )
@@ -3619,7 +3556,6 @@ export {
   ImportModal,
   JobInfoSection,
   MyRatingsSection,
-  EvalCard,
   CompanyLogRow,
   StarRating,
   TimestampModal,

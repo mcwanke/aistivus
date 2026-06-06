@@ -51,7 +51,7 @@ import llm_client
 # ─────────────────────────────────────────────────────────────
 
 def _load_config() -> dict:
-    config_path = Path("config.yaml")
+    config_path = Path("user_data/config.yaml")
     if config_path.exists():
         with open(config_path) as f:
             return yaml.safe_load(f) or {}
@@ -63,9 +63,9 @@ def _get_inbox_paths() -> tuple[Path, Path, Path]:
     config = _load_config()
     inbox  = config.get("inbox", {})
     return (
-        Path(inbox.get("path",       "./inbox")),
-        Path(inbox.get("done_path",  "./inbox/done")),
-        Path(inbox.get("failed_path","./inbox/failed")),
+        Path(inbox.get("path",       "./app_data/inbox")),
+        Path(inbox.get("done_path",  "./app_data/inbox/done")),
+        Path(inbox.get("failed_path","./app_data/inbox/failed")),
     )
 
 

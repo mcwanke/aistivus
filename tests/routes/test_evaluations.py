@@ -313,4 +313,3 @@ class TestGetEvaluation:
         assert data["score_overall"] == 8.0
         assert data["fit_type"] == "Core Fit"
         assert data["company_name"] == "Test Corp"
-        assert "report_path" in data

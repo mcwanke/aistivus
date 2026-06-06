@@ -51,7 +51,7 @@ export interface TypstTemplateList {
 }
 
 export interface DocumentsStorageInfo {
-  generated_dir: string
+  application_docs_dir: string
   total_bytes: number
   total_mb: number
   file_count: number

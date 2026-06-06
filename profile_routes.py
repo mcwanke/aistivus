@@ -206,7 +206,7 @@ class OneShotRequest(BaseModel):
 
 
 def _load_config() -> dict:
-    config_path = Path("config.yaml")
+    config_path = Path("user_data/config.yaml")
     if config_path.exists():
         with open(config_path) as f:
             return yaml.safe_load(f) or {}
@@ -215,7 +215,7 @@ def _load_config() -> dict:
 
 def _get_jobsearch_path() -> Path:
     config = _load_config()
-    return Path(config.get("evaluation", {}).get("jobsearch_md_path", "my_data/jobsearch.md"))
+    return Path(config.get("evaluation", {}).get("jobsearch_md_path", "user_data/my_data/jobsearch.md"))
 
 
 def _resolve_default_model() -> dict | None:

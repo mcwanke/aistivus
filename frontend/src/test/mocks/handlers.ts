@@ -221,7 +221,6 @@ export const MOCK_EVALUATE_RESPONSE: EvaluateResponse = {
   success: true,
   evaluation_id: 1,
   job_id: 1,
-  report_path: null,
   evaluation: { score_overall: 8 },
   error: null,
   duplicate_detected: false,
@@ -314,7 +313,7 @@ export const MOCK_TYPST_TEMPLATES: TypstTemplateList = {
 }
 
 export const MOCK_DOCUMENTS_STORAGE: DocumentsStorageInfo = {
-  generated_dir: './generated', total_bytes: 1048576, total_mb: 1.0,
+  application_docs_dir: './app_data/application_docs', total_bytes: 1048576, total_mb: 1.0,
   file_count: 5, typst_available: true, typst_binary: 'typst',
 }
 

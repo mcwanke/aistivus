@@ -83,7 +83,6 @@ API routes:
 
 SPA catch-all (Phase 1.1+):
   GET  /{full_path}  → serves frontend/dist/index.html (React Router handles routing)
-  GET  /report       → serves raw markdown from /reports/ (path-traversal protected)
 """
 
 import os
@@ -131,7 +130,7 @@ limiter = Limiter(key_func=get_remote_address)
 # ─────────────────────────────────────────────────────────────
 
 def _load_config() -> dict:
-    config_path = Path("config.yaml")
+    config_path = Path("user_data/config.yaml")
     if config_path.exists():
         with open(config_path) as f:
             return yaml.safe_load(f) or {}
@@ -214,9 +213,9 @@ async def lifespan(app: FastAPI):
 
     cfg = _load_config()
     typst_binary = cfg.get("typst", {}).get("binary_path", "typst")
-    generated_dir = Path(cfg.get("typst", {}).get("generated_dir", "./generated"))
+    application_docs_dir = Path(cfg.get("typst", {}).get("application_docs_dir", "./app_data/application_docs"))
 
-    generated_dir.mkdir(parents=True, exist_ok=True)
+    application_docs_dir.mkdir(parents=True, exist_ok=True)
 
     try:
         typst_result = subprocess.run(
@@ -230,7 +229,7 @@ async def lifespan(app: FastAPI):
 
     app.state.typst_available = typst_available
     app.state.typst_binary = typst_binary
-    app.state.generated_dir = generated_dir
+    app.state.application_docs_dir = application_docs_dir
 
     if typst_available:
         log.info("typst_available", extra={"binary": typst_binary})
@@ -240,11 +239,12 @@ async def lifespan(app: FastAPI):
             "hint": "document compilation disabled; install typst to enable",
         })
 
-    jobsearch_path = Path("jobsearch.md")
+    cfg_eval = cfg.get("evaluation", {})
+    jobsearch_path = Path(cfg_eval.get("jobsearch_md_path", "./user_data/my_data/jobsearch.md"))
     if not jobsearch_path.exists():
         log.warning(
             "jobsearch_md_missing",
-            extra={"hint": "copy JOBSEARCH_TEMPLATE.md to jobsearch.md"},
+            extra={"hint": "copy JOBSEARCH_TEMPLATE.md to user_data/my_data/jobsearch.md"},
         )
 
     log.info("aistivus_ready", extra={"url": "http://127.0.0.1:8080"})
@@ -323,7 +323,6 @@ class EvaluateResponse(BaseModel):
     success: bool
     evaluation_id: int | None
     job_id: int | None
-    report_path: str | None
     evaluation: dict | None
     error: str | None
     duplicate_detected: bool = False
@@ -536,23 +535,6 @@ async def _lesson_sse_generator(
 
 
 
-@app.get("/report", response_class=HTMLResponse, include_in_schema=False)
-async def view_report(path: str = Query(..., description="Path to the markdown report file")):
-    """Return raw markdown from /reports/ — path traversal protected."""
-    report_path = Path(path).resolve()
-    reports_dir = Path("reports").resolve()
-    try:
-        report_path.relative_to(reports_dir)
-    except ValueError:
-        raise HTTPException(status_code=403, detail="Access denied.")
-    if not report_path.exists():
-        raise HTTPException(status_code=404, detail=f"Report not found: {path}")
-    if report_path.suffix != ".md":
-        raise HTTPException(status_code=400, detail="Only .md files are served.")
-    return HTMLResponse(content=report_path.read_text(), media_type="text/plain")
-
-
-
 # ─────────────────────────────────────────────────────────────
 # Health
 # ─────────────────────────────────────────────────────────────
@@ -624,7 +606,6 @@ async def evaluate_endpoint(request: Request, body: EvaluateRequest):
                 existing_jobs=existing,
                 evaluation_id=None,
                 job_id=None,
-                report_path=None,
                 evaluation=None,
                 error=None,
             )
@@ -659,7 +640,7 @@ async def evaluate_endpoint(request: Request, body: EvaluateRequest):
             app_row = database.get_application_for_job(result["job_id"])
             if app_row:
                 app_folder = _get_application_folder(
-                    request.app.state.generated_dir,
+                    request.app.state.application_docs_dir,
                     dict(app_row)["id"],
                     body.company_name,
                 )
@@ -774,11 +755,6 @@ async def get_evaluation(request: Request, evaluation_id: int):
             status_code=404, detail=f"Evaluation {evaluation_id} not found."
         )
     data = dict(row)
-    data["report_path"] = _find_report(
-        company_name=data.get("company_name", ""),
-        job_title=data.get("title", ""),
-        evaluated_at=data.get("evaluated_at", ""),
-    )
     return JSONResponse(data)
 
 
@@ -812,15 +788,7 @@ async def get_job(request: Request, job_id: int):
     postings = database.get_postings_for_job(job_id)
     job_dict = dict(job)
 
-    evals_out = []
-    for e in evaluations:
-        d = dict(e)
-        d["report_path"] = _find_report(
-            company_name=job_dict.get("company_name", ""),
-            job_title=job_dict.get("title", ""),
-            evaluated_at=d.get("evaluated_at", ""),
-        )
-        evals_out.append(d)
+    evals_out = [dict(e) for e in evaluations]
 
     company_log = database.get_job_company_log(job_id)
 
@@ -2281,20 +2249,20 @@ async def update_app_setting(request: Request, key: str, body: UpdateAppSettingR
 @limiter.limit("30/minute")
 async def get_documents_storage(request: Request):
     """Disk usage for generated documents and Typst availability status."""
-    generated_dir: Path = getattr(request.app.state, "generated_dir", Path("./generated"))
+    application_docs_dir: Path = getattr(request.app.state, "application_docs_dir", Path("./app_data/application_docs"))
     typst_available: bool = getattr(request.app.state, "typst_available", False)
     typst_binary: str = getattr(request.app.state, "typst_binary", "typst")
 
     total_bytes = 0
     file_count = 0
-    if generated_dir.exists():
-        for f in generated_dir.rglob("*"):
+    if application_docs_dir.exists():
+        for f in application_docs_dir.rglob("*"):
             if f.is_file():
                 total_bytes += f.stat().st_size
                 file_count += 1
 
     return JSONResponse({
-        "generated_dir": str(generated_dir),
+        "application_docs_dir": str(application_docs_dir),
         "total_bytes": total_bytes,
         "total_mb": round(total_bytes / 1048576, 1),
         "file_count": file_count,
@@ -2524,25 +2492,6 @@ async def serve_spa(full_path: str):
 # ─────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────
-
-def _find_report(company_name: str, job_title: str, evaluated_at: str) -> str | None:
-    """Find the most likely report file for an evaluation by date prefix."""
-    reports_dir = Path("reports")
-    if not reports_dir.exists():
-        return None
-
-    date_prefix = ""
-    if evaluated_at:
-        date_prefix = evaluated_at[:10].replace("-", "")
-
-    candidates = list(reports_dir.glob(f"{date_prefix}_*.md")) if date_prefix else []
-    if not candidates:
-        all_reports = sorted(reports_dir.glob("*.md"), reverse=True)
-        return str(all_reports[0]) if all_reports else None
-
-    candidates.sort(reverse=True)
-    return str(candidates[0])
-
 
 # ─────────────────────────────────────────────────────────────
 # Entrypoint

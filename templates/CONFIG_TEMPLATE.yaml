@@ -40,9 +40,8 @@ providers:
 # All paths are relative to the project root.
 # ─────────────────────────────────────
 output:
-  reports_dir: ./reports       # markdown evaluation reports
-  jobsearch_md_path: ./my_data/jobsearch.md
-  resume_template_path: ./my_data/resume_templates/resume_template.typ
+  jobsearch_md_path: ./user_data/my_data/jobsearch.md
+  resume_template_path: ./user_data/my_data/resume_templates/resume_template.typ
 
 # ─────────────────────────────────────────────────────
 # Typst document generation (Phase 1.6+)
@@ -50,8 +49,8 @@ output:
 #          snap install typst  (Linux)
 # ─────────────────────────────────────────────────────
 typst:
-  binary_path: typst          # command name (resolved via PATH) or full path
-  generated_dir: ./generated  # compiled PDFs and uploaded .typ files
+  binary_path: typst                              # command name (resolved via PATH) or full path
+  application_docs_dir: ./app_data/application_docs  # compiled PDFs and uploaded .typ files
 
 # ─────────────────────────────────────
 # Database

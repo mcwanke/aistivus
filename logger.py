@@ -67,7 +67,7 @@ class _JsonFormatter(logging.Formatter):
 def _load_logging_config() -> dict:
     """Return the [logging] section of config.yaml, or {} if unavailable."""
     try:
-        config_path = Path("config.yaml")
+        config_path = Path("user_data/config.yaml")
         if config_path.exists():
             with open(config_path) as f:
                 cfg = yaml.safe_load(f) or {}
@@ -98,7 +98,7 @@ def _configure_root_logger() -> None:
     level_name = cfg.get("level", "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)
 
-    log_file = Path(cfg.get("file", "./logs/app.log"))
+    log_file = Path(cfg.get("file", "./app_data/logs/app.log"))
     max_bytes = int(cfg.get("max_bytes", 10_485_760))   # 10 MB
     backup_count = int(cfg.get("backup_count", 5))
 
@@ -145,7 +145,7 @@ def cleanup_old_logs(retention_days: int | None = None) -> int:
         return 0
 
     cfg = _load_logging_config()
-    log_file = Path(cfg.get("file", "./logs/app.log"))
+    log_file = Path(cfg.get("file", "./app_data/logs/app.log"))
     log_dir = log_file.parent
     if not log_dir.exists():
         return 0

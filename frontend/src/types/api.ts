@@ -136,7 +136,6 @@ export interface EvaluationListItem extends Evaluation {
 
 export interface EvaluationDetail extends EvaluationListItem {
   pay_band: string | null
-  report_path: string | null
 }
 
 // ─── Job (shared shape) ───────────────────────────────────────────────────────
@@ -211,7 +210,7 @@ export interface CompanyLogEntry {
 
 export interface JobDetailResponse {
   job: Job
-  evaluations: Array<Evaluation & { report_path: string | null; model_name: string; prompt: string | null }>
+  evaluations: Array<Evaluation & { model_name: string; prompt: string | null }>
   postings: JobPosting[]
   company_log: CompanyLogEntry[]
 }
@@ -384,7 +383,6 @@ export interface EvaluateResponse {
   success: boolean
   evaluation_id: number | null
   job_id: number | null
-  report_path: string | null
   evaluation: Record<string, unknown> | null
   error: string | null
   duplicate_detected: boolean

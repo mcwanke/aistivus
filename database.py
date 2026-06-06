@@ -35,7 +35,7 @@ import yaml
 
 def _load_config() -> dict:
     """Load config.yaml if it exists; return empty dict otherwise."""
-    config_path = Path("config.yaml")
+    config_path = Path("user_data/config.yaml")
     if config_path.exists():
         with open(config_path) as f:
             return yaml.safe_load(f) or {}
@@ -44,7 +44,7 @@ def _load_config() -> dict:
 
 def _get_db_path() -> Path:
     config = _load_config()
-    return Path(config.get("database", {}).get("db_path", "./data/jobs.db"))
+    return Path(config.get("database", {}).get("db_path", "./app_data/data/jobs.db"))
 
 
 # ─────────────────────────────────────────────────────────────
@@ -2178,7 +2178,7 @@ def backup_db() -> Path:
     db_path = _get_db_path()
     config = _load_config()
     backup_dir = Path(
-        config.get("database", {}).get("backup_dir", "./data/backups")
+        config.get("database", {}).get("backup_dir", "./app_data/data/backups")
     )
     backup_dir.mkdir(parents=True, exist_ok=True)
 

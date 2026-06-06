@@ -31,18 +31,18 @@ import database
 
 @pytest.fixture
 def doc_client(seeded_client, tmp_path):
-    """seeded_client with app.state pointing to a fresh temp generated_dir."""
+    """seeded_client with app.state pointing to a fresh temp application_docs_dir."""
     from main import app
-    generated_dir = tmp_path / "generated"
-    generated_dir.mkdir()
-    orig_generated_dir = getattr(app.state, "generated_dir", None)
+    application_docs_dir = tmp_path / "generated"
+    application_docs_dir.mkdir()
+    orig_application_docs_dir = getattr(app.state, "application_docs_dir", None)
     orig_typst_available = getattr(app.state, "typst_available", False)
     orig_typst_binary = getattr(app.state, "typst_binary", "typst")
-    app.state.generated_dir = generated_dir
+    app.state.application_docs_dir = application_docs_dir
     app.state.typst_available = True
     app.state.typst_binary = "typst"
-    yield {**seeded_client, "generated_dir": generated_dir}
-    app.state.generated_dir = orig_generated_dir
+    yield {**seeded_client, "application_docs_dir": application_docs_dir}
+    app.state.application_docs_dir = orig_application_docs_dir
     app.state.typst_available = orig_typst_available
     app.state.typst_binary = orig_typst_binary
 
@@ -98,10 +98,10 @@ def _insert_draft_pdf(app_id: int, folder: Path, name: str = "DRAFT_resume.pdf")
 def _make_app_folder(doc_client, name: str = "DRAFT_resume.pdf") -> tuple[int, Path]:
     """Create the application folder and a DRAFT pdf inside it. Returns (doc_id, path)."""
     app_id = doc_client["app_id"]
-    generated_dir = doc_client["generated_dir"]
+    application_docs_dir = doc_client["application_docs_dir"]
     job = database.get_job(doc_client["job_id"])
     from document_routes import _get_application_folder
-    folder = _get_application_folder(generated_dir, app_id, dict(job)["company_name"])
+    folder = _get_application_folder(application_docs_dir, app_id, dict(job)["company_name"])
     folder.mkdir(parents=True, exist_ok=True)
     return _insert_draft_pdf(app_id, folder, name)
 
@@ -738,12 +738,12 @@ class TestDocumentsStorage:
         assert data["file_count"] >= 1
         assert data["total_bytes"] > 0
         assert data["typst_available"] is True
-        assert "generated_dir" in data
+        assert "application_docs_dir" in data
 
-    def test_returns_zeros_when_generated_dir_missing(self, doc_client, monkeypatch):
+    def test_returns_zeros_when_application_docs_dir_missing(self, doc_client, monkeypatch):
         from main import app
-        missing_dir = doc_client["generated_dir"].parent / "nonexistent_generated"
-        monkeypatch.setattr(app.state, "generated_dir", missing_dir)
+        missing_dir = doc_client["application_docs_dir"].parent / "nonexistent_generated"
+        monkeypatch.setattr(app.state, "application_docs_dir", missing_dir)
         resp = doc_client["client"].get("/api/v1/settings/documents-storage")
         assert resp.status_code == 200
         data = resp.json()
