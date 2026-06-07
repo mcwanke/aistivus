@@ -22,7 +22,7 @@ Final cleanup pass before Phase 1.7 (Docker). Goals:
 | F5 | [x] | Update `README.md` for post-phase-1.7 state |
 | F6 | [x] | `CLAUDE.md` + `PROJECT_SPEC.md` — cleanup + minimize |
 | F7 | [x] | Create `ignore/MIGRATION_PLAN.md` |
-| F8 | [ ] | CI/CD discussion (own session — see session prompt below) |
+| F8 | [x] | CI/CD discussion (own session — see session prompt below) |
 | F9 | [ ] | Macro-level architecture review (own session — see session prompt below) |
 
 Status markers: `[ ]` todo · `[x]` done · `[~]` deferred

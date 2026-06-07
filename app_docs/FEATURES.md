@@ -125,3 +125,17 @@
 ---
 
 *This is a living document. Add freely, schedule carefully.*
+
+
+
+## New Pre phase1.7 items
+
+- [ ] I want to add the first web scraper. The goal of this function will be to add a button on the Evaluate page that pops up a modal that accepts a URL. Then the app will attempt to scrape the content on the URL and fill out as much of the info in the fields on the Evaluate page as possible, the user will be responsible for checking the information before initiating an evaluation. We won't need searching here since this function assumes the user has already found the job posting page.
+
+- [ ] I want to add a "learning" function to the app. This should have specific functional goals. Here is a rough initial set of goals:
+  - review jobs applied to for lack of interaction to look for potentially ghosted roles and flag the roles to check out to the user
+  - build out a local "memory" for either a local or remote AI to build context over time and make the app better for this user over time
+  - have a "job review" function that can review all available data and context about a job and provide feedback to the user, suggest changes to personal docs (like jobsearch.md), and add context to memory. I can see this being used after a rejection letter is received for a role with a goal to see if there is anything in the application documents (resume, communications, etc) that we could handle/update/learn from to make the next application submission better
+  - we tried to build something like this in the APPLICATION -> Add Lesson subpage previously. We could keep this area as a localized chat/learning for this particular job/application and then add a general one that has the capability to scan over all jobs/applications/info in the system
+
+- [ ] I want to expand the functionality in the profile section. Right now it is focused only on editing the jobsearch.md. What I would like to do here is to use a tabbed sub-nav like we have on the jobs page (JOB DETAIL, APPLICATION, etc). here each tab will represent one of the main user info files, which right now consist of jobsearch.md, jobsearch_cover.md, and we might as well build out subpages for the resume_template.typ and cover_letter_template.typ files. I will provide the functions and intent for each of these subpages when we are defining the workorders to build them out. 
