@@ -1,6 +1,6 @@
 # AIstivus — Project Specification v2.0
 > AI-Powered Job Search Management Platform
-> Version 2.0 — Phases 0–0.4 Complete, Phase 1.0 Active
+> Version 2.0 — Phase 1.6 Complete, Phase 1.7 Active
 
 ---
 
@@ -72,7 +72,7 @@ running a local development environment.
 | Linux | ✅ Fully supported |
 | Windows (native) | ❌ Not supported |
 | Windows (WSL2) | ⚠️ Community supported — use Linux tooling within WSL2 |
-| Windows (Docker) | ✅ Supported via Docker — Phase 1.5 |
+| Windows (Docker) | ✅ Supported via Docker — Phase 1.7 |
 
 **Technical requirements:**
 - Python 3.11+
@@ -142,7 +142,7 @@ docker-compose
 | Document gen | None | Typst binary (Phase 1.4) |
 | Logging | stdout | Python stdlib logging, structured JSON (Phase 1.0) |
 | Testing | Manual | pytest + Vitest (Phase 1.0) |
-| Deployment | Direct uvicorn | Docker + docker-compose (Phase 1.5) |
+| Deployment | Direct uvicorn | Docker + docker-compose (Phase 1.7) |
 
 ---
 
@@ -724,87 +724,74 @@ which are stored intentionally for debugging and copy/paste workflows).
 
 ## 16. Configuration Specification
 
-`config.yaml` owns infrastructure only. Model config lives in `llm_models` table.
+`user_data/config.yaml` (volume-mounted in Docker; gitignored) owns infrastructure only.
+Model config lives in `llm_models` table. Full template: `templates/CONFIG_TEMPLATE.yaml`.
+
+Key sections:
 
 ```yaml
-server:
-  host: 127.0.0.1
+app:
+  host: 127.0.0.1    # never 0.0.0.0 without a reverse proxy
   port: 8080
 
 database:
-  db_path: ./app_data/data/jobs.db
+  db_path: ./data/jobs.db
   llm_call_log_retention_days: 90   # 0 = keep forever
 
-inbox:
-  done_path: ./app_data/inbox/done
-  failed_path: ./app_data/inbox/failed
-
-evaluation:
+output:
   jobsearch_md_path: ./user_data/my_data/jobsearch.md
 
 typst:
-  binary_path: typst   # name or full path; resolved via PATH if just name
+  binary_path: typst                              # resolved via PATH or full path
   application_docs_dir: ./app_data/application_docs
 
 logging:
   level: INFO
-  file: ./app_data/logs/app.log
-  max_bytes: 10485760   # 10MB
-  backup_count: 5
+  max_file_size_mb: 10
+  keep_rotations: 5
   retention_days: 30
 ```
 
-Full template in `templates/CONFIG_TEMPLATE.yaml`.
+Ollama, cloud providers (Anthropic/OpenAI), inbox, scraping, and role keyword taxonomy
+are also in the template — see `templates/CONFIG_TEMPLATE.yaml` for the authoritative source.
 
 ---
 
 ## 17. Phase Structure
 
 ### Phase 0 — Complete ✅
-Core evaluation pipeline, HTML frontend, SQLite, Ollama, Anthropic provider,
-cloud evaluation confirmation dialog, application routes, settings routes,
-LLM usage routes, JSON import from Claude evaluation run.
+Core evaluation pipeline, HTML frontend, SQLite, Ollama, Anthropic provider. See git history.
 
-### Phase 1.0 — DB + Backend + Tests ✅
-Schema v1.0, evaluation pipeline, llm_call_log, slowapi, structured logging, pytest. See `app_docs/WORKORDER-phase1.x_completed.md`.
+### Phase 1.0 — Complete ✅
+Schema v1.0, evaluation pipeline, llm_call_log, slowapi, structured logging, pytest. See `app_docs/completed_workorders/`.
 
-### Phase 1.1 — React Frontend ✅
-Full React/TypeScript/Vite frontend; all HTML pages retired; React Query; Vitest. See `app_docs/WORKORDER-phase1.2_completed.md`.
+### Phase 1.1 — Complete ✅
+Full React/TypeScript/Vite frontend; all HTML pages retired; React Query; Vitest.
 
-### Phase 1.2 — Job Search Profile Builder ✅
-AI-assisted jobsearch.md editor, SSE streaming chat, profile routes, lesson capture, version history. See `app_docs/WORKORDER-phase1.2_completed.md`.
+### Phase 1.2 — Complete ✅
+AI-assisted jobsearch.md editor, SSE streaming chat, profile routes, lesson capture, version history.
 
-### Phase 1.3 — Multi-Server LLM Management ✅
-llm_servers table, named endpoints, Anthropic API key flow, Dashboard redesign. See `app_docs/WORKORDER-phase1.3_completed.md`.
+### Phase 1.3 — Complete ✅
+llm_servers table, named endpoints, Anthropic API key flow, Dashboard redesign.
 
-### Phase 1.4 — Settings Improvements + Job Lifecycle ✅
-Server-aware model dropdown, jobs.is_active flag, activate flow on Evaluate page, Dashboard stats expansion. See `app_docs/WORKORDER-phase1.4_completed.md`.
+### Phase 1.4 — Complete ✅
+Server-aware model dropdown, jobs.is_active flag, activate flow on Evaluate page, Dashboard stats expansion.
 
-### Phase 1.5 — Navigation & Workspace Overhaul ✅
-AppHeader on all pages, sidebar removed, Jobs/Applications as standalone list pages, full job workspace with 5-tab layout, unified activity log, application questions. See `app_docs/WORKORDER-phase1.5_completed.md`.
+### Phase 1.5 — Complete ✅
+AppHeader on all pages, sidebar removed, Jobs/Applications as standalone list pages, full job workspace with 5-tab layout, unified activity log, application questions.
 
-### Phase 1.6 — Typst / Documents 🔲
-**Goal: Import, compile, and view Typst resume files within the app.**
-
-Deliverables:
-- Typst binary startup validation (graceful degradation if not found)
-- `/api/v1/applications/{id}/documents` routes (upload, list, delete)
-- Compile endpoint: calls `typst compile` server-side, stores PDF
-- PDF viewer: served via file endpoint, opened in new browser tab
-- Document section on ApplicationDetail page
-- At least two bundled Typst resume templates in `templates/typst/`
-- Settings: Typst binary path configuration, generated files disk usage
+### Phase 1.6 — Complete ✅
+Typst document import, compile, view; document management UI; bundled resume + cover letter templates; document settings card. See `app_docs/completed_workorders/WORKORDER-phase1.6_completed.md`.
 
 ### Phase 1.7 — Docker 🔲
-**Goal: Consistent, portable local deployment. One container per user for family/multi-user use.**
+**Goal: Consistent, portable local deployment.**
 
 Deliverables:
-- `Dockerfile` — Python + Node build, single container
-- `docker-compose.yml` — volume mounts for `user_data/`, `app_data/`
+- `Dockerfile` — multi-stage: Node build → Python serve; Typst binary baked in
+- `docker-compose.yml` — volume mounts for `user_data/`, `app_data/`; env_file for API keys
 - `.dockerignore`
-- First-run wizard: network exposure warning, Typst binary note
-- README updated with Docker setup instructions and per-user container pattern
-- `config.yaml` volume-mounted (not baked into image)
+- `main.py`: mount `frontend/dist/` as StaticFiles + SPA catch-all route
+- README updated with Docker setup instructions
 
 ### Phase 2 — Extended Workflow 🔲 (Future)
 - URL ingestion (tiered: Playwright / Requests-HTML / BS4 / manual paste)
@@ -845,12 +832,14 @@ aistivus/
 ├── llm_client.py
 ├── logger.py
 ├── profile_routes.py
+├── document_routes.py
 ├── env_utils.py
 ├── templates/
 │   ├── CONFIG_TEMPLATE.yaml
 │   ├── JOBSEARCH_TEMPLATE.md
-│   └── typst/              (Phase 1.6 — bundled resume templates)
-├── pages/                  (read-only reference; retired Phase 1.1)
+│   ├── JOBSEARCH_COVER_TEMPLATE.md
+│   ├── INBOX_TEMPLATE.md
+│   └── typst/              (bundled resume + cover letter templates)
 ├── tests/
 │   ├── conftest.py
 │   ├── test_database.py
@@ -867,16 +856,19 @@ aistivus/
 │       ├── components/
 │       ├── pages/
 │       └── utils/
-├── app_docs/               (planning docs, workorders)
+├── app_docs/               (planning docs, workorders — committed)
 ├── user_data/              (gitignored — user-authored; Docker volume)
 │   ├── config.yaml
 │   └── my_data/
+│       ├── jobsearch.md
+│       └── resume_templates/
 ├── app_data/               (gitignored — app-generated; Docker volume)
 │   ├── data/
 │   ├── application_docs/
 │   ├── logs/
 │   └── inbox/
-└── ignore/                 (gitignored — local archive)
+├── ignore/                 (gitignored — local archive; never volume-mounted)
+└── memory/                 (gitignored — Claude tooling; stays at root)
 ```
 
 ---

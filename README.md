@@ -4,7 +4,7 @@
 
 Because companies use AI to filter candidates. You should use AI to find better ones.
 
-AIstivus is a locally-hosted, open-source web application that gives job seekers an AI-assisted command center for managing their entire job search — from evaluation through application tracking and resume generation.
+AIstivus is a locally-hosted, open-source web application — an AI-assisted command center for managing your entire job search: evaluate job descriptions against your background, track applications through the full lifecycle, and generate tailored resumes with Typst.
 
 **Everything runs on your machine. Your data stays private.**
 
@@ -12,34 +12,34 @@ AIstivus is a locally-hosted, open-source web application that gives job seekers
 
 ## What It Does
 
-- **Evaluate job descriptions** against your personal background and preferences using local AI models (Ollama) or cloud providers (Anthropic, OpenAI)
-- **Track evaluations** with structured scoring: overall fit, role fit, scope fit, culture signals, compensation alignment
-- **Extract keywords** from each JD for ATS-optimized resume tailoring
-- **Compare evaluations** across models — run cheap local evaluations for triage, then re-run top candidates against a more capable model
-- **Track applications** through the full lifecycle with audit history
-- **Generate tailored resumes** from a reusable content library (Phase 2)
-- **Discover new roles** automatically via job board scraping (Phase 3)
+- **Evaluate job descriptions** against your personal background using local AI models (Ollama) or cloud providers (Anthropic)
+- **Structured scoring** — overall fit, role fit, scope fit, culture signals, compensation alignment
+- **ATS keyword extraction** from every JD for resume tailoring
+- **Track applications** through the full lifecycle with audit history and activity log
+- **Document management** — import, compile, and view Typst-based resumes and cover letters
+- **Job Search Profile** — AI-assisted editor for your personal background context
 
 ---
 
 ## Current Status
 
-**Phase 0.1 — Working** ✅
-
-The core evaluation pipeline is operational. You can evaluate job descriptions, view results, and compare evaluations across runs.
-
-See [PROJECT_SPEC.md](PROJECT_SPEC.md) for the full roadmap.
+| Phase | Status | Description |
+|---|---|---|
+| Phase 1.6 — Document Management | ✅ Complete | Typst document import, compile, view; document management UI |
+| Phase 1.7 — Docker | 🔄 In Progress | Single-container Docker deployment |
+| Phase 2+ | Planned | Resume chunk library, URL ingestion, job board scraping |
 
 ---
 
-## Quick Start
+## Quick Start (Docker)
+
+> Docker deployment ships with Phase 1.7. In the meantime, see [Local Dev Setup](#local-dev-setup) below.
 
 ### Prerequisites
 
-- macOS or Linux (Windows: use WSL2 or wait for Docker in Phase 4)
-- Python 3.11+
-- [Ollama](https://ollama.com) installed and running
-- Git
+- [Docker](https://docs.docker.com/get-docker/) + Docker Compose
+- Optional: [Ollama](https://ollama.com) running on the host for local AI models
+- Optional: Anthropic API key for cloud evaluations
 
 ### 1. Clone the repo
 
@@ -48,54 +48,30 @@ git clone https://github.com/yourusername/aistivus.git
 cd aistivus
 ```
 
-### 2. Create a virtual environment
+### 2. Copy config and profile templates
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+mkdir -p user_data/my_data
+cp templates/CONFIG_TEMPLATE.yaml user_data/config.yaml
+cp templates/JOBSEARCH_TEMPLATE.md user_data/my_data/jobsearch.md
 ```
 
-### 3. Install dependencies
+Edit `user_data/my_data/jobsearch.md` — this is the AI's primary context for every evaluation. Fill it in before running evaluations.
+
+### 3. Set up your API key (optional — Anthropic only)
 
 ```bash
-pip install -r requirements.txt
+cp .env.example .env
+# Edit .env and add your ANTHROPIC_API_KEY
 ```
 
-### 4. Pull a model
+### 4. Start the app
 
 ```bash
-# Start Ollama if not already running
-brew services start ollama
-
-# Pull the recommended model (requires ~9GB disk)
-ollama pull qwen2.5-coder:14b
-
-# Or the lighter option (fits in 8GB VRAM)
-ollama pull qwen2.5-coder:7b
+docker-compose up
 ```
 
-### 5. Set up your config
-
-```bash
-cp templates/CONFIG_TEMPLATE.yaml config.yaml
-# Edit config.yaml if needed — defaults work for most setups
-```
-
-### 6. Set up your job search context
-
-```bash
-cp templates/JOBSEARCH_TEMPLATE.md jobsearch.md
-# Fill in jobsearch.md with your background, experience, and target role profile
-# This is the AI's primary context for every evaluation — take time to fill it in well
-```
-
-### 7. Start the server
-
-```bash
-python3 main.py
-```
-
-### 8. Open your browser
+### 5. Open your browser
 
 ```
 http://localhost:8080
@@ -103,32 +79,70 @@ http://localhost:8080
 
 ---
 
-## Using the Tool
+## Volume Mounts
 
-### Evaluating a Job Description
+Docker mounts two directories from your host machine:
 
-1. Go to **Evaluate** from the home page
-2. Fill in company name, job title, location (optional)
-3. Paste the full job description
-4. Hit **Evaluate** (or `Cmd+Enter`)
-5. Review the structured assessment: scores, fit type, strengths, gaps, and ATS keywords
+| Directory | Mount | Contents |
+|---|---|---|
+| `./user_data` | `/app/user_data` | Your config, job search profile, resume templates — **you own these** |
+| `./app_data` | `/app/app_data` | App-generated data: SQLite database, compiled docs, logs — **app-generated** |
 
-### Reviewing Past Evaluations
+Back these up before upgrading. Your job data lives in `app_data/data/jobs.db`.
 
-Go to **Evaluations** to see all past evaluations with:
-- Score, fit type, and recommendation at a glance
-- Full detail panel with strengths, gaps, and keywords
-- Inline report viewer
+---
 
-### Batch Processing via Inbox
+## Local Dev Setup
 
-Drop job description files into the `/inbox/` folder and run:
+For contributors or running without Docker.
+
+### Prerequisites
+
+- Python 3.11+
+- Node.js 18+
+- Optional: [Typst](https://typst.app) binary for document compilation
+- Optional: [Ollama](https://ollama.com) for local AI models
+
+### Backend
 
 ```bash
-python3 evaluate.py
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Set up config and profile (see Quick Start steps 2–3 above)
+
+python3 main.py
+# Runs at http://localhost:8080
 ```
 
-Files are processed and moved to `/inbox/done/`. Use the template at `templates/INBOX_TEMPLATE.md` for the correct format.
+### Frontend (dev mode)
+
+```bash
+cd frontend
+npm install
+npm run dev
+# Vite dev server at http://localhost:3000
+# Proxies /api/* to the backend on 8080
+```
+
+---
+
+## Typst (Optional)
+
+Typst is used for resume and cover letter compilation. The app degrades gracefully without it — you can still upload and view `.pdf` files; only compilation is disabled.
+
+Install:
+
+```bash
+# macOS
+brew install typst
+
+# Linux
+snap install typst
+```
+
+Bundled templates are in `templates/typst/`. Copy a template to get started, then upload it via the document tab on any job.
 
 ---
 
@@ -136,39 +150,27 @@ Files are processed and moved to `/inbox/done/`. Use the template at `templates/
 
 ```
 aistivus/
-├── main.py               FastAPI server — start here
-├── database.py           All database logic and schema
-├── evaluator.py          JD evaluation pipeline
-├── evaluate.py           CLI inbox processor
-├── llm_client.py         LLM abstraction (Ollama, Anthropic, OpenAI)
-├── index.html            Landing page
-├── evaluate.html         Evaluation UI
-├── evaluations.html      Evaluation history
-├── jobs.html             Jobs and opportunities view
-├── templates/            Template files — copy, don't edit
+├── main.py                   FastAPI server entry point
+├── database.py               All database logic and schema
+├── evaluator.py              JD evaluation pipeline
+├── document_routes.py        Document upload, compile, serve routes
+├── profile_routes.py         Job Search Profile routes + AI chat
+├── llm_client.py             LLM abstraction (Ollama, Anthropic)
+├── templates/                Template files — copy, don't edit in place
 │   ├── CONFIG_TEMPLATE.yaml
 │   ├── JOBSEARCH_TEMPLATE.md
-│   └── INBOX_TEMPLATE.md
-├── config.yaml           Your working config (gitignored)
-├── jobsearch.md          Your job search context (gitignored)
-├── data/                 SQLite database (gitignored)
-├── reports/              Markdown evaluation reports (gitignored)
-└── inbox/                Drop JD files here for batch processing (gitignored)
+│   └── typst/                Bundled Typst resume + cover letter templates
+├── frontend/                 React 18 / TypeScript / Vite frontend
+├── tests/                    pytest backend tests
+├── user_data/                Your data (gitignored) — Docker volume
+│   ├── config.yaml
+│   └── my_data/
+│       └── jobsearch.md
+└── app_data/                 App-generated data (gitignored) — Docker volume
+    ├── data/                 SQLite database
+    ├── application_docs/     Uploaded and compiled documents
+    └── logs/
 ```
-
----
-
-## Configuration
-
-Copy `templates/CONFIG_TEMPLATE.yaml` to `config.yaml`. Key settings:
-
-| Setting | Default | Description |
-|---|---|---|
-| `ollama.base_url` | `http://localhost:11434` | Ollama server URL |
-| `ollama.default_model` | `qwen2.5-coder:14b` | Default model for evaluations |
-| `evaluation.min_score_threshold` | `6.0` | Minimum score to flag as a strong candidate |
-| `app.host` | `127.0.0.1` | Bind address — do not change to `0.0.0.0` without a reverse proxy |
-| `app.port` | `8080` | Server port |
 
 ---
 
@@ -176,10 +178,10 @@ Copy `templates/CONFIG_TEMPLATE.yaml` to `config.yaml`. Key settings:
 
 AIstivus is designed as a local, single-user tool:
 
-- Binds to `localhost` only by default — not accessible from the network
-- All data stored locally in SQLite — nothing sent to external services unless you configure a cloud LLM provider
-- API keys stored in `.env` only — never in the database or config files
-- If you expose the port on your network (WSL2, bridged VM), use a reverse proxy with authentication (Traefik + Authelia recommended)
+- Binds to `127.0.0.1` by default — not accessible from the network
+- All data stored locally in SQLite — nothing sent externally unless you configure a cloud LLM
+- API keys in `.env` only — never in the database or config
+- If you expose the port (WSL2, bridged VM, Docker with host networking), use a reverse proxy with authentication (Traefik + Authelia recommended)
 
 ---
 
@@ -189,31 +191,15 @@ AIstivus is designed as a local, single-user tool:
 |---|---|
 | macOS | ✅ Fully supported |
 | Linux | ✅ Fully supported |
-| Windows (WSL2) | ⚠️ Community supported |
-| Windows (native) | ❌ Not supported — use WSL2 or wait for Docker (Phase 4) |
-
----
-
-## Roadmap
-
-| Phase | Status | Description |
-|---|---|---|
-| Phase 0 | ✅ Complete | Core evaluation pipeline, SQLite database, web UI |
-| Phase 0.1 | ✅ Complete | Jobs page, re-evaluate with model picker, inbox CLI |
-| Phase 1 | 🔄 Next | React/TypeScript frontend, application tracking, cloud LLM support |
-| Phase 2 | Planned | Resume library, document generation, URL ingestion |
-| Phase 3 | Planned | Job board scraping, repost detection, chat interface |
-| Phase 4 | Planned | Docker, authentication, multi-project support |
-
-Full specification: [PROJECT_SPEC.md](PROJECT_SPEC.md)
+| Windows (Docker) | ✅ Supported via Docker (Phase 1.7) |
+| Windows (WSL2) | ⚠️ Community supported — use Linux tooling within WSL2 |
+| Windows (native) | ❌ Not supported |
 
 ---
 
 ## Contributing
 
-This project is in early development. Contributions welcome once Phase 1 is stable.
-
-See [FEATURES.md](FEATURES.md) for the backlog of ideas.
+Contributions welcome. See [app_docs/FEATURES.md](app_docs/FEATURES.md) for the backlog of ideas and [PROJECT_SPEC.md](PROJECT_SPEC.md) for the full specification.
 
 ---
 
@@ -224,7 +210,5 @@ MIT — see [LICENSE](LICENSE)
 ---
 
 ## Legal
-
-AIstivus scrapes publicly available job board data. Users are responsible for complying with each platform's Terms of Service. See [LEGAL_DISCLAIMER.md](LEGAL_DISCLAIMER.md).
 
 AI-generated evaluations are advisory only. Always apply your own judgment before making application decisions.

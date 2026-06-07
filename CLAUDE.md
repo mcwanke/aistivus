@@ -72,28 +72,17 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 ---
 
-## Current Phase: PHASE 1.6 — Document Management
+## Current Phase: PHASE 1.7 — Docker
 
-### Phase 1.6 Checklist ✅
-- [x] Config: `typst:` section in `CONFIG_TEMPLATE.yaml` (`binary_path`, `application_docs_dir`; moved from `output:`)
-- [x] DB: `get_document_by_id()`; `get_document_by_file_path()`; `set_document_final()`; `is_final` delta migration (`application_info` type dropped from Phase 1.6)
-- [x] Startup: Typst binary check → `app.state.typst_available`; create `app_data/application_docs/` on startup; extend health endpoint with `typst_available`
-- [x] `document_routes.py`: upload (5MB/.typ 20MB/.pdf, sanitize, audit log), list, delete (file + record + audit log), file serve route, content GET/PUT, compile, finalize, template list/copy
-- [x] Compile route: DRAFT_ naming convention, 30s timeout, replace-on-compile, 503 if unavailable
-- [x] `GET /api/v1/settings/documents-storage` endpoint (disk usage + Typst status)
-- [x] Two bundled Typst templates in `templates/typst/` (resume/ and cover-letter/ subdirs)
-- [x] TypeScript interfaces in `frontend/src/types/documents.ts`
-- [x] React hooks: `useApplicationDocuments`, `useUploadDocument`, `useDeleteDocument`, `useCompileDocument`, `useDocumentsStorage`, and more in `useDocuments.ts`
-- [x] Document section on ApplicationDetail (RESUME/COVER tab: file list, type-selector upload, template picker, compile/open/delete, Typst-unavailable banner)
-- [x] Settings: Document Storage card (Typst status + `app_data/application_docs/` disk usage)
-- [x] Backend tests for all document routes (57 tests in `tests/routes/test_documents.py`)
-- [x] Frontend tests for Document tab on ApplicationDetail
+### Phase 1.6 — Document Management ✅ Complete
+See `app_docs/completed_workorders/WORKORDER-phase1.6_completed.md` for the full deliverable record.
 
 ### Phase 1.7 Checklist 🔲
-- [ ] Dockerfile
-- [ ] docker-compose.yml (volume mounts: user_data/, app_data/)
+- [ ] Dockerfile (multi-stage: Node build → Python serve; Typst binary baked in)
+- [ ] docker-compose.yml (volume mounts: user_data/, app_data/; env_file: .env; port 8080)
 - [ ] .dockerignore
-- [ ] README Docker setup instructions
+- [ ] `main.py`: mount `frontend/dist/` as StaticFiles + SPA catch-all route for React Router
+- [ ] Validation: build, run, smoke test
 
 ### Target File Structure
 ```
@@ -118,9 +107,7 @@ aistivus/
 │   └── typst/
 │       ├── README.md
 │       ├── resume/
-│       │   └── simple-resume.typ
 │       └── cover-letter/
-│           └── simple-cover-letter.typ
 ├── tests/
 │   ├── conftest.py
 │   ├── test_database.py
@@ -171,15 +158,16 @@ aistivus/
 | Logging | Python stdlib logging — structured JSON (Phase 1.0) |
 | Testing | pytest + Vitest (Phase 1.0/1.1) |
 | Streaming | SSE via FastAPI `StreamingResponse` (Phase 1.2) |
-| Deployment | Docker + docker-compose (Phase 1.5) |
+| Deployment | Docker + docker-compose (Phase 1.7) |
 
 ---
 
 ## Database Rules (Non-Negotiable)
 
-- **Schema wipe policy (active until rescinded):** All breaking schema changes are handled
-  by wiping the database and rebuilding from scratch. No migration scripts are needed or
-  written. Do not write migration code unless this policy is explicitly changed.
+- **Schema migration policy:** The wipe-and-rebuild policy is **retired** — the user has
+  real data in the database. All schema changes must be **delta migrations**: `ALTER TABLE`
+  to add columns, `CREATE TABLE` for new tables. Never drop and recreate tables. Never call
+  `init_db()` in a way that would destroy existing data.
 
 - **All database logic lives in `database.py`.** No SQL anywhere else.
 - **All queries use parameterized statements.** No string interpolation in SQL. Ever.
@@ -273,7 +261,7 @@ prompt = f"[JD_START]\n{jd_clean}\n[JD_END]"
 - **SHA-256 for all hashing.** Never MD5.
 - **Delimiter injection prevention** on every evaluation.
 - **File path sanitization:** `[a-zA-Z0-9_-]` only for generated paths, max 64 chars,
-  validated within `/generated/`.
+  validated within `app_data/application_docs/`.
 - **All API routes use `/api/v1/` prefix.**
 - **Settings GET for API keys:** boolean presence only — never echo values.
 
@@ -354,7 +342,7 @@ Stop and ask for explicit confirmation before:
 - Adding any new Python or JavaScript/TypeScript dependency
 - Modifying the database schema
 - Changing the LLM client interface
-- Writing to the filesystem outside `data/`, `generated/`, `reports/`, or `inbox/`
+- Writing to the filesystem outside `user_data/`, `app_data/`, or `ignore/`
 - Adding any network binding outside `127.0.0.1`
 - Logging anything that could capture user content, API keys, or PII
 - Refactoring working code not related to the current task
@@ -367,7 +355,7 @@ Stop and ask for explicit confirmation before:
 - No additional frontend frameworks beyond React/Vite/TypeScript/Tailwind
 - No Axios — React Query + fetch only
 - No raw `fetch()` in React components for server state — use React Query
-- No authentication (Phases 1.0–1.2)
+- No authentication (Phases 1.0–1.7; covered by localhost binding or reverse proxy)
 - No telemetry or analytics
 - No SQL outside `database.py`
 - No LLM API calls outside `llm_client.py`
@@ -375,7 +363,6 @@ Stop and ask for explicit confirmation before:
 - No hard-deletion of `resume_info` records
 - No automatic schema changes on startup (the one exception: auto-seed `llm_models` from
   config.yaml on first run when table is empty)
-- Do not modify HTML pages in `pages/` — read-only reference material
 - Do not build React pages without first defining TypeScript interfaces in `frontend/src/types/`
 - Do not use `any` type in TypeScript
 - Do not add frontend dependencies without explicit instruction
@@ -390,12 +377,10 @@ Stop and ask for explicit confirmation before:
 |---|---|
 | `PROJECT_SPEC.md` | Full specification — architecture, schema, pipeline, phases |
 | `CLAUDE.md` | This file — rules and current state for code generation |
-| `FEATURES.md` | Backlog of future ideas — not scheduled work |
-| `WORKORDER_ideas.md` | Design notes and ideas scratchpad |
-| `jobsearch.md` | User's job search context (gitignored) |
-| `config.yaml` | Runtime infrastructure configuration |
+| `app_docs/FEATURES.md` | Backlog of future ideas — not scheduled work |
+| `user_data/config.yaml` | Runtime infrastructure configuration (gitignored) |
+| `user_data/my_data/jobsearch.md` | User's job search context (gitignored) |
 | `database.py` | Authoritative schema and all DB helper functions |
-| `pages/` | HTML pages — read-only reference, retired in Phase 1.1 |
 | `templates/` | Template files users copy to create working copies |
 
 ---
