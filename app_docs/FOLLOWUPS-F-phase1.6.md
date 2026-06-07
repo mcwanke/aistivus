@@ -15,7 +15,7 @@ Final cleanup pass before Phase 1.7 (Docker). Goals:
 | # | Status | Title |
 |---|--------|-------|
 | F1 | [x] | `WORKORDER_phase1.6_followups.md` — mark completed/deferred items |
-| F2 | [ ] | Fix 6 pre-existing failing frontend tests (`Evaluate.test.tsx`) |
+| F2 | [x] | Fix 6 pre-existing failing frontend tests (`Evaluate.test.tsx`) |
 | F3 | [ ] | Write `WORKORDER_phase1.7.md` |
 | F4a | [ ] | Security pass — review codebase + write findings to `ignore/SECURITY_NOTES.md` |
 | F4b | [ ] | Security pass — evaluate findings + address open items (own session, after F4a) |
@@ -32,6 +32,11 @@ Status markers: `[ ]` todo · `[x]` done · `[~]` deferred
 ## Test Baseline (going in)
 
 - Frontend: 224 passed / 6 pre-existing failures (`Evaluate.test.tsx`) — 230 total
+- Backend: 578 passed / 0 errors
+
+## Test Baseline (after F2)
+
+- Frontend: 229 passed / 0 failures — 229 total (1 stale test deleted; 5 assertions updated)
 - Backend: 578 passed / 0 errors
 
 ---

@@ -38,11 +38,6 @@ describe('Evaluate page', () => {
     expect(screen.getByRole('button', { name: 'Evaluate' })).toBeInTheDocument()
   })
 
-  it('renders Import Claude eval button', () => {
-    renderWithProviders(<Evaluate />)
-    expect(screen.getByRole('button', { name: 'Import Claude eval' })).toBeInTheDocument()
-  })
-
   it('shows model selector after models load', async () => {
     renderWithProviders(<Evaluate />)
     await waitFor(() =>
@@ -85,7 +80,7 @@ describe('Evaluate page', () => {
 
     // Result panel shows company, title, and overall score from mock (8)
     await waitFor(() => expect(screen.getByText('8.0')).toBeInTheDocument(), { timeout: 5000 })
-    expect(screen.getByText('/10')).toBeInTheDocument()
+    expect(screen.getByText('/ 10')).toBeInTheDocument()
   })
 
   it('shows idle hint text by default', () => {
@@ -107,18 +102,18 @@ describe('Evaluate page — activate CTA', () => {
   it('shows CTA after evaluation when job is inactive', async () => {
     renderWithProviders(<Evaluate />)
     await runEvaluation()
-    expect(screen.getByRole('button', { name: 'Yes, build this job' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'No, skip for now' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Yes, Go to Job' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'No, Skip Job' })).toBeInTheDocument()
   })
 
   it('does not show CTA when job is already active', async () => {
     const user = userEvent.setup()
     renderWithProviders(<Evaluate />)
     await runEvaluation()
-    await user.click(screen.getByRole('button', { name: 'Yes, build this job' }))
+    await user.click(screen.getByRole('button', { name: 'Yes, Go to Job' }))
     await waitFor(
       () =>
-        expect(screen.queryByRole('button', { name: 'Yes, build this job' })).not.toBeInTheDocument(),
+        expect(screen.queryByRole('button', { name: 'Yes, Go to Job' })).not.toBeInTheDocument(),
       { timeout: 5000 },
     )
   })
@@ -144,7 +139,7 @@ describe('Evaluate page — activate CTA', () => {
     await user.type(textarea, 'Senior engineer role.')
     await user.click(screen.getByRole('button', { name: 'Evaluate' }))
     await waitFor(
-      () => expect(screen.getByRole('button', { name: 'Yes, build this job' })).toBeInTheDocument(),
+      () => expect(screen.getByRole('button', { name: 'Yes, Go to Job' })).toBeInTheDocument(),
       { timeout: 5000 },
     )
     expect(screen.getByText('Evaluation completed.')).toBeInTheDocument()
@@ -154,10 +149,10 @@ describe('Evaluate page — activate CTA', () => {
     const user = userEvent.setup()
     renderWithProviders(<Evaluate />)
     await runEvaluation()
-    await user.click(screen.getByRole('button', { name: 'No, skip for now' }))
+    await user.click(screen.getByRole('button', { name: 'No, Skip Job' }))
     const textarea = screen.getByPlaceholderText('Paste the full job description here…')
     expect((textarea as HTMLTextAreaElement).value).toBe('')
-    expect(screen.queryByRole('button', { name: 'Yes, build this job' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Yes, Go to Job' })).not.toBeInTheDocument()
     expect(screen.queryByText('8.0')).not.toBeInTheDocument()
   })
 })
