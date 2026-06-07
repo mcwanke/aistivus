@@ -18,7 +18,7 @@ Final cleanup pass before Phase 1.7 (Docker). Goals:
 | F2 | [x] | Fix 6 pre-existing failing frontend tests (`Evaluate.test.tsx`) |
 | F3 | [x] | Write `WORKORDER_phase1.7.md` |
 | F4a | [x] | Security pass — review codebase + write findings to `ignore/SECURITY_NOTES.md` |
-| F4b | [ ] | Security pass — evaluate findings + address open items (own session, after F4a) |
+| F4b | [x] | Security pass — evaluate findings + address open items (own session, after F4a) |
 | F5 | [x] | Update `README.md` for post-phase-1.7 state |
 | F6 | [x] | `CLAUDE.md` + `PROJECT_SPEC.md` — cleanup + minimize |
 | F7 | [x] | Create `ignore/MIGRATION_PLAN.md` |

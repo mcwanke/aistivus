@@ -38,6 +38,9 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(main_module, "_update_model_availability", _noop_update)
     monkeypatch.setattr(main_module, "_load_config", lambda: {})
 
+    import limiter as limiter_module
+    monkeypatch.setattr(limiter_module.limiter, "enabled", False)
+
     from main import app
     with TestClient(app, raise_server_exceptions=True) as c:
         yield c

@@ -101,10 +101,9 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from pydantic import BaseModel, field_validator
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 import database
 import document_routes
@@ -113,17 +112,12 @@ import evaluator
 import llm_client
 import profile_routes
 from env_utils import get_env_key, load_dotenv
+from limiter import limiter
 from logger import get_logger
 
 load_dotenv()
 
 log = get_logger(__name__)
-
-# ─────────────────────────────────────────────────────────────
-# Rate limiter
-# ─────────────────────────────────────────────────────────────
-
-limiter = Limiter(key_func=get_remote_address)
 
 # ─────────────────────────────────────────────────────────────
 # Configuration
@@ -261,6 +255,8 @@ app = FastAPI(
     description="AI Job Search Helper for the Rest of Us",
     version="1.0.0",
     lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
 )
 
 app.state.limiter = limiter
@@ -415,6 +411,14 @@ class UpdateAppSettingRequest(BaseModel):
 class UpdateTimestampRequest(BaseModel):
     timestamp: str
 
+    @field_validator("timestamp")
+    @classmethod
+    def validate_iso_format(cls, v: str) -> str:
+        import re
+        if not re.match(r"^\d{4}-\d{2}-\d{2}", v.strip()):
+            raise ValueError("timestamp must begin with a date in YYYY-MM-DD format")
+        return v
+
 
 class UpdateSettingsRequest(BaseModel):
     settings: dict[str, str]
@@ -482,6 +486,8 @@ _VALID_STATUSES = frozenset({
     "offer", "rejected", "ghosted", "withdrawn",
 })
 
+_VALID_APP_SETTING_KEYS = frozenset({"allow_audit_timestamp_edit"})
+
 
 async def _lesson_sse_generator(
     prompt: str,
@@ -509,7 +515,8 @@ async def _lesson_sse_generator(
                 had_error = True
                 break
             accumulated.append(token)
-            yield f"data: {token}\n\n"
+            safe_token = token.replace("\n", "\ndata: ")
+            yield f"data: {safe_token}\n\n"
     except Exception as exc:
         log.warning("lesson_chat_stream_error", extra={"error": str(exc)})
         had_error = True
@@ -1868,7 +1875,7 @@ async def lesson_chat(
         )
     model_info = dict(default_model)
     endpoint = model_info.get("endpoint", "")
-    provider = "anthropic" if "anthropic.com" in endpoint else "ollama"
+    provider = "anthropic" if model_info.get("server_type") == "anthropic" else "ollama"
 
     job = database.get_job(app_dict["job_id"])
     job_dict = dict(job) if job else {}
@@ -2241,6 +2248,8 @@ async def get_app_settings(request: Request):
 @limiter.limit("30/minute")
 async def update_app_setting(request: Request, key: str, body: UpdateAppSettingRequest):
     """Update a single app_settings value by key."""
+    if key not in _VALID_APP_SETTING_KEYS:
+        raise HTTPException(status_code=400, detail=f"Unknown setting key: '{key}'")
     database.set_app_setting(key, body.value)
     return JSONResponse({"success": True, "key": key, "value": body.value})
 

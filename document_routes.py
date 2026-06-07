@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 import database
+from limiter import limiter
 from logger import get_logger
 
 log = get_logger(__name__)
@@ -133,6 +134,7 @@ _MAX_PDF_BYTES = 20 * 1024 * 1024   # 20 MB
 # ─────────────────────────────────────────────────────────────
 
 @router.post("/applications/{application_id}/documents", status_code=201)
+@limiter.limit("20/minute")
 async def upload_document(
     request: Request,
     application_id: int,
@@ -163,6 +165,10 @@ async def upload_document(
             status_code=413,
             detail=f"{ext} files must be {mb} MB or smaller.",
         )
+
+    # Reject non-PDF binaries uploaded with a .pdf extension
+    if ext == ".pdf" and not content[:4] == b"%PDF":
+        raise HTTPException(status_code=422, detail="File does not appear to be a valid PDF.")
 
     sanitized = _sanitize_filename(file.filename or "")
     if not sanitized:
@@ -209,6 +215,7 @@ async def upload_document(
 # ─────────────────────────────────────────────────────────────
 
 @router.get("/applications/{application_id}/documents")
+@limiter.limit("60/minute")
 async def list_documents(request: Request, application_id: int):
     """List all documents for an application with computed file metadata."""
     if not database.get_application(application_id):
@@ -232,6 +239,7 @@ async def list_documents(request: Request, application_id: int):
 # ─────────────────────────────────────────────────────────────
 
 @router.delete("/applications/{application_id}/documents/{doc_id}")
+@limiter.limit("30/minute")
 async def delete_document(request: Request, application_id: int, doc_id: int):
     """Delete a document record and its file from disk."""
     doc = database.get_document_by_id(doc_id)
@@ -265,6 +273,7 @@ async def delete_document(request: Request, application_id: int, doc_id: int):
 _RENAME_PATTERN = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
 
 @router.patch("/applications/{application_id}/documents/{document_id}/rename")
+@limiter.limit("30/minute")
 async def rename_document(
     request: Request,
     application_id: int,
@@ -324,6 +333,7 @@ async def rename_document(
 # ─────────────────────────────────────────────────────────────
 
 @router.get("/documents/file/{doc_id}")
+@limiter.limit("60/minute")
 async def serve_document(
     request: Request,
     doc_id: int,
@@ -365,6 +375,7 @@ async def serve_document(
 # ─────────────────────────────────────────────────────────────
 
 @router.get("/applications/{application_id}/documents/{doc_id}/content")
+@limiter.limit("60/minute")
 async def get_document_content(request: Request, application_id: int, doc_id: int):
     """Return the text content of a .typ file."""
     doc = database.get_document_by_id(doc_id)
@@ -393,6 +404,7 @@ async def get_document_content(request: Request, application_id: int, doc_id: in
 # ─────────────────────────────────────────────────────────────
 
 @router.put("/applications/{application_id}/documents/{doc_id}/content")
+@limiter.limit("30/minute")
 async def save_document_content(
     request: Request,
     application_id: int,
@@ -434,6 +446,7 @@ async def save_document_content(
 # ─────────────────────────────────────────────────────────────
 
 @router.get("/templates/typst")
+@limiter.limit("60/minute")
 async def list_typst_templates(request: Request):
     """List available Typst templates grouped by category."""
     templates_base = Path("templates/typst")
@@ -464,6 +477,7 @@ async def list_typst_templates(request: Request):
 # ─────────────────────────────────────────────────────────────
 
 @router.post("/applications/{application_id}/documents/from-template", status_code=201)
+@limiter.limit("20/minute")
 async def copy_template(
     request: Request,
     application_id: int,
@@ -546,6 +560,7 @@ async def copy_template(
 # ─────────────────────────────────────────────────────────────
 
 @router.post("/applications/{application_id}/documents/{doc_id}/compile")
+@limiter.limit("5/minute")
 async def compile_document(request: Request, application_id: int, doc_id: int):
     """Compile a .typ file to DRAFT_{base}.pdf via the Typst binary."""
     if not getattr(request.app.state, "typst_available", False):
@@ -630,6 +645,7 @@ async def compile_document(request: Request, application_id: int, doc_id: int):
 # ─────────────────────────────────────────────────────────────
 
 @router.post("/applications/{application_id}/documents/{doc_id}/finalize")
+@limiter.limit("20/minute")
 async def finalize_document(request: Request, application_id: int, doc_id: int):
     """Copy a DRAFT PDF to a structured final filename and mark it as final."""
     doc = database.get_document_by_id(doc_id)

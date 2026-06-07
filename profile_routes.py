@@ -225,7 +225,7 @@ def _resolve_default_model() -> dict | None:
         return None
     d = dict(row)
     endpoint = d.get("endpoint", "")
-    provider = "anthropic" if "anthropic.com" in endpoint else "ollama"
+    provider = "anthropic" if d.get("server_type") == "anthropic" else "ollama"
     return {
         "id": d["id"],
         "model": d["model"],
@@ -241,7 +241,7 @@ def _resolve_model(model_id: int | None) -> dict | None:
         if row:
             d = dict(row)
             endpoint = d.get("endpoint", "")
-            provider = "anthropic" if "anthropic.com" in endpoint else "ollama"
+            provider = "anthropic" if d.get("server_type") == "anthropic" else "ollama"
             return {
                 "id": d["id"],
                 "model": d["model"],
@@ -336,7 +336,8 @@ async def _sse_generator(
                 had_error = True
                 break
             accumulated.append(token)
-            yield f"data: {token}\n\n"
+            safe_token = token.replace("\n", "\ndata: ")
+            yield f"data: {safe_token}\n\n"
     except Exception as exc:
         log.warning("profile_chat_stream_error", extra={"error": str(exc)})
         had_error = True
