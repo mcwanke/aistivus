@@ -934,16 +934,11 @@ async def generate_orgsummary_prompt(request: Request, job_id: int):
     job_dict = dict(job)
 
     # Resolve application_id — earliest application for this job, same as get_activity_log
-    with database.get_connection() as conn:
-        row = conn.execute(
-            "SELECT id FROM applications WHERE job_id = ? ORDER BY id ASC LIMIT 1",
-            (job_id,)
-        ).fetchone()
-    if not row:
+    application_id = database.get_earliest_application_for_job(job_id)
+    if application_id is None:
         raise HTTPException(
             status_code=404, detail=f"No application found for job {job_id}."
         )
-    application_id = row["id"]
 
     # Pull website URL from company log if present
     company_log = database.get_job_company_log(job_id, type_name="company_info")

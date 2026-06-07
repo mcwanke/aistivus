@@ -14,7 +14,7 @@ Rules (from CLAUDE.md):
 - llm_models.default_flag: only one record may have default_flag = 1.
 - data/ directory is created automatically on first run.
 
-Schema version: 1.0
+Schema version: 1.5
 """
 
 import hashlib
@@ -958,8 +958,6 @@ def get_all_jobs(include_inactive: bool = False) -> list[sqlite3.Row]:
         return conn.execute(
             f"""SELECT j.*,
                       a.id AS application_id,
-                      a.application_status,
-                      a.id AS application_id,
                       a.application_status
                FROM jobs j
                LEFT JOIN applications a ON a.id = (
@@ -1436,6 +1434,16 @@ def get_application_for_job(job_id: int) -> sqlite3.Row | None:
             "SELECT * FROM applications WHERE job_id = ? ORDER BY id DESC LIMIT 1",
             (job_id,)
         ).fetchone()
+
+
+def get_earliest_application_for_job(job_id: int) -> int | None:
+    """Return the id of the earliest application for a job, or None."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id FROM applications WHERE job_id = ? ORDER BY id ASC LIMIT 1",
+            (job_id,)
+        ).fetchone()
+    return row["id"] if row else None
 
 
 def get_all_applications(exclude_not_started: bool = True) -> list[sqlite3.Row]:

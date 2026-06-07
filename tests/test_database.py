@@ -1070,3 +1070,39 @@ class TestUpsertCompanySummary:
         summary_entries = [e for e in log if dict(e)["type_value"] == "summary"]
         assert len(summary_entries) == 1
         assert dict(summary_entries[0])["log"] == "Updated text."
+
+
+# ─────────────────────────────────────────────────────────────
+# get_earliest_application_for_job
+# ─────────────────────────────────────────────────────────────
+
+class TestGetEarliestApplicationForJob:
+    def test_returns_earliest_application_id(self, tmp_db):
+        job_id, _ = database.upsert_job("Earliest App Co", "Engineer", "backend")
+        app_id = database.get_earliest_application_for_job(job_id)
+        # upsert_job auto-creates a not-started application
+        assert app_id is not None
+        assert isinstance(app_id, int)
+
+    def test_returns_none_for_job_with_no_applications(self, tmp_db):
+        # Insert a job without triggering auto-application creation
+        with database.get_connection() as conn:
+            conn.execute(
+                "INSERT INTO jobs (company_name, title, role_keyword) VALUES (?, ?, ?)",
+                ("Ghost Co", "Ghost Role", "backend")
+            )
+            job_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        result = database.get_earliest_application_for_job(job_id)
+        assert result is None
+
+    def test_returns_first_created_when_multiple_applications_exist(self, tmp_db):
+        job_id, _ = database.upsert_job("Multi App Co", "Manager", "management")
+        first_app_id = database.get_earliest_application_for_job(job_id)
+        # Insert a second application manually
+        with database.get_connection() as conn:
+            conn.execute(
+                "INSERT INTO applications (job_id, application_status) VALUES (?, 'draft')",
+                (job_id,)
+            )
+        result = database.get_earliest_application_for_job(job_id)
+        assert result == first_app_id

@@ -10,11 +10,11 @@ Source: `ignore/DISCUSSION_MACRO_REVIEW.md`
 
 | # | Status | Title |
 |---|--------|-------|
-| G1 | [ ] | Fix independent `Limiter` in `profile_routes.py` — use shared instance |
-| G2 | [ ] | Move SQL from `main.py` `generate_orgsummary_prompt` to `database.py` |
-| G3 | [ ] | Fix stale schema version comment in `database.py` |
-| G4 | [ ] | Remove duplicate column aliases in `get_all_jobs()` |
-| G5 | [ ] | Conditionalize `ReactQueryDevtools` on `import.meta.env.DEV` |
+| G1 | [x] | Fix independent `Limiter` in `profile_routes.py` — use shared instance |
+| G2 | [x] | Move SQL from `main.py` `generate_orgsummary_prompt` to `database.py` |
+| G3 | [x] | Fix stale schema version comment in `database.py` |
+| G4 | [x] | Remove duplicate column aliases in `get_all_jobs()` |
+| G5 | [x] | Conditionalize `ReactQueryDevtools` on `import.meta.env.DEV` |
 
 Status markers: `[ ]` todo · `[x]` done · `[~]` deferred
 
@@ -162,13 +162,9 @@ Run the full test suite after G2 (the only item that touches tested code).
 
 ---
 
-## Validation Plan
+## Validation Results (2026-06-07)
 
-**After G2:**
-- `pytest tests/ -v` → 578+ passed / 0 errors (new helper tests add to count)
-- `cd frontend && npm test` → 229 passed / 0 failures
+**All items complete.**
 
-**After all items:**
-- Full test suite green
-- Manual smoke test: load the Evaluate page and trigger the org summary prompt to
-  confirm `generate_orgsummary_prompt` still returns a valid response
+- Backend: 581 passed / 0 errors (3 new tests from G2 helper)
+- Frontend: 229 passed / 0 failures

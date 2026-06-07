@@ -29,15 +29,12 @@ import yaml
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-
 import database
 import llm_client
+from limiter import limiter
 from logger import get_logger
 
 log = get_logger(__name__)
-limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
 
 # ─────────────────────────────────────────────────────────────
