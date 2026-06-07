@@ -14,7 +14,7 @@ Final cleanup pass before Phase 1.7 (Docker). Goals:
 
 | # | Status | Title |
 |---|--------|-------|
-| F1 | [ ] | `WORKORDER_phase1.6_followups.md` — mark completed/deferred items |
+| F1 | [x] | `WORKORDER_phase1.6_followups.md` — mark completed/deferred items |
 | F2 | [ ] | Fix 6 pre-existing failing frontend tests (`Evaluate.test.tsx`) |
 | F3 | [ ] | Write `WORKORDER_phase1.7.md` |
 | F4a | [ ] | Security pass — review codebase + write findings to `ignore/SECURITY_NOTES.md` |

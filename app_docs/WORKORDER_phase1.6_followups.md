@@ -49,9 +49,9 @@ This looks weird. It should be TYPE then URL on the first line with TYPE being 3
 
 - [X] we are dropping or changing a bunch of the fields from these two pages, things like: Phone Screen, On-site Interview, etc. This is ok. Most of these should be items in the INTERVIEW subpage anyways. That will be worked on in a future FOLLOWUPS item. (B8)
 
-# FOLLOWUPS-C - this is the third collection of follow ups to phase 1.6
+# FOLLOWUPS-C [x] COMPLETE — see FOLLOWUPS-C-phase1.6_completed.md
 
-- a quick walkthrough page-by-page:
+-[x] a quick walkthrough page-by-page:
   - JOB DETAILS -> Job Detail Summary - looks good to me
   - JOB DETAILS -> Evaluations - also looking good and working well
   - JOB DETAILS -> Job Description - working well, good to go
@@ -63,13 +63,13 @@ This looks weird. It should be TYPE then URL on the first line with TYPE being 3
   - APPLICATION -> Application Questions - page is good for now
   - APPLICATION -> Add Lesson - probably good, haven't re-tested it in a while but last time I checked it was working ok
 
-- now on to the RESUME / COVER page. The uploading and typst functions are working well here. I have been using them actively. The first thing I would change is that it would be nice to have a "Rename" button on a line that pops up a textbox where I can change the name of a file and this change will propagate to the db and disk.
+-[x] now on to the RESUME / COVER page. The uploading and typst functions are working well here. I have been using them actively. The first thing I would change is that it would be nice to have a "Rename" button on a line that pops up a textbox where I can change the name of a file and this change will propagate to the db and disk.
 
--next, on the RESUME / COVER page we need to define the workflows for the "Generate Resume" and "Generate Cover Letter" buttons. For these, they need to both generate prompts like we do on the JOB DETAILS -> Evaluations page with the "Generate External Eval" button - so show the popup with a copy button. This will be the first pass. Once we get that working I will see about how I want to modify the workflow to use any defined AIs for automatic generation. I will provide the prompt text at the point that we are actually building the functions, not now.
+-[x] next, on the RESUME / COVER page we need to define the workflows for the "Generate Resume" and "Generate Cover Letter" buttons. For these, they need to both generate prompts like we do on the JOB DETAILS -> Evaluations page with the "Generate External Eval" button - so show the popup with a copy button. This will be the first pass. Once we get that working I will see about how I want to modify the workflow to use any defined AIs for automatic generation. I will provide the prompt text at the point that we are actually building the functions, not now.
 
--we will save the INTERVIEW subpage for another followups round as I want to add a few things there.
+-[~] we will save the INTERVIEW subpage for another followups round as I want to add a few things there.
 
--the final piece to tackle here is the APPLICATION LOG subpage. There are a number of changes and tweaks that are needed here.
+-[x] the final piece to tackle here is the APPLICATION LOG subpage. There are a number of changes and tweaks that are needed here.
   - we need to clarly define the columns that are shown on these rows. Right now they aren't consistent and some things (like some timestamps) wrap. So here is the target columns:
   | timestamp | log type label | info | actions | dropdown arrow|
   -a LOT of these lines have lots and lots of extra space. Let's use it. Here is the target space by % to consider (but we need review here in case these spaces seem off!):
@@ -84,13 +84,15 @@ This looks weird. It should be TYPE then URL on the first line with TYPE being 3
   -next, I want to review all of the prompts that are generated and the return values and see if we can't get them all into the application log here. Let's review this together and see what we can come up with as part of this effort.
 
 
-  # FOLLOWUPS-D and beyond...
+  # FOLLOWUPS-D [x] COMPLETE — see FOLLOWUPS-D-phase1.6_completed.md
 
-  -first thing I want to do is to review the current state of the application and look for identifying information. I found in previous work that the prompts were becoming personalized to me. They said things like "check with Kevin". I consider this akin to PII that is leaking out here. We should do a pass through the app and look for any other isntances of this and clean it up! There is a reason that we have .gitignored files like my_data/ and jobsearch.md that are meant to hold "PII-like" user data. 
+  -[x] first thing I want to do is to review the current state of the application and look for identifying information. I found in previous work that the prompts were becoming personalized to me. They said things like "check with Kevin". I consider this akin to PII that is leaking out here. We should do a pass through the app and look for any other isntances of this and clean it up! There is a reason that we have .gitignored files like my_data/ and jobsearch.md that are meant to hold "PII-like" user data. 
 
-  -I checked the templates/ folder and want to make a pass through the templates. I noted that we have now added a jobsearch_cover.md but don't have a template for it. I also want to review the jobsearch.md template (currently at JOBSEARCH_TEMPLATE.md) and ensure that it is up to date
+  -[x] I checked the templates/ folder and want to make a pass through the templates. I noted that we have now added a jobsearch_cover.md but don't have a template for it. I also want to review the jobsearch.md template (currently at JOBSEARCH_TEMPLATE.md) and ensure that it is up to date
 
-  # FOLLOWUPS-E to infinity....
+  # FOLLOWUPS-E [~] DEFERRED — see FOLLOWUPS-E-phase1.6_completed.md
+
+  # FOLLOWUPS-F — tracked in FOLLOWUPS-F-phase1.6.md
 
   -i think the next big step is to migrate to docker here, which is defined in phase 1.7. However, before we do that, I want to get this project nice and clean. Therefore, we should make a pass through everything at this point. Here is what I want to tackle in FOLLOWUPS-F:
   - review previous items in this document (WORKORDER_phase1.6_followups.md). We haven't marked them as checked in a while, so review previous items and update to ensure that things are nice and clean, mark any done items as [x] and any deferred items as [~] (don't make assumptions here, if the info isn't in memory or CLAUDE.md or PROJCET_SPEC.md then ask!)
