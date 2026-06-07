@@ -37,6 +37,7 @@ describe('useEvaluateMutation', () => {
       location: null,
       remote_type: null,
       apply_url: null,
+      pay_band: null,
       llm_model_id: 1,
       force: false,
     })
@@ -54,6 +55,7 @@ describe('useEvaluateMutation', () => {
       location: null,
       remote_type: null,
       apply_url: null,
+      pay_band: null,
       llm_model_id: 1,
       force: false,
     })

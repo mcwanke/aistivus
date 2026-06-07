@@ -5,10 +5,6 @@ import { createElement } from 'react'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/test/mocks/server'
 import {
-  MOCK_SERVER,
-  MOCK_ANTHROPIC_SERVER,
-} from '@/test/mocks/handlers'
-import {
   useServers,
   useCreateServer,
   useUpdateServer,

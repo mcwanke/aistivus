@@ -57,7 +57,7 @@ export const MOCK_MODEL: LlmModel = {
 export const MOCK_HEALTH: HealthResponse = {
   status: 'ok',
   database: { schema_version: '1.0' },
-  models: [{ id: 1, model: 'llama3', endpoint: 'http://localhost:11434', available: true, default_flag: true }],
+  models: [{ id: 1, model: 'llama3', server_name: 'Local Ollama', server_type: 'local', available: true, default_flag: true }],
   anthropic_configured: false,
   typst_available: true,
   version: '1.0.0',
@@ -177,6 +177,7 @@ export const MOCK_APPLICATION_DETAIL: ApplicationDetailResponse = {
 }
 
 export const MOCK_SETTINGS: SettingsResponse = {
+  app_version: '1.7.0',
   schema_version: '1.0',
   anthropic_api_key_configured: false,
   server: { host: '127.0.0.1', port: 8080 },
@@ -189,7 +190,7 @@ export const MOCK_SYSTEM_TYPES: SystemType[] = [
   { id: 2, type_name: 'application_log', type_value: 'recruiter_call', label: null, sort_order: null },
 ]
 
-export const MOCK_JOBSEARCH: JobsearchContent = { content: '# My Job Search\n\nContext here.' }
+export const MOCK_JOBSEARCH: JobsearchContent = { content: '# My Job Search\n\nContext here.', has_backup: false }
 
 export const MOCK_JOBSEARCH_VERSIONS: JobsearchVersion[] = [
   { id: 1, saved_at: '2024-01-01T00:00:00', note: 'Initial save' },
@@ -214,6 +215,9 @@ export const MOCK_LLM_LOG: LlmCallLogEntry[] = [
     error_message: null,
     job_id: 1,
     search_run_id: null,
+    model_name: 'llama3',
+    job_company_name: 'Acme Corp',
+    job_title: 'Senior Engineer',
   },
 ]
 

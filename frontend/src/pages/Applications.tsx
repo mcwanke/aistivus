@@ -20,6 +20,7 @@ function fmtScore(val: number | null | undefined): string {
 const STATUS_COLORS: Record<ApplicationStatus, string> = {
   'not-started': 'bg-surface2 text-muted',
   draft:         'bg-surface2 text-muted',
+  skipped:       'bg-surface2 text-muted',
   applied:       'bg-accent/20 text-accent',
   screening:     'bg-accent/30 text-accent',
   interview:     'bg-green/20 text-green',

@@ -58,14 +58,14 @@ describe('useLlmModels', () => {
 describe('useCreateModel', () => {
   it('mutates and succeeds', async () => {
     const { result } = renderHook(() => useCreateModel(), { wrapper: makeWrapper() })
-    result.current.mutate({ model: 'llama3', endpoint: 'http://localhost:11434' })
+    result.current.mutate({ model: 'llama3', server_id: 1 })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
   })
 
   it('enters error state with detail message', async () => {
     server.use(http.post('/api/v1/models', () => HttpResponse.json({ detail: 'Already exists' }, { status: 409 })))
     const { result } = renderHook(() => useCreateModel(), { wrapper: makeWrapper() })
-    result.current.mutate({ model: 'llama3', endpoint: 'http://localhost:11434' })
+    result.current.mutate({ model: 'llama3', server_id: 1 })
     await waitFor(() => expect(result.current.isError).toBe(true))
     expect(result.current.error?.message).toBe('Already exists')
   })

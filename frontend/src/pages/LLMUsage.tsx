@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { LlmCallLogEntry } from '@/types/api'
 import { useLlmCallLog } from '@/hooks/useLLMUsage'
 import AppHeader from '@/components/AppHeader'
-import { LlmMetaSection, LlmExpandedRow } from '@/components/LlmCallExpandedView'
+import { LlmExpandedRow } from '@/components/LlmCallExpandedView'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

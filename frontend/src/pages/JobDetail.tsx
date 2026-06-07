@@ -2610,7 +2610,7 @@ function ApplicationRight({
           <select
             className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
             value={newStatus}
-            onChange={(e) => setNewStatus(e.target.value)}
+            onChange={(e) => setNewStatus(e.target.value as ApplicationStatus)}
           >
             {ALL_STATUSES.map((s) => (
               <option key={s} value={s}>{s}</option>
