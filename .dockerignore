@@ -1,0 +1,33 @@
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.Python
+
+# Virtual environments
+.venv/
+venv/
+
+# User and app data — volume-mounted at runtime
+user_data/
+app_data/
+
+# Dev/tooling
+memory/
+ignore/
+.git/
+.gitignore
+.env
+*.env
+
+# Frontend — node_modules not needed (installed fresh during Docker build)
+frontend/node_modules/
+frontend/.vite/
+
+# Planning docs — not needed in production image
+app_docs/
+
+# Tests — not needed in production image
+tests/

@@ -13,10 +13,11 @@ convenience.
 
 | # | Status | Item |
 |---|--------|------|
-| 1 | [ ] | Dockerfile — multi-stage build (Node → Python + Typst) |
-| 2 | [ ] | `docker-compose.yml` — service, ports, volumes, env_file |
-| 3 | [ ] | `.dockerignore` |
+| 1 | [x] | Dockerfile — multi-stage build (Node → Python + Typst) |
+| 2 | [x] | `docker-compose.yml` — service, ports, volumes, env_file |
+| 3 | [x] | `.dockerignore` |
 | 4 | [x] | `main.py` — StaticFiles mount + SPA catch-all (already done in Phase 1.1) |
+| 5 | [x] | README.md — placeholder removed; Ollama Docker note added |
 
 Status: `[ ]` todo · `[x]` done · `[~]` deferred
 

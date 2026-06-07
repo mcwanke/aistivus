@@ -72,17 +72,17 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 ---
 
-## Current Phase: PHASE 1.7 — Docker
+## Current Phase: PHASE 2 — Extended Workflow (Future)
 
-### Phase 1.6 — Document Management ✅ Complete
-See `app_docs/completed_workorders/WORKORDER-phase1.6_completed.md` for the full deliverable record.
+### Phase 1.7 — Docker ✅ Complete
+- Dockerfile (multi-stage: Node:20-slim build → python:3.11-slim serve; Typst v0.14.2 baked in; HEALTHCHECK)
+- docker-compose.yml (volume mounts: user_data/, app_data/; env_file: .env; port 127.0.0.1:8080)
+- .dockerignore
+- main.py: StaticFiles + SPA catch-all already in place from Phase 1.1
+- README.md: Docker setup instructions complete; Ollama host.docker.internal note added
 
-### Phase 1.7 Checklist 🔲
-- [ ] Dockerfile (multi-stage: Node build → Python serve; Typst binary baked in)
-- [ ] docker-compose.yml (volume mounts: user_data/, app_data/; env_file: .env; port 8080)
-- [ ] .dockerignore
-- [ ] `main.py`: mount `frontend/dist/` as StaticFiles + SPA catch-all route for React Router
-- [ ] Validation: build, run, smoke test
+### Phase 2 — Extended Workflow 🔲
+See `app_docs/FEATURES.md` for the Phase 2 backlog. No workorder written yet.
 
 ### Target File Structure
 ```

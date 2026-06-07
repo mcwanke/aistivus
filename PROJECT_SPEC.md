@@ -783,15 +783,15 @@ AppHeader on all pages, sidebar removed, Jobs/Applications as standalone list pa
 ### Phase 1.6 — Complete ✅
 Typst document import, compile, view; document management UI; bundled resume + cover letter templates; document settings card. See `app_docs/completed_workorders/WORKORDER-phase1.6_completed.md`.
 
-### Phase 1.7 — Docker 🔲
+### Phase 1.7 — Docker ✅ Complete
 **Goal: Consistent, portable local deployment.**
 
 Deliverables:
-- `Dockerfile` — multi-stage: Node build → Python serve; Typst binary baked in
-- `docker-compose.yml` — volume mounts for `user_data/`, `app_data/`; env_file for API keys
+- `Dockerfile` — multi-stage: Node:20-slim build → python:3.11-slim serve; Typst v0.14.2 baked in; HEALTHCHECK
+- `docker-compose.yml` — volume mounts for `user_data/`, `app_data/`; env_file for API keys; port 127.0.0.1:8080
 - `.dockerignore`
-- `main.py`: mount `frontend/dist/` as StaticFiles + SPA catch-all route
-- README updated with Docker setup instructions
+- `main.py` — StaticFiles + SPA catch-all already in place from Phase 1.1; no changes needed
+- README updated with Docker setup instructions + Ollama host.docker.internal note
 
 ### Phase 2 — Extended Workflow 🔲 (Future)
 - URL ingestion (tiered: Playwright / Requests-HTML / BS4 / manual paste)

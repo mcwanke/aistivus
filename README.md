@@ -26,14 +26,12 @@ AIstivus is a locally-hosted, open-source web application — an AI-assisted com
 | Phase | Status | Description |
 |---|---|---|
 | Phase 1.6 — Document Management | ✅ Complete | Typst document import, compile, view; document management UI |
-| Phase 1.7 — Docker | 🔄 In Progress | Single-container Docker deployment |
+| Phase 1.7 — Docker | ✅ Complete | Single-container Docker deployment |
 | Phase 2+ | Planned | Resume chunk library, URL ingestion, job board scraping |
 
 ---
 
 ## Quick Start (Docker)
-
-> Docker deployment ships with Phase 1.7. In the meantime, see [Local Dev Setup](#local-dev-setup) below.
 
 ### Prerequisites
 
@@ -57,6 +55,8 @@ cp templates/JOBSEARCH_TEMPLATE.md user_data/my_data/jobsearch.md
 ```
 
 Edit `user_data/my_data/jobsearch.md` — this is the AI's primary context for every evaluation. Fill it in before running evaluations.
+
+> **Ollama users:** Inside the container, `localhost` refers to the container itself — not your host machine. If Ollama is running on your Mac or Linux host, set `ollama.base_url` in `user_data/config.yaml` to `http://host.docker.internal:11434`.
 
 ### 3. Set up your API key (optional — Anthropic only)
 
