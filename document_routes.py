@@ -587,10 +587,14 @@ async def compile_document(request: Request, application_id: int, doc_id: int):
         raise HTTPException(status_code=404, detail="Source .typ file not found on disk.")
 
     pdf_name = f"DRAFT_{source_path.stem}.pdf"
-    pdf_path = source_path.parent / pdf_name
+    pdf_path = source_path.parent / pdf_name  # absolute — for subprocess and filesystem only
+
+    # Relative path for DB storage
+    source_rel = Path(doc_dict["file_path"])
+    pdf_rel_path = source_rel.parent / pdf_name
 
     # Replace existing DRAFT PDF record + file if present
-    existing = database.get_document_by_file_path(application_id, str(pdf_path))
+    existing = database.get_document_by_file_path(application_id, str(pdf_rel_path))
     if existing:
         try:
             os.remove(str(pdf_path))
@@ -622,7 +626,7 @@ async def compile_document(request: Request, application_id: int, doc_id: int):
         )
 
     new_id = database.insert_application_document(
-        application_id, doc_dict["type_id"], str(pdf_path)
+        application_id, doc_dict["type_id"], str(pdf_rel_path)
     )
     database._audit_application(
         application_id, f"document_compiled: {pdf_name} from {source_path.name}"
@@ -636,7 +640,7 @@ async def compile_document(request: Request, application_id: int, doc_id: int):
         "success": True,
         "pdf_doc_id": new_id,
         "filename": pdf_name,
-        "file_path": str(pdf_path),
+        "file_path": str(pdf_rel_path),
     })
 
 
@@ -692,11 +696,14 @@ async def finalize_document(request: Request, application_id: int, doc_id: int):
         )
         final_name = f"{company}_{title}.pdf"
 
-    final_path = _unique_path(source_path.parent, final_name)
+    final_path = _unique_path(source_path.parent, final_name)  # absolute — for filesystem only
+    source_rel = Path(doc_dict["file_path"])
+    final_rel_path = source_rel.parent / final_path.name  # relative — for DB storage
+
     shutil.copy2(str(source_path), str(final_path))
 
     new_id = database.insert_application_document(
-        application_id, doc_dict["type_id"], str(final_path)
+        application_id, doc_dict["type_id"], str(final_rel_path)
     )
     database.set_document_final(new_id, application_id, doc_dict["type_id"])
     database._audit_application(
@@ -712,5 +719,5 @@ async def finalize_document(request: Request, application_id: int, doc_id: int):
         "success": True,
         "final_doc_id": new_id,
         "filename": final_path.name,
-        "file_path": str(final_path),
+        "file_path": str(final_rel_path),
     })

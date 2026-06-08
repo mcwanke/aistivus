@@ -411,6 +411,18 @@ jobsearch_versions (
 )
 
 -- ─────────────────────────────────────────
+-- Application settings — ACTIVE Phase 1.5
+-- ─────────────────────────────────────────
+app_settings (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    key        TEXT NOT NULL UNIQUE,
+    value      TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+)
+-- Key-value store for app-level feature flags and configuration.
+-- Current keys: allow_audit_timestamp_edit (0/1)
+
+-- ─────────────────────────────────────────
 -- Stubs — tables created at init, activated in future phases
 -- ─────────────────────────────────────────
 resume_info (
