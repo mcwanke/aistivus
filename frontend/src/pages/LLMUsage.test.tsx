@@ -29,8 +29,8 @@ describe('LLMUsage page', () => {
 
   it('shows latency after data loads', async () => {
     renderWithProviders(<LLMUsage />)
-    // job reference is visible in collapsed row (job_id = 1)
-    await waitFor(() => expect(screen.getByText(/job #1/)).toBeInTheDocument())
+    // job reference is visible in collapsed row (company+title label when available)
+    await waitFor(() => expect(screen.getByText(/Acme Corp/)).toBeInTheDocument())
   })
 
   it('shows error message on failure', async () => {
@@ -53,7 +53,7 @@ describe('LLMUsage page', () => {
 
   it('renders job id reference for entries with job_id', async () => {
     renderWithProviders(<LLMUsage />)
-    await waitFor(() => expect(screen.getByText(/job #1/)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/Acme Corp/)).toBeInTheDocument())
   })
 
   it('renders the filter controls', async () => {
