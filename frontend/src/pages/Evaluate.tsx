@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import {
   useModels,
   useEvaluateMutation,
+  useScrapeMutation,
+  useFillGapsMutation,
   type EvaluatePayload,
 } from '@/hooks/useEvaluate'
 import { useActivateJob } from '@/hooks/useJobs'
@@ -353,8 +355,16 @@ export default function Evaluate(): React.JSX.Element {
   const [jobIsActive, setJobIsActive] = useState(false)
   const [activateError, setActivateError] = useState<string | null>(null)
 
+  // ── Scrape state ────────────────────────────────────────────
+  const [scrapeUrl, setScrapeUrl] = useState('')
+  const [scrapeError, setScrapeError] = useState<string | null>(null)
+  const [scrapeQuality, setScrapeQuality] = useState<'full' | 'partial' | null>(null)
+  const [hasNullFieldsAfterScrape, setHasNullFieldsAfterScrape] = useState(false)
+
   const { data: models = [] } = useModels()
   const evaluateMutation = useEvaluateMutation()
+  const scrapeMutation = useScrapeMutation()
+  const fillGapsMutation = useFillGapsMutation()
   const activateJobMutation = useActivateJob()
   const navigate = useNavigate()
 
@@ -434,6 +444,60 @@ export default function Evaluate(): React.JSX.Element {
     })
   }
 
+  async function handleScrape(): Promise<void> {
+    if (!scrapeUrl.trim()) return
+    setScrapeError(null)
+    setScrapeQuality(null)
+    setHasNullFieldsAfterScrape(false)
+    try {
+      const data = await scrapeMutation.mutateAsync(scrapeUrl.trim())
+      if (!data.success) {
+        setScrapeError(data.error ?? 'Crawl4AI unavailable — enter fields manually')
+        return
+      }
+      // pre-fill only fields the user hasn't already typed into
+      if (data.title && !title) setTitle(data.title)
+      if (data.company && !company) setCompany(data.company)
+      if (data.location && !location) setLocation(data.location)
+      if (data.remote_type && !remoteType) setRemoteType(data.remote_type)
+      if (data.pay_band && !payBand) setPayBand(data.pay_band)
+      if (data.jd_text && !jdText) setJdText(data.jd_text)
+      if (data.apply_url && !applyUrl) setApplyUrl(data.apply_url)
+      setScrapeQuality(data.scrape_quality)
+      const nullCount = [data.title, data.company, data.location, data.remote_type, data.pay_band]
+        .filter((v) => v === null).length
+      setHasNullFieldsAfterScrape(nullCount > 0)
+    } catch {
+      setScrapeError('Crawl4AI unavailable — enter fields manually')
+    }
+  }
+
+  async function handleFillGaps(): Promise<void> {
+    setScrapeError(null)
+    try {
+      const data = await fillGapsMutation.mutateAsync({
+        jd_text: jdText,
+        title: title || null,
+        company: company || null,
+        location: location || null,
+        remote_type: (remoteType as 'Remote' | 'Hybrid' | 'On-site') || null,
+        pay_band: payBand || null,
+      })
+      if (data.error) {
+        setScrapeError(data.error)
+        return
+      }
+      if (data.title && !title) setTitle(data.title)
+      if (data.company && !company) setCompany(data.company)
+      if (data.location && !location) setLocation(data.location)
+      if (data.remote_type && !remoteType) setRemoteType(data.remote_type)
+      if (data.pay_band && !payBand) setPayBand(data.pay_band)
+      setHasNullFieldsAfterScrape(false)
+    } catch {
+      setScrapeError('Fill gaps failed — please try again')
+    }
+  }
+
   function handleClear(): void {
     setCompany('')
     setTitle('')
@@ -447,6 +511,10 @@ export default function Evaluate(): React.JSX.Element {
     setPanelState('idle')
     setJobIsActive(false)
     setActivateError(null)
+    setScrapeUrl('')
+    setScrapeError(null)
+    setScrapeQuality(null)
+    setHasNullFieldsAfterScrape(false)
     stopTimer()
     setElapsed(0)
     if (models.length > 0) {
@@ -499,6 +567,48 @@ export default function Evaluate(): React.JSX.Element {
         </div>
 
         <div className="flex flex-col gap-4 p-5">
+          {/* URL import */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-mono text-muted uppercase tracking-wider">
+              Import from URL
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="url"
+                value={scrapeUrl}
+                onChange={(e) => setScrapeUrl(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') void handleScrape() }}
+                placeholder="https://…"
+                disabled={isRunning || scrapeMutation.isPending}
+                className="flex-1 bg-surface border border-surface2 rounded px-3 py-2 text-sm font-mono text-text focus:outline-none focus:border-accent/50 disabled:opacity-50"
+              />
+              <button
+                onClick={() => void handleScrape()}
+                disabled={isRunning || scrapeMutation.isPending || !scrapeUrl.trim()}
+                className="px-3 py-2 text-xs font-mono bg-surface2 border border-surface2 text-muted rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                {scrapeMutation.isPending ? 'Importing…' : 'Import from URL'}
+              </button>
+            </div>
+            {scrapeError && (
+              <p className="text-xs font-mono text-red">{scrapeError}</p>
+            )}
+            {scrapeQuality === 'partial' && (
+              <p className="text-xs font-mono text-accent/80 bg-accent/5 border border-accent/20 rounded px-2 py-1">
+                Partial scrape — some fields may be incomplete. Review below.
+              </p>
+            )}
+            {hasNullFieldsAfterScrape && (
+              <button
+                onClick={() => void handleFillGaps()}
+                disabled={isRunning || fillGapsMutation.isPending}
+                className="self-start px-3 py-1.5 text-xs font-mono bg-surface2 border border-surface2 text-muted rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {fillGapsMutation.isPending ? 'Filling gaps…' : 'Fill gaps with AI'}
+              </button>
+            )}
+          </div>
+
           {/* Company + Title */}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
@@ -562,7 +672,7 @@ export default function Evaluate(): React.JSX.Element {
                 type="url"
                 value={applyUrl}
                 onChange={(e) => setApplyUrl(e.target.value)}
-                placeholder="https://…"
+                placeholder="https://apply-link.com"
                 disabled={isRunning}
                 className="bg-surface border border-surface2 rounded px-3 py-2 text-sm font-mono text-text focus:outline-none focus:border-accent/50 disabled:opacity-50"
               />

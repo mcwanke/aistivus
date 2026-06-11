@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { LlmModel, ModelsResponse, EvaluateResponse } from '@/types/api'
+import type { LlmModel, ModelsResponse, EvaluateResponse, ScrapeResult, FillGapsPayload, FillGapsResult } from '@/types/api'
 
 // ─── Fetchers ─────────────────────────────────────────────────────────────────
 
@@ -94,4 +94,34 @@ export function useImportEvaluationMutation() {
       void qc.invalidateQueries({ queryKey: ['jobs'] })
     },
   })
+}
+
+// ─── Scrape mutations ─────────────────────────────────────────────────────────
+
+async function postScrape(url: string): Promise<ScrapeResult> {
+  const res = await fetch('/api/v1/scrape', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  })
+  if (!res.ok) throw new Error(`scrape ${res.status}`)
+  return res.json() as Promise<ScrapeResult>
+}
+
+export function useScrapeMutation() {
+  return useMutation({ mutationFn: postScrape })
+}
+
+async function postFillGaps(payload: FillGapsPayload): Promise<FillGapsResult> {
+  const res = await fetch('/api/v1/scrape/fill-gaps', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error(`fill-gaps ${res.status}`)
+  return res.json() as Promise<FillGapsResult>
+}
+
+export function useFillGapsMutation() {
+  return useMutation({ mutationFn: postFillGaps })
 }

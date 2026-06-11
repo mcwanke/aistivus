@@ -5,9 +5,9 @@ import { render } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import AppHeader from './AppHeader'
 
-function renderHeader(pageName?: string) {
+function renderHeader(pageName?: string, initialPath = '/') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialPath]}>
       <AppHeader pageName={pageName} />
     </MemoryRouter>,
   )
@@ -25,14 +25,37 @@ describe('AppHeader', () => {
       expect(screen.getByText(/AI Job Search Helper/)).toBeInTheDocument()
     })
 
-    it('renders Settings link', () => {
+    it('renders all three nav links', () => {
       renderHeader()
+      expect(screen.getByRole('link', { name: 'Career' })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Job Search' })).toBeInTheDocument()
       expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument()
+    })
+
+    it('Career link points to /career', () => {
+      renderHeader()
+      expect(screen.getByRole('link', { name: 'Career' })).toHaveAttribute('href', '/career')
+    })
+
+    it('Job Search link points to /jobs', () => {
+      renderHeader()
+      expect(screen.getByRole('link', { name: 'Job Search' })).toHaveAttribute('href', '/jobs')
+    })
+
+    it('Settings link points to /settings', () => {
+      renderHeader()
+      expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings')
     })
 
     it('does not render a ← Home link', () => {
       renderHeader()
       expect(screen.queryByText('← Home')).not.toBeInTheDocument()
+    })
+
+    it('highlights the active nav link', () => {
+      renderHeader(undefined, '/settings')
+      const settingsLink = screen.getByRole('link', { name: 'Settings' })
+      expect(settingsLink).toHaveClass('text-accent')
     })
   })
 
@@ -52,8 +75,10 @@ describe('AppHeader', () => {
       expect(screen.getByText('Jobs')).toBeInTheDocument()
     })
 
-    it('renders Settings link', () => {
-      renderHeader('Jobs')
+    it('renders all three nav links', () => {
+      renderHeader('Settings')
+      expect(screen.getByRole('link', { name: 'Career' })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Job Search' })).toBeInTheDocument()
       expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument()
     })
 

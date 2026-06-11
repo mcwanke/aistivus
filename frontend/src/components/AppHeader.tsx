@@ -1,7 +1,24 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 
 interface AppHeaderProps {
   pageName?: string
+}
+
+function NavLinks(): React.JSX.Element {
+  const { pathname } = useLocation()
+
+  function linkClass(path: string): string {
+    const active = pathname === path || (path !== '/' && pathname.startsWith(path))
+    return `text-xs font-mono transition-colors ${active ? 'text-accent' : 'text-muted hover:text-text'}`
+  }
+
+  return (
+    <nav className="ml-auto flex items-baseline gap-5">
+      <Link to="/career" className={linkClass('/career')}>Career</Link>
+      <Link to="/jobs" className={linkClass('/jobs')}>Job Search</Link>
+      <Link to="/settings" className={linkClass('/settings')}>Settings</Link>
+    </nav>
+  )
 }
 
 export default function AppHeader({ pageName }: AppHeaderProps): React.JSX.Element {
@@ -21,12 +38,7 @@ export default function AppHeader({ pageName }: AppHeaderProps): React.JSX.Eleme
           AIstivus
         </Link>
         <span className="text-sm text-text">{pageName}</span>
-        <Link
-          to="/settings"
-          className="ml-auto text-xs font-mono text-muted hover:text-accent transition-colors"
-        >
-          Settings
-        </Link>
+        <NavLinks />
       </header>
     )
   }
@@ -37,12 +49,7 @@ export default function AppHeader({ pageName }: AppHeaderProps): React.JSX.Eleme
       <span className="font-mono text-xs text-muted uppercase tracking-widest">
         AI Job Search Helper for the Rest of Us
       </span>
-      <Link
-        to="/settings"
-        className="ml-auto font-mono text-xs text-muted hover:text-text transition-colors"
-      >
-        Settings
-      </Link>
+      <NavLinks />
     </header>
   )
 }

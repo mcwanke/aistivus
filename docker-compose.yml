@@ -10,3 +10,14 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+
+  # ── Crawl4AI (optional — URL ingestion) ──────────────────────────────────────
+  # Crawl4AI is an external service. You can run it standalone (recommended)
+  # or include it in this stack. Uncomment to manage it here.
+  # Set crawl4ai.base_url: http://crawl:11235 in user_data/config.yaml.
+  #
+  # crawl:
+  #   image: unclecode/crawl4ai:latest
+  #   ports:
+  #     - "127.0.0.1:11235:11235"
+  #   restart: unless-stopped

@@ -98,6 +98,112 @@ describe('Evaluate page', () => {
   })
 })
 
+describe('Evaluate page — URL import', () => {
+  it('renders the URL import input', () => {
+    renderWithProviders(<Evaluate />)
+    expect(screen.getByPlaceholderText('https://…')).toBeInTheDocument()
+  })
+
+  it('renders the Import from URL button', () => {
+    renderWithProviders(<Evaluate />)
+    expect(screen.getByRole('button', { name: 'Import from URL' })).toBeInTheDocument()
+  })
+
+  it('pre-fills fields after a successful scrape', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<Evaluate />)
+    const urlInput = screen.getByPlaceholderText('https://…')
+    await user.type(urlInput, 'https://example.com/job')
+    await user.click(screen.getByRole('button', { name: 'Import from URL' }))
+    await waitFor(() =>
+      expect((screen.getByPlaceholderText('Acme Corp') as HTMLInputElement).value).toBe('Acme Corp'),
+      { timeout: 3000 },
+    )
+    expect((screen.getByPlaceholderText('Engineering Manager') as HTMLInputElement).value).toBe('Senior Engineer')
+  })
+
+  it('shows partial banner on partial scrape quality', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('/api/v1/scrape', () =>
+        HttpResponse.json({
+          success: true,
+          scrape_quality: 'partial',
+          apply_url: 'https://example.com/job',
+          title: null,
+          company: null,
+          location: null,
+          remote_type: null,
+          pay_band: null,
+          jd_text: 'Short description.',
+          error: null,
+        }),
+      ),
+    )
+    renderWithProviders(<Evaluate />)
+    await user.type(screen.getByPlaceholderText('https://…'), 'https://example.com/job')
+    await user.click(screen.getByRole('button', { name: 'Import from URL' }))
+    await waitFor(() =>
+      expect(screen.getByText(/Partial scrape/)).toBeInTheDocument(),
+      { timeout: 3000 },
+    )
+  })
+
+  it('shows fill-gaps button when scrape leaves null fields', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('/api/v1/scrape', () =>
+        HttpResponse.json({
+          success: true,
+          scrape_quality: 'full',
+          apply_url: 'https://example.com/job',
+          title: null,
+          company: null,
+          location: null,
+          remote_type: null,
+          pay_band: null,
+          jd_text: 'We are looking for a senior engineer to join our team.',
+          error: null,
+        }),
+      ),
+    )
+    renderWithProviders(<Evaluate />)
+    await user.type(screen.getByPlaceholderText('https://…'), 'https://example.com/job')
+    await user.click(screen.getByRole('button', { name: 'Import from URL' }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Fill gaps with AI' })).toBeInTheDocument(),
+      { timeout: 3000 },
+    )
+  })
+
+  it('shows inline error when Crawl4AI is unavailable', async () => {
+    const user = userEvent.setup()
+    server.use(
+      http.post('/api/v1/scrape', () =>
+        HttpResponse.json({
+          success: false,
+          scrape_quality: 'partial',
+          apply_url: 'https://example.com/job',
+          title: null,
+          company: null,
+          location: null,
+          remote_type: null,
+          pay_band: null,
+          jd_text: '',
+          error: 'Crawl4AI service unavailable',
+        }),
+      ),
+    )
+    renderWithProviders(<Evaluate />)
+    await user.type(screen.getByPlaceholderText('https://…'), 'https://example.com/job')
+    await user.click(screen.getByRole('button', { name: 'Import from URL' }))
+    await waitFor(() =>
+      expect(screen.getByText(/unavailable/i)).toBeInTheDocument(),
+      { timeout: 3000 },
+    )
+  })
+})
+
 describe('Evaluate page — activate CTA', () => {
   it('shows CTA after evaluation when job is inactive', async () => {
     renderWithProviders(<Evaluate />)

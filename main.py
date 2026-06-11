@@ -80,6 +80,8 @@ API routes:
   POST /api/v1/profile/synthesize-insights
   POST /api/v1/profile/coherence-check
   POST /api/v1/profile/generate-tailoring-rules
+  POST /api/v1/scrape
+  POST /api/v1/scrape/fill-gaps
 
 SPA catch-all (Phase 1.1+):
   GET  /{full_path}  → serves frontend/dist/index.html (React Router handles routing)
@@ -111,6 +113,7 @@ import evaluate
 import evaluator
 import llm_client
 import profile_routes
+import scrape_routes
 from env_utils import get_env_key, load_dotenv
 from limiter import limiter
 from logger import get_logger
@@ -278,6 +281,7 @@ app.add_middleware(
 
 app.include_router(profile_routes.router, prefix="/api/v1")
 app.include_router(document_routes.router, prefix="/api/v1")
+app.include_router(scrape_routes.router, prefix="/api/v1")
 
 _frontend_assets = Path("frontend/dist/assets")
 if _frontend_assets.exists():

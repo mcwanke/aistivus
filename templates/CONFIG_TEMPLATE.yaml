@@ -129,13 +129,14 @@ rate_limits:
   delay_between_requests_seconds: 3
 
 # ─────────────────────────────────────
-# URL ingestion (Phase 2+)
-# Tiered strategy: Playwright → Requests-HTML → BS4 → manual paste
+# Crawl4AI (Phase 2.0+)
+# URL ingestion via Crawl4AI — runs as a standalone service like Ollama.
+# See README.md for setup instructions.
 # ─────────────────────────────────────
-ingestion:
-  playwright_enabled: true           # requires: playwright install chromium
-  request_timeout_seconds: 15
-  max_concurrent_playwright: 2       # limit Chromium instances
+crawl4ai:
+  base_url: http://crawl:11235             # Docker network (container named 'crawl')
+  # base_url: http://localhost:11235       # direct / dev
+  # base_url: https://crawl4ai.yourdomain.com  # Traefik / remote server
 
 # ─────────────────────────────────────
 # Role keyword taxonomy (Phase 3+)

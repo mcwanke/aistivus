@@ -13,6 +13,7 @@ AIstivus is a locally-hosted, open-source web application — an AI-assisted com
 ## What It Does
 
 - **Evaluate job descriptions** against your personal background using local AI models (Ollama) or cloud providers (Anthropic)
+- **Import from URL** — paste a job posting URL and let Crawl4AI fetch and extract the JD and metadata automatically
 - **Structured scoring** — overall fit, role fit, scope fit, culture signals, compensation alignment
 - **ATS keyword extraction** from every JD for resume tailoring
 - **Track applications** through the full lifecycle with audit history and activity log
@@ -27,7 +28,10 @@ AIstivus is a locally-hosted, open-source web application — an AI-assisted com
 |---|---|---|
 | Phase 1.6 — Document Management | ✅ Complete | Typst document import, compile, view; document management UI |
 | Phase 1.7 — Docker | ✅ Complete | Single-container Docker deployment |
-| Phase 2+ | Planned | Resume chunk library, URL ingestion, job board scraping |
+| Phase 2.0 Step 1 — CI/CD | ✅ Complete | GitHub Actions (pytest + ruff + vitest + build) |
+| Phase 2.0 Step 2 — Nav | ✅ Complete | AppHeader nav links; `/career` stub page |
+| Phase 2.0 Step 3 — URL Ingestion | ✅ Complete | Crawl4AI integration on Evaluate page |
+| Phase 2.0 Steps 4–5 | 🔲 Planned | Prompt editing, memory, dashboard redesign, career workflow |
 
 ---
 
@@ -146,6 +150,35 @@ Bundled templates are in `templates/typst/`. Copy a template to get started, the
 
 ---
 
+## Crawl4AI (Optional — URL Ingestion)
+
+Crawl4AI enables the "Import from URL" feature on the Evaluate page. It renders job posting pages with a headless browser and extracts structured content. Like Ollama, it runs as a standalone service.
+
+### Standalone setup (recommended)
+
+```bash
+docker run -d \
+  --name crawl \
+  -p 127.0.0.1:11235:11235 \
+  --restart unless-stopped \
+  unclecode/crawl4ai:latest
+```
+
+Then set in `user_data/config.yaml`:
+
+```yaml
+crawl4ai:
+  base_url: http://localhost:11235
+```
+
+### Docker Compose (optional)
+
+An optional `crawl` service block is included as a comment in `docker-compose.yml`. Uncomment it to manage Crawl4AI within the same stack. If you do, use `base_url: http://crawl:11235` (the Docker network name).
+
+The app degrades gracefully without Crawl4AI — the URL import row shows an inline error and the rest of the form remains fully usable for manual entry.
+
+---
+
 ## Project Structure
 
 ```
@@ -155,6 +188,7 @@ aistivus/
 ├── evaluator.py              JD evaluation pipeline
 ├── document_routes.py        Document upload, compile, serve routes
 ├── profile_routes.py         Job Search Profile routes + AI chat
+├── scrape_routes.py          URL ingestion routes (Crawl4AI + LLM gap-fill)
 ├── llm_client.py             LLM abstraction (Ollama, Anthropic)
 ├── templates/                Template files — copy, don't edit in place
 │   ├── CONFIG_TEMPLATE.yaml

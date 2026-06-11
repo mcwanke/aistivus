@@ -12,6 +12,7 @@ import Applications from '@/pages/Applications'
 import Settings from '@/pages/Settings'
 import LLMUsage from '@/pages/LLMUsage'
 import JobSearchProfile from '@/pages/JobSearchProfile'
+import Career from '@/pages/Career'
 import '@/index.css'
 
 const router = createBrowserRouter([
@@ -19,6 +20,7 @@ const router = createBrowserRouter([
   { path: '/', element: <Dashboard /> },
 
   // Standalone pages — AppHeader top-nav, no sidebar
+  { path: '/career',     element: <Career /> },
   { path: '/evaluate',   element: <Evaluate /> },
   { path: '/settings',   element: <Settings /> },
   { path: '/llm-usage',  element: <LLMUsage /> },

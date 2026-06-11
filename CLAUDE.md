@@ -80,9 +80,21 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 - Node.js 24 opted in via `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'`
 - Branch protection (Step 1.4) is a manual GitHub UI step — required checks: `backend`, `frontend`
 
-### Phase 2.0 — Steps 2–3: Next Up 🔲
-- Step 2: Nav restructure — AppHeader gains Career/Job Search/Settings links; `/career` stub page
-- Step 3: URL ingestion — Crawl4AI integration on Evaluate page
+### Phase 2.0 — Step 2: Nav Restructure ✅ Complete
+- `AppHeader.tsx`: three-item nav group (Career/Job Search/Settings), active route highlight via `useLocation`
+- `Career.tsx` (new): stub page at `/career`
+- `main.tsx`: `/career` route registered
+- `AppHeader.test.tsx`: updated for nav group structure
+
+### Phase 2.0 — Step 3: URL Ingestion ✅ Complete
+- `scrape_routes.py` (new): Crawl4AI client, JSON-LD extraction, `POST /api/v1/scrape` + `POST /api/v1/scrape/fill-gaps`
+- No new Python deps — stdlib `re` + `json` for HTML parsing
+- Crawl4AI runs as external service (like Ollama); config: `crawl4ai.base_url` in `user_data/config.yaml`
+- Evaluate page: URL import row, partial quality banner, fill-gaps AI button
+
+### Phase 2.0 — Steps 4–5: Next Up 🔲
+- Step 4: Prompt editing — pending design session
+- Step 5: Memory, Dashboard redesign, Career workflow — pending design
 
 ### Phase 1.7 — Docker ✅ Complete
 - Dockerfile (multi-stage: Node:20-slim build → python:3.11-slim serve; Typst v0.14.2 baked in; HEALTHCHECK)

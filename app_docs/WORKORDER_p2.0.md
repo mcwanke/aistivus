@@ -1,6 +1,6 @@
 # AIstivus — Phase 2.0 Workorder
-> Status: In progress — Step 1 complete; Steps 2–3 ready to execute; Steps 4–5 pending design
-> Last updated: 2026-06-10
+> Status: In progress — Steps 1–3 complete; Steps 4–5 pending design
+> Last updated: 2026-06-11
 > Design doc: app_docs/DESIGN_p2.0.md
 
 ---
@@ -89,7 +89,17 @@ Repository Settings → Branches → Add rule for `main`:
 
 ---
 
-## Step 2 — Nav Restructure 🔲
+## Step 2 — Nav Restructure ✅
+
+### Files touched
+- `frontend/src/components/AppHeader.tsx` — three-item nav group (Career/Job Search/Settings); active route highlight via `useLocation`
+- `frontend/src/pages/Career.tsx` (new) — stub page
+- `frontend/src/main.tsx` — `/career` route added
+- `frontend/src/components/AppHeader.test.tsx` — updated for nav group; new tests for all three links + active state
+
+---
+
+## Step 2 — Nav Restructure (original spec) 🔲
 
 **Goal:** AppHeader gains three top-right navigation links. Career route is stubbed.
 No dashboard redesign — AppHeader change only.
@@ -139,7 +149,32 @@ No new API types expected for this step.
 
 ---
 
-## Step 3 — URL Ingestion 🔲
+## Step 3 — URL Ingestion ✅
+
+### Implementation notes
+- `beautifulsoup4` not added — stdlib `re` + `json` sufficient for JSON-LD extraction
+- `remote_type` extraction handles both `"TELECOMMUTE"` and `"remote"` JSON-LD values
+- Fill-gaps validates `remote_type` enum; invalid values coerced to null
+- Crawl4AI runs as external service (like Ollama); commented block in `docker-compose.yml`
+
+### Files touched
+- `scrape_routes.py` (new) — Crawl4AI client, JSON-LD extraction, two routes, rate limiting
+- `main.py` — import + `include_router` for scrape_routes
+- `requirements.txt` — no new deps (stdlib only for parsing)
+- `user_data/config.yaml` — `crawl4ai.base_url` added
+- `templates/CONFIG_TEMPLATE.yaml` — `crawl4ai` block with both URL options
+- `docker-compose.yml` — optional commented Crawl4AI service block
+- `frontend/src/types/api.ts` — `ScrapeResult`, `FillGapsPayload`, `FillGapsResult`, `RemoteType`, `ScrapeQuality`
+- `frontend/src/hooks/useEvaluate.ts` — `useScrapeMutation`, `useFillGapsMutation`
+- `frontend/src/pages/Evaluate.tsx` — URL import row, partial banner, fill-gaps button
+- `frontend/src/test/mocks/handlers.ts` — mock handlers for scrape endpoints
+- `tests/routes/test_scrape.py` (new) — 7 backend tests (scrape + fill-gaps)
+- `frontend/src/pages/Evaluate.test.tsx` — 4 new scrape UI tests
+- `README.md` — Crawl4AI setup section
+
+---
+
+## Step 3 — URL Ingestion (original spec) 🔲
 
 **Goal:** User can paste a job posting URL on the Evaluate page. The app calls Crawl4AI
 (external service), extracts structured fields from the rendered page, and pre-fills as

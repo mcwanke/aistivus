@@ -444,3 +444,39 @@ export interface ActivityLogResponse {
   entries: ActivityLogEntry[]
 }
 
+// ─── Scrape / URL ingestion types ────────────────────────────────────────────
+
+export type RemoteType = 'Remote' | 'Hybrid' | 'On-site'
+export type ScrapeQuality = 'full' | 'partial'
+
+export interface ScrapeResult {
+  success: boolean
+  scrape_quality: ScrapeQuality
+  apply_url: string
+  title: string | null
+  company: string | null
+  location: string | null
+  remote_type: RemoteType | null
+  pay_band: string | null
+  jd_text: string
+  error: string | null
+}
+
+export interface FillGapsPayload {
+  jd_text: string
+  title: string | null
+  company: string | null
+  location: string | null
+  remote_type: RemoteType | null
+  pay_band: string | null
+}
+
+export interface FillGapsResult {
+  title: string | null
+  company: string | null
+  location: string | null
+  remote_type: RemoteType | null
+  pay_band: string | null
+  error: string | null
+}
+

@@ -109,6 +109,7 @@ docker-compose
 | Route | Component | Notes |
 |---|---|---|
 | `/` | `Dashboard.tsx` | Full-page; AppHeader (no back link); no sidebar |
+| `/career` | `Career.tsx` | Stub — coming soon; AppHeader with nav group |
 | `/jobs` | `Jobs.tsx` | Standalone list; AppHeader `← Home`; no split-pane |
 | `/jobs/:jobId` | `JobDetail.tsx` (workspace) | Full-page workspace; sub-header + 5 tabs |
 | `/jobs/:jobId?tab=job-details` | JobDetail — JOB DETAILS tab | Default tab |
@@ -805,10 +806,10 @@ Deliverables:
 - `main.py` — StaticFiles + SPA catch-all already in place from Phase 1.1; no changes needed
 - README updated with Docker setup instructions + Ollama host.docker.internal note
 
-### Phase 2.0 — Extended Workflow 🔲 (Active — see WORKORDER_p2.0.md)
+### Phase 2.0 — Extended Workflow (Active — see WORKORDER_p2.0.md)
 - Step 1: CI/CD ✅ — GitHub Actions (pytest + ruff + vitest + build); ruff added to requirements.txt
-- Step 2: Nav restructure 🔲 — AppHeader gains Career/Job Search/Settings links; `/career` stub
-- Step 3: URL ingestion 🔲 — Crawl4AI integration on Evaluate page
+- Step 2: Nav restructure ✅ — AppHeader Career/Job Search/Settings nav group; `/career` stub; active route highlight
+- Step 3: URL ingestion ✅ — `scrape_routes.py`; Crawl4AI client; JSON-LD extraction; fill-gaps LLM endpoint; Evaluate page UI
 - Step 4: Prompt editing 🔲 — pending design session
 - Step 5: Pending 🔲 — Memory, Dashboard redesign, Career workflow
 

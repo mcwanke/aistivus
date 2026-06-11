@@ -435,4 +435,29 @@ export const handlers = [
   http.get('/api/v1/settings/documents-storage', () =>
     HttpResponse.json(MOCK_DOCUMENTS_STORAGE),
   ),
+  // Scrape routes
+  http.post('/api/v1/scrape', () =>
+    HttpResponse.json({
+      success: true,
+      scrape_quality: 'full',
+      apply_url: 'https://example.com/job',
+      title: 'Senior Engineer',
+      company: 'Acme Corp',
+      location: 'Remote',
+      remote_type: 'Remote',
+      pay_band: '$120k–$150k',
+      jd_text: 'We are looking for a senior engineer.',
+      error: null,
+    }),
+  ),
+  http.post('/api/v1/scrape/fill-gaps', () =>
+    HttpResponse.json({
+      title: 'Senior Engineer',
+      company: 'Acme Corp',
+      location: 'Remote',
+      remote_type: 'Remote',
+      pay_band: '$120k–$150k',
+      error: null,
+    }),
+  ),
 ]
