@@ -99,7 +99,7 @@ import httpx
 import yaml
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
 from slowapi import _rate_limit_exceeded_handler
@@ -414,7 +414,6 @@ class UpdateTimestampRequest(BaseModel):
     @field_validator("timestamp")
     @classmethod
     def validate_iso_format(cls, v: str) -> str:
-        import re
         if not re.match(r"^\d{4}-\d{2}-\d{2}", v.strip()):
             raise ValueError("timestamp must begin with a date in YYYY-MM-DD format")
         return v
@@ -897,8 +896,8 @@ async def export_job(request: Request, job_id: int):
         f"remote_type: {job.get('remote_type') or ''}",
         f"pay_band: {pay_band_val}",
         f"url: {source_url}",
-        f"date_posted: ",
-        f"notes: ",
+        "date_posted: ",
+        "notes: ",
         "---",
         "",
         description,
@@ -1129,7 +1128,7 @@ async def get_application(request: Request, application_id: int):
     return JSONResponse({
         "application": app_dict,
         "job": dict(job) if job else None,
-        "logs": [dict(l) for l in logs],
+        "logs": [dict(log) for log in logs],
         "audit": [dict(a) for a in audit],
         "evaluations": [dict(e) for e in evaluations],
         "postings": [dict(p) for p in postings],

@@ -10,7 +10,6 @@ Async functions are exercised with asyncio.run() — no pytest-asyncio needed.
 import asyncio
 import json
 import pytest
-from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import database
@@ -470,7 +469,7 @@ class TestEvaluateJdDbWrites:
             result = run(evaluator.evaluate_jd("jd text", "Acme", "EM"))
         app = database.get_application_for_job(result["job_id"])
         logs = database.get_application_logs(app["id"])
-        prompt_logs = [l for l in logs if l["type_value"] == "prompt"]
+        prompt_logs = [log for log in logs if log["type_value"] == "prompt"]
         assert len(prompt_logs) == 1
 
     def test_application_log_has_llm_call_log_id(self, eval_setup):
@@ -478,7 +477,7 @@ class TestEvaluateJdDbWrites:
             result = run(evaluator.evaluate_jd("jd text", "Acme", "EM"))
         app = database.get_application_for_job(result["job_id"])
         logs = database.get_application_logs(app["id"])
-        prompt_logs = [l for l in logs if l["type_value"] == "prompt"]
+        prompt_logs = [log for log in logs if log["type_value"] == "prompt"]
         assert prompt_logs[0]["llm_call_log_id"] is not None
 
     def test_evaluation_linked_to_correct_model(self, eval_setup):
@@ -517,7 +516,7 @@ class TestEvaluateJdRetry:
         evals = database.get_evaluations_for_job(result["job_id"])
         logs = database.get_llm_call_log(job_id=result["job_id"])
         # The retry log entry will have the later/higher id
-        final_log_id = max(l["id"] for l in logs)
+        final_log_id = max(log["id"] for log in logs)
         assert evals[0]["llm_call_log_id"] == final_log_id
 
     def test_double_parse_failure_writes_two_log_entries(self, eval_setup):

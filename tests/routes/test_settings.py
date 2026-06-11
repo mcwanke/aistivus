@@ -11,7 +11,6 @@ Routes covered:
   GET  /api/v1/llm-call-log
 """
 
-import pytest
 import database
 
 

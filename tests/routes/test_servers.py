@@ -12,7 +12,6 @@ Routes covered:
   GET    /api/v1/settings/anthropic-key
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 
@@ -55,7 +54,6 @@ class TestListServers:
     def test_anthropic_server_includes_key_present_field(self, client, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
         # Refresh app.state so the key is visible
-        import main as main_module
         client.app.state.anthropic_key_present = True
         database.create_server("Anthropic Claude", None, "anthropic")
         resp = client.get("/api/v1/settings/llm-servers")

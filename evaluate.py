@@ -33,7 +33,6 @@ Usage:
 
 import argparse
 import asyncio
-import re
 import shutil
 import sys
 from datetime import datetime, timezone
@@ -200,7 +199,7 @@ async def process_file(
     print(f"  JD chars: {len(jd_text):,}")
 
     if dry_run:
-        print(f"  [dry-run] Would evaluate and move to /done/")
+        print("  [dry-run] Would evaluate and move to /done/")
         return {"success": True, "score": None, "fit_type": None, "error": None}
 
     # Run evaluation
@@ -345,8 +344,8 @@ async def main(dry_run: bool = False, single_file: str | None = None) -> None:
 
     if not files:
         print(f"\n  No files found in {inbox_dir}/")
-        print(f"  Drop .md or .txt files there and run again.")
-        print(f"  Template: templates/INBOX_TEMPLATE.md")
+        print("  Drop .md or .txt files there and run again.")
+        print("  Template: templates/INBOX_TEMPLATE.md")
         print("\n─" * 40)
         return
 
@@ -369,10 +368,10 @@ async def main(dry_run: bool = False, single_file: str | None = None) -> None:
     print(f"\n{'─' * 40}")
     print(f"  Done: {succeeded} succeeded, {failed} failed")
     if succeeded > 0:
-        print(f"  View results at http://localhost:8080/jobs")
+        print("  View results at http://localhost:8080/jobs")
     if failed > 0:
         print(f"  Failed files in: {failed_dir}/")
-        print(f"  Check .error.txt sidecars for details")
+        print("  Check .error.txt sidecars for details")
     print()
 
 

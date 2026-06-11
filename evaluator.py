@@ -671,7 +671,7 @@ if __name__ == "__main__":
         )
 
         if result["success"]:
-            print(f"\n✓ Evaluation successful!")
+            print("\n✓ Evaluation successful!")
             print(f"  Job ID: {result['job_id']}")
             print(f"  Evaluation ID: {result['evaluation_id']}")
             print(f"  Score: {result['evaluation'].get('score_overall')}/10")

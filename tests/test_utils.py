@@ -1,6 +1,5 @@
 """Unit tests for standalone utility functions in main.py."""
 
-import pytest
 from main import strip_utm_params
 
 

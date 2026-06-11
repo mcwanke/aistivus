@@ -13,7 +13,6 @@ Each test that needs a jobsearch.md uses `profile_client` which additionally:
   - Patches profile_routes._load_config to point at that file
 """
 
-from pathlib import Path
 
 import pytest
 

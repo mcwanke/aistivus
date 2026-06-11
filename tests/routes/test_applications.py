@@ -15,7 +15,6 @@ Routes covered:
   POST   /api/v1/applications/{id}/lesson-chat
 """
 
-import pytest
 import database
 import llm_client
 
@@ -287,7 +286,7 @@ class TestAddLog:
         logs = seeded_client["client"].get(
             f"/api/v1/applications/{seeded_client['app_id']}"
         ).json()["logs"]
-        assert any(l["type_value"] == "status_change" for l in logs)
+        assert any(log["type_value"] == "status_change" for log in logs)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -360,7 +359,7 @@ class TestGeneratePrompt:
             f"/api/v1/applications/{seeded_client['app_id']}/generate-prompt"
         )
         logs = database.get_application_logs(seeded_client["app_id"])
-        prompt_logs = [l for l in logs if dict(l)["type_value"] == "prompt_eval"]
+        prompt_logs = [log for log in logs if dict(log)["type_value"] == "prompt_eval"]
         assert len(prompt_logs) == 1
 
     def test_prompt_log_uses_prompt_eval_type(self, seeded_client):
@@ -421,7 +420,7 @@ class TestGenerateResumePrompt:
             f"/api/v1/applications/{seeded_client['app_id']}/generate-resume-prompt"
         )
         logs = database.get_application_logs(seeded_client["app_id"])
-        resume_logs = [l for l in logs if dict(l)["type_value"] == "prompt_resume"]
+        resume_logs = [log for log in logs if dict(log)["type_value"] == "prompt_resume"]
         assert len(resume_logs) == 1
 
 
@@ -464,7 +463,7 @@ class TestGenerateCoverPrompt:
             f"/api/v1/applications/{seeded_client['app_id']}/generate-cover-prompt"
         )
         logs = database.get_application_logs(seeded_client["app_id"])
-        cover_logs = [l for l in logs if dict(l)["type_value"] == "prompt_cover"]
+        cover_logs = [log for log in logs if dict(log)["type_value"] == "prompt_cover"]
         assert len(cover_logs) == 1
 
 
@@ -541,7 +540,7 @@ class TestLessonChat:
 
         # Verify the lesson_learned log entry was written to the DB
         logs = database.get_application_logs(seeded_client["app_id"])
-        lesson_logs = [l for l in logs if dict(l)["type_value"] == "lesson_learned"]
+        lesson_logs = [log for log in logs if dict(log)["type_value"] == "lesson_learned"]
         assert len(lesson_logs) == 1
         assert dict(lesson_logs[0])["log"] == "I learned to follow up sooner."
 
@@ -559,7 +558,7 @@ class TestLessonChat:
         )
 
         logs = database.get_application_logs(seeded_client["app_id"])
-        lesson_log = next(l for l in logs if dict(l)["type_value"] == "lesson_learned")
+        lesson_log = next(log for log in logs if dict(log)["type_value"] == "lesson_learned")
         # llm_call_log_id must be set — links the log entry to the LLM call
         assert dict(lesson_log)["llm_call_log_id"] is not None
 

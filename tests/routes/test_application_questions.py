@@ -9,7 +9,6 @@ Routes covered:
   DELETE /api/v1/applications/{id}/questions/{qid}
 """
 
-import database
 
 
 class TestListQuestions:

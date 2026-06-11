@@ -13,7 +13,6 @@ No live network calls — llm_client.complete is mocked throughout.
 """
 
 import json
-import pytest
 from unittest.mock import AsyncMock, patch
 
 import database

@@ -12,7 +12,6 @@ Routes covered:
   GET  /api/v1/stats
 """
 
-import pytest
 import database
 
 
@@ -533,7 +532,7 @@ class TestGenerateOrgSummaryPrompt:
             f"/api/v1/jobs/{seeded_client['job_id']}/generate-orgsummary-prompt"
         )
         logs = database.get_application_logs(seeded_client["app_id"])
-        orgsummary_logs = [l for l in logs if dict(l)["type_value"] == "prompt_orgsummary"]
+        orgsummary_logs = [log for log in logs if dict(log)["type_value"] == "prompt_orgsummary"]
         assert len(orgsummary_logs) == 1
 
     def test_prompt_log_id_returned(self, seeded_client):

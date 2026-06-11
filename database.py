@@ -1178,10 +1178,6 @@ def insert_job_posting(job_id: int, **kwargs) -> int:
     Insert a new job posting record. Always inserts — job_postings accumulates all sources.
     Returns the new posting id.
     """
-    allowed = [
-        "source_board", "source_url", "description_raw", "date_posted",
-        "is_repost", "days_since_prior_posting", "repost_url_changed",
-    ]
     with get_connection() as conn:
         conn.execute(
             """INSERT INTO job_postings

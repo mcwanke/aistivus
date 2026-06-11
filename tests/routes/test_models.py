@@ -168,7 +168,7 @@ class TestUpdateModel:
     def test_sets_default_flag(self, server_client):
         c = server_client["client"]
         sid = server_client["server_id"]
-        mid1 = database.insert_llm_model("model-a", sid, default_flag=1)
+        database.insert_llm_model("model-a", sid, default_flag=1)
         mid2 = database.insert_llm_model("model-b", sid, default_flag=0)
         resp = c.patch(f"/api/v1/models/{mid2}", json={"default_flag": True})
         assert resp.status_code == 200
@@ -209,7 +209,7 @@ class TestDeleteModel:
     def test_deletes_model_successfully(self, server_client):
         c = server_client["client"]
         sid = server_client["server_id"]
-        mid1 = database.insert_llm_model("model-a", sid, default_flag=1)
+        database.insert_llm_model("model-a", sid, default_flag=1)
         mid2 = database.insert_llm_model("model-b", sid, default_flag=0)
         resp = c.delete(f"/api/v1/models/{mid2}")
         assert resp.status_code == 200
@@ -218,7 +218,7 @@ class TestDeleteModel:
     def test_deleted_model_not_in_list(self, server_client):
         c = server_client["client"]
         sid = server_client["server_id"]
-        mid1 = database.insert_llm_model("model-a", sid, default_flag=1)
+        database.insert_llm_model("model-a", sid, default_flag=1)
         mid2 = database.insert_llm_model("model-b", sid, default_flag=0)
         c.delete(f"/api/v1/models/{mid2}")
         models = c.get("/api/v1/models").json()["models"]

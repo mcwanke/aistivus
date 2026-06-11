@@ -503,7 +503,7 @@ class TestEvaluations:
         assert isinstance(eid, int)
 
     def test_insert_evaluation_stores_all_fields(self, tmp_db, job_id, model_id):
-        eid = database.insert_evaluation(
+        database.insert_evaluation(
             job_id, model_id,
             score_overall=8.0,
             score_role_fit=4.0,
@@ -529,7 +529,7 @@ class TestEvaluations:
         assert e["keyword_gaps"] == "kubernetes,ci/cd"
 
     def test_insert_evaluation_failed_all_null(self, tmp_db, job_id, model_id):
-        eid = database.insert_evaluation(job_id, model_id)
+        database.insert_evaluation(job_id, model_id)
         evals = database.get_evaluations_for_job(job_id)
         assert len(evals) == 1
         assert evals[0]["score_overall"] is None
@@ -538,7 +538,7 @@ class TestEvaluations:
         log_id = database.insert_llm_call_log(
             model_id, "evaluation", prompt="test", raw_response="{}", success=1
         )
-        eid = database.insert_evaluation(
+        database.insert_evaluation(
             job_id, model_id, score_overall=7.0, llm_call_log_id=log_id
         )
         evals = database.get_evaluations_for_job(job_id)
@@ -726,7 +726,7 @@ class TestApplicationLogs:
     def test_add_log_with_llm_call_log_id(self, tmp_db, app_id, model_id):
         llm_log_id = database.insert_llm_call_log(model_id, "evaluation")
         type_id = database.get_system_type_id("application_log", "prompt")
-        log_id = database.add_application_log(
+        database.add_application_log(
             app_id, type_id, llm_call_log_id=llm_log_id
         )
         logs = database.get_application_logs(app_id)

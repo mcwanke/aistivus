@@ -21,7 +21,6 @@ Usage:
 import json
 import logging
 import logging.handlers
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -154,7 +153,6 @@ def cleanup_old_logs(retention_days: int | None = None) -> int:
     cutoff = time.time() - (retention_days * 86400)
     deleted = 0
     stem = log_file.stem
-    suffix = log_file.suffix
 
     for f in log_dir.iterdir():
         if not f.is_file():
