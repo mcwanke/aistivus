@@ -137,111 +137,86 @@ No new API types expected for this step.
 
 ## Step 3 — URL Ingestion 🔲
 
-**Goal:** User can paste a job posting URL on the Evaluate page. The app scrapes the
-page and pre-fills as many fields as possible. User reviews, optionally runs an AI
-gap-fill, then proceeds to evaluation.
+**Goal:** User can paste a job posting URL on the Evaluate page. The app calls Crawl4AI
+(external service), extracts structured fields from the rendered page, and pre-fills as
+many form fields as possible. User reviews, optionally runs an AI gap-fill, then proceeds
+to evaluation.
 
-### 3.1 Build the `scraper/` service
+### 3.1 Add `scrape_routes.py` to aistivus backend
 
-New directory: `scraper/`
+New file: `scrape_routes.py` (matches existing `profile_routes.py` / `document_routes.py` pattern).
 
-**`scraper/requirements.txt`:**
-```
-fastapi
-uvicorn[standard]
-httpx
-trafilatura
-beautifulsoup4
-lxml
-```
+**Crawl4AI client function:**
+- Reads `crawl4ai.base_url` from config
+- POSTs to `{base_url}/crawl` via httpx (async)
+- Request body:
+  ```json
+  {
+    "urls": ["https://..."],
+    "browser_config": {"type": "BrowserConfig", "params": {"headless": true}},
+    "crawler_config": {"type": "CrawlerRunConfig", "params": {"cache_mode": "bypass"}}
+  }
+  ```
+- 30-second timeout — prevents the backend hanging on a stalled Playwright render
+- On success: returns `results[0]` (markdown + html fields)
+- On failure / unreachable: raises handled exception, returns graceful error response
 
-**`scraper/main.py`:** FastAPI app with one endpoint:
-
-```
-POST /scrape
-Body: { "url": "https://..." }
-
-Response:
-{
-  "scrape_quality": "full" | "partial",
-  "apply_url": "https://...",
-  "title":      string | null,
-  "company":    string | null,
-  "location":   string | null,
-  "remote_type": "Remote" | "Hybrid" | "On-site" | null,
-  "pay_band":   string | null,
-  "jd_text":    string,
-  "error":      null | string
-}
-```
-
-Extraction strategy:
-- `jd_text`: trafilatura main-body extraction
-- `apply_url`: echo the request URL
-- `title`: `<title>` tag, `<h1>`, JSON-LD `title`
-- `company`: `og:site_name`, JSON-LD `hiringOrganization`, `<title>` parse
-- `location`: JSON-LD `jobLocation`, labeled text
-- `pay_band`: JSON-LD `baseSalary`, labeled text
-- `remote_type`: JSON-LD or labeled text; null if not found (LLM fills this)
+**Structured field extraction (against rendered HTML via BS4):**
+- `results[0].markdown` → `jd_text`
+- `results[0].html` → BS4 parse for JSON-LD (`<script type="application/ld+json">`)
+  - `title`: JSON-LD `title`, fallback `<h1>`, fallback `<title>` tag
+  - `company`: JSON-LD `hiringOrganization`, fallback `og:site_name`
+  - `location`: JSON-LD `jobLocation`
+  - `pay_band`: JSON-LD `baseSalary`
+  - `remote_type`: JSON-LD or labeled text; null if not found (LLM fills this)
 - `scrape_quality: partial` if `jd_text` word count < 100
 
-**`scraper/Dockerfile`:**
-```dockerfile
-FROM python:3.11-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
-```
+**Routes:**
 
-### 3.2 Add scraper to `docker-compose.yml`
+`POST /api/v1/scrape`
+- Calls Crawl4AI client function
+- Runs structured field extraction
+- Returns `ScrapeResult`
+- If Crawl4AI unreachable: return `{success: false, error: "Crawl4AI service unavailable"}`
+- Rate limiting: 10/min
 
-```yaml
-scraper:
-  build: ./scraper
-  ports:
-    - "127.0.0.1:8001:8001"
-  restart: unless-stopped
-```
+`POST /api/v1/scrape/fill-gaps`
+- Accepts: `{jd_text, title, company, location, remote_type, pay_band}` (nulls included)
+- Builds structured extraction prompt (inline for now — moved to `prompt_builder.py` in Step 4)
+- Calls `llm_client.complete()` using the default configured model
+- Logs LLM call to `llm_call_log` (`call_type = "extraction"`)
+- Returns: same field shape with filled-in values
+- If LLM parse fails: return what we have, surface error to client
+- Rate limiting: 10/min
 
-No volume mounts needed — the scraper is stateless.
+Register both routes in `main.py`.
 
-### 3.3 Add `scraper.base_url` to config.yaml
+### 3.2 Crawl4AI is an external service — no docker-compose changes required
+
+Crawl4AI runs as a standalone container managed independently (same model as Ollama).
+No new service is added to `docker-compose.yml`.
+
+Optional: add a commented convenience block to `docker-compose.yml` for users who want
+to manage Crawl4AI within the same compose stack.
+
+Document Crawl4AI standalone setup in `README.md`.
+
+### 3.3 Add `crawl4ai.base_url` to config.yaml
 
 Add to `user_data/config.yaml`:
 ```yaml
-scraper:
-  base_url: http://scraper:8001   # Docker; change to http://localhost:8001 for local dev
+crawl4ai:
+  base_url: http://crawl:11235   # Docker network name; change to server address for dev
 ```
 
-Update `templates/CONFIG_TEMPLATE.yaml` with the same key + both URL options as comments.
+Update `templates/CONFIG_TEMPLATE.yaml` with the same key and both options as comments:
+```yaml
+crawl4ai:
+  base_url: http://crawl:11235             # Docker network (container named 'crawl')
+  # base_url: https://crawl4ai.yourdomain.com  # Traefik / remote server
+```
 
-### 3.4 Add backend scrape route to `main.py`
-
-New route: `POST /api/v1/scrape`
-
-- Reads `scraper.base_url` from config
-- POSTs `{url}` to `{base_url}/scrape` via httpx (async)
-- Returns the scraper response to the client
-- If scraper is unreachable: return `{success: false, error: "Scraper service unavailable"}`
-- Apply rate limiting (suggest 10/min — same as evaluate route)
-- No DB writes in this route
-
-New route: `POST /api/v1/scrape/fill-gaps`
-
-- Accepts: `{jd_text, title, company, location, remote_type, pay_band}` (nulls included)
-- Builds a structured extraction prompt (in `prompt_builder.py` — see Step 4 prerequisite note)
-- Calls `llm_client.complete()` using the default configured model
-- Returns: same field shape with filled-in values
-- Log the LLM call to `llm_call_log` (call_type = `"extraction"`)
-- If LLM parse fails: return what we have, surface error to client
-
-**Note:** `prompt_builder.py` does not exist yet. For Step 3, the extraction prompt
-can live inline in this route temporarily. Step 4 will move it to `prompt_builder.py`.
-Document this as known tech debt when implementing.
-
-### 3.5 Add frontend types
+### 3.4 Add frontend types
 
 In `frontend/src/types/api.ts`, add:
 ```typescript
@@ -267,73 +242,68 @@ interface FillGapsResult {
 }
 ```
 
-### 3.6 Add frontend hooks
+### 3.5 Add frontend hooks
 
 In `frontend/src/hooks/useEvaluate.ts` (or new file):
 - `useScrapeMutation()` — POST `/api/v1/scrape`
 - `useFillGapsMutation()` — POST `/api/v1/scrape/fill-gaps`
 
-### 3.7 Update `Evaluate.tsx`
+### 3.6 Update `Evaluate.tsx`
 
 Add above the existing form fields:
 
 **URL import row:**
 - Text input: "Job Posting URL" placeholder `https://…`
 - "Import from URL" button — triggers `useScrapeMutation`
-- Loading state while scraping (disable form, show spinner)
+- Loading state while scraping (disable form, show spinner with elapsed time)
 - On success: pre-fill all returned non-null fields; do not overwrite fields the
   user has already manually entered
 - On `scrape_quality: partial`: yellow warning banner —
   "Partial scrape — some fields may be incomplete. Review below."
-- On scraper unavailable: inline error message below the URL input;
+- On Crawl4AI unavailable: inline error below the URL input —
+  "Crawl4AI unavailable — enter fields manually";
   rest of the form remains fully usable
 
 **"Fill gaps with AI" button:**
 - Appears only after a scrape has run AND at least one field is null
 - Triggers `useFillGapsMutation` with current field state
-- Loading state (disable button, show elapsed time — this may take 10–25s on local models)
+- Loading state (disable button, show elapsed time — may take 10–25s on local models)
 - On success: pre-fill returned non-null fields
 - On failure: inline error; fields unchanged
 
-### 3.8 Update `.dockerignore`
-Confirm `scraper/` is not inadvertently excluded from the build context.
-The scraper has its own `Dockerfile`; the main `.dockerignore` should not interfere.
-
-### 3.9 Write tests
-
-**Scraper service (`scraper/tests/`):**
-- Unit tests for each extraction function (mock httpx responses)
-- Test `scrape_quality: partial` threshold
-- Test graceful handling of unreachable URLs and malformed HTML
+### 3.7 Write tests
 
 **AIstivus backend (`tests/routes/`):**
-- `POST /api/v1/scrape`: mock the scraper HTTP call; verify response passthrough
-- `POST /api/v1/scrape`: scraper unavailable → verify graceful error response
-- `POST /api/v1/scrape/fill-gaps`: mock LLM client; verify field normalization
+- `POST /api/v1/scrape`: mock Crawl4AI HTTP call; verify `ScrapeResult` field mapping
+- `POST /api/v1/scrape`: mock Crawl4AI returning short markdown; verify `scrape_quality: partial`
+- `POST /api/v1/scrape`: Crawl4AI unreachable → verify graceful error response
+- `POST /api/v1/scrape/fill-gaps`: mock `llm_client.complete()`; verify field normalization
+  and `llm_call_log` write
 
 **Frontend:**
 - `Evaluate.tsx`: URL input renders; import button triggers mutation; partial banner
-  appears on partial quality; fill-gaps button appears when fields are null
+  appears on partial quality; fill-gaps button appears when fields are null;
+  inline error shown when Crawl4AI unavailable
 
-### Dev mode setup (document in README or COMMANDS.md)
-```
-Terminal 1: python main.py
-Terminal 2: cd frontend && npm run dev
-Terminal 3: cd scraper && uvicorn main:app --port 8001 --reload
-```
-Set `scraper.base_url: http://localhost:8001` in `user_data/config.yaml` for local dev.
+### Dev setup
+
+Crawl4AI runs as a standalone container on a remote server. Set `crawl4ai.base_url`
+in `user_data/config.yaml` to the server address before running. No third local process
+required.
 
 ### Files touched
-- `scraper/` (new directory: main.py, requirements.txt, Dockerfile)
-- `scraper/tests/` (new)
-- `docker-compose.yml`
-- `user_data/config.yaml`
-- `templates/CONFIG_TEMPLATE.yaml`
-- `main.py`
-- `frontend/src/types/api.ts`
-- `frontend/src/hooks/useEvaluate.ts`
-- `frontend/src/pages/Evaluate.tsx`
-- `ignore/COMMANDS.md` or `README.md` (dev setup instructions)
+- `scrape_routes.py` (new)
+- `main.py` — register scrape routes
+- `requirements.txt` — confirm `beautifulsoup4` present; no new deps
+- `user_data/config.yaml` — add `crawl4ai.base_url`
+- `templates/CONFIG_TEMPLATE.yaml` — same
+- `docker-compose.yml` — optional commented Crawl4AI block
+- `frontend/src/types/api.ts` — new interfaces
+- `frontend/src/hooks/` — new mutations
+- `frontend/src/pages/Evaluate.tsx` — URL import UI
+- `README.md` — Crawl4AI setup instructions
+- `app_docs/DESIGN_p2.0.md` — Section 3 rewrite
+- `tests/routes/` — new scrape route tests
 
 ---
 

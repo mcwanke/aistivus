@@ -46,70 +46,92 @@ its own design session.
 ## 3. Scraper Service Design
 
 ### Approach
-Standalone Python microservice in a `scraper/` subdirectory of the aistivus repo.
-Bundled into `docker-compose.yml` as a second service (Option A). In dev mode, run
-manually as a third local process alongside uvicorn and the Vite dev server.
+Crawl4AI runs as a standalone external service — the same model as Ollama. AIstivus
+calls it via HTTP from `scrape_routes.py`. Users manage the Crawl4AI container lifecycle
+independently; it is not bundled in AIstivus's `docker-compose.yml`.
 
-**Rationale for bundled (vs. separate repo):** The second app that would consume this
-service is months out and not yet concrete. Extract to a separate repo when that need
-is real. The internal module boundary is clean enough to make extraction a half-day job.
+**Rationale:** Crawl4AI is a reusable general-purpose scraping service, not an AIstivus-
+specific component. Running it standalone makes it available across projects. The abstraction
+boundary is clean: `scrape_routes.py` in the AIstivus backend owns the API contract and
+structured field extraction; Crawl4AI owns the page rendering.
 
-### Tech Stack (Phase 1)
-- FastAPI — API layer
-- httpx — HTTP requests
-- trafilatura — main-body content extraction (strips nav, ads, footer boilerplate)
-- BeautifulSoup4 — structured metadata extraction (JSON-LD, meta tags)
-- lxml — HTML parser (trafilatura dependency)
+### Why Crawl4AI
 
-**Explicitly excluded from Phase 1:**
-- keyBERT / sentence-transformers — heavy ML dependency (~800MB+); duplicates keyword
-  extraction already done by the LLM evaluator
-- Playwright — headless browser for JS-heavy pages; Phase 2 addition
-- ATS-specific extractors (Greenhouse, Lever, Workday) — Phase 2 addition
-- Redis / async job queue — synchronous is sufficient for single-URL requests at this scale
-- URL response caching — Phase 2 addition
+Three options were evaluated before this decision:
+
+| Option | Outcome |
+|---|---|
+| Custom scraper (trafilatura + httpx) | Rejected. Plain HTTP fails silently on JS-rendered job boards (Workday, iCIMS, Greenhouse, Lever) — the most common boards. Playwright support was Phase 2 deferred work with no clear timeline. |
+| Scrapper (amerkurev/scrapper) | Rejected. 297 GitHub stars, pre-1.0. Mozilla Readability.js extraction does not return structured metadata (JSON-LD) — BS4 would still be needed. Same ~2GB image size as Crawl4AI with significantly more maintenance risk. |
+| **Crawl4AI (unclecode/crawl4ai)** | **Selected.** 50k+ GitHub stars, actively maintained (v0.8.9, June 2026), pinnable version tags, Playwright built in, returns both rendered HTML and clean markdown, health endpoint at `/health`. |
+
+### Always Playwright
+
+Crawl4AI is always invoked with Playwright (headless Chromium). No fast-path plain HTTP
+fallback.
+
+**Rationale:** The most common job boards (Workday, iCIMS, Greenhouse, Lever) are
+JavaScript-rendered SPAs. Plain HTTP returns page shell, not the job description. A
+fast-path fallback adds code complexity and a false-confidence failure mode: short rendered
+content is indistinguishable from a JS-rendered page without actually rendering it. For a
+single-user tool making infrequent single-URL requests, the 3–8 second Playwright render
+time is acceptable. A spinner with elapsed time is shown in the UI during the wait.
+
+### Tech Stack
+
+| Component | Technology |
+|---|---|
+| Page fetch + JS rendering | Crawl4AI REST API (`POST /crawl`, port 11235) |
+| Structured field extraction | BeautifulSoup4 — JSON-LD parsing against rendered HTML |
+| Gap-fill LLM call | Existing `llm_client.py` + `llm_models` table |
 
 ### API Contract
 
-```
-POST /scrape
+**Request to Crawl4AI (`POST /crawl`):**
+```json
 {
-  "url": "https://..."
-}
-
-Response:
-{
-  "scrape_quality": "full" | "partial",
-  "apply_url": "https://...",     // echoed from request
-  "title":     "Engineering Manager" | null,
-  "company":   "Acme Corp" | null,
-  "location":  "New York, NY" | null,
-  "remote_type": "Remote" | "Hybrid" | "On-site" | null,
-  "pay_band":  "$150k–$180k" | null,
-  "jd_text":   "...",              // main body content; may be partial
-  "error":     null | "message"
+  "urls": ["https://..."],
+  "browser_config": {"type": "BrowserConfig", "params": {"headless": true}},
+  "crawler_config": {"type": "CrawlerRunConfig", "params": {"cache_mode": "bypass"}}
 }
 ```
 
-`scrape_quality: partial` is returned when jd_text is below a word count threshold
-(exact threshold TBD at implementation time — suggest 100 words as a starting point).
+**From Crawl4AI response:**
+- `results[0].markdown` → `jd_text` (clean body content)
+- `results[0].html` → BS4 JSON-LD extraction for structured fields
+
+**AIstivus `ScrapeResult` contract (returned to frontend — unchanged):**
+```
+scrape_quality, apply_url, title, company, location, remote_type, pay_band, jd_text, error
+```
+
+`scrape_quality: partial` when `jd_text` word count < 100.
 
 ### Field Extraction Strategy
 
 | Field | Source | Confidence |
 |---|---|---|
-| `jd_text` | trafilatura main-body extraction | High |
+| `jd_text` | Crawl4AI markdown output | High |
 | `apply_url` | Echoed from request URL | Free |
-| `title` | `<title>` tag, `<h1>`, JSON-LD `title` | High |
-| `company` | `og:site_name`, JSON-LD `hiringOrganization`, `<title>` pattern | Usually |
-| `location` | JSON-LD `jobLocation`, labeled text | Sometimes |
-| `pay_band` | JSON-LD `baseSalary`, labeled text | Best-effort |
-| `remote_type` | JSON-LD or labeled text; LLM inference as fallback | Unreliable structurally |
+| `title` | JSON-LD `title`, fallback `<h1>`, fallback `<title>` tag | High |
+| `company` | JSON-LD `hiringOrganization`, fallback `og:site_name` | Usually |
+| `location` | JSON-LD `jobLocation` | Sometimes |
+| `pay_band` | JSON-LD `baseSalary` | Best-effort |
+| `remote_type` | JSON-LD or labeled text; null if not found (LLM fills this) | Unreliable structurally |
+
+### Configuration
+
+`crawl4ai.base_url` in `config.yaml`:
+- Docker network: `http://crawl:11235` (container named `crawl`)
+- Remote server / dev: server address (Traefik URL or direct IP)
+
+If unreachable: per-request inline error returned to frontend; URL import shows
+"Crawl4AI unavailable — enter fields manually"; rest of Evaluate page unaffected.
 
 ### Phase 2 Additions (designed for, not yet built)
-- Playwright headless browser for JS-heavy SPAs (Workday, iCIMS)
-- ATS platform-specific targeted extractors
+- ATS platform-specific targeted extractors (Greenhouse, Lever, Workday)
 - URL response caching with TTL
+- Proxy configuration for anti-bot sites
 
 ---
 
@@ -134,15 +156,11 @@ Response:
 - Prompt lives in `prompt_builder.py` (Phase 2.0 prompt extraction work)
 
 ### Dev Mode
-Run scraper as a third local process:
-```
-cd scraper && uvicorn main:app --port 8001 --reload
-```
-`config.yaml` has `scraper.base_url`:
-- Local dev: `http://localhost:8001`
-- Docker: `http://scraper:8001` (Docker Compose service name)
+Crawl4AI runs as a standalone container on a remote server — no third local process
+required. Set `crawl4ai.base_url` in `user_data/config.yaml` to the server address
+before running.
 
-If scraper is not running: URL import button disabled with a clear message;
+If Crawl4AI is unreachable: per-request inline error shown below the URL input;
 rest of Evaluate page unaffected.
 
 ---
