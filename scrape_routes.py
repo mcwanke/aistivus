@@ -14,6 +14,7 @@ import hashlib
 import json
 import re
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,23 @@ from logger import get_logger
 
 log = get_logger(__name__)
 router = APIRouter()
+
+_SCRAPE_DEBUG_LOG = Path("app_data/logs/scrape_debug.jsonl")
+
+
+def _log_scrape_debug(url: str, result: dict) -> None:
+    """Append one JSONL line with timestamp, URL, and full Crawl4AI result."""
+    try:
+        _SCRAPE_DEBUG_LOG.parent.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "url": url,
+            "result": result,
+        }
+        with open(_SCRAPE_DEBUG_LOG, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception as exc:
+        log.warning("scrape_debug write failed: %s", exc)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -208,6 +226,7 @@ class FillGapsRequest(BaseModel):
     location: str | None = None
     remote_type: str | None = None
     pay_band: str | None = None
+    llm_model_id: int | None = None
 
 
 class FillGapsResult(BaseModel):
@@ -259,7 +278,10 @@ async def scrape_url(request: Request, body: ScrapeRequest) -> JSONResponse:
             "jd_text": "",
         })
 
-    markdown = result.get("markdown") or result.get("markdown_v2", {}).get("raw_markdown", "") or ""
+    _log_scrape_debug(body.url, result)
+
+    _md = result.get("markdown") or {}
+    markdown = (_md if isinstance(_md, str) else _md.get("fit_markdown") or _md.get("raw_markdown") or "") or ""
     html = result.get("html") or ""
 
     fields = _extract_fields(markdown, html)
@@ -290,7 +312,10 @@ async def fill_gaps(request: Request, body: FillGapsRequest) -> JSONResponse:
             "error": None,
         })
 
-    model_row = database.get_default_llm_model()
+    if body.llm_model_id is not None:
+        model_row = database.get_llm_model(body.llm_model_id)
+    else:
+        model_row = database.get_default_llm_model()
     if not model_row:
         return JSONResponse({
             "title": body.title,
@@ -302,6 +327,7 @@ async def fill_gaps(request: Request, body: FillGapsRequest) -> JSONResponse:
         })
 
     server_row = database.get_server_by_id(model_row["server_id"])
+    provider = "anthropic" if server_row["server_type"] == "anthropic" else "ollama"
     fields_list = ", ".join(null_fields)
     system_prompt = (
         "You are a structured data extractor. "
@@ -321,7 +347,7 @@ async def fill_gaps(request: Request, body: FillGapsRequest) -> JSONResponse:
         prompt=user_prompt,
         system=system_prompt,
         model=model_row["model"],
-        provider=server_row["server_type"],
+        provider=provider,
         base_url=server_row["endpoint"] or "",
         max_tokens=300,
     )

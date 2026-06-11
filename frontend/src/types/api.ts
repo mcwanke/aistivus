@@ -469,6 +469,7 @@ export interface FillGapsPayload {
   location: string | null
   remote_type: RemoteType | null
   pay_band: string | null
+  llm_model_id: number | null
 }
 
 export interface FillGapsResult {
