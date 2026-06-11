@@ -1,6 +1,6 @@
 # AIstivus — Phase 2.0 Workorder
-> Status: In progress — Steps 1–3 ready to execute; Steps 4–5 pending design
-> Last updated: 2026-06-09
+> Status: In progress — Step 1 complete; Steps 2–3 ready to execute; Steps 4–5 pending design
+> Last updated: 2026-06-10
 > Design doc: app_docs/DESIGN_p2.0.md
 
 ---
@@ -14,7 +14,7 @@ Before starting any step:
 
 ---
 
-## Step 1 — CI/CD Setup 🔲
+## Step 1 — CI/CD Setup ✅
 
 **Goal:** Automated test runs on every push/PR. GitHub blocks merges to `main` if
 backend or frontend checks fail.
@@ -79,9 +79,13 @@ Repository Settings → Branches → Add rule for `main`:
 - Add `backend` and `frontend` as required checks
 - (Optional) Require branch to be up to date before merging
 
+> ⚠️ Manual step — must be done in GitHub UI after first green CI run.
+
 ### Files touched
-- `requirements.txt` (if ruff not present)
-- `.github/workflows/ci.yml` (new)
+- `requirements.txt` — added `ruff>=0.4.0`
+- `.github/workflows/ci.yml` (new) — added `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'` env
+- `database.py`, `logger.py`, `main.py` — fixed ruff F841/E741 violations
+- `tests/` — fixed ruff F401/F541/F841/E741 violations across 5 test files
 
 ---
 

@@ -805,13 +805,12 @@ Deliverables:
 - `main.py` — StaticFiles + SPA catch-all already in place from Phase 1.1; no changes needed
 - README updated with Docker setup instructions + Ollama host.docker.internal note
 
-### Phase 2 — Extended Workflow 🔲 (Future)
-- URL ingestion (tiered: Playwright / Requests-HTML / BS4 / manual paste)
-- Resume chunk library (resume_info table activated)
-- LLM-assisted resume/cover letter generation with inline editor
-- DOCX export (python-docx)
-- Multi-model evaluation comparison view
-- Interview prep: practice questions from profile gaps + JD evaluation
+### Phase 2.0 — Extended Workflow 🔲 (Active — see WORKORDER_p2.0.md)
+- Step 1: CI/CD ✅ — GitHub Actions (pytest + ruff + vitest + build); ruff added to requirements.txt
+- Step 2: Nav restructure 🔲 — AppHeader gains Career/Job Search/Settings links; `/career` stub
+- Step 3: URL ingestion 🔲 — Crawl4AI integration on Evaluate page
+- Step 4: Prompt editing 🔲 — pending design session
+- Step 5: Pending 🔲 — Memory, Dashboard redesign, Career workflow
 
 ### Phase 3 — Discovery 🔲 (Future)
 - `scraper.py` (jobspy or equivalent)

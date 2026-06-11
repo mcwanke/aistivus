@@ -72,7 +72,17 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 ---
 
-## Current Phase: PHASE 2 — Extended Workflow (Future)
+## Current Phase: PHASE 2.0 — Extended Workflow (Active)
+
+### Phase 2.0 — Step 1: CI/CD ✅ Complete
+- `.github/workflows/ci.yml` — pytest + ruff (backend) and vitest + build (frontend) on every push/PR to `main`
+- `ruff>=0.4.0` added to `requirements.txt`; all existing violations fixed
+- Node.js 24 opted in via `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'`
+- Branch protection (Step 1.4) is a manual GitHub UI step — required checks: `backend`, `frontend`
+
+### Phase 2.0 — Steps 2–3: Next Up 🔲
+- Step 2: Nav restructure — AppHeader gains Career/Job Search/Settings links; `/career` stub page
+- Step 3: URL ingestion — Crawl4AI integration on Evaluate page
 
 ### Phase 1.7 — Docker ✅ Complete
 - Dockerfile (multi-stage: Node:20-slim build → python:3.11-slim serve; Typst v0.14.2 baked in; HEALTHCHECK)
@@ -80,9 +90,6 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 - .dockerignore
 - main.py: StaticFiles + SPA catch-all already in place from Phase 1.1
 - README.md: Docker setup instructions complete; Ollama host.docker.internal note added
-
-### Phase 2 — Extended Workflow 🔲
-See `app_docs/FEATURES.md` for the Phase 2 backlog. No workorder written yet.
 
 ### Target File Structure
 ```
