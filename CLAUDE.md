@@ -72,29 +72,60 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 ---
 
-## Current Phase: PHASE 2.0 — Extended Workflow (Active)
+## Current Phase: PHASE 2.1 — Evaluation Quality + Prompt System (Active)
 
-### Phase 2.0 — Step 1: CI/CD ✅ Complete
-- `.github/workflows/ci.yml` — pytest + ruff (backend) and vitest + build (frontend) on every push/PR to `main`
-- `ruff>=0.4.0` added to `requirements.txt`; all existing violations fixed
-- Node.js 24 opted in via `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'`
-- Branch protection (Step 1.4) is a manual GitHub UI step — required checks: `backend`, `frontend`
+See `app_docs/WORKORDER_p2.1.md` for full implementation detail.
 
-### Phase 2.0 — Step 2: Nav Restructure ✅ Complete
-- `AppHeader.tsx`: three-item nav group (Career/Job Search/Settings), active route highlight via `useLocation`
-- `Career.tsx` (new): stub page at `/career`
-- `main.tsx`: `/career` route registered
-- `AppHeader.test.tsx`: updated for nav group structure
+### Phase 2.1 — Step 1: Prompt Calibration Fixes 🔲
+- `evaluator.py` `SYSTEM_PROMPT_TEMPLATE`: reframe scoring bands 1–10; remove "10 is rare" language; remove contradictory "don't suppress high scores" instruction
+- `main.py` external eval prompt: extract to `EXTERNAL_EVAL_PROMPT_TEMPLATE` constant; add matching calibration guidance
 
-### Phase 2.0 — Step 3: URL Ingestion ✅ Complete
-- `scrape_routes.py` (new): Crawl4AI client, JSON-LD extraction, `POST /api/v1/scrape` + `POST /api/v1/scrape/fill-gaps`
-- No new Python deps — stdlib `re` + `json` for HTML parsing
-- Crawl4AI runs as external service (like Ollama); config: `crawl4ai.base_url` in `user_data/config.yaml`
-- Evaluate page: URL import row, partial quality banner, fill-gaps AI button
+### Phase 2.1 — Step 2: Quick UX Wins + Re-Run Eval 🔲
+- Spinner icon on Fill With AI button (`Evaluate.tsx`)
+- Text search input (first element in Jobs filter bar, client-side, company + title)
+- Company name + title added to existing Job Info edit modal (`JobDetail.tsx`)
+- "Re-Run Internal Eval" button on Job Details → Evaluations tab: navigates to Evaluate page with all 7 fields pre-populated via router state; `job_id` in state bypasses dedup detection
 
-### Phase 2.0 — Steps 4–5: Next Up 🔲
-- Step 4: Prompt editing — pending design session
-- Step 5: Memory, Dashboard redesign, Career workflow — pending design
+### Phase 2.1 — Step 3: Create Job Without Eval + Post-Action Widget 🔲
+- New "Create Job Without Eval" button on Evaluate page (same fields, no model selector, no AI call)
+- All evaluated jobs auto-activate (`is_active = 1`) — evaluate endpoint sets this directly; "Yes/No, build this job" buttons removed
+- New `POST /api/v1/jobs/create` endpoint
+- Post-eval and post-import: inline widget (not a modal) with **Go To Job** | **Evaluate Again**; appears above evaluation result
+
+### Phase 2.1 — Step 4: Evaluation Feedback System 🔲
+- New `prompt_feedback` table: `(id, prompt_type, evaluation_id, llm_call_log_id, agree, dimension, feedback_text, created_at)`; nullable FKs with ON DELETE SET NULL; extensible to non-evaluation prompts via `prompt_type`
+- New `POST /api/v1/prompt-feedback` endpoint
+- `EvaluationFeedbackButton` component: inline button → modal with agree/disagree + dimension selector + optional text
+- Wired in two places: above result on Evaluate page (internal eval); second modal after Import External Eval success (external eval)
+- Feedback not displayed to user in this phase — stored for Phase 2.2 review tool
+
+### Phase 2.1 — Step 5: Prompt Storage Foundation 🔲
+- New `prompts` table: `(id, prompt_key, label, version, segments_text, preview_context, saved_at, note, is_active)`
+- `segments_text` uses `[[EDITABLE]]` / `[[READONLY]]` tag markers; tags stripped before LLM call via `assemble_prompt()`
+- `is_active = 1` uniqueness per `prompt_key` enforced in application layer (same pattern as `llm_models.default_flag`)
+- `version` is sequential integer per `prompt_key`; `preview_context` and `label` only populated on active row
+- DB functions: `get_active_prompt`, `save_prompt`, `get_prompt_history`, `seed_prompt_if_missing`
+- Startup seeding: if no record exists for a key, seed from code constant
+
+### Phase 2.1 — Step 6: Segmented Prompt Editor UI (Settings) 🔲
+- New "Prompts" section in Settings page
+- Header: prompt dropdown + Save button; two-column layout: editable segments as `<textarea>`, locked segments as muted read-only; right column = fully assembled preview with `preview_context` sample values substituted (read-only)
+- New API endpoints: `GET /api/v1/prompts`, `GET /api/v1/prompts/{key}`, `POST /api/v1/prompts/{key}/save`, `GET /api/v1/prompts/{key}/preview`
+- `evaluation_system` rendered first (default dropdown selection)
+
+### Phase 2.1 — Step 7: evaluation_system Migration + Multi-Prompt Split 🔲
+- Migrate `evaluation_system` and `evaluation_user` from code constants to `prompts` table as four separate entries: `eval_analysis_system`, `eval_analysis_user`, `eval_scoring_system`, `eval_scoring_user`
+- Two-call evaluation pipeline in `evaluator.py`: Call 1 (archetype + deal-breaker + domain) → Call 2 (scoring); outputs merged into single `evaluations` record
+- `evaluations.llm_call_log_id` points to Call 2; Call 1 log traceable via `job_id` on `llm_call_log`
+- Call 1 failure → fail entire evaluation; Call 2 failure → retry once (existing contract)
+- New nullable `analysis_json TEXT` column on `evaluations` (delta migration via ALTER TABLE)
+- Original code constants retained as seeding fallbacks; `test_evaluator.py` requires significant rewrite
+
+### Phase 2.0 — Steps 1–3 ✅ Complete
+- Step 1: CI/CD — `.github/workflows/ci.yml`; pytest + ruff + vitest + build on every push/PR
+- Step 2: Nav restructure — `AppHeader.tsx` three-item nav group; `/career` stub route
+- Step 3: URL ingestion — `scrape_routes.py`; Crawl4AI client; fill-gaps AI endpoint; Evaluate page UI
+- Steps 4–5: Superseded by Phase 2.1 workorder
 
 ### Phase 1.7 — Docker ✅ Complete
 - Dockerfile (multi-stage: Node:20-slim build → python:3.11-slim serve; Typst v0.14.2 baked in; HEALTHCHECK)
