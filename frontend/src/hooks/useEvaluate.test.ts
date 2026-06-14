@@ -5,7 +5,7 @@ import { createElement } from 'react'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/test/mocks/server'
 import { MOCK_MODEL, MOCK_EVALUATE_RESPONSE } from '@/test/mocks/handlers'
-import { useModels, useEvaluateMutation, useImportEvaluationMutation } from './useEvaluate'
+import { useModels, useEvaluateMutation, useImportEvaluationMutation, useCreateJobMutation } from './useEvaluate'
 
 function makeWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
@@ -115,5 +115,21 @@ describe('useImportEvaluationMutation', () => {
     })
     await waitFor(() => expect(result.current.isError).toBe(true))
     expect(result.current.error?.message).toBe('Import failed')
+  })
+})
+
+describe('useCreateJobMutation', () => {
+  it('posts to create endpoint and returns job_id', async () => {
+    const { result } = renderHook(() => useCreateJobMutation(), { wrapper: makeWrapper() })
+    result.current.mutate({ company_name: 'Acme', title: 'Engineer' })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toEqual({ success: true, job_id: 42 })
+  })
+
+  it('enters error state on failure', async () => {
+    server.use(http.post('/api/v1/jobs/create', () => new HttpResponse(null, { status: 500 })))
+    const { result } = renderHook(() => useCreateJobMutation(), { wrapper: makeWrapper() })
+    result.current.mutate({ company_name: 'Acme', title: 'Engineer' })
+    await waitFor(() => expect(result.current.isError).toBe(true))
   })
 })

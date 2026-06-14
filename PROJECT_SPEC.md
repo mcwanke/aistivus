@@ -806,12 +806,21 @@ Deliverables:
 - `main.py` — StaticFiles + SPA catch-all already in place from Phase 1.1; no changes needed
 - README updated with Docker setup instructions + Ollama host.docker.internal note
 
-### Phase 2.0 — Extended Workflow (Active — see WORKORDER_p2.0.md)
+### Phase 2.0 — Extended Workflow ✅ Steps 1–3 Complete
 - Step 1: CI/CD ✅ — GitHub Actions (pytest + ruff + vitest + build); ruff added to requirements.txt
 - Step 2: Nav restructure ✅ — AppHeader Career/Job Search/Settings nav group; `/career` stub; active route highlight
 - Step 3: URL ingestion ✅ — `scrape_routes.py`; Crawl4AI client; JSON-LD extraction; fill-gaps LLM endpoint; Evaluate page UI
-- Step 4: Prompt editing 🔲 — pending design session
-- Step 5: Pending 🔲 — Memory, Dashboard redesign, Career workflow
+- Step 4: Superseded by Phase 2.1 workorder
+- Step 5: 🔲 Not yet designed — Memory, Dashboard redesign, Career workflow
+
+### Phase 2.1 — Evaluation Quality + Prompt System (Active — see WORKORDER_p2.1.md)
+- Step 1: Prompt calibration ✅ — scoring band reframe; external eval prompt extracted + calibrated
+- Step 2: UX wins + re-run eval ✅ — spinner on Fill With AI; job search input; company/title in edit modal; Re-Run Internal Eval button
+- Step 3: Create job without eval + post-action widget 🔲
+- Step 4: Evaluation feedback system 🔲
+- Step 5: Prompt storage foundation 🔲
+- Step 6: Segmented prompt editor UI 🔲
+- Step 7: evaluation_system migration + two-call pipeline 🔲
 
 ### Phase 3 — Discovery 🔲 (Future)
 - `scraper.py` (jobspy or equivalent)

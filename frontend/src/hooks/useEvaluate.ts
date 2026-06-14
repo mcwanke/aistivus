@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { LlmModel, ModelsResponse, EvaluateResponse, ScrapeResult, FillGapsPayload, FillGapsResult } from '@/types/api'
+import type { LlmModel, ModelsResponse, EvaluateResponse, ScrapeResult, FillGapsPayload, FillGapsResult, CreateJobPayload, CreateJobResult } from '@/types/api'
 
 // ─── Fetchers ─────────────────────────────────────────────────────────────────
 
@@ -125,4 +125,26 @@ async function postFillGaps(payload: FillGapsPayload): Promise<FillGapsResult> {
 
 export function useFillGapsMutation() {
   return useMutation({ mutationFn: postFillGaps })
+}
+
+// ─── Create job without eval mutation ────────────────────────────────────────
+
+async function postCreateJob(payload: CreateJobPayload): Promise<CreateJobResult> {
+  const res = await fetch('/api/v1/jobs/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error(`create-job ${res.status}`)
+  return res.json() as Promise<CreateJobResult>
+}
+
+export function useCreateJobMutation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: postCreateJob,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['jobs'] })
+    },
+  })
 }

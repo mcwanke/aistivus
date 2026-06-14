@@ -444,6 +444,23 @@ export interface ActivityLogResponse {
   entries: ActivityLogEntry[]
 }
 
+// ─── POST /api/v1/jobs/create ────────────────────────────────────────────────
+
+export interface CreateJobPayload {
+  company_name: string
+  title: string
+  location?: string
+  remote_type?: 'Remote' | 'Hybrid' | 'On-site' | null
+  apply_url?: string
+  pay_band?: string
+  description?: string
+}
+
+export interface CreateJobResult {
+  success: boolean
+  job_id: number
+}
+
 // ─── Scrape / URL ingestion types ────────────────────────────────────────────
 
 export type RemoteType = 'Remote' | 'Hybrid' | 'On-site'

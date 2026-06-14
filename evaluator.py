@@ -446,6 +446,7 @@ async def evaluate_jd(
             description_merged=jd_text,
             pay_band=pay_band,
         )
+        database.activate_job(job_id)
 
     # ── Step 4: Insert job_posting ─────────────────────────────
     database.insert_job_posting(

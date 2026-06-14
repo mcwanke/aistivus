@@ -5,15 +5,15 @@ import {
   useEvaluateMutation,
   useScrapeMutation,
   useFillGapsMutation,
+  useCreateJobMutation,
   type EvaluatePayload,
 } from '@/hooks/useEvaluate'
-import { useActivateJob } from '@/hooks/useJobs'
 import type { EvaluateResponse, ExistingJob } from '@/types/api'
 import AppHeader from '@/components/AppHeader'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type PanelState = 'idle' | 'running' | 'result' | 'error'
+type PanelState = 'idle' | 'running' | 'result' | 'created' | 'error'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -268,64 +268,30 @@ function DupModal({
   )
 }
 
-// ─── Activate CTA ─────────────────────────────────────────────────────────────
+// ─── Post-action widget ───────────────────────────────────────────────────────
 
-function ActivateCTA({
-  recommendation,
-  scoreOverall,
-  onYes,
-  onNo,
-  isPending,
-  error,
+function PostActionWidget({
+  jobId,
+  onEvaluateAgain,
 }: {
-  recommendation: string | null
-  scoreOverall: number | null
-  onYes: () => void
-  onNo: () => void
-  isPending: boolean
-  error: string | null
+  jobId: number
+  onEvaluateAgain: () => void
 }): React.JSX.Element {
-  const firstLine = recommendation
-    ? `The overall recommendation for this job is: ${recommendation}`
-    : 'Evaluation completed.'
-
+  const navigate = useNavigate()
   return (
-    <div className="mx-6 mt-6 bg-accent/10 border border-accent/30 rounded-lg p-5 flex gap-6">
-      <div className="flex-1 space-y-3">
-        <p className="text-sm text-text font-sans">{firstLine}</p>
-        <p className="text-sm text-muted font-sans">
-          Would you like to start building the job and application information?
-        </p>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onYes}
-            disabled={isPending}
-            className="px-4 py-2 text-sm font-sans bg-accent text-bg rounded hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isPending ? 'Going to job…' : 'Yes, Go to Job'}
-          </button>
-          <button
-            onClick={onNo}
-            disabled={isPending}
-            className="px-4 py-2 text-sm font-sans bg-surface2 text-muted border border-surface2 rounded hover:text-text transition-colors disabled:opacity-50"
-          >
-            No, Skip Job
-          </button>
-        </div>
-        {error && (
-          <p className="text-xs font-mono text-red">{error}</p>
-        )}
-        <p className="text-xs font-mono text-muted/60">
-          You can always return to this evaluation in the Evaluations page if you change your mind.
-        </p>
-      </div>
-      {scoreOverall !== null && (
-        <div className="flex flex-col items-center justify-center shrink-0 border-l border-accent/20 pl-6 min-w-[100px]">
-          <span className="font-mono text-[0.6rem] uppercase tracking-widest text-muted mb-1">Overall Score</span>
-          <span className="font-mono text-5xl text-accent leading-none">{scoreOverall.toFixed(1)}</span>
-          <span className="font-mono text-sm text-muted mt-1">/ 10</span>
-        </div>
-      )}
+    <div className="mx-6 mt-6 flex items-center gap-3 bg-surface2 border border-surface2 rounded-lg px-5 py-4">
+      <button
+        onClick={() => navigate(`/jobs/${jobId}`)}
+        className="px-4 py-2 text-sm font-sans bg-accent text-bg rounded hover:bg-accent/90 transition-colors"
+      >
+        Go To Job
+      </button>
+      <button
+        onClick={onEvaluateAgain}
+        className="px-4 py-2 text-sm font-sans bg-surface text-muted border border-surface2 rounded hover:text-text transition-colors"
+      >
+        Evaluate Again
+      </button>
     </div>
   )
 }
@@ -353,9 +319,7 @@ export default function Evaluate(): React.JSX.Element {
   const [pendingPayload, setPendingPayload] = useState<EvaluatePayload | null>(null)
 
   const [rerunJobId, setRerunJobId] = useState<number | null>(null)
-
-  const [jobIsActive, setJobIsActive] = useState(false)
-  const [activateError, setActivateError] = useState<string | null>(null)
+  const [completedJobId, setCompletedJobId] = useState<number | null>(null)
 
   // ── Scrape state ────────────────────────────────────────────
   const [scrapeUrl, setScrapeUrl] = useState('')
@@ -367,7 +331,7 @@ export default function Evaluate(): React.JSX.Element {
   const evaluateMutation = useEvaluateMutation()
   const scrapeMutation = useScrapeMutation()
   const fillGapsMutation = useFillGapsMutation()
-  const activateJobMutation = useActivateJob()
+  const createJobMutation = useCreateJobMutation()
   const navigate = useNavigate()
   const routerLocation = useLocation()
 
@@ -441,7 +405,7 @@ export default function Evaluate(): React.JSX.Element {
       }
       if (data.success) {
         setResult(data)
-        setJobIsActive(false)
+        setCompletedJobId(data.job_id)
         setPanelState('result')
       } else {
         setErrorMsg(data.error ?? 'Evaluation failed.')
@@ -538,11 +502,10 @@ export default function Evaluate(): React.JSX.Element {
     setPayBand('')
     setJdText('')
     setResult(null)
+    setCompletedJobId(null)
     setErrorMsg('')
     setPanelState('idle')
     setRerunJobId(null)
-    setJobIsActive(false)
-    setActivateError(null)
     setScrapeUrl('')
     setScrapeError(null)
     setScrapeQuality(null)
@@ -555,20 +518,33 @@ export default function Evaluate(): React.JSX.Element {
     }
   }
 
-  async function handleActivate(): Promise<void> {
-    if (!result?.job_id) return
-    setActivateError(null)
-    try {
-      await activateJobMutation.mutateAsync(result.job_id)
-      setJobIsActive(true)
-      navigate(`/jobs/${result.job_id}`)
-    } catch {
-      setActivateError('Failed to activate job — please try again.')
+  async function handleCreateJob(): Promise<void> {
+    if (!company.trim()) {
+      setErrorMsg('Company name is required to create a job.')
+      setPanelState('error')
+      return
     }
-  }
-
-  function handleNoActivate(): void {
-    handleClear()
+    if (!title.trim()) {
+      setErrorMsg('Job title is required to create a job.')
+      setPanelState('error')
+      return
+    }
+    try {
+      const data = await createJobMutation.mutateAsync({
+        company_name: company.trim(),
+        title: title.trim(),
+        location: location.trim() || undefined,
+        remote_type: (remoteType as 'Remote' | 'Hybrid' | 'On-site') || undefined,
+        apply_url: applyUrl.trim() || undefined,
+        pay_band: payBand.trim() || undefined,
+        description: jdText.trim() || undefined,
+      })
+      setCompletedJobId(data.job_id)
+      setPanelState('created')
+    } catch (err) {
+      setErrorMsg(`Could not create job: ${(err as Error).message}`)
+      setPanelState('error')
+    }
   }
 
   function handleDupCancel(): void {
@@ -798,14 +774,21 @@ export default function Evaluate(): React.JSX.Element {
           <div className="flex items-center gap-3">
             <button
               onClick={() => void handleEvaluate()}
-              disabled={isRunning}
+              disabled={isRunning || createJobMutation.isPending}
               className="px-5 py-2 bg-accent text-bg text-sm font-sans font-medium rounded hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isRunning ? 'Evaluating…' : 'Evaluate'}
             </button>
             <button
+              onClick={() => void handleCreateJob()}
+              disabled={isRunning || createJobMutation.isPending}
+              className="px-4 py-2 text-sm font-sans text-muted bg-surface2 border border-surface2 rounded hover:text-text transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {createJobMutation.isPending ? 'Creating…' : 'Create Without Eval'}
+            </button>
+            <button
               onClick={handleClear}
-              disabled={isRunning}
+              disabled={isRunning || createJobMutation.isPending}
               className="px-4 py-2 text-sm font-sans text-muted bg-surface2 border border-surface2 rounded hover:text-text transition-colors disabled:opacity-50"
             >
               Clear
@@ -834,25 +817,22 @@ export default function Evaluate(): React.JSX.Element {
         )}
         {panelState === 'result' && result !== null && (
           <>
-            {!jobIsActive && (
-              <ActivateCTA
-                recommendation={
-                  (result.evaluation?.recommendation as string | null | undefined) ?? null
-                }
-                scoreOverall={
-                  (result.evaluation?.score_overall as number | null | undefined) ?? null
-                }
-                onYes={() => void handleActivate()}
-                onNo={handleNoActivate}
-                isPending={activateJobMutation.isPending}
-                error={activateError}
-              />
+            {completedJobId !== null && (
+              <PostActionWidget jobId={completedJobId} onEvaluateAgain={handleClear} />
             )}
             <ResultPanel
               result={result}
               company={company || 'Unknown Company'}
               title={title || 'Unknown Role'}
             />
+          </>
+        )}
+        {panelState === 'created' && completedJobId !== null && (
+          <>
+            <PostActionWidget jobId={completedJobId} onEvaluateAgain={handleClear} />
+            <div className="mx-6 mt-4">
+              <p className="text-sm text-muted font-sans">Job created and added to your list.</p>
+            </div>
           </>
         )}
         {panelState === 'error' && (

@@ -496,6 +496,16 @@ class ImportEvaluationRequest(BaseModel):
     keyword_gaps: str | None = None
 
 
+class CreateJobRequest(BaseModel):
+    company_name: str
+    title: str
+    location: str | None = None
+    remote_type: str | None = None
+    apply_url: str | None = None
+    pay_band: str | None = None
+    description: str | None = None
+
+
 class CreateApplicationRequest(BaseModel):
     job_id: int
 
@@ -1015,6 +1025,37 @@ async def activate_job(request: Request, job_id: int):
     database.activate_job(job_id)
     updated = database.get_job(job_id)
     return JSONResponse(dict(updated))
+
+
+@app.post("/api/v1/jobs/create")
+@limiter.limit("10/minute")
+async def create_job_without_eval(request: Request, body: CreateJobRequest):
+    """Create a job record without running an AI evaluation."""
+    if not body.company_name.strip():
+        raise HTTPException(status_code=422, detail="company_name cannot be empty.")
+    if not body.title.strip():
+        raise HTTPException(status_code=422, detail="title cannot be empty.")
+
+    job_id, _created = database.upsert_job(
+        body.company_name.strip(),
+        body.title.strip(),
+        None,
+        location=body.location,
+        remote_type=body.remote_type,
+        description_merged=body.description,
+        pay_band=body.pay_band,
+    )
+    database.activate_job(job_id)
+
+    if body.apply_url or body.description:
+        database.insert_job_posting(
+            job_id=job_id,
+            source_board="manual",
+            source_url=strip_utm_params(body.apply_url) if body.apply_url else None,
+            description_raw=body.description,
+        )
+
+    return JSONResponse({"success": True, "job_id": job_id})
 
 
 @app.post("/api/v1/jobs/{job_id}/export")

@@ -1,5 +1,5 @@
 # AIstivus — Phase 2.1 Workorder
-> Status: Not started
+> Status: In progress
 > Last updated: 2026-06-13
 
 ---
@@ -16,7 +16,7 @@ Before starting any step:
 
 ---
 
-## Step 1 — Prompt Calibration Fixes 🔲
+## Step 1 — Prompt Calibration Fixes ✅
 
 **Goal:** Fix the scoring philosophy in both the internal evaluation prompt and the external
 eval prompt. The current internal prompt contains two specific problems: a contradictory
@@ -109,7 +109,7 @@ Scoring guidance — apply the same calibration used internally:
 
 ---
 
-## Step 2 — Quick UX Wins + Re-Run Eval 🔲
+## Step 2 — Quick UX Wins + Re-Run Eval ✅
 
 **Goal:** Four targeted improvements. Three are small frontend-only changes. The fourth
 (Re-Run Internal Eval) adds a button to Job Details that navigates to the Evaluate page
@@ -216,7 +216,7 @@ a re-run or a new job.
 
 ---
 
-## Step 3 — Evaluate Page: Create Job Without Eval + Post-Action Widget 🔲
+## Step 3 — Evaluate Page: Create Job Without Eval + Post-Action Widget ✅
 
 **Goal:** Add a path to create a job in the system without running an AI evaluation
 (for use when all AI instances are down). Remove the existing "Yes, build this job" /

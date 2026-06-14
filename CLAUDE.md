@@ -76,17 +76,17 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 See `app_docs/WORKORDER_p2.1.md` for full implementation detail.
 
-### Phase 2.1 — Step 1: Prompt Calibration Fixes 🔲
+### Phase 2.1 — Step 1: Prompt Calibration Fixes ✅
 - `evaluator.py` `SYSTEM_PROMPT_TEMPLATE`: reframe scoring bands 1–10; remove "10 is rare" language; remove contradictory "don't suppress high scores" instruction
 - `main.py` external eval prompt: extract to `EXTERNAL_EVAL_PROMPT_TEMPLATE` constant; add matching calibration guidance
 
-### Phase 2.1 — Step 2: Quick UX Wins + Re-Run Eval 🔲
+### Phase 2.1 — Step 2: Quick UX Wins + Re-Run Eval ✅
 - Spinner icon on Fill With AI button (`Evaluate.tsx`)
 - Text search input (first element in Jobs filter bar, client-side, company + title)
 - Company name + title added to existing Job Info edit modal (`JobDetail.tsx`)
 - "Re-Run Internal Eval" button on Job Details → Evaluations tab: navigates to Evaluate page with all 7 fields pre-populated via router state; `job_id` in state bypasses dedup detection
 
-### Phase 2.1 — Step 3: Create Job Without Eval + Post-Action Widget 🔲
+### Phase 2.1 — Step 3: Create Job Without Eval + Post-Action Widget ✅
 - New "Create Job Without Eval" button on Evaluate page (same fields, no model selector, no AI call)
 - All evaluated jobs auto-activate (`is_active = 1`) — evaluate endpoint sets this directly; "Yes/No, build this job" buttons removed
 - New `POST /api/v1/jobs/create` endpoint
@@ -125,7 +125,8 @@ See `app_docs/WORKORDER_p2.1.md` for full implementation detail.
 - Step 1: CI/CD — `.github/workflows/ci.yml`; pytest + ruff + vitest + build on every push/PR
 - Step 2: Nav restructure — `AppHeader.tsx` three-item nav group; `/career` stub route
 - Step 3: URL ingestion — `scrape_routes.py`; Crawl4AI client; fill-gaps AI endpoint; Evaluate page UI
-- Steps 4–5: Superseded by Phase 2.1 workorder
+- Step 4: Superseded by Phase 2.1 workorder
+- Step 5: 🔲 Not yet designed — Memory, Dashboard redesign, Career workflow
 
 ### Phase 1.7 — Docker ✅ Complete
 - Dockerfile (multi-stage: Node:20-slim build → python:3.11-slim serve; Typst v0.14.2 baked in; HEALTHCHECK)

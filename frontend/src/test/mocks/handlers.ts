@@ -436,6 +436,9 @@ export const handlers = [
     HttpResponse.json(MOCK_DOCUMENTS_STORAGE),
   ),
   // Scrape routes
+  http.post('/api/v1/jobs/create', () =>
+    HttpResponse.json({ success: true, job_id: 42 }),
+  ),
   http.post('/api/v1/scrape', () =>
     HttpResponse.json({
       success: true,

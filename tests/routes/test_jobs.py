@@ -7,6 +7,7 @@ Routes covered:
   GET  /api/v1/jobs/{id}
   GET  /api/v1/jobs/{id}/application
   GET  /api/v1/jobs/{id}/activity-log
+  POST /api/v1/jobs/create
   POST /api/v1/jobs/{id}/activate
   POST /api/v1/jobs/{id}/generate-orgsummary-prompt
   GET  /api/v1/stats
@@ -542,3 +543,106 @@ class TestGenerateOrgSummaryPrompt:
         data = resp.json()
         assert "log_id" in data
         assert isinstance(data["log_id"], int)
+
+
+class TestCreateJobWithoutEval:
+    def test_creates_job_active_returns_job_id(self, client):
+        resp = client.post(
+            "/api/v1/jobs/create",
+            json={"company_name": "Acme", "title": "Engineer"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert isinstance(data["job_id"], int)
+        job = database.get_job(data["job_id"])
+        assert job is not None
+        assert dict(job)["is_active"] == 1
+
+    def test_application_auto_created(self, client):
+        resp = client.post(
+            "/api/v1/jobs/create",
+            json={"company_name": "Acme", "title": "Engineer"},
+        )
+        job_id = resp.json()["job_id"]
+        app = database.get_application_for_job(job_id)
+        assert app is not None
+
+    def test_job_posting_created_when_description_provided(self, client):
+        resp = client.post(
+            "/api/v1/jobs/create",
+            json={"company_name": "Acme", "title": "Engineer", "description": "Great role."},
+        )
+        job_id = resp.json()["job_id"]
+        postings = database.get_postings_for_job(job_id)
+        assert len(postings) == 1
+
+    def test_no_posting_when_no_description_or_url(self, client):
+        resp = client.post(
+            "/api/v1/jobs/create",
+            json={"company_name": "Acme", "title": "Engineer"},
+        )
+        job_id = resp.json()["job_id"]
+        postings = database.get_postings_for_job(job_id)
+        assert len(postings) == 0
+
+    def test_missing_company_name_returns_422(self, client):
+        resp = client.post(
+            "/api/v1/jobs/create",
+            json={"title": "Engineer"},
+        )
+        assert resp.status_code == 422
+
+    def test_missing_title_returns_422(self, client):
+        resp = client.post(
+            "/api/v1/jobs/create",
+            json={"company_name": "Acme"},
+        )
+        assert resp.status_code == 422
+
+    def test_job_visible_in_jobs_list(self, client):
+        client.post(
+            "/api/v1/jobs/create",
+            json={"company_name": "Visible Corp", "title": "Role"},
+        )
+        jobs = client.get("/api/v1/jobs").json()
+        assert any(j["company_name"] == "Visible Corp" for j in jobs)
+
+
+class TestEvaluateAutoActivate:
+    def test_evaluated_job_is_active(self, seeded_client, jobsearch_file, monkeypatch):
+        import json
+        from unittest.mock import AsyncMock
+        import llm_client
+
+        good_eval = json.dumps({
+            "score_overall": 7.5, "score_role_fit": 4.0, "score_scope_fit": 4.0,
+            "score_culture": 3.5, "score_comp": 3.5, "fit_type": "Core Fit",
+            "archetype": "People Leader", "strengths": "Good", "gaps": "Some",
+            "recommendation": "Apply", "keywords": "python", "domain_match": "Same domain",
+            "role_type_match": "Target match", "keyword_gaps": "docker",
+        })
+        monkeypatch.setattr(
+            llm_client,
+            "complete",
+            AsyncMock(return_value={
+                "success": True, "content": good_eval, "error": None,
+                "model": "test-model", "provider": "ollama",
+                "latency_ms": 100, "prompt_tokens_actual": 50,
+                "completion_tokens_actual": 100, "total_tokens_actual": 150,
+            }),
+        )
+        resp = seeded_client["client"].post(
+            "/api/v1/evaluate",
+            json={
+                "jd_text": "We need an engineer.",
+                "company_name": "New Corp",
+                "job_title": "Engineer",
+                "force": False,
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        job = database.get_job(data["job_id"])
+        assert dict(job)["is_active"] == 1

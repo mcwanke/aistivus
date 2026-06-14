@@ -11,7 +11,10 @@ async function runEvaluation(): Promise<void> {
   const textarea = screen.getByPlaceholderText('Paste the full job description here…')
   await user.type(textarea, 'Senior engineer role requiring Python.')
   await user.click(screen.getByRole('button', { name: 'Evaluate' }))
-  await waitFor(() => expect(screen.getByText('8.0')).toBeInTheDocument(), { timeout: 5000 })
+  await waitFor(
+    () => expect(screen.getByRole('button', { name: 'Go To Job' })).toBeInTheDocument(),
+    { timeout: 5000 },
+  )
 }
 
 describe('Evaluate page', () => {
@@ -78,9 +81,11 @@ describe('Evaluate page', () => {
 
     await user.click(screen.getByRole('button', { name: 'Evaluate' }))
 
-    // Result panel shows company, title, and overall score from mock (8)
-    await waitFor(() => expect(screen.getByText('8.0')).toBeInTheDocument(), { timeout: 5000 })
-    expect(screen.getByText('/ 10')).toBeInTheDocument()
+    await waitFor(
+      () => expect(screen.getByRole('button', { name: 'Go To Job' })).toBeInTheDocument(),
+      { timeout: 5000 },
+    )
+    expect(screen.getByRole('button', { name: 'Evaluate Again' })).toBeInTheDocument()
   })
 
   it('shows idle hint text by default', () => {
@@ -204,61 +209,41 @@ describe('Evaluate page — URL import', () => {
   })
 })
 
-describe('Evaluate page — activate CTA', () => {
-  it('shows CTA after evaluation when job is inactive', async () => {
+describe('Evaluate page — post-action widget', () => {
+  it('shows Go To Job and Evaluate Again after evaluation', async () => {
     renderWithProviders(<Evaluate />)
     await runEvaluation()
-    expect(screen.getByRole('button', { name: 'Yes, Go to Job' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'No, Skip Job' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Go To Job' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Evaluate Again' })).toBeInTheDocument()
   })
 
-  it('does not show CTA when job is already active', async () => {
+  it('"Evaluate Again" clears the form and hides the widget', async () => {
     const user = userEvent.setup()
     renderWithProviders(<Evaluate />)
     await runEvaluation()
-    await user.click(screen.getByRole('button', { name: 'Yes, Go to Job' }))
-    await waitFor(
-      () =>
-        expect(screen.queryByRole('button', { name: 'Yes, Go to Job' })).not.toBeInTheDocument(),
-      { timeout: 5000 },
-    )
-  })
-
-  it('shows "Evaluation completed." when recommendation is null', async () => {
-    server.use(
-      http.post('/api/v1/evaluate', () =>
-        HttpResponse.json({
-          success: true,
-          evaluation_id: 1,
-          job_id: 1,
-          report_path: null,
-          evaluation: { score_overall: 7, recommendation: null },
-          error: null,
-          duplicate_detected: false,
-          existing_jobs: null,
-        }),
-      ),
-    )
-    const user = userEvent.setup()
-    renderWithProviders(<Evaluate />)
-    const textarea = screen.getByPlaceholderText('Paste the full job description here…')
-    await user.type(textarea, 'Senior engineer role.')
-    await user.click(screen.getByRole('button', { name: 'Evaluate' }))
-    await waitFor(
-      () => expect(screen.getByRole('button', { name: 'Yes, Go to Job' })).toBeInTheDocument(),
-      { timeout: 5000 },
-    )
-    expect(screen.getByText('Evaluation completed.')).toBeInTheDocument()
-  })
-
-  it('"No" clears the JD textarea and hides results', async () => {
-    const user = userEvent.setup()
-    renderWithProviders(<Evaluate />)
-    await runEvaluation()
-    await user.click(screen.getByRole('button', { name: 'No, Skip Job' }))
+    await user.click(screen.getByRole('button', { name: 'Evaluate Again' }))
     const textarea = screen.getByPlaceholderText('Paste the full job description here…')
     expect((textarea as HTMLTextAreaElement).value).toBe('')
-    expect(screen.queryByRole('button', { name: 'Yes, Go to Job' })).not.toBeInTheDocument()
-    expect(screen.queryByText('8.0')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Go To Job' })).not.toBeInTheDocument()
+  })
+
+  it('shows Create Without Eval button in actions row', async () => {
+    renderWithProviders(<Evaluate />)
+    expect(screen.getByRole('button', { name: 'Create Without Eval' })).toBeInTheDocument()
+  })
+
+  it('shows Go To Job and success message after create without eval', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<Evaluate />)
+    const companyInput = screen.getByPlaceholderText('Acme Corp')
+    const titleInput = screen.getByPlaceholderText('Engineering Manager')
+    await user.type(companyInput, 'Acme')
+    await user.type(titleInput, 'Engineer')
+    await user.click(screen.getByRole('button', { name: 'Create Without Eval' }))
+    await waitFor(
+      () => expect(screen.getByRole('button', { name: 'Go To Job' })).toBeInTheDocument(),
+      { timeout: 5000 },
+    )
+    expect(screen.getByText('Job created and added to your list.')).toBeInTheDocument()
   })
 })
