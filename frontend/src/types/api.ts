@@ -461,6 +461,17 @@ export interface CreateJobResult {
   job_id: number
 }
 
+// ─── POST /api/v1/prompt-feedback ────────────────────────────────────────────
+
+export interface PromptFeedbackPayload {
+  prompt_type: 'evaluation_internal' | 'evaluation_external'
+  evaluation_id?: number
+  llm_call_log_id?: number
+  agree: 0 | 1
+  dimension?: string
+  feedback_text?: string
+}
+
 // ─── Scrape / URL ingestion types ────────────────────────────────────────────
 
 export type RemoteType = 'Remote' | 'Hybrid' | 'On-site'

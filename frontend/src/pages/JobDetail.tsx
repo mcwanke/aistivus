@@ -24,6 +24,7 @@ import { useLessonChat } from '@/hooks/useLessonChat'
 import { useLlmCallLog } from '@/hooks/useLLMUsage'
 import { LlmExpandedRow } from '@/components/LlmCallExpandedView'
 import { useImportEvaluationMutation, useModels, type ImportPayload } from '@/hooks/useEvaluate'
+import EvaluationFeedbackButton from '@/components/EvaluationFeedbackButton'
 import {
   useApplicationDocuments,
   useUploadDocument,
@@ -3360,6 +3361,10 @@ export default function JobDetailPage(): React.JSX.Element {
   const [importOpen, setImportOpen] = useState(false)
   const [importError, setImportError] = useState('')
   const importMutation = useImportEvaluationMutation()
+  // Post-import feedback flow
+  const [importFeedbackInviteOpen, setImportFeedbackInviteOpen] = useState(false)
+  const [importFeedbackModalOpen, setImportFeedbackModalOpen] = useState(false)
+  const [importedEvalId, setImportedEvalId] = useState<number | null>(null)
   const { data: models = [] } = useModels()
   const qc = useQueryClient()
   const { data: healthData } = useQuery({
@@ -3423,9 +3428,11 @@ export default function JobDetailPage(): React.JSX.Element {
       keyword_gaps:    (parsed.keyword_gaps    as string | null) ?? null,
     }
     try {
-      await importMutation.mutateAsync(payload)
+      const result = await importMutation.mutateAsync(payload)
       setImportOpen(false)
       void qc.invalidateQueries({ queryKey: ['job', jobId] })
+      setImportedEvalId(result.evaluation_id)
+      setImportFeedbackInviteOpen(true)
     } catch (err) {
       setImportError((err as Error).message)
     }
@@ -3583,6 +3590,45 @@ export default function JobDetailPage(): React.JSX.Element {
           onImport={(modelId, parsed) => void handleImport(modelId, parsed)}
           importError={importError}
           importing={importMutation.isPending}
+        />
+      )}
+
+      {/* Post-import feedback invite modal */}
+      {importFeedbackInviteOpen && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-surface border border-surface2 rounded-xl p-7 max-w-sm w-full shadow-2xl">
+            <p className="font-serif text-accent text-lg mb-1">Import successful.</p>
+            <p className="text-sm text-muted mb-6 leading-relaxed">
+              Would you like to add feedback on this evaluation?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setImportFeedbackInviteOpen(false)}
+                className="px-4 py-2 text-sm font-sans bg-surface2 text-muted border border-surface2 rounded hover:text-text transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setImportFeedbackInviteOpen(false)
+                  setImportFeedbackModalOpen(true)
+                }}
+                className="px-4 py-2 text-sm font-sans bg-accent text-bg rounded hover:bg-accent/90 transition-colors"
+              >
+                Add Feedback
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* External eval feedback modal */}
+      {importedEvalId !== null && (
+        <EvaluationFeedbackButton
+          promptType="evaluation_external"
+          evaluationId={importedEvalId}
+          isOpen={importFeedbackModalOpen}
+          onClose={() => setImportFeedbackModalOpen(false)}
         />
       )}
     </div>

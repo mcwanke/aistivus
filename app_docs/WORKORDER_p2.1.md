@@ -1,6 +1,6 @@
 # AIstivus — Phase 2.1 Workorder
 > Status: In progress
-> Last updated: 2026-06-13
+> Last updated: 2026-06-14
 
 ---
 
@@ -332,7 +332,7 @@ In `frontend/src/hooks/useEvaluate.ts` (or equivalent), add `useCreateJobMutatio
 
 ---
 
-## Step 4 — Evaluation Feedback System 🔲
+## Step 4 — Evaluation Feedback System ✅
 
 **Goal:** Collect optional user reactions to evaluation results. Feedback is stored for
 use by a future prompt review tool (Phase 2.2) and is not displayed back to the user

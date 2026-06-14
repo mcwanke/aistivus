@@ -92,7 +92,7 @@ See `app_docs/WORKORDER_p2.1.md` for full implementation detail.
 - New `POST /api/v1/jobs/create` endpoint
 - Post-eval and post-import: inline widget (not a modal) with **Go To Job** | **Evaluate Again**; appears above evaluation result
 
-### Phase 2.1 — Step 4: Evaluation Feedback System 🔲
+### Phase 2.1 — Step 4: Evaluation Feedback System ✅
 - New `prompt_feedback` table: `(id, prompt_type, evaluation_id, llm_call_log_id, agree, dimension, feedback_text, created_at)`; nullable FKs with ON DELETE SET NULL; extensible to non-evaluation prompts via `prompt_type`
 - New `POST /api/v1/prompt-feedback` endpoint
 - `EvaluationFeedbackButton` component: inline button → modal with agree/disagree + dimension selector + optional text

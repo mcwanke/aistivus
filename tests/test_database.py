@@ -1106,3 +1106,44 @@ class TestGetEarliestApplicationForJob:
             )
         result = database.get_earliest_application_for_job(job_id)
         assert result == first_app_id
+
+
+# ─────────────────────────────────────────────────────────────
+# add_prompt_feedback
+# ─────────────────────────────────────────────────────────────
+
+class TestAddPromptFeedback:
+    def test_returns_positive_id(self, tmp_db):
+        new_id = database.add_prompt_feedback(
+            prompt_type="evaluation_internal",
+            evaluation_id=None,
+            llm_call_log_id=None,
+            agree=1,
+            dimension=None,
+            feedback_text="looks right",
+        )
+        assert isinstance(new_id, int)
+        assert new_id > 0
+
+    def test_sequential_ids(self, tmp_db):
+        id1 = database.add_prompt_feedback("evaluation_internal", None, None, 1, None, None)
+        id2 = database.add_prompt_feedback("evaluation_external", None, None, 0, "general", "off")
+        assert id2 > id1
+
+    def test_all_fields_stored(self, tmp_db):
+        new_id = database.add_prompt_feedback(
+            prompt_type="evaluation_internal",
+            evaluation_id=None,
+            llm_call_log_id=None,
+            agree=0,
+            dimension="overall_score",
+            feedback_text="score too high",
+        )
+        with database.get_connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM prompt_feedback WHERE id = ?", (new_id,)
+            ).fetchone()
+        assert row["prompt_type"] == "evaluation_internal"
+        assert row["agree"] == 0
+        assert row["dimension"] == "overall_score"
+        assert row["feedback_text"] == "score too high"

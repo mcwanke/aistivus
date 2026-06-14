@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { LlmModel, ModelsResponse, EvaluateResponse, ScrapeResult, FillGapsPayload, FillGapsResult, CreateJobPayload, CreateJobResult } from '@/types/api'
+import type { LlmModel, ModelsResponse, EvaluateResponse, ScrapeResult, FillGapsPayload, FillGapsResult, CreateJobPayload, CreateJobResult, PromptFeedbackPayload } from '@/types/api'
 
 // ─── Fetchers ─────────────────────────────────────────────────────────────────
 
@@ -147,4 +147,20 @@ export function useCreateJobMutation() {
       void qc.invalidateQueries({ queryKey: ['jobs'] })
     },
   })
+}
+
+// ─── Prompt feedback mutation ─────────────────────────────────────────────────
+
+async function postPromptFeedback(payload: PromptFeedbackPayload): Promise<{ success: boolean; id: number }> {
+  const res = await fetch('/api/v1/prompt-feedback', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error(`prompt-feedback ${res.status}`)
+  return res.json() as Promise<{ success: boolean; id: number }>
+}
+
+export function useSubmitPromptFeedback() {
+  return useMutation({ mutationFn: postPromptFeedback })
 }

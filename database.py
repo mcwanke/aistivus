@@ -335,6 +335,19 @@ CREATE TABLE IF NOT EXISTS projects (
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS prompt_feedback (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    prompt_type      TEXT NOT NULL,
+    evaluation_id    INTEGER,
+    llm_call_log_id  INTEGER,
+    agree            INTEGER,
+    dimension        TEXT,
+    feedback_text    TEXT,
+    created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (evaluation_id)   REFERENCES evaluations(id)   ON DELETE SET NULL,
+    FOREIGN KEY (llm_call_log_id) REFERENCES llm_call_log(id)  ON DELETE SET NULL
+);
+
 CREATE TABLE IF NOT EXISTS schema_versions (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     version     TEXT NOT NULL,
@@ -2296,6 +2309,31 @@ def is_section_complete(section_content: str) -> bool:
     """Returns True if section has no [FILL] markers and has substantive content (>50 chars)."""
     stripped = section_content.strip()
     return "[FILL" not in stripped and len(stripped) > 50
+
+
+# ─────────────────────────────────────────────────────────────
+# Prompt Feedback
+# ─────────────────────────────────────────────────────────────
+
+def add_prompt_feedback(
+    prompt_type: str,
+    evaluation_id: int | None,
+    llm_call_log_id: int | None,
+    agree: int | None,
+    dimension: str | None,
+    feedback_text: str | None,
+) -> int:
+    """Insert a prompt_feedback record. Returns the new id."""
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO prompt_feedback
+                (prompt_type, evaluation_id, llm_call_log_id, agree, dimension, feedback_text)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (prompt_type, evaluation_id, llm_call_log_id, agree, dimension, feedback_text),
+        )
+        return cursor.lastrowid
 
 
 # ─────────────────────────────────────────────────────────────

@@ -10,6 +10,7 @@ import {
 } from '@/hooks/useEvaluate'
 import type { EvaluateResponse, ExistingJob } from '@/types/api'
 import AppHeader from '@/components/AppHeader'
+import EvaluationFeedbackButton from '@/components/EvaluationFeedbackButton'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -817,6 +818,14 @@ export default function Evaluate(): React.JSX.Element {
         )}
         {panelState === 'result' && result !== null && (
           <>
+            {result.evaluation_id !== null && (
+              <div className="mx-6 mt-6">
+                <EvaluationFeedbackButton
+                  promptType="evaluation_internal"
+                  evaluationId={result.evaluation_id}
+                />
+              </div>
+            )}
             {completedJobId !== null && (
               <PostActionWidget jobId={completedJobId} onEvaluateAgain={handleClear} />
             )}
