@@ -23,6 +23,7 @@ class TestInitDb:
             "application_audit", "job_posting_audit", "jobsearch_versions",
             "resume_info", "search_runs", "search_run_errors", "chat_sessions",
             "chat_messages", "projects", "schema_versions", "schema_migrations",
+            "prompts", "prompt_usage",
         }
         with database.get_connection() as conn:
             rows = conn.execute(
@@ -64,13 +65,13 @@ class TestInitDb:
         assert values == {"resume", "cover_letter"}
 
     def test_records_schema_version(self, tmp_db):
-        assert database.get_schema_version() == "1.5"
+        assert database.get_schema_version() == "1.6"
 
     def test_idempotent(self, tmp_db):
         database.init_db()
         database.init_db()
         assert len(database.get_all_system_types()) == 31
-        assert database.get_schema_version() == "1.5"
+        assert database.get_schema_version() == "1.6"
 
     def test_no_auto_seed_without_config(self, tmp_db):
         models = database.get_all_llm_models()
@@ -879,11 +880,11 @@ class TestUtilities:
         assert broken[0]["path"] == "/nonexistent/path/resume.pdf"
 
     def test_get_schema_version(self, tmp_db):
-        assert database.get_schema_version() == "1.5"
+        assert database.get_schema_version() == "1.6"
 
     def test_export_db_returns_dict(self, tmp_db):
         result = database.export_db()
-        assert result["schema_version"] == "1.5"
+        assert result["schema_version"] == "1.6"
         assert "tables" in result
         assert "system_types" in result["tables"]
         assert len(result["tables"]["system_types"]) == 31
@@ -1108,42 +1109,3 @@ class TestGetEarliestApplicationForJob:
         assert result == first_app_id
 
 
-# ─────────────────────────────────────────────────────────────
-# add_prompt_feedback
-# ─────────────────────────────────────────────────────────────
-
-class TestAddPromptFeedback:
-    def test_returns_positive_id(self, tmp_db):
-        new_id = database.add_prompt_feedback(
-            prompt_type="evaluation_internal",
-            evaluation_id=None,
-            llm_call_log_id=None,
-            agree=1,
-            dimension=None,
-            feedback_text="looks right",
-        )
-        assert isinstance(new_id, int)
-        assert new_id > 0
-
-    def test_sequential_ids(self, tmp_db):
-        id1 = database.add_prompt_feedback("evaluation_internal", None, None, 1, None, None)
-        id2 = database.add_prompt_feedback("evaluation_external", None, None, 0, "general", "off")
-        assert id2 > id1
-
-    def test_all_fields_stored(self, tmp_db):
-        new_id = database.add_prompt_feedback(
-            prompt_type="evaluation_internal",
-            evaluation_id=None,
-            llm_call_log_id=None,
-            agree=0,
-            dimension="overall_score",
-            feedback_text="score too high",
-        )
-        with database.get_connection() as conn:
-            row = conn.execute(
-                "SELECT * FROM prompt_feedback WHERE id = ?", (new_id,)
-            ).fetchone()
-        assert row["prompt_type"] == "evaluation_internal"
-        assert row["agree"] == 0
-        assert row["dimension"] == "overall_score"
-        assert row["feedback_text"] == "score too high"

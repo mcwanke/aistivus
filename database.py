@@ -14,7 +14,7 @@ Rules (from CLAUDE.md):
 - llm_models.default_flag: only one record may have default_flag = 1.
 - data/ directory is created automatically on first run.
 
-Schema version: 1.5
+Schema version: 1.6
 """
 
 import hashlib
@@ -335,17 +335,32 @@ CREATE TABLE IF NOT EXISTS projects (
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE IF NOT EXISTS prompt_feedback (
+CREATE TABLE IF NOT EXISTS prompts (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
-    prompt_type      TEXT NOT NULL,
-    evaluation_id    INTEGER,
-    llm_call_log_id  INTEGER,
-    agree            INTEGER,
-    dimension        TEXT,
-    feedback_text    TEXT,
-    created_at       TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (evaluation_id)   REFERENCES evaluations(id)   ON DELETE SET NULL,
-    FOREIGN KEY (llm_call_log_id) REFERENCES llm_call_log(id)  ON DELETE SET NULL
+    prompt_key       TEXT NOT NULL,
+    label            TEXT,
+    version          INTEGER NOT NULL DEFAULT 1,
+    segments_text    TEXT NOT NULL,
+    preview_context  TEXT,
+    saved_at         TEXT NOT NULL DEFAULT (datetime('now')),
+    note             TEXT,
+    is_active        INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS prompt_usage (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    prompt_key      TEXT NOT NULL,
+    prompt_version  INTEGER NOT NULL,
+    prompt_text     TEXT NOT NULL,
+    prompt_hash     TEXT NOT NULL,
+    source          TEXT NOT NULL DEFAULT 'internal',
+    job_id          INTEGER,
+    generated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    agree           INTEGER,
+    dimension       TEXT,
+    feedback_text   TEXT,
+    is_consumed     INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (job_id) REFERENCES jobs(id)
 );
 
 CREATE TABLE IF NOT EXISTS schema_versions (
@@ -374,7 +389,7 @@ CREATE INDEX IF NOT EXISTS idx_job_company_log_job_id  ON job_company_log(job_id
 CREATE INDEX IF NOT EXISTS idx_llm_models_server_id    ON llm_models(server_id);
 """
 
-CURRENT_SCHEMA_VERSION = "1.5"
+CURRENT_SCHEMA_VERSION = "1.6"
 
 _APP_SETTINGS_SEED: list[tuple[str, str]] = [
     ("allow_audit_timestamp_edit", "0"),
@@ -433,6 +448,13 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass  # column already exists
 
+        try:
+            conn.execute(
+                "ALTER TABLE llm_call_log ADD COLUMN prompt_usage_id INTEGER"
+            )
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
         for type_name, type_value in _SYSTEM_TYPES_SEED:
             existing = conn.execute(
                 "SELECT id FROM system_types WHERE type_name = ? AND type_value = ?",
@@ -461,7 +483,7 @@ def init_db() -> None:
         if not existing_version:
             conn.execute(
                 "INSERT INTO schema_versions (version, description) VALUES (?, ?)",
-                (CURRENT_SCHEMA_VERSION, "Schema v1.5 — application_questions table; application_audit.job_id; 7 new system_type seeds")
+                (CURRENT_SCHEMA_VERSION, "Schema v1.6 — prompts + prompt_usage tables; llm_call_log.prompt_usage_id; prompt_feedback replaced")
             )
 
     seed_llm_models_from_config()
@@ -2309,31 +2331,6 @@ def is_section_complete(section_content: str) -> bool:
     """Returns True if section has no [FILL] markers and has substantive content (>50 chars)."""
     stripped = section_content.strip()
     return "[FILL" not in stripped and len(stripped) > 50
-
-
-# ─────────────────────────────────────────────────────────────
-# Prompt Feedback
-# ─────────────────────────────────────────────────────────────
-
-def add_prompt_feedback(
-    prompt_type: str,
-    evaluation_id: int | None,
-    llm_call_log_id: int | None,
-    agree: int | None,
-    dimension: str | None,
-    feedback_text: str | None,
-) -> int:
-    """Insert a prompt_feedback record. Returns the new id."""
-    with get_connection() as conn:
-        cursor = conn.execute(
-            """
-            INSERT INTO prompt_feedback
-                (prompt_type, evaluation_id, llm_call_log_id, agree, dimension, feedback_text)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (prompt_type, evaluation_id, llm_call_log_id, agree, dimension, feedback_text),
-        )
-        return cursor.lastrowid
 
 
 # ─────────────────────────────────────────────────────────────

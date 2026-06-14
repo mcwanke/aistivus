@@ -506,15 +506,6 @@ class CreateJobRequest(BaseModel):
     description: str | None = None
 
 
-class PromptFeedbackRequest(BaseModel):
-    prompt_type: str
-    evaluation_id: int | None = None
-    llm_call_log_id: int | None = None
-    agree: int | None = None
-    dimension: str | None = None
-    feedback_text: str | None = None
-
-
 class CreateApplicationRequest(BaseModel):
     job_id: int
 
@@ -1065,21 +1056,6 @@ async def create_job_without_eval(request: Request, body: CreateJobRequest):
         )
 
     return JSONResponse({"success": True, "job_id": job_id})
-
-
-@app.post("/api/v1/prompt-feedback")
-@limiter.limit("10/minute")
-async def submit_prompt_feedback(request: Request, body: PromptFeedbackRequest):
-    """Store optional user feedback on an AI evaluation prompt result."""
-    feedback_id = database.add_prompt_feedback(
-        prompt_type=body.prompt_type,
-        evaluation_id=body.evaluation_id,
-        llm_call_log_id=body.llm_call_log_id,
-        agree=body.agree,
-        dimension=body.dimension,
-        feedback_text=body.feedback_text,
-    )
-    return JSONResponse({"success": True, "id": feedback_id})
 
 
 @app.post("/api/v1/jobs/{job_id}/export")

@@ -543,7 +543,7 @@ No changes to the modal interior. No backend changes.
 
 ---
 
-## Step 5a — Schema Foundation + prompt_generation.py 🔲
+## Step 5a — Schema Foundation + prompt_generation.py 🔄 (Batch 1 of 7 done)
 
 **Goal:** Replace the ad-hoc `prompt_feedback` table with a proper three-layer prompt
 data architecture: `prompts` (versioned templates) → `prompt_usage` (per-call instances
@@ -554,7 +554,7 @@ for the feedback loop (Step 5b) and the multi-prompt split (Step 6).
 **Prerequisite:** Immediate Fixes must be complete (feedback button UI will be updated
 in this step to use the new `prompt_usage_id`).
 
-### 5a.1 New `prompts` table
+### 5a.1 New `prompts` table ✅
 
 Add to `init_db()` in `database.py`:
 
@@ -607,7 +607,7 @@ Keys for the two-call split (`eval_analysis_system`, `eval_analysis_user`,
 `eval_scoring_system` revised, `eval_scoring_user` revised) are seeded in Step 6.
 The existing single-call constants remain active and functional until Step 6.
 
-### 5a.3 New `prompt_usage` table
+### 5a.3 New `prompt_usage` table ✅
 
 Add to `init_db()` in `database.py`:
 
@@ -644,7 +644,7 @@ There is no `UNIQUE` constraint on `prompt_key` in this table — multiple usage
 per prompt key are expected (one per call). Feedback is per usage instance (one agree/
 disagree per row). To revise feedback, the row is updated in place; no history is kept.
 
-### 5a.4 Drop `prompt_feedback` table; replace with `prompt_usage`
+### 5a.4 Drop `prompt_feedback` table; replace with `prompt_usage` ✅
 
 **Safe to drop:** `prompt_feedback` was introduced in Step 4 but has not been deployed
 to the production instance. No real data exists that needs preservation.
@@ -654,7 +654,7 @@ In `init_db()`, replace the `prompt_feedback` CREATE TABLE statement with the ne
 
 Remove the `add_prompt_feedback()` DB function entirely.
 
-### 5a.5 Migrate `llm_call_log` — add FK column
+### 5a.5 Migrate `llm_call_log` — add FK column ✅
 
 ```sql
 ALTER TABLE llm_call_log ADD COLUMN prompt_usage_id INTEGER
