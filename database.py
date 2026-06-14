@@ -2152,6 +2152,169 @@ def get_activity_log(job_id: int) -> list[dict]:
 
 
 # ─────────────────────────────────────────────────────────────
+# Prompts
+# ─────────────────────────────────────────────────────────────
+
+def assemble_prompt(segments_text: str) -> str:
+    """Strip [[EDITABLE]], [[/EDITABLE]], [[READONLY]], [[/READONLY]] tags."""
+    return re.sub(r'\[\[/?(?:EDITABLE|READONLY)\]\]', '', segments_text).strip()
+
+
+def get_active_prompt(prompt_key: str) -> dict | None:
+    """Return the active prompt row for a key as a dict, or None."""
+    with get_connection() as conn:
+        row = conn.execute(
+            """SELECT id, prompt_key, label, version, segments_text,
+                      preview_context, saved_at, note
+               FROM prompts
+               WHERE prompt_key = ? AND is_active = 1""",
+            (prompt_key,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def save_prompt(prompt_key: str, segments_text: str, note: str | None = None) -> int:
+    """
+    Save a new version of a prompt.
+    Deactivates the current active row; carries forward label and preview_context.
+    Returns the new row id.
+    """
+    with get_connection() as conn:
+        max_row = conn.execute(
+            "SELECT MAX(version) AS max_v FROM prompts WHERE prompt_key = ?",
+            (prompt_key,)
+        ).fetchone()
+        next_version = (max_row["max_v"] or 0) + 1
+
+        current = conn.execute(
+            "SELECT label, preview_context FROM prompts WHERE prompt_key = ? AND is_active = 1",
+            (prompt_key,)
+        ).fetchone()
+        label = current["label"] if current else None
+        preview_context = current["preview_context"] if current else None
+
+        conn.execute(
+            "UPDATE prompts SET is_active = 0 WHERE prompt_key = ?",
+            (prompt_key,)
+        )
+        conn.execute(
+            """INSERT INTO prompts
+               (prompt_key, label, version, segments_text, preview_context, note, is_active)
+               VALUES (?, ?, ?, ?, ?, ?, 1)""",
+            (prompt_key, label, next_version, segments_text, preview_context, note)
+        )
+        return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def get_prompt_history(prompt_key: str) -> list[dict]:
+    """Return all prompt rows for a key ordered by version DESC."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT id, prompt_key, label, version, segments_text,
+                      preview_context, saved_at, note, is_active
+               FROM prompts
+               WHERE prompt_key = ?
+               ORDER BY version DESC""",
+            (prompt_key,)
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def seed_prompt_if_missing(
+    prompt_key: str,
+    label: str,
+    segments_text: str,
+    preview_context: str | None = None,
+) -> None:
+    """Insert a prompt at version=1, is_active=1 if no rows exist for the key."""
+    with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT id FROM prompts WHERE prompt_key = ?",
+            (prompt_key,)
+        ).fetchone()
+        if existing:
+            return
+        conn.execute(
+            """INSERT INTO prompts
+               (prompt_key, label, version, segments_text, preview_context, is_active)
+               VALUES (?, ?, 1, ?, ?, 1)""",
+            (prompt_key, label, segments_text, preview_context)
+        )
+
+
+# ─────────────────────────────────────────────────────────────
+# Prompt Usage
+# ─────────────────────────────────────────────────────────────
+
+def create_prompt_usage(
+    prompt_key: str,
+    prompt_version: int,
+    prompt_text: str,
+    prompt_hash: str,
+    source: str,
+    job_id: int | None = None,
+) -> int:
+    """Insert a prompt_usage row and return the new id."""
+    with get_connection() as conn:
+        conn.execute(
+            """INSERT INTO prompt_usage
+               (prompt_key, prompt_version, prompt_text, prompt_hash, source, job_id)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (prompt_key, prompt_version, prompt_text, prompt_hash, source, job_id)
+        )
+        return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def update_prompt_feedback(
+    prompt_usage_id: int,
+    agree: int,
+    dimension: str | None = None,
+    feedback_text: str | None = None,
+) -> None:
+    """Overwrite agree/dimension/feedback_text on an existing prompt_usage row in place."""
+    with get_connection() as conn:
+        conn.execute(
+            """UPDATE prompt_usage
+               SET agree = ?, dimension = ?, feedback_text = ?
+               WHERE id = ?""",
+            (agree, dimension, feedback_text, prompt_usage_id)
+        )
+
+
+def get_prompt_usage(prompt_usage_id: int) -> dict | None:
+    """Return a single prompt_usage row by id as a dict, or None."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM prompt_usage WHERE id = ?",
+            (prompt_usage_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def get_unprocessed_feedback(prompt_key: str) -> list[dict]:
+    """Return prompt_usage rows for a key where feedback exists and has not been consumed."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT * FROM prompt_usage
+               WHERE prompt_key = ? AND agree IS NOT NULL AND is_consumed = 0""",
+            (prompt_key,)
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def mark_feedback_consumed(ids: list[int]) -> None:
+    """Set is_consumed = 1 for all given prompt_usage ids."""
+    if not ids:
+        return
+    placeholders = ",".join("?" * len(ids))
+    with get_connection() as conn:
+        conn.execute(
+            f"UPDATE prompt_usage SET is_consumed = 1 WHERE id IN ({placeholders})",
+            ids
+        )
+
+
+# ─────────────────────────────────────────────────────────────
 # Utilities
 # ─────────────────────────────────────────────────────────────
 

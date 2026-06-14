@@ -103,12 +103,12 @@ See `app_docs/WORKORDER_p2.1.md` for full implementation detail.
 - `Evaluate.tsx` `ResultPanel`: add prominent `score_overall` display above sub-score grid (field exists in response, not rendered)
 - `EvaluationFeedbackButton.tsx`: convert "Rate this evaluation" text link into bordered card-style widget with explanation line and real button
 
-### Phase 2.1 — Step 5a: Schema Foundation + prompt_generation.py 🔄 (Batch 1 done)
+### Phase 2.1 — Step 5a: Schema Foundation + prompt_generation.py 🔄 (Batch 2 done)
 - ✅ New `prompts` table added to `database.py`
 - ✅ New `prompt_usage` table added to `database.py` (replaces `prompt_feedback`)
 - ✅ `prompt_feedback` table dropped; `add_prompt_feedback()` removed; `POST /api/v1/prompt-feedback` removed
 - ✅ `llm_call_log`: ADD COLUMN `prompt_usage_id` INTEGER (delta migration in `init_db()`); schema v1.6
-- 🔲 DB functions: `assemble_prompt`, `get_active_prompt`, `save_prompt`, `get_prompt_history`, `seed_prompt_if_missing`, `create_prompt_usage`, `update_prompt_feedback`, `get_prompt_usage`, `get_unprocessed_feedback`, `mark_feedback_consumed`
+- ✅ DB functions: `assemble_prompt`, `get_active_prompt`, `save_prompt`, `get_prompt_history`, `seed_prompt_if_missing`, `create_prompt_usage`, `update_prompt_feedback`, `get_prompt_usage`, `get_unprocessed_feedback`, `mark_feedback_consumed`
 - 🔲 Data migration (startup): seed `prompts` with current eval constants; backfill `prompt_usage` from `llm_call_log` evaluation rows; DROP COLUMN `prompt`; DROP COLUMN `prompt_hash`
 - 🔲 New `prompt_generation.py`: single entry point for all managed prompt construction; writes `prompt_usage` rows; returns `{ prompt_text, prompt_usage_id }`
 - 🔲 `evaluator.py`: replace inline prompt construction with `prompt_generation.get_prompt()`
