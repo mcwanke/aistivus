@@ -36,6 +36,8 @@ For any task involving architecture decisions, debugging complex issues, or non-
 
 **Before reading any file, ask: do I need the whole file or just one function/section?** If you know the symbol you need, `grep` for its line number first, then read only that range using `offset`/`limit`. Only read a file in full when the task genuinely requires whole-file context (e.g., auditing all callers, reviewing overall structure).
 
+**Tests are run manually to conserve context. Never run tests yourself.** When you reach a point where tests should be run, stop and ask: "Ready for a test run — please run `./run_tests.sh` and paste the result." Wait for the output before proceeding.
+
 ## Memory
 
 Project decisions and deferred work are tracked in `memory/`. This folder is gitignored — it does not get committed. Check `memory/MEMORY.md` for an index before starting significant work.
