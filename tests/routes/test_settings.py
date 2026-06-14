@@ -40,7 +40,7 @@ class TestHealth:
 
     def test_schema_version_in_response(self, client):
         data = client.get("/api/v1/health").json()
-        assert data["database"]["schema_version"] == "1.6"
+        assert data["database"]["schema_version"] == "1.7"
 
     def test_models_list_in_response(self, seeded_client):
         data = seeded_client["client"].get("/api/v1/health").json()

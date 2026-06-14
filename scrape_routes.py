@@ -10,7 +10,6 @@ Routes:
   POST /api/v1/scrape/fill-gaps  — use LLM to fill null fields from jd_text
 """
 
-import hashlib
 import json
 import re
 import time
@@ -340,7 +339,6 @@ async def fill_gaps(request: Request, body: FillGapsRequest) -> JSONResponse:
         f"Job posting:\n{body.jd_text[:6000]}"
     )
 
-    prompt_hash = hashlib.sha256(system_prompt.encode()).hexdigest()
     start_ms = int(time.time() * 1000)
 
     llm_resp = await llm_client.complete(
@@ -357,8 +355,6 @@ async def fill_gaps(request: Request, body: FillGapsRequest) -> JSONResponse:
     database.insert_llm_call_log(
         llm_model_id=model_row["id"],
         call_type="extraction",
-        prompt=user_prompt,
-        prompt_hash=prompt_hash,
         raw_response=llm_resp.get("content", ""),
         prompt_tokens_actual=llm_resp.get("prompt_tokens_actual"),
         completion_tokens_actual=llm_resp.get("completion_tokens_actual"),

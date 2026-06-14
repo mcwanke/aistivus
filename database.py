@@ -14,7 +14,7 @@ Rules (from CLAUDE.md):
 - llm_models.default_flag: only one record may have default_flag = 1.
 - data/ directory is created automatically on first run.
 
-Schema version: 1.6
+Schema version: 1.7
 """
 
 import hashlib
@@ -389,7 +389,7 @@ CREATE INDEX IF NOT EXISTS idx_job_company_log_job_id  ON job_company_log(job_id
 CREATE INDEX IF NOT EXISTS idx_llm_models_server_id    ON llm_models(server_id);
 """
 
-CURRENT_SCHEMA_VERSION = "1.6"
+CURRENT_SCHEMA_VERSION = "1.7"
 
 _APP_SETTINGS_SEED: list[tuple[str, str]] = [
     ("allow_audit_timestamp_edit", "0"),
@@ -455,6 +455,40 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass  # column already exists
 
+        # Backfill prompt_usage from existing llm_call_log evaluation rows.
+        # Guard: only runs if the prompt column still exists (idempotent across restarts).
+        col_names = {row["name"] for row in conn.execute("PRAGMA table_info(llm_call_log)").fetchall()}
+        if "prompt" in col_names:
+            eval_rows = conn.execute(
+                """SELECT id, prompt, prompt_hash, job_id FROM llm_call_log
+                   WHERE call_type = 'evaluation'
+                     AND prompt_usage_id IS NULL
+                     AND prompt IS NOT NULL"""
+            ).fetchall()
+            for row in eval_rows:
+                ph = row["prompt_hash"] or hashlib.sha256(row["prompt"].encode()).hexdigest()
+                conn.execute(
+                    """INSERT INTO prompt_usage
+                       (prompt_key, prompt_version, prompt_text, prompt_hash, source, job_id)
+                       VALUES ('eval_internal', 1, ?, ?, 'internal', ?)""",
+                    (row["prompt"], ph, row["job_id"])
+                )
+                usage_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+                conn.execute(
+                    "UPDATE llm_call_log SET prompt_usage_id = ? WHERE id = ?",
+                    (usage_id, row["id"])
+                )
+
+        try:
+            conn.execute("ALTER TABLE llm_call_log DROP COLUMN prompt")
+        except sqlite3.OperationalError:
+            pass  # column already dropped
+
+        try:
+            conn.execute("ALTER TABLE llm_call_log DROP COLUMN prompt_hash")
+        except sqlite3.OperationalError:
+            pass  # column already dropped
+
         for type_name, type_value in _SYSTEM_TYPES_SEED:
             existing = conn.execute(
                 "SELECT id FROM system_types WHERE type_name = ? AND type_value = ?",
@@ -483,7 +517,7 @@ def init_db() -> None:
         if not existing_version:
             conn.execute(
                 "INSERT INTO schema_versions (version, description) VALUES (?, ?)",
-                (CURRENT_SCHEMA_VERSION, "Schema v1.6 — prompts + prompt_usage tables; llm_call_log.prompt_usage_id; prompt_feedback replaced")
+                (CURRENT_SCHEMA_VERSION, "Schema v1.7 — llm_call_log.prompt/prompt_hash dropped; prompt_usage backfilled from evaluation rows; prompts table seeded")
             )
 
     seed_llm_models_from_config()
@@ -1314,10 +1348,9 @@ def get_evaluations_for_job(job_id: int) -> list[sqlite3.Row]:
     """Return all evaluations for a job with model name and LLM prompt, newest first."""
     with get_connection() as conn:
         return conn.execute(
-            """SELECT e.*, m.model AS model_name, l.prompt AS prompt
+            """SELECT e.*, m.model AS model_name
                FROM evaluations e
                JOIN llm_models m ON m.id = e.llm_model_id
-               LEFT JOIN llm_call_log l ON l.id = e.llm_call_log_id
                WHERE e.job_id = ?
                ORDER BY e.evaluated_at DESC, e.id DESC""",
             (job_id,)
@@ -1346,8 +1379,6 @@ def insert_llm_call_log(
     llm_model_id: int | None,
     call_type: str,
     *,
-    prompt: str | None = None,
-    prompt_hash: str | None = None,
     raw_response: str | None = None,
     prompt_tokens_estimated: int | None = None,
     prompt_tokens_actual: int | None = None,
@@ -1362,19 +1393,19 @@ def insert_llm_call_log(
 ) -> int:
     """
     Insert an LLM call log record. Returns the new log id.
-    Never log API keys or PII — only prompt text and raw responses.
+    Prompt text is stored in prompt_usage (linked via prompt_usage_id), not here.
     """
     with get_connection() as conn:
         conn.execute(
             """INSERT INTO llm_call_log
-               (llm_model_id, call_type, prompt, prompt_hash, raw_response,
+               (llm_model_id, call_type, raw_response,
                 prompt_tokens_estimated, prompt_tokens_actual,
                 completion_tokens_actual, total_tokens_actual,
                 latency_ms, call_time, success, error_message,
                 job_id, search_run_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                llm_model_id, call_type, prompt, prompt_hash, raw_response,
+                llm_model_id, call_type, raw_response,
                 prompt_tokens_estimated, prompt_tokens_actual,
                 completion_tokens_actual, total_tokens_actual,
                 latency_ms, call_time, success, error_message,
@@ -2000,10 +2031,12 @@ def get_activity_log(job_id: int) -> list[dict]:
 
         # 2. LLM call log entries for this job
         llm_rows = conn.execute(
-            """SELECT l.id, l.timestamp AS ts, l.call_type, l.prompt,
-                      m.model AS model_name
+            """SELECT l.id, l.timestamp AS ts, l.call_type,
+                      m.model AS model_name,
+                      pu.prompt_text AS prompt_text
                FROM llm_call_log l
                LEFT JOIN llm_models m ON m.id = l.llm_model_id
+               LEFT JOIN prompt_usage pu ON pu.id = l.prompt_usage_id
                WHERE l.job_id = ?""",
             (job_id,)
         ).fetchall()
@@ -2013,7 +2046,7 @@ def get_activity_log(job_id: int) -> list[dict]:
                 "timestamp": row["ts"],
                 "activity_type": (row["call_type"] or "LLM CALL").upper(),
                 "source": row["model_name"] or "",
-                "text": row["prompt"],
+                "text": row["prompt_text"],
                 "url": None,
                 "raw_id": row["id"],
                 "can_delete": False,

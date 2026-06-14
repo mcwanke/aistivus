@@ -447,9 +447,7 @@ class TestEvaluateJdDbWrites:
         log = logs[0]
         assert log["call_type"] == "evaluation"
         assert log["success"] == 1
-        assert log["prompt"] is not None
         assert log["raw_response"] == LLM_SUCCESS["content"]
-        assert len(log["prompt_hash"]) == 64  # SHA-256 hex
         assert log["prompt_tokens_actual"] == 120
         assert log["completion_tokens_actual"] == 210
         assert log["latency_ms"] == 1500

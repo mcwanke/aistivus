@@ -109,7 +109,7 @@ See `app_docs/WORKORDER_p2.1.md` for full implementation detail.
 - ✅ `prompt_feedback` table dropped; `add_prompt_feedback()` removed; `POST /api/v1/prompt-feedback` removed
 - ✅ `llm_call_log`: ADD COLUMN `prompt_usage_id` INTEGER (delta migration in `init_db()`); schema v1.6
 - ✅ DB functions: `assemble_prompt`, `get_active_prompt`, `save_prompt`, `get_prompt_history`, `seed_prompt_if_missing`, `create_prompt_usage`, `update_prompt_feedback`, `get_prompt_usage`, `get_unprocessed_feedback`, `mark_feedback_consumed`
-- 🔲 Data migration (startup): seed `prompts` with current eval constants; backfill `prompt_usage` from `llm_call_log` evaluation rows; DROP COLUMN `prompt`; DROP COLUMN `prompt_hash`
+- ✅ Data migration (startup): seed `prompts` with current eval constants (`eval_internal`, `eval_external`); backfill `prompt_usage` from `llm_call_log` evaluation rows (PRAGMA guard for idempotency); DROP COLUMN `prompt`; DROP COLUMN `prompt_hash`; schema v1.7; all `insert_llm_call_log` callers updated
 - 🔲 New `prompt_generation.py`: single entry point for all managed prompt construction; writes `prompt_usage` rows; returns `{ prompt_text, prompt_usage_id }`
 - 🔲 `evaluator.py`: replace inline prompt construction with `prompt_generation.get_prompt()`
 - 🔲 External eval route: uses `prompt_generation.get_prompt()`; `prompt_usage_id` in response

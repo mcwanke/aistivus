@@ -349,7 +349,6 @@ async def _sse_generator(
         database.insert_llm_call_log(
             llm_model_id=llm_model_id,
             call_type="chat",
-            prompt=prompt,
             raw_response="".join(accumulated) if accumulated else None,
             latency_ms=latency_ms,
             success=0 if had_error else 1,
@@ -619,7 +618,6 @@ async def propose_update(request: Request, body: ProposeUpdateRequest) -> JSONRe
     database.insert_llm_call_log(
         llm_model_id=model_info["id"],
         call_type="chat",
-        prompt=prompt,
         raw_response=result.get("content"),
         latency_ms=latency_ms,
         success=1 if result.get("success") else 0,
@@ -660,7 +658,6 @@ async def _call_llm_and_log_async(
     database.insert_llm_call_log(
         llm_model_id=model_info["id"],
         call_type="chat",
-        prompt=prompt,
         raw_response=result.get("content"),
         latency_ms=latency_ms,
         success=1 if result.get("success") else 0,

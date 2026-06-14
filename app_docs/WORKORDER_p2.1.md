@@ -14,6 +14,8 @@ Before starting any step:
 **Step order and dependencies:**
 - Steps 1–4: complete ✅
 - Immediate Fixes (Issue 1 + 2): complete ✅
+- Step 5a Batches 1–3: complete ✅ (schema, DB functions, data migration + DROP COLUMN)
+- Step 5a Batch 4+ (prompt_generation.py, evaluator wiring, frontend): in progress 🔄
 - Step 5a must complete before Step 5b
 - Step 5b must complete before Step 6
 - Step 6 builds on the `prompts` table and `prompt_generation.py` from Step 5a
@@ -662,10 +664,12 @@ ALTER TABLE llm_call_log ADD COLUMN prompt_usage_id INTEGER
 
 This column is NULL for all existing rows until the migration in 5a.6 backfills it.
 
-### 5a.6 Data migration — backfill `prompt_usage` from `llm_call_log`
+### 5a.6 Data migration — backfill `prompt_usage` from `llm_call_log` ✅
 
 Run this migration at startup (once, guarded by checking whether any `prompt_usage`
 rows already exist for these records).
+
+**Implemented:** guarded by `PRAGMA table_info(llm_call_log)` — checks whether the `prompt` column still exists. If already dropped, backfill is skipped. Uses `prompt_key = 'eval_internal'` (not `eval_scoring_system` — single-prompt phase). Startup also seeds `eval_internal` and `eval_external` via `seed_prompt_if_missing`.
 
 **Evaluation call migration:**
 ```sql
@@ -683,7 +687,7 @@ For each row:
 `prompt_usage_id` remains NULL. Their `prompt` and `prompt_hash` data is lost when
 those columns are dropped in 5a.7 — this is accepted, as these are not managed prompts.
 
-### 5a.7 Drop deprecated columns from `llm_call_log`
+### 5a.7 Drop deprecated columns from `llm_call_log` ✅
 
 After the migration in 5a.6 is confirmed complete:
 

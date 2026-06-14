@@ -343,6 +343,17 @@ async def lifespan(app: FastAPI):
 
     database.init_db()
 
+    database.seed_prompt_if_missing(
+        prompt_key="eval_internal",
+        label="Internal Evaluation Prompt",
+        segments_text=evaluator.SYSTEM_PROMPT_TEMPLATE,
+    )
+    database.seed_prompt_if_missing(
+        prompt_key="eval_external",
+        label="External Evaluation Prompt",
+        segments_text=EXTERNAL_EVAL_PROMPT_TEMPLATE,
+    )
+
     anthropic_key = get_env_key("ANTHROPIC_API_KEY")
     app.state.anthropic_key_present = bool(anthropic_key)
 
@@ -687,7 +698,6 @@ async def _lesson_sse_generator(
         database.insert_llm_call_log(
             llm_model_id=llm_model_id,
             call_type="chat",
-            prompt=prompt,
             raw_response="".join(accumulated) if accumulated else None,
             latency_ms=latency_ms,
             success=0 if had_error else 1,
@@ -2019,7 +2029,6 @@ async def lesson_chat(
         llm_log_id = database.insert_llm_call_log(
             llm_model_id=model_info["id"],
             call_type="chat",
-            prompt=finalize_prompt,
             raw_response=result.get("content"),
             latency_ms=latency_ms,
             success=1 if result.get("success") else 0,

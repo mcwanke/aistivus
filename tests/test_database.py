@@ -65,13 +65,13 @@ class TestInitDb:
         assert values == {"resume", "cover_letter"}
 
     def test_records_schema_version(self, tmp_db):
-        assert database.get_schema_version() == "1.6"
+        assert database.get_schema_version() == "1.7"
 
     def test_idempotent(self, tmp_db):
         database.init_db()
         database.init_db()
         assert len(database.get_all_system_types()) == 31
-        assert database.get_schema_version() == "1.6"
+        assert database.get_schema_version() == "1.7"
 
     def test_no_auto_seed_without_config(self, tmp_db):
         models = database.get_all_llm_models()
@@ -537,7 +537,7 @@ class TestEvaluations:
 
     def test_insert_evaluation_with_llm_call_log_id(self, tmp_db, job_id, model_id):
         log_id = database.insert_llm_call_log(
-            model_id, "evaluation", prompt="test", raw_response="{}", success=1
+            model_id, "evaluation", raw_response="{}", success=1
         )
         database.insert_evaluation(
             job_id, model_id, score_overall=7.0, llm_call_log_id=log_id
@@ -578,8 +578,6 @@ class TestLlmCallLog:
     def test_insert_stores_fields(self, tmp_db, model_id, job_id):
         log_id = database.insert_llm_call_log(
             model_id, "evaluation",
-            prompt="Test prompt",
-            prompt_hash="abc123",
             raw_response='{"score_overall": 7.5}',
             latency_ms=1500,
             call_time=2,
@@ -587,7 +585,6 @@ class TestLlmCallLog:
             job_id=job_id,
         )
         entry = database.get_llm_call_log_entry(log_id)
-        assert entry["prompt"] == "Test prompt"
         assert entry["latency_ms"] == 1500
         assert entry["success"] == 1
         assert entry["job_id"] == job_id
@@ -603,10 +600,11 @@ class TestLlmCallLog:
         assert entry["error_message"] == "Connection refused"
 
     def test_get_llm_call_log_newest_first(self, tmp_db, model_id):
-        database.insert_llm_call_log(model_id, "evaluation", prompt="first")
-        database.insert_llm_call_log(model_id, "evaluation", prompt="second")
+        id1 = database.insert_llm_call_log(model_id, "evaluation")
+        id2 = database.insert_llm_call_log(model_id, "evaluation")
         entries = database.get_llm_call_log()
-        assert entries[0]["prompt"] == "second"
+        assert entries[0]["id"] == id2
+        assert entries[1]["id"] == id1
 
     def test_get_llm_call_log_filtered_by_job_id(self, tmp_db, model_id, job_id):
         database.insert_llm_call_log(model_id, "evaluation", job_id=job_id)
@@ -880,11 +878,11 @@ class TestUtilities:
         assert broken[0]["path"] == "/nonexistent/path/resume.pdf"
 
     def test_get_schema_version(self, tmp_db):
-        assert database.get_schema_version() == "1.6"
+        assert database.get_schema_version() == "1.7"
 
     def test_export_db_returns_dict(self, tmp_db):
         result = database.export_db()
-        assert result["schema_version"] == "1.6"
+        assert result["schema_version"] == "1.7"
         assert "tables" in result
         assert "system_types" in result["tables"]
         assert len(result["tables"]["system_types"]) == 31

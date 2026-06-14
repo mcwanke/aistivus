@@ -22,7 +22,6 @@ Rules (from CLAUDE.md):
 """
 
 import asyncio
-import hashlib
 import json
 import re
 from datetime import datetime, timezone
@@ -206,15 +205,6 @@ def _build_user_prompt(jd_text: str) -> str:
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     return EVALUATION_USER_PROMPT.format(jd_clean=jd_clean, today=today)
-
-
-def _compute_prompt_hash(system_prompt: str) -> str:
-    """
-    SHA-256 of the system prompt.
-    Stored in llm_call_log.prompt_hash. Evaluations sharing a prompt_hash
-    used identical scoring criteria; different hashes break comparability.
-    """
-    return hashlib.sha256(system_prompt.encode()).hexdigest()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -460,10 +450,6 @@ async def evaluate_jd(
     # ── Step 5: Build prompt ───────────────────────────────────
     system_prompt = _build_system_prompt(jobsearch_context)
     user_prompt = _build_user_prompt(jd_text)
-    prompt_hash = _compute_prompt_hash(system_prompt)
-    # Combined for storage — system prompt carries jobsearch context that must
-    # be visible when reviewing past evaluations from LLM Usage.
-    full_prompt = f"=== SYSTEM ===\n{system_prompt}\n\n=== USER ===\n{user_prompt}"
 
     print(f"  Calling {provider}/{model}...")
 
@@ -489,8 +475,6 @@ async def evaluate_jd(
     log_id = database.insert_llm_call_log(
         llm_model_id=resolved_model_id,
         call_type="evaluation",
-        prompt=full_prompt,
-        prompt_hash=prompt_hash,
         raw_response=raw_response,
         prompt_tokens_actual=result.get("prompt_tokens_actual"),
         completion_tokens_actual=result.get("completion_tokens_actual"),
@@ -510,7 +494,6 @@ async def evaluate_jd(
             + "\n\nIMPORTANT: Return ONLY the raw JSON object. "
             "No markdown. No code blocks. No explanation. Just the JSON."
         )
-        strict_full_prompt = f"=== SYSTEM ===\n{system_prompt}\n\n=== USER ===\n{strict_user_prompt}"
         result = await llm_client.complete(
             prompt=strict_user_prompt,
             system=system_prompt,
@@ -528,8 +511,6 @@ async def evaluate_jd(
         log_id = database.insert_llm_call_log(
             llm_model_id=resolved_model_id,
             call_type="evaluation",
-            prompt=strict_full_prompt,
-            prompt_hash=prompt_hash,
             raw_response=raw_response,
             prompt_tokens_actual=result.get("prompt_tokens_actual"),
             completion_tokens_actual=result.get("completion_tokens_actual"),
