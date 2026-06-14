@@ -93,30 +93,37 @@ See `app_docs/WORKORDER_p2.1.md` for full implementation detail.
 - Post-eval and post-import: inline widget (not a modal) with **Go To Job** | **Evaluate Again**; appears above evaluation result
 
 ### Phase 2.1 — Step 4: Evaluation Feedback System ✅
-- New `prompt_feedback` table: `(id, prompt_type, evaluation_id, llm_call_log_id, agree, dimension, feedback_text, created_at)`; nullable FKs with ON DELETE SET NULL; extensible to non-evaluation prompts via `prompt_type`
+- New `prompt_feedback` table (superseded by `prompt_usage` in Step 5a — not deployed to production)
 - New `POST /api/v1/prompt-feedback` endpoint
 - `EvaluationFeedbackButton` component: inline button → modal with agree/disagree + dimension selector + optional text
 - Wired in two places: above result on Evaluate page (internal eval); second modal after Import External Eval success (external eval)
 - Feedback not displayed to user in this phase — stored for Phase 2.2 review tool
 
-### Phase 2.1 — Step 5: Prompt Storage Foundation 🔲
-- New `prompts` table: `(id, prompt_key, label, version, segments_text, preview_context, saved_at, note, is_active)`
-- `segments_text` uses `[[EDITABLE]]` / `[[READONLY]]` tag markers; tags stripped before LLM call via `assemble_prompt()`
-- `is_active = 1` uniqueness per `prompt_key` enforced in application layer (same pattern as `llm_models.default_flag`)
-- `version` is sequential integer per `prompt_key`; `preview_context` and `label` only populated on active row
-- DB functions: `get_active_prompt`, `save_prompt`, `get_prompt_history`, `seed_prompt_if_missing`
-- Startup seeding: if no record exists for a key, seed from code constant
+### Phase 2.1 — Immediate Fixes (Issue 1 + 2) 🔲
+- `Evaluate.tsx` `ResultPanel`: add prominent `score_overall` display above sub-score grid (field exists in response, not rendered)
+- `EvaluationFeedbackButton.tsx`: convert "Rate this evaluation" text link into bordered card-style widget with explanation line and real button
 
-### Phase 2.1 — Step 6: Segmented Prompt Editor UI (Settings) 🔲
+### Phase 2.1 — Step 5a: Schema Foundation + prompt_generation.py 🔲
+- New `prompts` table: versioned, editable prompt templates; `[[EDITABLE]]`/`[[READONLY]]` segment markers; `is_active` uniqueness enforced in application layer
+- New `prompt_usage` table: per-call prompt instances; holds `prompt_key`, `prompt_version`, `prompt_text`, `prompt_hash`, `source`, `job_id`; inline feedback fields (`agree`, `dimension`, `feedback_text`, `is_consumed`)
+- Drop `prompt_feedback` table (replaced by `prompt_usage`; safe — not deployed to production)
+- `llm_call_log`: ADD COLUMN `prompt_usage_id` FK; DROP COLUMN `prompt`; DROP COLUMN `prompt_hash` (after data migration)
+- Data migration: seed `prompts` table with current eval constants (version 1); migrate historical evaluation `llm_call_log` records to `prompt_usage`; backfill FK
+- New `prompt_generation.py`: single entry point for all managed prompt construction; writes `prompt_usage` rows; returns `{ prompt_text, prompt_usage_id }`
+- `evaluator.py`: replace inline prompt construction with `prompt_generation.get_prompt()`
+- External eval route: uses `prompt_generation.get_prompt()`; `prompt_usage_id` embedded in JSON response structure for round-trip preservation
+- `EvaluationFeedbackButton`: props updated to `promptUsageId`; calls new `POST /api/v1/prompt-usage/{id}/feedback` endpoint
+
+### Phase 2.1 — Step 5b: Prompt Editor UI + Feedback Loop Trigger 🔲
 - New "Prompts" section in Settings page
-- Header: prompt dropdown + Save button; two-column layout: editable segments as `<textarea>`, locked segments as muted read-only; right column = fully assembled preview with `preview_context` sample values substituted (read-only)
-- New API endpoints: `GET /api/v1/prompts`, `GET /api/v1/prompts/{key}`, `POST /api/v1/prompts/{key}/save`, `GET /api/v1/prompts/{key}/preview`
-- `evaluation_system` rendered first (default dropdown selection)
+- `PromptEditor` component: prompt dropdown; left column = editable segments as `<textarea>`, locked segments as muted read-only; right column = assembled preview with `preview_context` values substituted
+- "Run Feedback Loop" button in editor header: gathers unprocessed feedback for selected prompt → sends to cloud LLM with prompt text → returns improvement suggestions → marks feedback `is_consumed = 1`
+- New API endpoints: `GET /api/v1/prompts`, `GET /api/v1/prompts/{key}`, `POST /api/v1/prompts/{key}/save`, `GET /api/v1/prompts/{key}/preview`, `POST /api/v1/prompts/{key}/feedback-loop`
 
-### Phase 2.1 — Step 7: evaluation_system Migration + Multi-Prompt Split 🔲
-- Migrate `evaluation_system` and `evaluation_user` from code constants to `prompts` table as four separate entries: `eval_analysis_system`, `eval_analysis_user`, `eval_scoring_system`, `eval_scoring_user`
-- Two-call evaluation pipeline in `evaluator.py`: Call 1 (archetype + deal-breaker + domain) → Call 2 (scoring); outputs merged into single `evaluations` record
-- `evaluations.llm_call_log_id` points to Call 2; Call 1 log traceable via `job_id` on `llm_call_log`
+### Phase 2.1 — Step 6: Multi-Prompt Split 🔲
+- Migrate evaluation prompts from code constants to `prompts` table as four entries: `eval_analysis_system`, `eval_analysis_user`, `eval_scoring_system`, `eval_scoring_user`
+- Two-call evaluation pipeline in `evaluator.py`: Call 1 (archetype + deal-breaker + domain analysis) → Call 2 (scoring using committed Call 1 output); outputs merged into single `evaluations` record
+- `evaluations.llm_call_log_id` points to Call 2; Call 1 traceable via `job_id` on `llm_call_log`
 - Call 1 failure → fail entire evaluation; Call 2 failure → retry once (existing contract)
 - New nullable `analysis_json TEXT` column on `evaluations` (delta migration via ALTER TABLE)
 - Original code constants retained as seeding fallbacks; `test_evaluator.py` requires significant rewrite
@@ -145,6 +152,7 @@ aistivus/
 ├── database.py
 ├── evaluator.py
 ├── evaluate.py
+├── prompt_generation.py
 ├── llm_client.py
 ├── logger.py
 ├── profile_routes.py

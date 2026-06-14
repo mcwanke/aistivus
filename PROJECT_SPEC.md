@@ -301,16 +301,56 @@ evaluations (
 -- agg_* scores on jobs table are recalculated after each new evaluation insert.
 
 -- ─────────────────────────────────────────
--- LLM call log — ACTIVE PHASE 1.0
+-- Prompt templates — ACTIVE PHASE 2.1 Step 5a
+-- ─────────────────────────────────────────
+prompts (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    prompt_key       TEXT NOT NULL,          -- stable identifier e.g. 'eval_scoring_system'
+    label            TEXT,                   -- human-readable; only on active row
+    version          INTEGER NOT NULL DEFAULT 1,  -- sequential per prompt_key
+    segments_text    TEXT NOT NULL,          -- [[EDITABLE]]/[[READONLY]] tagged text
+    preview_context  TEXT,                   -- JSON; sample values for preview; active row only
+    saved_at         TEXT NOT NULL DEFAULT (datetime('now')),
+    note             TEXT,
+    is_active        INTEGER NOT NULL DEFAULT 0   -- one active row per prompt_key; app-layer enforced
+)
+-- Versioned, editable prompt templates managed via the Settings UI.
+-- tags stripped via assemble_prompt() before sending to LLM.
+-- is_active uniqueness enforced in application layer (same pattern as llm_models.default_flag).
+
+-- ─────────────────────────────────────────
+-- Prompt usage log — ACTIVE PHASE 2.1 Step 5a
+-- ─────────────────────────────────────────
+prompt_usage (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    prompt_key      TEXT NOT NULL,           -- which template was used
+    prompt_version  INTEGER NOT NULL,        -- which version was active at call time
+    prompt_text     TEXT NOT NULL,           -- fully assembled text sent (or generated for external)
+    prompt_hash     TEXT NOT NULL,           -- SHA-256 of assembled text
+    source          TEXT NOT NULL DEFAULT 'internal',  -- 'internal' | 'external'
+    job_id          INTEGER,                 -- nullable FK to jobs
+    generated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    agree           INTEGER,                 -- NULL until feedback; 1=agree 0=disagree
+    dimension       TEXT,                    -- NULL unless agree=0
+    feedback_text   TEXT,                    -- optional user comment
+    is_consumed     INTEGER NOT NULL DEFAULT 0,  -- 1 after feedback loop processes this row
+    FOREIGN KEY (job_id) REFERENCES jobs(id)
+)
+-- One row per prompt generation event (internal LLM call or external prompt generation).
+-- Feedback fields updated in place; no history kept.
+-- is_consumed set by the feedback loop trigger (Step 5b); never set by the user directly.
+-- Replaces prompt_feedback table from Step 4.
+
+-- ─────────────────────────────────────────
+-- LLM call log — ACTIVE PHASE 1.0, updated Phase 2.1 Step 5a
 -- ─────────────────────────────────────────
 llm_call_log (
     id                          INTEGER PRIMARY KEY AUTOINCREMENT,
     timestamp                   TEXT NOT NULL DEFAULT (datetime('now')),
     llm_model_id                INTEGER,        -- FK to llm_models
     call_type                   TEXT,           -- evaluation | generation | chat
-    prompt                      TEXT,           -- full prompt text sent to LLM
-    prompt_hash                 TEXT,           -- SHA-256 of system prompt; moved from evaluations
-    raw_response                TEXT,           -- raw LLM output; moved from evaluations
+    prompt_usage_id             INTEGER,        -- FK to prompt_usage; NULL for unmanaged calls
+    raw_response                TEXT,           -- raw LLM output
     prompt_tokens_estimated     INTEGER,
     prompt_tokens_actual        INTEGER,
     completion_tokens_actual    INTEGER,
@@ -322,6 +362,9 @@ llm_call_log (
     job_id                      INTEGER,
     search_run_id               INTEGER
 )
+-- prompt and prompt_hash columns removed in Phase 2.1 Step 5a; now on prompt_usage.
+-- prompt_usage_id FK links to the prompt_usage row that contains the full prompt text.
+-- NULL for call types not managed via prompt_generation.py (fill_gaps, scraping, etc.).
 -- Retention: configurable via config.yaml (default: 90 days). 0 = keep forever.
 -- Never log API keys, jobsearch.md content, or PII.
 
@@ -470,9 +513,16 @@ auto-seed from `config.yaml` if Ollama config present (creates server record fir
 seeding, DB is authoritative. `default_flag` uniqueness enforced in application layer.
 `estimated_eval_time` is auto-updated from `llm_call_log` after each call — not user-entered.
 
-**`prompt_hash` and `raw_response` moved to `llm_call_log`.** Evaluations link via
-`llm_call_log_id` FK. This keeps the call record complete in one place and supports
-non-evaluation LLM calls (generation, chat) using the same structure.
+**`prompt` and `prompt_hash` moved from `llm_call_log` to `prompt_usage` (Phase 2.1 Step 5a).**
+`llm_call_log` gains a `prompt_usage_id` FK. The full prompt text and hash now live in
+`prompt_usage`, one row per prompt generation event. `llm_call_log` retains `raw_response`
+and all execution metadata. Unmanaged calls (fill-gaps, scraping) have `prompt_usage_id = NULL`.
+
+**`prompt_feedback` table (Step 4) replaced by `prompt_usage` (Step 5a).** Feedback fields
+(`agree`, `dimension`, `feedback_text`, `is_consumed`) live directly on the `prompt_usage`
+row. One feedback opinion per prompt usage instance; overwrite in place, no history kept.
+`is_consumed` is set by the feedback loop trigger in Step 5b when a batch of feedback is
+sent to the cloud LLM for analysis.
 
 **`excitement_level` moved to `jobs`.** Reflects that excitement is about the opportunity,
 not the specific application instance.
@@ -816,11 +866,12 @@ Deliverables:
 ### Phase 2.1 — Evaluation Quality + Prompt System (Active — see WORKORDER_p2.1.md)
 - Step 1: Prompt calibration ✅ — scoring band reframe; external eval prompt extracted + calibrated
 - Step 2: UX wins + re-run eval ✅ — spinner on Fill With AI; job search input; company/title in edit modal; Re-Run Internal Eval button
-- Step 3: Create job without eval + post-action widget 🔲
-- Step 4: Evaluation feedback system 🔲
-- Step 5: Prompt storage foundation 🔲
-- Step 6: Segmented prompt editor UI 🔲
-- Step 7: evaluation_system migration + two-call pipeline 🔲
+- Step 3: Create job without eval + post-action widget ✅
+- Step 4: Evaluation feedback system ✅ (`prompt_feedback` table superseded by `prompt_usage` in Step 5a)
+- Immediate Fixes 🔲 — score_overall display in ResultPanel; EvaluationFeedbackButton polish
+- Step 5a: Schema foundation + prompt_generation.py 🔲 — `prompts` + `prompt_usage` tables; `llm_call_log` migration; centralised prompt construction
+- Step 5b: Prompt editor UI + feedback loop trigger 🔲 — segmented editor in Settings; feedback loop sends to cloud LLM, marks consumed
+- Step 6: Multi-prompt split 🔲 — two-call evaluation pipeline; eval prompts migrated to `prompts` table
 
 ### Phase 3 — Discovery 🔲 (Future)
 - `scraper.py` (jobspy or equivalent)
@@ -850,6 +901,7 @@ aistivus/
 ├── database.py
 ├── evaluator.py
 ├── evaluate.py
+├── prompt_generation.py
 ├── llm_client.py
 ├── logger.py
 ├── profile_routes.py
