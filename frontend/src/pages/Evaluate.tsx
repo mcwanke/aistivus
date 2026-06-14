@@ -342,7 +342,6 @@ export default function Evaluate(): React.JSX.Element {
   const scrapeMutation = useScrapeMutation()
   const fillGapsMutation = useFillGapsMutation()
   const createJobMutation = useCreateJobMutation()
-  const navigate = useNavigate()
   const routerLocation = useLocation()
 
   useEffect(() => {
