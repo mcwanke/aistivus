@@ -1,5 +1,5 @@
 import { useState, useRef, useLayoutEffect, useEffect } from 'react'
-import { useParams, useSearchParams, Link } from 'react-router-dom'
+import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import AppHeader from '@/components/AppHeader'
 import { useJobDetail, usePatchJob, useAddCompanyLog, useUpdateCompanySummary, useActivityLog, useGenerateOrgSummaryPrompt } from '@/hooks/useJobs'
@@ -750,21 +750,28 @@ function CompanyLogRow({ entry, collapseSignal = 0 }: CompanyLogRowProps): React
 
 interface EditJobInfoModalProps {
   jobId: number
-  initial: { location: string | null; remote_type: string | null; pay_band: string | null; role_keyword: string | null }
+  initial: { company_name: string; title: string; location: string | null; remote_type: string | null; pay_band: string | null; role_keyword: string | null }
   onClose: () => void
 }
 
 function EditJobInfoModal({ jobId, initial, onClose }: EditJobInfoModalProps): React.JSX.Element {
+  const [companyName, setCompanyName] = useState(initial.company_name)
+  const [title, setTitle] = useState(initial.title)
   const [location, setLocation] = useState(initial.location ?? '')
   const [remoteType, setRemoteType] = useState(initial.remote_type ?? '')
   const [payBand, setPayBand] = useState(initial.pay_band ?? '')
   const [roleKeyword, setRoleKeyword] = useState(initial.role_keyword ?? '')
   const patch = usePatchJob()
 
+  const canSave = companyName.trim().length > 0 && title.trim().length > 0
+
   async function handleSave(): Promise<void> {
+    if (!canSave) return
     await patch.mutateAsync({
       jobId,
       updates: {
+        company_name: companyName.trim(),
+        title: title.trim(),
         location: location || undefined,
         remote_type: remoteType || undefined,
         pay_band: payBand || null,
@@ -779,6 +786,22 @@ function EditJobInfoModal({ jobId, initial, onClose }: EditJobInfoModalProps): R
       <div className="bg-surface rounded p-6 w-full max-w-md space-y-4">
         <h2 className="font-serif text-accent text-lg">Edit Job Info</h2>
         <div className="space-y-3">
+          <label className="block">
+            <span className="text-muted text-xs font-mono uppercase tracking-widest">Company Name</span>
+            <input
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+            />
+          </label>
+          <label className="block">
+            <span className="text-muted text-xs font-mono uppercase tracking-widest">Job Title</span>
+            <input
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </label>
           <label className="block">
             <span className="text-muted text-xs font-mono uppercase tracking-widest">Location</span>
             <input
@@ -823,7 +846,7 @@ function EditJobInfoModal({ jobId, initial, onClose }: EditJobInfoModalProps): R
           </button>
           <button
             onClick={() => void handleSave()}
-            disabled={patch.isPending}
+            disabled={patch.isPending || !canSave}
             className="px-4 py-1.5 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
           >
             {patch.isPending ? 'Saving…' : 'Save'}
@@ -907,7 +930,7 @@ function AddCompanyInfoModal({ jobId, onClose }: AddCompanyInfoModalProps): Reac
 
 interface JobInfoSectionProps {
   jobId: number
-  job: { location: string | null; remote_type: string | null; pay_band: string | null; role_keyword: string | null }
+  job: { company_name: string; title: string; location: string | null; remote_type: string | null; pay_band: string | null; role_keyword: string | null }
   companyLog: CompanyLogEntry[]
 }
 
@@ -2054,6 +2077,7 @@ interface JobDetailsRightProps {
   companyLog: CompanyLogEntry[]
   activeAction: JobDetailsAction
   onOpenImport: () => void
+  applyUrl: string
 }
 
 function JobDetailsRight({
@@ -2064,7 +2088,9 @@ function JobDetailsRight({
   companyLog,
   activeAction,
   onOpenImport,
+  applyUrl,
 }: JobDetailsRightProps): React.JSX.Element {
+  const navigate = useNavigate()
   const [editDescOpen, setEditDescOpen] = useState(false)
   const [descCopied, setDescCopied] = useState(false)
   const [savedInfo, setSavedInfo] = useState(false)
@@ -2219,6 +2245,23 @@ function JobDetailsRight({
             ))}
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => navigate('/evaluate', {
+                state: {
+                  rerunJobId: jobId,
+                  company: job.company_name,
+                  title: job.title,
+                  location: job.location ?? '',
+                  workType: job.remote_type ?? '',
+                  applyUrl,
+                  payBand: job.pay_band ?? '',
+                  description: job.description_merged ?? '',
+                },
+              })}
+              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
+            >
+              Re-Run Internal Eval
+            </button>
             <button
               onClick={onOpenImport}
               className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
@@ -3488,6 +3531,7 @@ export default function JobDetailPage(): React.JSX.Element {
                 companyLog={jobData.company_log}
                 activeAction={jobDetailsAction}
                 onOpenImport={() => setImportOpen(true)}
+                applyUrl={jobData.postings.find((p) => p.source_url)?.source_url ?? ''}
               />
             )}
             {activeTab === 'resume-cover' && (

@@ -159,12 +159,21 @@ function JobRow({ job, onSelect }: { job: JobListItem; onSelect: () => void }): 
 function Toolbar({
   sort, onSort,
   activeFilters, onToggleFilter,
+  searchTerm, onSearchChange,
 }: {
   sort: SortKey; onSort: (k: SortKey) => void
   activeFilters: Set<FilterKey>; onToggleFilter: (k: FilterKey) => void
+  searchTerm: string; onSearchChange: (v: string) => void
 }): React.JSX.Element {
   return (
     <div className="flex items-center gap-2 px-4 py-2 border-b border-surface2 shrink-0">
+      <input
+        type="text"
+        value={searchTerm}
+        onChange={(e) => onSearchChange(e.target.value)}
+        placeholder="Search company or title…"
+        className="w-48 bg-surface border border-surface2 rounded px-2.5 py-1 text-[0.72rem] font-mono text-text placeholder:text-muted/50 focus:outline-none focus:border-accent/50 mr-2"
+      />
       <span className="text-[0.58rem] font-mono text-muted uppercase tracking-wider mr-1">Sort</span>
       {(['score', 'status'] as SortKey[]).map((key) => (
         <button
@@ -203,6 +212,7 @@ export default function Jobs(): React.JSX.Element {
   const { data: jobs, isLoading, isError } = useJobs()
   const [sort, setSort] = useState<SortKey>('score')
   const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(DEFAULT_FILTERS)
+  const [searchTerm, setSearchTerm] = useState('')
 
   function toggleFilter(key: FilterKey): void {
     setActiveFilters(prev => {
@@ -224,14 +234,19 @@ export default function Jobs(): React.JSX.Element {
 
   const visible = useMemo(() => {
     if (!jobs) return []
-    const filtered = jobs.filter(j => allowedStatuses.has(j.application_status ?? 'not-started'))
+    const term = searchTerm.toLowerCase()
+    const filtered = jobs.filter(j => {
+      if (!allowedStatuses.has(j.application_status ?? 'not-started')) return false
+      if (term && !j.company_name.toLowerCase().includes(term) && !j.title.toLowerCase().includes(term)) return false
+      return true
+    })
     return filtered.sort((a, b) => {
       if (sort === 'score') {
         return (b.agg_score_overall ?? -1) - (a.agg_score_overall ?? -1)
       }
       return statusSortKey(a.application_status) - statusSortKey(b.application_status)
     })
-  }, [jobs, sort, allowedStatuses])
+  }, [jobs, sort, allowedStatuses, searchTerm])
 
   return (
     <div className="flex flex-col h-screen">
@@ -242,7 +257,7 @@ export default function Jobs(): React.JSX.Element {
           <span className="text-muted text-[0.65rem] font-mono">{visible.length} of {jobs.length} jobs</span>
         )}
       </div>
-      <Toolbar sort={sort} onSort={setSort} activeFilters={activeFilters} onToggleFilter={toggleFilter} />
+      <Toolbar sort={sort} onSort={setSort} activeFilters={activeFilters} onToggleFilter={toggleFilter} searchTerm={searchTerm} onSearchChange={setSearchTerm} />
       <div className="flex-1 overflow-y-auto">
         {isLoading && <p className="text-muted text-sm p-4">Loading jobs…</p>}
         {isError && <p className="text-red text-sm p-4">Failed to load jobs.</p>}

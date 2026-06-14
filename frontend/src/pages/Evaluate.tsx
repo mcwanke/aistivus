@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   useModels,
   useEvaluateMutation,
@@ -352,6 +352,8 @@ export default function Evaluate(): React.JSX.Element {
   const [dupJobs, setDupJobs] = useState<ExistingJob[]>([])
   const [pendingPayload, setPendingPayload] = useState<EvaluatePayload | null>(null)
 
+  const [rerunJobId, setRerunJobId] = useState<number | null>(null)
+
   const [jobIsActive, setJobIsActive] = useState(false)
   const [activateError, setActivateError] = useState<string | null>(null)
 
@@ -367,6 +369,7 @@ export default function Evaluate(): React.JSX.Element {
   const fillGapsMutation = useFillGapsMutation()
   const activateJobMutation = useActivateJob()
   const navigate = useNavigate()
+  const routerLocation = useLocation()
 
   useEffect(() => {
     if (models.length > 0 && selectedModelId === null) {
@@ -374,6 +377,31 @@ export default function Evaluate(): React.JSX.Element {
       setSelectedModelId(def.id)
     }
   }, [models, selectedModelId])
+
+  // Pre-populate from router state when navigating from Re-Run Internal Eval
+  useEffect(() => {
+    const state = routerLocation.state as {
+      rerunJobId?: number
+      company?: string
+      title?: string
+      location?: string
+      workType?: string
+      applyUrl?: string
+      payBand?: string
+      description?: string
+    } | null
+    if (state?.rerunJobId) {
+      setRerunJobId(state.rerunJobId)
+      if (state.company)      setCompany(state.company)
+      if (state.title)        setTitle(state.title)
+      if (state.location)     setLocation(state.location)
+      if (state.workType)     setRemoteType(state.workType)
+      if (state.applyUrl)     setApplyUrl(state.applyUrl)
+      if (state.payBand)      setPayBand(state.payBand)
+      if (state.description)  setJdText(state.description)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function startTimer(): void {
     setElapsed(0)
@@ -404,7 +432,8 @@ export default function Evaluate(): React.JSX.Element {
     try {
       const data = await evaluateMutation.mutateAsync(payload)
       stopTimer()
-      if (data.duplicate_detected) {
+      // Suppress dedup modal when re-running against an existing job
+      if (data.duplicate_detected && !payload.rerun_job_id) {
         setDupJobs(data.existing_jobs ?? [])
         setPendingPayload(payload)
         setPanelState('idle')
@@ -441,6 +470,7 @@ export default function Evaluate(): React.JSX.Element {
       pay_band: payBand.trim() || null,
       llm_model_id: selectedModelId,
       force: false,
+      ...(rerunJobId !== null ? { rerun_job_id: rerunJobId } : {}),
     })
   }
 
@@ -510,6 +540,7 @@ export default function Evaluate(): React.JSX.Element {
     setResult(null)
     setErrorMsg('')
     setPanelState('idle')
+    setRerunJobId(null)
     setJobIsActive(false)
     setActivateError(null)
     setScrapeUrl('')
@@ -645,7 +676,15 @@ export default function Evaluate(): React.JSX.Element {
                 disabled={isRunning || fillGapsMutation.isPending}
                 className="self-start px-3 py-1.5 text-xs font-mono bg-surface2 border border-surface2 text-muted rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {fillGapsMutation.isPending ? 'Filling gaps…' : 'Fill gaps with AI'}
+                {fillGapsMutation.isPending ? (
+                <span className="flex items-center gap-1.5">
+                  <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  </svg>
+                  Filling gaps…
+                </span>
+              ) : 'Fill gaps with AI'}
               </button>
             )}
           </div>

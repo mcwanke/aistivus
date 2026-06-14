@@ -28,6 +28,7 @@ export interface EvaluatePayload {
   pay_band: string | null
   llm_model_id: number | null
   force: boolean
+  rerun_job_id?: number
 }
 
 async function postEvaluate(payload: EvaluatePayload): Promise<EvaluateResponse> {

@@ -459,6 +459,7 @@ class EvaluateRequest(BaseModel):
     pay_band: str | None = None
     llm_model_id: int | None = None
     force: bool = False
+    rerun_job_id: int | None = None
 
 
 class EvaluateResponse(BaseModel):
@@ -749,7 +750,10 @@ async def evaluate_endpoint(request: Request, body: EvaluateRequest):
     if not body.jd_text.strip():
         raise HTTPException(status_code=400, detail="jd_text cannot be empty.")
 
-    if not body.force:
+    if body.rerun_job_id is not None:
+        if not database.get_job(body.rerun_job_id):
+            raise HTTPException(status_code=404, detail=f"Job {body.rerun_job_id} not found.")
+    elif not body.force:
         existing = database.find_similar_jobs(body.company_name, body.job_title)
         if existing:
             return EvaluateResponse(
@@ -776,6 +780,7 @@ async def evaluate_endpoint(request: Request, body: EvaluateRequest):
         apply_url=strip_utm_params(body.apply_url),
         pay_band=body.pay_band,
         llm_model_id=body.llm_model_id,
+        existing_job_id=body.rerun_job_id,
     )
 
     log.info(

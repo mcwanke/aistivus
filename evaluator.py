@@ -364,6 +364,7 @@ async def evaluate_jd(
     apply_url: str | None = None,
     llm_model_id: int | None = None,
     pay_band: str | None = None,
+    existing_job_id: int | None = None,
 ) -> dict:
     """
     Full evaluation pipeline for a single job description.
@@ -430,18 +431,21 @@ async def evaluate_jd(
 
     jobsearch_context = jobsearch_path.read_text()
 
-    # ── Step 3: Upsert job ─────────────────────────────────────
+    # ── Step 3: Upsert job (or use existing) ──────────────────
     role_keyword = extract_role_keyword(jd_text)
 
-    job_id, _created = database.upsert_job(
-        company_name,
-        job_title,
-        role_keyword,
-        location=location,
-        remote_type=remote_type,
-        description_merged=jd_text,
-        pay_band=pay_band,
-    )
+    if existing_job_id is not None:
+        job_id = existing_job_id
+    else:
+        job_id, _created = database.upsert_job(
+            company_name,
+            job_title,
+            role_keyword,
+            location=location,
+            remote_type=remote_type,
+            description_merged=jd_text,
+            pay_band=pay_band,
+        )
 
     # ── Step 4: Insert job_posting ─────────────────────────────
     database.insert_job_posting(
