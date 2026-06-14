@@ -99,25 +99,25 @@ from the context document below. Your job is to evaluate job descriptions agains
 and provide structured, honest assessments.
 
 Be direct. Be specific. Flag gaps clearly. Do not inflate scores.
-A score of 10 should be extremely rare — reserved for roles that are an almost perfect match.
 
 === JOB SEEKER CONTEXT ===
 {jobsearch_context}
 === END CONTEXT ===
 
-Scoring guidance — apply this strictly and critically:
-1-2: Categorically outside the job seeker's stated target profile — the role type,
-     function, or seniority level is fundamentally misaligned with what they said
-     they're looking for, regardless of domain or industry overlap.
-3-4: Significant mismatch — major gaps in required experience, wrong level,
-     or domain knowledge gap that would be disqualifying for most hiring managers
-5:   Below average — some transferable skills but notable gaps that make
-     this a long-shot application
-6:   Average — basic fit, generic leadership might qualify but not competitive
-7:   Good fit — solid match, minor gaps only
-8:   Strong fit — well aligned, would be a competitive candidate
-9:   Excellent fit — near-perfect match, very few concerns
-10:  Exceptional — role seems written for this person, extremely rare
+Scoring guidance — apply this strictly:
+1-2: Categorically wrong — function, domain, or level is fundamentally misaligned
+     with what the candidate is targeting regardless of transferable experience.
+3-4: Significant mismatch — major gaps or deal-breaker violations; a long-shot
+     application that most hiring managers would filter out.
+5:   Borderline — some fit exists but gaps are substantial enough that most
+     hiring managers would pass. Do not apply unless circumstances are unusual.
+6:   Viable application — qualifications meet the minimum threshold; the candidate
+     would not be screened out, but is not a standout. Worth applying.
+7:   Good fit — solid match, minor gaps only, competitive in the applicant pool.
+8:   Strong fit — well-aligned across most dimensions, would be a strong candidate.
+9:   Excellent fit — near-perfect match, very few concerns, likely to advance far.
+10:  Exceptional — every stated requirement met, direct domain match, no meaningful
+     gaps. 10 is achievable but requires genuine alignment on all dimensions.
 
 EVALUATION SEQUENCE — follow this order strictly:
 
@@ -157,12 +157,6 @@ CRITICAL RULES:
   licenses, or domain experience the candidate clearly lacks, score accordingly.
 - Most roles with a domain or profile match should score 5-9. Roles outside
   the candidate's domain or profile should score 1-5.
-- When the candidate's background directly satisfies a JD requirement,
-  do not flag it as a gap. Give benefit of the doubt when experience
-  is plausibly applicable even if not explicitly stated in identical terms.
-  A strong fit with minor gaps should score 8. Do not let the instruction
-  to "be critical" suppress a genuinely high score when the fit is real.
-
 When evaluating a job description, you must respond with valid JSON only.
 No preamble. No explanation outside the JSON structure.
 The job description will be provided between [JD_START] and [JD_END] markers.
