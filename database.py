@@ -1390,6 +1390,7 @@ def insert_llm_call_log(
     error_message: str | None = None,
     job_id: int | None = None,
     search_run_id: int | None = None,
+    prompt_usage_id: int | None = None,
 ) -> int:
     """
     Insert an LLM call log record. Returns the new log id.
@@ -1402,14 +1403,14 @@ def insert_llm_call_log(
                 prompt_tokens_estimated, prompt_tokens_actual,
                 completion_tokens_actual, total_tokens_actual,
                 latency_ms, call_time, success, error_message,
-                job_id, search_run_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                job_id, search_run_id, prompt_usage_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 llm_model_id, call_type, raw_response,
                 prompt_tokens_estimated, prompt_tokens_actual,
                 completion_tokens_actual, total_tokens_actual,
                 latency_ms, call_time, success, error_message,
-                job_id, search_run_id,
+                job_id, search_run_id, prompt_usage_id,
             )
         )
         return conn.execute("SELECT last_insert_rowid()").fetchone()[0]

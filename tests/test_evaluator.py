@@ -90,6 +90,11 @@ def jobsearch_file(tmp_path, monkeypatch):
 @pytest.fixture
 def eval_setup(tmp_db, model_id, jobsearch_file):
     """DB + model + jobsearch.md for evaluator integration tests."""
+    database.seed_prompt_if_missing(
+        prompt_key="eval_internal",
+        label="Internal Evaluation Prompt",
+        segments_text=evaluator.SYSTEM_PROMPT_TEMPLATE,
+    )
     return {"model_id": model_id}
 
 

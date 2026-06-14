@@ -31,6 +31,7 @@ import yaml
 
 import database
 import llm_client
+import prompt_generation
 
 # ─────────────────────────────────────────────────────────────
 # Configuration
@@ -187,10 +188,6 @@ Return ONLY this JSON structure with no additional text:
   "keyword_gaps": "<comma-separated list of JD keywords unlikely to appear in a typical resume for this background — the tailoring targets>"
 }}"""
 
-
-def _build_system_prompt(jobsearch_context: str) -> str:
-    """Build the system prompt with jobsearch.md context injected."""
-    return SYSTEM_PROMPT_TEMPLATE.format(jobsearch_context=jobsearch_context)
 
 
 def _build_user_prompt(jd_text: str) -> str:
@@ -448,7 +445,14 @@ async def evaluate_jd(
     )
 
     # ── Step 5: Build prompt ───────────────────────────────────
-    system_prompt = _build_system_prompt(jobsearch_context)
+    prompt_result = prompt_generation.get_prompt(
+        "eval_internal",
+        {"jobsearch_context": jobsearch_context},
+        job_id=job_id,
+        source="eval_run",
+    )
+    system_prompt = prompt_result["prompt_text"]
+    prompt_usage_id = prompt_result["prompt_usage_id"]
     user_prompt = _build_user_prompt(jd_text)
 
     print(f"  Calling {provider}/{model}...")
@@ -484,6 +488,7 @@ async def evaluate_jd(
         success=1 if result["success"] else 0,
         error_message=result.get("error"),
         job_id=job_id,
+        prompt_usage_id=prompt_usage_id,
     )
 
     # ── Step 6b: Retry with stricter prompt if parse failed ────
@@ -520,6 +525,7 @@ async def evaluate_jd(
             success=1 if result["success"] else 0,
             error_message=result.get("error"),
             job_id=job_id,
+            prompt_usage_id=prompt_usage_id,
         )
 
     # ── Step 7b: Update estimated_eval_time ───────────────────

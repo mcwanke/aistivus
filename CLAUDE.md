@@ -105,18 +105,19 @@ See `app_docs/WORKORDER_p2.1.md` for full implementation detail.
 - `Evaluate.tsx` `ResultPanel`: add prominent `score_overall` display above sub-score grid (field exists in response, not rendered)
 - `EvaluationFeedbackButton.tsx`: convert "Rate this evaluation" text link into bordered card-style widget with explanation line and real button
 
-### Phase 2.1 — Step 5a: Schema Foundation + prompt_generation.py 🔄 (Batch 2 done)
+### Phase 2.1 — Step 5a: Schema Foundation + prompt_generation.py ✅ (Batch 4 done)
 - ✅ New `prompts` table added to `database.py`
 - ✅ New `prompt_usage` table added to `database.py` (replaces `prompt_feedback`)
 - ✅ `prompt_feedback` table dropped; `add_prompt_feedback()` removed; `POST /api/v1/prompt-feedback` removed
 - ✅ `llm_call_log`: ADD COLUMN `prompt_usage_id` INTEGER (delta migration in `init_db()`); schema v1.6
 - ✅ DB functions: `assemble_prompt`, `get_active_prompt`, `save_prompt`, `get_prompt_history`, `seed_prompt_if_missing`, `create_prompt_usage`, `update_prompt_feedback`, `get_prompt_usage`, `get_unprocessed_feedback`, `mark_feedback_consumed`
 - ✅ Data migration (startup): seed `prompts` with current eval constants (`eval_internal`, `eval_external`); backfill `prompt_usage` from `llm_call_log` evaluation rows (PRAGMA guard for idempotency); DROP COLUMN `prompt`; DROP COLUMN `prompt_hash`; schema v1.7; all `insert_llm_call_log` callers updated
-- 🔲 New `prompt_generation.py`: single entry point for all managed prompt construction; writes `prompt_usage` rows; returns `{ prompt_text, prompt_usage_id }`
-- 🔲 `evaluator.py`: replace inline prompt construction with `prompt_generation.get_prompt()`
-- 🔲 External eval route: uses `prompt_generation.get_prompt()`; `prompt_usage_id` in response
+- ✅ New `prompt_generation.py`: `get_prompt(prompt_key, context, job_id, source)` → `{ prompt_text, prompt_usage_id }`
+- ✅ `evaluator.py`: removed `_build_system_prompt()`; replaced with `prompt_generation.get_prompt('eval_internal', ...)`; `prompt_usage_id` passed to both `insert_llm_call_log` calls
+- ✅ `generate_prompt` route (`main.py`): uses `prompt_generation.get_prompt('eval_external', ...)`; response includes `prompt_usage_id`
+- ✅ `insert_llm_call_log` (`database.py`): added `prompt_usage_id` keyword param
 - 🔲 `EvaluationFeedbackButton`: props updated to `promptUsageId`; calls new `POST /api/v1/prompt-usage/{id}/feedback`
-- ⚠️ Known broken until Batch 6: `EvaluationFeedbackButton` still calls removed `/api/v1/prompt-feedback`
+- ⚠️ Known broken until Batch 5: `EvaluationFeedbackButton` still calls removed `/api/v1/prompt-feedback`
 
 ### Phase 2.1 — Step 5b: Prompt Editor UI + Feedback Loop Trigger 🔲
 - New "Prompts" section in Settings page

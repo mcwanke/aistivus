@@ -113,6 +113,7 @@ import evaluate
 import evaluator
 import llm_client
 import profile_routes
+import prompt_generation
 import scrape_routes
 from env_utils import get_env_key, load_dotenv
 from limiter import limiter
@@ -1476,13 +1477,20 @@ async def generate_prompt(request: Request, application_id: int):
     pay_band = job_dict.get("pay_band") or "Not listed"
     jd_text = job_dict.get("description_merged") or ""
 
-    prompt = EXTERNAL_EVAL_PROMPT_TEMPLATE.format(
-        company_name=company_name,
-        title=title,
-        location=location,
-        pay_band=pay_band,
-        jd_text=jd_text,
+    prompt_result = prompt_generation.get_prompt(
+        "eval_external",
+        {
+            "company_name": company_name,
+            "title": title,
+            "location": location,
+            "pay_band": pay_band,
+            "jd_text": jd_text,
+        },
+        job_id=app_dict["job_id"],
+        source="external_eval",
     )
+    prompt = prompt_result["prompt_text"]
+    prompt_usage_id = prompt_result["prompt_usage_id"]
 
     prompt_type_id = database.get_system_type_id("application_log", "prompt_eval")
     if prompt_type_id is None:
@@ -1493,7 +1501,12 @@ async def generate_prompt(request: Request, application_id: int):
         type_id=prompt_type_id,
         log=prompt,
     )
-    return JSONResponse({"success": True, "log_id": log_id, "prompt": prompt})
+    return JSONResponse({
+        "success": True,
+        "log_id": log_id,
+        "prompt": prompt,
+        "prompt_usage_id": prompt_usage_id,
+    })
 
 
 @app.post("/api/v1/applications/{application_id}/generate-resume-prompt")
