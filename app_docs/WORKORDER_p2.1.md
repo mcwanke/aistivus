@@ -13,7 +13,7 @@ Before starting any step:
 
 **Step order and dependencies:**
 - Steps 1–4: complete ✅
-- Immediate Fixes (Issue 1 + 2): independent, do before Step 5a
+- Immediate Fixes (Issue 1 + 2): complete ✅
 - Step 5a must complete before Step 5b
 - Step 5b must complete before Step 6
 - Step 6 builds on the `prompts` table and `prompt_generation.py` from Step 5a

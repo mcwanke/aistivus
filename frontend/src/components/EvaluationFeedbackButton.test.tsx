@@ -86,16 +86,16 @@ describe('EvaluationFeedbackButton', () => {
       expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled()
     })
 
-    it('shows Feedback submitted and disables trigger after submit', async () => {
+    it('shows Feedback submitted text after submit', async () => {
       const user = userEvent.setup()
       renderButton()
       await user.click(screen.getByRole('button', { name: 'Rate this evaluation' }))
       await user.click(screen.getByRole('button', { name: 'Agree' }))
       await user.click(screen.getByRole('button', { name: 'Submit' }))
       await waitFor(() =>
-        expect(screen.getByRole('button', { name: 'Feedback submitted' })).toBeInTheDocument(),
+        expect(screen.getByText('Feedback submitted')).toBeInTheDocument(),
       )
-      expect(screen.getByRole('button', { name: 'Feedback submitted' })).toBeDisabled()
+      expect(screen.queryByRole('button', { name: 'Rate this evaluation' })).not.toBeInTheDocument()
     })
   })
 

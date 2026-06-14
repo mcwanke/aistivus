@@ -99,7 +99,7 @@ See `app_docs/WORKORDER_p2.1.md` for full implementation detail.
 - Wired in two places: above result on Evaluate page (internal eval); second modal after Import External Eval success (external eval)
 - Feedback not displayed to user in this phase — stored for Phase 2.2 review tool
 
-### Phase 2.1 — Immediate Fixes (Issue 1 + 2) 🔲
+### Phase 2.1 — Immediate Fixes (Issue 1 + 2) ✅
 - `Evaluate.tsx` `ResultPanel`: add prominent `score_overall` display above sub-score grid (field exists in response, not rendered)
 - `EvaluationFeedbackButton.tsx`: convert "Rate this evaluation" text link into bordered card-style widget with explanation line and real button
 

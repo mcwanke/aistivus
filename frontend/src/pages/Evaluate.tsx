@@ -127,6 +127,15 @@ function ResultPanel({
         </div>
       </div>
 
+      {/* Overall score */}
+      <div className="flex items-baseline gap-2">
+        <span className="font-serif text-accent text-5xl leading-none">
+          {get<number>('score_overall') !== null ? (get<number>('score_overall') as number).toFixed(1) : '—'}
+        </span>
+        <span className="font-mono text-lg text-muted">/10</span>
+        <span className="font-mono text-xs text-muted uppercase tracking-wider ml-1">Overall</span>
+      </div>
+
       {/* Sub-scores */}
       <div className="grid grid-cols-4 gap-2">
         <ScorePill label="Role"    value={get<number>('score_role_fit')}  denom={5} />

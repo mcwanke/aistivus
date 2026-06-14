@@ -193,15 +193,23 @@ export default function EvaluationFeedbackButton({
 
   return (
     <>
-      {/* Trigger button — only in uncontrolled mode */}
+      {/* Trigger card — only in uncontrolled mode */}
       {!controlled && (
-        <button
-          onClick={() => setInternalOpen(true)}
-          disabled={submitted}
-          className="text-xs font-mono text-muted/60 hover:text-muted transition-colors disabled:cursor-default"
-        >
-          {submitted ? 'Feedback submitted' : 'Rate this evaluation'}
-        </button>
+        <div className="border border-surface2 rounded-lg px-4 py-3 flex items-center justify-between gap-4">
+          <p className="text-xs font-mono text-muted/70 leading-relaxed">
+            Help improve future evaluations by rating this result.
+          </p>
+          {submitted ? (
+            <span className="text-xs font-mono text-muted/60 whitespace-nowrap">Feedback submitted</span>
+          ) : (
+            <button
+              onClick={() => setInternalOpen(true)}
+              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors whitespace-nowrap shrink-0"
+            >
+              Rate this evaluation
+            </button>
+          )}
+        </div>
       )}
 
       {modalVisible && (
