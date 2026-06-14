@@ -34,6 +34,8 @@ Never send, post, publish, share, or schedule anything on my behalf without my e
 
 For any task involving architecture decisions, debugging complex issues, or non-trivial features: work through the problem step by step before writing any code. Show your reasoning. Identify where you're uncertain. Then implement.
 
+**Before reading any file, ask: do I need the whole file or just one function/section?** If you know the symbol you need, `grep` for its line number first, then read only that range using `offset`/`limit`. Only read a file in full when the task genuinely requires whole-file context (e.g., auditing all callers, reviewing overall structure).
+
 ## Memory
 
 Project decisions and deferred work are tracked in `memory/`. This folder is gitignored — it does not get committed. Check `memory/MEMORY.md` for an index before starting significant work.
