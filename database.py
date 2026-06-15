@@ -489,6 +489,11 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass  # column already dropped
 
+        try:
+            conn.execute("ALTER TABLE evaluations ADD COLUMN analysis_json TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
         for type_name, type_value in _SYSTEM_TYPES_SEED:
             existing = conn.execute(
                 "SELECT id FROM system_types WHERE type_name = ? AND type_value = ?",
@@ -1323,7 +1328,7 @@ def insert_evaluation(job_id: int, llm_model_id: int, **kwargs) -> int:
         "fit_type", "archetype", "strengths", "gaps", "recommendation",
         "keywords", "domain_match", "role_type_match", "keyword_gaps",
     ]
-    all_fields = score_fields + text_fields + ["llm_call_log_id"]
+    all_fields = score_fields + text_fields + ["llm_call_log_id", "analysis_json"]
 
     with get_connection() as conn:
         conn.execute(
@@ -1331,9 +1336,9 @@ def insert_evaluation(job_id: int, llm_model_id: int, **kwargs) -> int:
                (job_id, llm_model_id, score_overall, score_role_fit, score_scope_fit,
                 score_culture, score_comp, fit_type, archetype, strengths, gaps,
                 recommendation, keywords, domain_match, role_type_match, keyword_gaps,
-                llm_call_log_id)
+                llm_call_log_id, analysis_json)
                VALUES
-               (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 job_id, llm_model_id,
                 *(kwargs.get(f) for f in all_fields)

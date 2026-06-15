@@ -15,7 +15,7 @@ Before starting any step:
 - Steps 1–4: complete ✅
 - Immediate Fixes (Issue 1 + 2): complete ✅
 - Step 5a Batches 1–3: complete ✅ (schema, DB functions, data migration + DROP COLUMN)
-- Step 5a Batch 4+ (prompt_generation.py, evaluator wiring, frontend): in progress 🔄
+- Step 5a + 5b: complete ✅
 - Step 5a must complete before Step 5b
 - Step 5b must complete before Step 6
 - Step 6 builds on the `prompts` table and `prompt_generation.py` from Step 5a
@@ -920,7 +920,7 @@ Remove: `POST /api/v1/prompt-feedback` (replaced by above).
 
 ---
 
-## Step 5b — Prompt Editor UI + Feedback Loop Trigger 🔄 (Backend done 2026-06-14)
+## Step 5b — Prompt Editor UI + Feedback Loop Trigger ✅
 
 **Goal:** Surface the `prompts` table in the Settings UI so the user can view and edit
 AI prompts through a segmented editor. Add a feedback loop trigger button that gathers
@@ -1103,7 +1103,7 @@ When selected, renders `PromptEditor` in the main content area at full width.
 
 ---
 
-## Step 6 — Multi-Prompt Split 🔲
+## Step 6 — Multi-Prompt Split ✅
 
 **Goal:** Move the evaluation prompts from code constants into the `prompts` table. Split
 the single evaluation LLM call in `evaluator.py` into two sequential calls — the first

@@ -615,6 +615,11 @@ class TestEvaluateAutoActivate:
         from unittest.mock import AsyncMock
         import llm_client
 
+        analysis = json.dumps({
+            "archetype": "People Leader", "has_deal_breaker": False,
+            "deal_breaker_description": None,
+            "domain_match": "Same domain", "role_type_match": "Target match",
+        })
         good_eval = json.dumps({
             "score_overall": 7.5, "score_role_fit": 4.0, "score_scope_fit": 4.0,
             "score_culture": 3.5, "score_comp": 3.5, "fit_type": "Core Fit",
@@ -622,15 +627,22 @@ class TestEvaluateAutoActivate:
             "recommendation": "Apply", "keywords": "python", "domain_match": "Same domain",
             "role_type_match": "Target match", "keyword_gaps": "docker",
         })
+        llm_analysis = {
+            "success": True, "content": analysis, "error": None,
+            "model": "test-model", "provider": "ollama",
+            "latency_ms": 80, "prompt_tokens_actual": 30,
+            "completion_tokens_actual": 40, "total_tokens_actual": 70,
+        }
+        llm_scoring = {
+            "success": True, "content": good_eval, "error": None,
+            "model": "test-model", "provider": "ollama",
+            "latency_ms": 100, "prompt_tokens_actual": 50,
+            "completion_tokens_actual": 100, "total_tokens_actual": 150,
+        }
         monkeypatch.setattr(
             llm_client,
             "complete",
-            AsyncMock(return_value={
-                "success": True, "content": good_eval, "error": None,
-                "model": "test-model", "provider": "ollama",
-                "latency_ms": 100, "prompt_tokens_actual": 50,
-                "completion_tokens_actual": 100, "total_tokens_actual": 150,
-            }),
+            AsyncMock(side_effect=[llm_analysis, llm_scoring]),
         )
         resp = seeded_client["client"].post(
             "/api/v1/evaluate",

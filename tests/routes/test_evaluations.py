@@ -63,6 +63,26 @@ _LLM_FAILURE = {
     "total_tokens_actual": None,
 }
 
+_GOOD_ANALYSIS = {
+    "archetype": "People Leader",
+    "has_deal_breaker": False,
+    "deal_breaker_description": None,
+    "domain_match": "Same domain",
+    "role_type_match": "Target match",
+}
+
+_LLM_ANALYSIS_SUCCESS = {
+    "success": True,
+    "content": json.dumps(_GOOD_ANALYSIS),
+    "error": None,
+    "model": "test-model",
+    "provider": "ollama",
+    "latency_ms": 600,
+    "prompt_tokens_actual": 60,
+    "completion_tokens_actual": 40,
+    "total_tokens_actual": 100,
+}
+
 
 # ─────────────────────────────────────────────────────────────
 # POST /api/v1/evaluate
@@ -84,7 +104,8 @@ class TestEvaluateEndpoint:
         assert resp.status_code == 422
 
     def test_successful_evaluation(self, seeded_client, jobsearch_file):
-        with patch("llm_client.complete", new=AsyncMock(return_value=_LLM_SUCCESS)):
+        mock = AsyncMock(side_effect=[_LLM_ANALYSIS_SUCCESS, _LLM_SUCCESS])
+        with patch("llm_client.complete", new=mock):
             resp = seeded_client["client"].post(
                 "/api/v1/evaluate",
                 json={"jd_text": "Senior engineer role", "company_name": "Acme", "job_title": "EM"},
@@ -96,7 +117,8 @@ class TestEvaluateEndpoint:
         assert data["job_id"] is not None
 
     def test_evaluation_returns_scores(self, seeded_client, jobsearch_file):
-        with patch("llm_client.complete", new=AsyncMock(return_value=_LLM_SUCCESS)):
+        mock = AsyncMock(side_effect=[_LLM_ANALYSIS_SUCCESS, _LLM_SUCCESS])
+        with patch("llm_client.complete", new=mock):
             resp = seeded_client["client"].post(
                 "/api/v1/evaluate",
                 json={"jd_text": "Senior engineer role", "company_name": "Acme", "job_title": "EM"},
@@ -180,7 +202,8 @@ class TestRerunEvaluation:
         assert resp.status_code == 400
 
     def test_successful_rerun(self, seeded_client, jobsearch_file):
-        with patch("llm_client.complete", new=AsyncMock(return_value=_LLM_SUCCESS)):
+        mock = AsyncMock(side_effect=[_LLM_ANALYSIS_SUCCESS, _LLM_SUCCESS])
+        with patch("llm_client.complete", new=mock):
             resp = seeded_client["client"].post(
                 "/api/v1/evaluations/rerun",
                 json={"job_id": seeded_client["job_id"]},

@@ -131,13 +131,13 @@ See `app_docs/WORKORDER_p2.1.md` for full implementation detail.
 - ✅ `JobDetail.tsx` CI fix: `onPromptGenerated` callback prop wired from `JobDetailsRight` → `JobDetailPage` so `setImportedPromptUsageId` is actually called
 - ✅ Test baseline: 622 backend / 262 frontend
 
-### Phase 2.1 — Step 6: Multi-Prompt Split 🔲
-- Migrate evaluation prompts from code constants to `prompts` table as four entries: `eval_analysis_system`, `eval_analysis_user`, `eval_scoring_system`, `eval_scoring_user`
-- Two-call evaluation pipeline in `evaluator.py`: Call 1 (archetype + deal-breaker + domain analysis) → Call 2 (scoring using committed Call 1 output); outputs merged into single `evaluations` record
+### Phase 2.1 — Step 6: Multi-Prompt Split ✅
+- Four prompt keys seeded at startup: `eval_analysis_system`, `eval_analysis_user`, `eval_scoring_system`, `eval_scoring_user`
+- `evaluate_with_split()` in `evaluator.py`: Call 1 commits archetype/deal-breaker/domain; Call 2 scores with committed analysis injected; `evaluate_jd()` delegates LLM work to it
 - `evaluations.llm_call_log_id` points to Call 2; Call 1 traceable via `job_id` on `llm_call_log`
 - Call 1 failure → fail entire evaluation; Call 2 failure → retry once (existing contract)
-- New nullable `analysis_json TEXT` column on `evaluations` (delta migration via ALTER TABLE)
-- Original code constants retained as seeding fallbacks; `test_evaluator.py` requires significant rewrite
+- `analysis_json TEXT` column on `evaluations` (delta migration); `_sanitize_jd()` replaces `_build_user_prompt()`
+- `test_evaluator.py` rewritten for two-call mocking (73 tests); route tests updated; test baseline: 629 backend / 263 frontend
 
 ### Phase 2.0 — Steps 1–3 ✅ Complete
 - Step 1: CI/CD — `.github/workflows/ci.yml`; pytest + ruff + vitest + build on every push/PR
