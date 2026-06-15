@@ -2132,7 +2132,6 @@ function JobDetailsRight({
   async function handleGeneratePrompt(): Promise<void> {
     const result = await generatePrompt.mutateAsync(applicationId)
     setPromptText(result.prompt)
-    setImportedPromptUsageId(result.prompt_usage_id)
   }
 
   function copyDescription(): void {
@@ -3429,7 +3428,7 @@ export default function JobDetailPage(): React.JSX.Element {
       keyword_gaps:    (parsed.keyword_gaps    as string | null) ?? null,
     }
     try {
-      const result = await importMutation.mutateAsync(payload)
+      await importMutation.mutateAsync(payload)
       setImportOpen(false)
       void qc.invalidateQueries({ queryKey: ['job', jobId] })
       setImportFeedbackInviteOpen(true)

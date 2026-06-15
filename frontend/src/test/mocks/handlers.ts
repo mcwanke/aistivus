@@ -229,6 +229,7 @@ export const MOCK_EVALUATE_RESPONSE: EvaluateResponse = {
   error: null,
   duplicate_detected: false,
   existing_jobs: null,
+  prompt_usage_id: null,
 }
 
 export const MOCK_PROFILE_HEALTH: ProfileHealth = {

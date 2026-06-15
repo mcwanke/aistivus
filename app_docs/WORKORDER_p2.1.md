@@ -920,7 +920,7 @@ Remove: `POST /api/v1/prompt-feedback` (replaced by above).
 
 ---
 
-## Step 5b — Prompt Editor UI + Feedback Loop Trigger 🔲
+## Step 5b — Prompt Editor UI + Feedback Loop Trigger 🔄 (Backend done 2026-06-14)
 
 **Goal:** Surface the `prompts` table in the Settings UI so the user can view and edit
 AI prompts through a segmented editor. Add a feedback loop trigger button that gathers

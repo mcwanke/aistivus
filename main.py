@@ -655,6 +655,11 @@ class PromptUsageFeedbackRequest(BaseModel):
     feedback_text: str | None = None
 
 
+class PromptSaveRequest(BaseModel):
+    segments_text: str
+    note: str | None = None
+
+
 # Valid application status values per spec
 _VALID_STATUSES = frozenset({
     "not-started", "draft", "skipped", "applied", "screening", "interview",
@@ -2561,6 +2566,131 @@ async def get_available_models(request: Request, server_id: int):
 async def get_anthropic_key_status(request: Request):
     """Return whether the Anthropic API key is set. Never echoes the key value."""
     return JSONResponse({"anthropic_key_present": request.app.state.anthropic_key_present})
+
+
+# ─────────────────────────────────────────────────────────────
+# Prompts
+# ─────────────────────────────────────────────────────────────
+
+@app.get("/api/v1/prompts")
+@limiter.limit("60/minute")
+async def list_prompts(request: Request):
+    """Return all active prompts (one per key)."""
+    return JSONResponse(database.get_all_active_prompts())
+
+
+@app.get("/api/v1/prompts/{key}")
+@limiter.limit("60/minute")
+async def get_prompt(request: Request, key: str):
+    """Return the active prompt for a key. 404 if not found."""
+    row = database.get_active_prompt(key)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Prompt '{key}' not found.")
+    return JSONResponse(row)
+
+
+@app.post("/api/v1/prompts/{key}/save")
+@limiter.limit("30/minute")
+async def save_prompt(request: Request, key: str, body: PromptSaveRequest):
+    """Save a new version of a prompt. Deactivates the current active version."""
+    existing = database.get_active_prompt(key)
+    if not existing:
+        raise HTTPException(status_code=404, detail=f"Prompt '{key}' not found.")
+    database.save_prompt(key, body.segments_text, body.note)
+    updated = database.get_active_prompt(key)
+    return JSONResponse({"success": True, "version": updated["version"]})
+
+
+@app.get("/api/v1/prompts/{key}/preview")
+@limiter.limit("60/minute")
+async def preview_prompt(request: Request, key: str):
+    """Return the assembled prompt text with preview_context values substituted."""
+    row = database.get_active_prompt(key)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Prompt '{key}' not found.")
+    assembled = database.assemble_prompt(row["segments_text"])
+    preview_context = row.get("preview_context")
+    if preview_context:
+        try:
+            import json as _json
+            ctx = _json.loads(preview_context)
+            for k, v in ctx.items():
+                assembled = assembled.replace(f"{{{k}}}", str(v))
+        except Exception:
+            pass
+    return JSONResponse({"preview_text": assembled})
+
+
+@app.post("/api/v1/prompts/{key}/feedback-loop")
+@limiter.limit("2/minute")
+async def run_feedback_loop(request: Request, key: str):
+    """
+    Gather unprocessed feedback for a prompt, send to cloud LLM for improvement
+    suggestions, mark feedback consumed, return suggestions text.
+    """
+    feedback_rows = database.get_unprocessed_feedback(key)
+    if not feedback_rows:
+        return JSONResponse({"success": False, "reason": "no_feedback"})
+
+    prompt_row = database.get_active_prompt(key)
+    if not prompt_row:
+        raise HTTPException(status_code=404, detail=f"Prompt '{key}' not found.")
+
+    default_model = database.get_default_llm_model()
+    if not default_model:
+        raise HTTPException(
+            status_code=503, detail="No LLM model configured — add one in Settings."
+        )
+    model_info = dict(default_model)
+    endpoint = model_info.get("endpoint", "")
+    provider = "anthropic" if model_info.get("server_type") == "anthropic" else "ollama"
+
+    assembled = database.assemble_prompt(prompt_row["segments_text"])
+
+    feedback_lines = []
+    for row in feedback_rows:
+        agree_label = "Agree" if row["agree"] == 1 else "Disagree"
+        parts = [f"- {agree_label}"]
+        if row.get("dimension"):
+            parts.append(f"dimension={row['dimension']}")
+        if row.get("feedback_text"):
+            parts.append(f'comment="{row["feedback_text"]}"')
+        feedback_lines.append(" | ".join(parts))
+
+    system = (
+        "You are an expert prompt engineer reviewing user feedback on an AI evaluation prompt. "
+        "Analyze the feedback and suggest specific, actionable improvements to the prompt. "
+        "Be concise and specific — reference the relevant part of the prompt for each suggestion."
+    )
+    user_prompt = (
+        f"Current prompt:\n---\n{assembled}\n---\n\n"
+        f"User feedback ({len(feedback_rows)} entries):\n"
+        + "\n".join(feedback_lines)
+        + "\n\nSuggest improvements to this prompt based on the feedback above."
+    )
+
+    result = await llm_client.complete(
+        prompt=user_prompt,
+        system=system,
+        model=model_info["model"],
+        provider=provider,
+        base_url=endpoint,
+    )
+
+    feedback_ids = [row["id"] for row in feedback_rows]
+    database.mark_feedback_consumed(feedback_ids)
+
+    if not result.get("success"):
+        return JSONResponse(
+            {"success": False, "reason": result.get("error", "llm_error")},
+            status_code=502,
+        )
+
+    return JSONResponse({
+        "success": True,
+        "suggestions": result["content"],
+        "feedback_count": len(feedback_rows),
+    })
 
 
 # ─────────────────────────────────────────────────────────────

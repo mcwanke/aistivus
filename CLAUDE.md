@@ -120,11 +120,14 @@ See `app_docs/WORKORDER_p2.1.md` for full implementation detail.
 - ✅ `insert_llm_call_log` (`database.py`): added `prompt_usage_id` keyword param
 - ✅ `EvaluationFeedbackButton`: props updated to `promptUsageId`; calls new `POST /api/v1/prompt-usage/{id}/feedback`; `PromptFeedbackPayload` → `PromptUsageFeedbackPayload`; MSW handler updated; test baseline 597/253
 
-### Phase 2.1 — Step 5b: Prompt Editor UI + Feedback Loop Trigger 🔲
-- New "Prompts" section in Settings page
-- `PromptEditor` component: prompt dropdown; left column = editable segments as `<textarea>`, locked segments as muted read-only; right column = assembled preview with `preview_context` values substituted
-- "Run Feedback Loop" button in editor header: gathers unprocessed feedback for selected prompt → sends to cloud LLM with prompt text → returns improvement suggestions → marks feedback `is_consumed = 1`
-- New API endpoints: `GET /api/v1/prompts`, `GET /api/v1/prompts/{key}`, `POST /api/v1/prompts/{key}/save`, `GET /api/v1/prompts/{key}/preview`, `POST /api/v1/prompts/{key}/feedback-loop`
+### Phase 2.1 — Step 5b: Prompt Editor UI + Feedback Loop Trigger 🔄 (Backend done)
+- ✅ New API endpoints: `GET /api/v1/prompts`, `GET /api/v1/prompts/{key}`, `POST /api/v1/prompts/{key}/save`, `GET /api/v1/prompts/{key}/preview`, `POST /api/v1/prompts/{key}/feedback-loop`
+- ✅ `database.get_all_active_prompts()` added; `PromptSaveRequest` Pydantic model added to `main.py`
+- ✅ `tests/routes/test_prompts.py` — 22 tests; test baseline 619 backend / 253 frontend
+- ✅ CI TypeScript fixes from Step 5a: `JobDetail.tsx` scope bug + unused var; `handlers.ts` missing `prompt_usage_id`
+- 🔲 New "Prompts" section in Settings page
+- 🔲 `PromptEditor` component: prompt dropdown; left column = editable segments as `<textarea>`, locked segments as muted read-only; right column = assembled preview with `preview_context` values substituted
+- 🔲 "Run Feedback Loop" button in editor header: gathers unprocessed feedback for selected prompt → sends to cloud LLM with prompt text → returns improvement suggestions → marks feedback `is_consumed = 1`
 
 ### Phase 2.1 — Step 6: Multi-Prompt Split 🔲
 - Migrate evaluation prompts from code constants to `prompts` table as four entries: `eval_analysis_system`, `eval_analysis_user`, `eval_scoring_system`, `eval_scoring_user`

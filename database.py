@@ -2348,6 +2348,18 @@ def mark_feedback_consumed(ids: list[int]) -> None:
         )
 
 
+def get_all_active_prompts() -> list[dict]:
+    """Return one row per prompt key where is_active = 1, ordered by prompt_key."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT prompt_key, label, version
+               FROM prompts
+               WHERE is_active = 1
+               ORDER BY prompt_key""",
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
 # ─────────────────────────────────────────────────────────────
 # Utilities
 # ─────────────────────────────────────────────────────────────
