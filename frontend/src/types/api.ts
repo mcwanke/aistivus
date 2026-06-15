@@ -507,3 +507,33 @@ export interface FillGapsResult {
   error: string | null
 }
 
+export interface PromptListItem {
+  prompt_key: string
+  label: string
+  version: number
+}
+
+export interface PromptRecord {
+  prompt_key: string
+  label: string
+  version: number
+  segments_text: string
+  preview_context: string | null
+}
+
+export interface PromptSavePayload {
+  segments_text: string
+  note?: string
+}
+
+export interface PromptPreviewResult {
+  preview_text: string
+}
+
+export interface FeedbackLoopResult {
+  success: boolean
+  suggestions?: string
+  feedback_count?: number
+  reason?: string
+}
+

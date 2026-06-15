@@ -2078,6 +2078,7 @@ interface JobDetailsRightProps {
   companyLog: CompanyLogEntry[]
   activeAction: JobDetailsAction
   onOpenImport: () => void
+  onPromptGenerated: (promptUsageId: number) => void
   applyUrl: string
 }
 
@@ -2089,6 +2090,7 @@ function JobDetailsRight({
   companyLog,
   activeAction,
   onOpenImport,
+  onPromptGenerated,
   applyUrl,
 }: JobDetailsRightProps): React.JSX.Element {
   const navigate = useNavigate()
@@ -2132,6 +2134,9 @@ function JobDetailsRight({
   async function handleGeneratePrompt(): Promise<void> {
     const result = await generatePrompt.mutateAsync(applicationId)
     setPromptText(result.prompt)
+    if (result.prompt_usage_id != null) {
+      onPromptGenerated(result.prompt_usage_id)
+    }
   }
 
   function copyDescription(): void {
@@ -3537,6 +3542,7 @@ export default function JobDetailPage(): React.JSX.Element {
                 companyLog={jobData.company_log}
                 activeAction={jobDetailsAction}
                 onOpenImport={() => setImportOpen(true)}
+                onPromptGenerated={(id) => setImportedPromptUsageId(id)}
                 applyUrl={jobData.postings.find((p) => p.source_url)?.source_url ?? ''}
               />
             )}

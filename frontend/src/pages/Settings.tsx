@@ -30,6 +30,7 @@ import {
   useAnthropicKeyStatus,
 } from '@/hooks/useServers'
 import { useAppSettings, usePatchAppSetting } from '@/hooks/useApplications'
+import PromptEditor from '@/components/PromptEditor'
 import {
   useProfileVersions,
   useProfileVersionContent,
@@ -1620,7 +1621,7 @@ function DocumentStorageSection(): React.JSX.Element {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'app-settings' | 'system-types' | 'servers' | 'models' | 'my-data' | 'storage' | 'info'
+type Tab = 'app-settings' | 'system-types' | 'servers' | 'models' | 'my-data' | 'storage' | 'prompts' | 'info'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'app-settings', label: 'App Settings' },
@@ -1629,6 +1630,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'models', label: 'Models' },
   { id: 'my-data', label: 'My Data' },
   { id: 'storage', label: 'Storage' },
+  { id: 'prompts', label: 'Prompts' },
   { id: 'info', label: 'System Info' },
 ]
 
@@ -1669,6 +1671,7 @@ export default function Settings(): React.JSX.Element {
           </>
         )}
         {activeTab === 'storage' && <DocumentStorageSection />}
+        {activeTab === 'prompts' && <PromptEditor />}
         {activeTab === 'info' && <InfoSection />}
       </div>
       </div>

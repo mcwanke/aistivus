@@ -467,4 +467,33 @@ export const handlers = [
   http.post('/api/v1/prompt-usage/:id/feedback', () =>
     HttpResponse.json({ success: true }),
   ),
+  http.get('/api/v1/prompts', () =>
+    HttpResponse.json([
+      { prompt_key: 'eval_internal', label: 'Evaluation — Internal', version: 1 },
+      { prompt_key: 'eval_external', label: 'Evaluation — External', version: 1 },
+    ]),
+  ),
+  http.get('/api/v1/prompts/:key', () =>
+    HttpResponse.json({
+      prompt_key: 'eval_internal',
+      label: 'Evaluation — Internal',
+      version: 1,
+      segments_text:
+        '[[READONLY]]You are an evaluator.[[/READONLY]][[EDITABLE]]Rate the job.[[/EDITABLE]]',
+      preview_context: null,
+    }),
+  ),
+  http.post('/api/v1/prompts/:key/save', () =>
+    HttpResponse.json({ success: true, version: 2 }),
+  ),
+  http.get('/api/v1/prompts/:key/preview', () =>
+    HttpResponse.json({ preview_text: 'You are an evaluator.\nRate the job.' }),
+  ),
+  http.post('/api/v1/prompts/:key/feedback-loop', () =>
+    HttpResponse.json({
+      success: true,
+      suggestions: 'Consider clarifying the scoring criteria.',
+      feedback_count: 3,
+    }),
+  ),
 ]
