@@ -1,5 +1,5 @@
 # AIstivus — Phase 2.2 Workorder
-> Status: Planning
+> Status: Active
 > Last updated: 2026-06-15
 
 ---
@@ -16,7 +16,7 @@ Before starting any step:
 
 ---
 
-## Step 1 — Prompt Defaults as Template Files
+## Step 1 — Prompt Defaults as Template Files ✅
 
 **Goal:** Move the default prompt text out of Python code constants and into committed
 markdown files in `templates/prompts/`. This makes prompts readable and documentable for
@@ -99,7 +99,7 @@ retry path. They are no longer used for seeding.
 
 ---
 
-## Step 2 — Evaluate Page: Remove Inline Timer from Button Row
+## Step 2 — Evaluate Page: Remove Inline Timer from Button Row ✅
 
 **Goal:** The button row on the Evaluate page left column now contains three buttons
 (Evaluate, Create Without Eval, Clear). When an evaluation is running, a timer span
@@ -129,7 +129,7 @@ elapsed time and countdown during an evaluation run.
 
 ---
 
-## Step 3 — Job Detail Summary: Show Company and Title in Job Info Grid
+## Step 3 — Job Detail Summary: Show Company and Title in Job Info Grid ✅
 
 **Goal:** Company name and job title were added to `EditJobInfoModal` in Phase 2.1
 Step 2, but the Job Detail Summary panel does not display them in the Job Info section.

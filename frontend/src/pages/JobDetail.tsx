@@ -2152,8 +2152,6 @@ function JobDetailsRight({
     return (
       <>
         <div className="space-y-5">
-          <p className="font-serif text-lg text-text">{job.company_name}</p>
-
           {/* Excitement */}
           <div>
             <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1.5">Excitement</p>
@@ -2203,6 +2201,8 @@ function JobDetailsRight({
             </div>
             <div className="space-y-1">
               {([
+                ['Company',  job.company_name],
+                ['Title',    job.title],
                 ['Location', job.location],
                 ['Remote',   job.remote_type],
                 ['Pay Band', job.pay_band],

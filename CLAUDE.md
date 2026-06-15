@@ -76,7 +76,26 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 ---
 
-## Current Phase: PHASE 2.1 — Evaluation Quality + Prompt System (Active)
+## Current Phase: PHASE 2.2 — Prompt Templates + UX Polish (Active)
+
+See `app_docs/WORKORDER_p2.2.md` for full implementation detail.
+
+### Phase 2.2 — Step 1: Prompt Defaults as Template Files ✅
+- `templates/prompts/` directory created with 3 files: `eval_analysis.md`, `eval_scoring.md`, `eval_external.md`
+- Each file: doc header → `---` separator → tagged prompt content with `[[EDITABLE]]`/`[[READONLY]]` blocks
+- `main.py`: `load_prompt_template(filename)` loader (line-based split on first `---`); updated seed calls for `eval_analysis`, `eval_scoring`, `eval_external` to load from template files with Python constants as fallback
+- v2 migration guard at startup: if active DB row has no `[[EDITABLE]]` tags, calls `save_prompt()` to create tagged v2 row (preserves v1 as history)
+- `eval_internal` seed call unchanged (superseded, no template file)
+
+### Phase 2.2 — Step 2: Remove Inline Timer from Evaluate Button Row ✅
+- `Evaluate.tsx`: removed `{isRunning && ...}` timer span from button row; `RunningPanel` in right column remains sole display of elapsed/countdown
+
+### Phase 2.2 — Step 3: Company + Title in Job Detail Job Info Grid ✅
+- `JobDetail.tsx` (`activeAction === 'job-details'`): removed standalone `{job.company_name}` heading; added Company + Title as first two rows in Job Info labeled grid
+
+---
+
+## Phase 2.1 — Evaluation Quality + Prompt System (Complete)
 
 See `app_docs/WORKORDER_p2.1.md` for full implementation detail.
 

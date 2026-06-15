@@ -802,12 +802,6 @@ export default function Evaluate(): React.JSX.Element {
             >
               Clear
             </button>
-            {isRunning && (
-              <span className="font-mono text-xs text-muted">
-                {fmtElapsed(elapsed)}
-                {countdown !== null && ` · ${fmtCountdown(countdown)}`}
-              </span>
-            )}
           </div>
         </div>
       </div>

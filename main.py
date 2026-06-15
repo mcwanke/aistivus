@@ -335,6 +335,33 @@ async def _update_model_availability(app_state=None) -> None:
 
 
 # ─────────────────────────────────────────────────────────────
+# Prompt template loader
+# ─────────────────────────────────────────────────────────────
+
+_TEMPLATES_DIR = Path(__file__).parent / "templates" / "prompts"
+
+
+def load_prompt_template(filename: str) -> str | None:
+    """
+    Read a prompt template file from templates/prompts/ and return the
+    tagged prompt content (everything after the first '---' line).
+
+    Returns None and logs a warning if the file does not exist or has no
+    '---' separator.
+    """
+    path = _TEMPLATES_DIR / filename
+    if not path.exists():
+        log.warning("prompt_template_missing", extra={"file": filename})
+        return None
+    content = path.read_text(encoding="utf-8")
+    for i, line in enumerate(content.splitlines()):
+        if line.strip() == "---":
+            return "\n".join(content.splitlines()[i + 1:]).strip()
+    log.warning("prompt_template_no_separator", extra={"file": filename})
+    return None
+
+
+# ─────────────────────────────────────────────────────────────
 # Lifespan
 # ─────────────────────────────────────────────────────────────
 
@@ -349,21 +376,28 @@ async def lifespan(app: FastAPI):
         label="Internal Evaluation Prompt",
         segments_text=evaluator.SYSTEM_PROMPT_TEMPLATE,
     )
-    database.seed_prompt_if_missing(
-        prompt_key="eval_external",
-        label="External Evaluation Prompt",
-        segments_text=EXTERNAL_EVAL_PROMPT_TEMPLATE,
-    )
-    database.seed_prompt_if_missing(
-        prompt_key="eval_analysis",
-        label="Evaluation — Analysis",
-        segments_text=evaluator.EVAL_ANALYSIS_PROMPT_TEMPLATE,
-    )
-    database.seed_prompt_if_missing(
-        prompt_key="eval_scoring",
-        label="Evaluation — Scoring",
-        segments_text=evaluator.EVAL_SCORING_PROMPT_TEMPLATE,
-    )
+
+    _PROMPT_TEMPLATES = [
+        ("eval_external", "External Evaluation Prompt", "eval_external.md", EXTERNAL_EVAL_PROMPT_TEMPLATE),
+        ("eval_analysis", "Evaluation — Analysis", "eval_analysis.md", evaluator.EVAL_ANALYSIS_PROMPT_TEMPLATE),
+        ("eval_scoring", "Evaluation — Scoring", "eval_scoring.md", evaluator.EVAL_SCORING_PROMPT_TEMPLATE),
+    ]
+    for _key, _label, _filename, _fallback in _PROMPT_TEMPLATES:
+        _tagged = load_prompt_template(_filename)
+        database.seed_prompt_if_missing(
+            prompt_key=_key,
+            label=_label,
+            segments_text=_tagged if _tagged is not None else _fallback,
+        )
+        # v2 migration: if active row has no [[EDITABLE]] tags, re-seed with tagged text
+        if _tagged is not None:
+            _active = database.get_active_prompt(_key)
+            if _active and "[[EDITABLE]]" not in _active["segments_text"]:
+                database.save_prompt(
+                    prompt_key=_key,
+                    segments_text=_tagged,
+                )
+                log.info("prompt_tagged_migration", extra={"key": _key})
 
     anthropic_key = get_env_key("ANTHROPIC_API_KEY")
     app.state.anthropic_key_present = bool(anthropic_key)
