@@ -97,7 +97,7 @@ See `app_docs/WORKORDER_p2.2.md` for full implementation detail.
 - `main.py`: removed `eval_internal` seed call from startup — prompt is superseded by the two-call pipeline and was the last reference to `evaluator.SYSTEM_PROMPT_TEMPLATE`
 - `PromptEditor.tsx` regex fix: inner capture group `(EDITABLE|READONLY)` changed to non-capturing `(?:EDITABLE|READONLY)` — JS `split()` was emitting the bare word as a content segment, causing "EDITABLE" to appear as literal text in editable textareas
 - `PromptEditor.tsx` layout: HR separator between header row and two-column grid; "EDIT PROMPT" label above left column; "PROMPT PREVIEW" label moved outside and above the preview box
-- `PromptEditor.tsx` textarea height: `rows` formula changed from `Math.max(4, lines + 1)` to `lines || 1` — height now proportional to content, no artificial floor
+- `PromptEditor.tsx` textarea height: `rows` prop dropped entirely; callback ref sets `scrollHeight` on mount; `onChange` repeats resize; `overflow-hidden` prevents scrollbar flicker; `resize-y` kept for manual drag
 - `tests/routes/test_prompts.py`: `test_returns_startup_seeded_prompts` updated — asserts `eval_analysis`, `eval_scoring`, `eval_external` instead of removed `eval_internal`
 - Note: `SYSTEM_PROMPT_TEMPLATE` in `evaluator.py` is now dead code (no remaining callers) — deferred cleanup
 

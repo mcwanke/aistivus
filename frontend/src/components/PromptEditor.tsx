@@ -171,9 +171,9 @@ export default function PromptEditor(): React.JSX.Element {
               <textarea
                 key={i}
                 value={segment.content}
-                onChange={e => handleSegmentChange(i, e.target.value)}
-                className="w-full bg-surface border border-surface2 text-text text-xs font-mono rounded p-3 resize-y focus:outline-none focus:border-accent/50"
-                rows={segment.content.split('\n').length || 1}
+                ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
+                onChange={e => { handleSegmentChange(i, e.target.value); const el = e.target; el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}
+                className="w-full bg-surface border border-surface2 text-text text-xs font-mono rounded p-3 resize-y focus:outline-none focus:border-accent/50 overflow-hidden"
                 aria-label={`Editable segment ${i + 1}`}
               />
             ) : (

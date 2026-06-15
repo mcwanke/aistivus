@@ -813,7 +813,6 @@ async def evaluate_jd(
 
     resolved_model_id = model_row["id"]
     model = model_row["model"]
-    endpoint = model_row["endpoint"]
     provider = _provider_from_server_type(model_row["server_type"])
 
     # ── Step 2: Load jobsearch.md ──────────────────────────────

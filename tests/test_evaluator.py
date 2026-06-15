@@ -498,7 +498,7 @@ class TestEvaluateJdDbWrites:
         with patch("llm_client.complete", new=mock):
             result = run(evaluator.evaluate_jd("jd text", "Acme", "EM"))
         logs = database.get_llm_call_log(job_id=result["job_id"])
-        scoring_log = next(l for l in logs if l["call_type"] == "evaluation_scoring")
+        scoring_log = next(log for log in logs if log["call_type"] == "evaluation_scoring")
         assert scoring_log["success"] == 1
         assert scoring_log["raw_response"] == LLM_SUCCESS["content"]
         assert scoring_log["prompt_tokens_actual"] == 120
