@@ -355,24 +355,14 @@ async def lifespan(app: FastAPI):
         segments_text=EXTERNAL_EVAL_PROMPT_TEMPLATE,
     )
     database.seed_prompt_if_missing(
-        prompt_key="eval_analysis_system",
-        label="Evaluation — Analysis System",
-        segments_text=evaluator.ANALYSIS_SYSTEM_PROMPT_TEMPLATE,
+        prompt_key="eval_analysis",
+        label="Evaluation — Analysis",
+        segments_text=evaluator.EVAL_ANALYSIS_PROMPT_TEMPLATE,
     )
     database.seed_prompt_if_missing(
-        prompt_key="eval_analysis_user",
-        label="Evaluation — Analysis User",
-        segments_text=evaluator.ANALYSIS_USER_PROMPT,
-    )
-    database.seed_prompt_if_missing(
-        prompt_key="eval_scoring_system",
-        label="Evaluation — Scoring System",
-        segments_text=evaluator.SYSTEM_PROMPT_TEMPLATE,
-    )
-    database.seed_prompt_if_missing(
-        prompt_key="eval_scoring_user",
-        label="Evaluation — Scoring User",
-        segments_text=evaluator.EVALUATION_USER_PROMPT,
+        prompt_key="eval_scoring",
+        label="Evaluation — Scoring",
+        segments_text=evaluator.EVAL_SCORING_PROMPT_TEMPLATE,
     )
 
     anthropic_key = get_env_key("ANTHROPIC_API_KEY")

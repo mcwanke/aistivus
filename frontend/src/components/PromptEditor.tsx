@@ -10,6 +10,9 @@ import {
 type Segment = { type: 'editable' | 'readonly'; content: string }
 
 function parseSegments(segmentsText: string): Segment[] {
+  if (!segmentsText.includes('[[EDITABLE]]') && !segmentsText.includes('[[READONLY]]')) {
+    return [{ type: 'editable', content: segmentsText }]
+  }
   const parts = segmentsText.split(/(\[\[(?:\/?)(EDITABLE|READONLY)\]\])/)
   const segments: Segment[] = []
   let currentType: 'editable' | 'readonly' | null = null
