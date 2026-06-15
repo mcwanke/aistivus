@@ -13,7 +13,7 @@ function parseSegments(segmentsText: string): Segment[] {
   if (!segmentsText.includes('[[EDITABLE]]') && !segmentsText.includes('[[READONLY]]')) {
     return [{ type: 'editable', content: segmentsText }]
   }
-  const parts = segmentsText.split(/(\[\[(?:\/?)(EDITABLE|READONLY)\]\])/)
+  const parts = segmentsText.split(/(\[\[(?:\/?)(?:EDITABLE|READONLY)\]\])/)
   const segments: Segment[] = []
   let currentType: 'editable' | 'readonly' | null = null
 
@@ -156,10 +156,13 @@ export default function PromptEditor(): React.JSX.Element {
         </div>
       </div>
 
+      <hr className="border-surface2 mb-5" />
+
       {/* Two-column layout */}
       <div className="grid grid-cols-2 gap-5 items-start">
         {/* Left: segment editor */}
         <div className="space-y-2">
+          <p className="text-xs text-muted font-mono uppercase tracking-wide mb-2">Edit Prompt</p>
           {localSegments.length === 0 && (
             <p className="text-sm text-muted italic">Loading…</p>
           )}
@@ -170,7 +173,7 @@ export default function PromptEditor(): React.JSX.Element {
                 value={segment.content}
                 onChange={e => handleSegmentChange(i, e.target.value)}
                 className="w-full bg-surface border border-surface2 text-text text-xs font-mono rounded p-3 resize-y focus:outline-none focus:border-accent/50"
-                rows={Math.max(4, segment.content.split('\n').length + 1)}
+                rows={segment.content.split('\n').length || 1}
                 aria-label={`Editable segment ${i + 1}`}
               />
             ) : (
@@ -210,15 +213,17 @@ export default function PromptEditor(): React.JSX.Element {
         </div>
 
         {/* Right: assembled preview */}
-        <div className="border border-surface2 rounded p-4 bg-surface/50 sticky top-0">
-          <p className="text-xs text-muted font-mono uppercase tracking-wide mb-3">Preview</p>
-          {previewData ? (
-            <pre className="text-xs text-text/70 whitespace-pre-wrap font-mono leading-relaxed">
-              {previewData.preview_text}
-            </pre>
-          ) : (
-            <p className="text-xs text-muted/40 italic">Loading preview…</p>
-          )}
+        <div>
+          <p className="text-xs text-muted font-mono uppercase tracking-wide mb-2">Prompt Preview</p>
+          <div className="border border-surface2 rounded p-4 bg-surface/50 sticky top-0">
+            {previewData ? (
+              <pre className="text-xs text-text/70 whitespace-pre-wrap font-mono leading-relaxed">
+                {previewData.preview_text}
+              </pre>
+            ) : (
+              <p className="text-xs text-muted/40 italic">Loading preview…</p>
+            )}
+          </div>
         </div>
       </div>
     </div>

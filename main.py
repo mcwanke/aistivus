@@ -371,12 +371,6 @@ async def lifespan(app: FastAPI):
 
     database.init_db()
 
-    database.seed_prompt_if_missing(
-        prompt_key="eval_internal",
-        label="Internal Evaluation Prompt",
-        segments_text=evaluator.SYSTEM_PROMPT_TEMPLATE,
-    )
-
     _PROMPT_TEMPLATES = [
         ("eval_external", "External Evaluation Prompt", "eval_external.md", EXTERNAL_EVAL_PROMPT_TEMPLATE),
         ("eval_analysis", "Evaluation — Analysis", "eval_analysis.md", evaluator.EVAL_ANALYSIS_PROMPT_TEMPLATE),

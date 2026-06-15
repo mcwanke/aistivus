@@ -85,13 +85,21 @@ See `app_docs/WORKORDER_p2.2.md` for full implementation detail.
 - Each file: doc header → `---` separator → tagged prompt content with `[[EDITABLE]]`/`[[READONLY]]` blocks
 - `main.py`: `load_prompt_template(filename)` loader (line-based split on first `---`); updated seed calls for `eval_analysis`, `eval_scoring`, `eval_external` to load from template files with Python constants as fallback
 - v2 migration guard at startup: if active DB row has no `[[EDITABLE]]` tags, calls `save_prompt()` to create tagged v2 row (preserves v1 as history)
-- `eval_internal` seed call unchanged (superseded, no template file)
+- `eval_internal` seed call unchanged at this step (superseded, no template file)
 
 ### Phase 2.2 — Step 2: Remove Inline Timer from Evaluate Button Row ✅
 - `Evaluate.tsx`: removed `{isRunning && ...}` timer span from button row; `RunningPanel` in right column remains sole display of elapsed/countdown
 
 ### Phase 2.2 — Step 3: Company + Title in Job Detail Job Info Grid ✅
 - `JobDetail.tsx` (`activeAction === 'job-details'`): removed standalone `{job.company_name}` heading; added Company + Title as first two rows in Job Info labeled grid
+
+### Phase 2.2 — Step 4: eval_internal Removal + PromptEditor UX Polish ✅
+- `main.py`: removed `eval_internal` seed call from startup — prompt is superseded by the two-call pipeline and was the last reference to `evaluator.SYSTEM_PROMPT_TEMPLATE`
+- `PromptEditor.tsx` regex fix: inner capture group `(EDITABLE|READONLY)` changed to non-capturing `(?:EDITABLE|READONLY)` — JS `split()` was emitting the bare word as a content segment, causing "EDITABLE" to appear as literal text in editable textareas
+- `PromptEditor.tsx` layout: HR separator between header row and two-column grid; "EDIT PROMPT" label above left column; "PROMPT PREVIEW" label moved outside and above the preview box
+- `PromptEditor.tsx` textarea height: `rows` formula changed from `Math.max(4, lines + 1)` to `lines || 1` — height now proportional to content, no artificial floor
+- `tests/routes/test_prompts.py`: `test_returns_startup_seeded_prompts` updated — asserts `eval_analysis`, `eval_scoring`, `eval_external` instead of removed `eval_internal`
+- Note: `SYSTEM_PROMPT_TEMPLATE` in `evaluator.py` is now dead code (no remaining callers) — deferred cleanup
 
 ---
 

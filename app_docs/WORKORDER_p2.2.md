@@ -46,14 +46,16 @@ content. Everything before `---` is documentation only and is never stored in th
 
 | File | prompt_key | label |
 |---|---|---|
-| `eval_analysis_system.md` | `eval_analysis_system` | Evaluation — Analysis System |
-| `eval_analysis_user.md` | `eval_analysis_user` | Evaluation — Analysis User |
-| `eval_scoring_system.md` | `eval_scoring_system` | Evaluation — Scoring System |
-| `eval_scoring_user.md` | `eval_scoring_user` | Evaluation — Scoring User |
+| `eval_analysis.md` | `eval_analysis` | Evaluation — Analysis |
+| `eval_scoring.md` | `eval_scoring` | Evaluation — Scoring |
 | `eval_external.md` | `eval_external` | External Evaluation Prompt |
 
-`eval_internal` was the single-call predecessor to the split pipeline — it is superseded
-and does not need a template file.
+Note: The original workorder planned 5 system/user-split files, but Phase 2.1 Step 6
+implemented 2 combined-prompt keys per call (`eval_analysis`, `eval_scoring`) rather than
+the 4 split keys. Template files match the actual DB keys — 3 files, not 5.
+
+`eval_internal` was the single-call predecessor to the split pipeline — superseded and
+removed in Step 4 of this phase.
 
 ### 1.2 Tagging conventions
 
@@ -158,6 +160,58 @@ company name twice.
 ### Files touched
 - `frontend/src/pages/JobDetail.tsx` — add Company + Title rows to Job Info grid;
   remove standalone company_name heading above the section
+
+---
+
+---
+
+## Step 4 — eval_internal Removal + PromptEditor UX Polish ✅
+
+**Goal:** Remove the superseded `eval_internal` prompt from the startup seed and the UI,
+and fix several UX issues in `PromptEditor` that made the component hard to use.
+
+### 4.1 eval_internal removal
+
+`eval_internal` was the single-call evaluation prompt used before Phase 2.1 Step 6 split
+evaluation into two calls. Nothing in the current pipeline uses it. Remove its
+`seed_prompt_if_missing` call from `main.py` startup. The DB row on existing installs can
+be cleared manually (`DELETE FROM prompts`) — startup re-seeds only the 3 current keys.
+
+### 4.2 PromptEditor regex fix
+
+`parseSegments` used `/(\[\[(?:\/?)(EDITABLE|READONLY)\]\])/` to split the segments text.
+JavaScript's `split()` includes all capture group matches in the result array — the inner
+group `(EDITABLE|READONLY)` was emitting the bare word as a separate element, which the
+parser treated as segment content. This caused literal "EDITABLE" text to appear inside
+editable textareas.
+
+Fix: change the inner group to non-capturing: `(?:EDITABLE|READONLY)`.
+
+### 4.3 PromptEditor layout changes
+
+- Add `<hr>` between the header row (dropdown, Run Feedback Loop, Save) and the two-column grid
+- Add "EDIT PROMPT" label above the left column
+- Move the "Preview" label outside the preview box and above it; rename to "PROMPT PREVIEW"
+
+### 4.4 Textarea height
+
+Change `rows={Math.max(4, segment.content.split('\n').length + 1)}` to
+`rows={segment.content.split('\n').length || 1}`. Height is now proportional to actual
+content with no artificial minimum floor.
+
+### 4.5 Test update
+
+`test_returns_startup_seeded_prompts` in `tests/routes/test_prompts.py` asserted
+`eval_internal` was present. Updated to assert `eval_analysis`, `eval_scoring`,
+`eval_external`.
+
+### Files touched
+- `main.py` — removed `eval_internal` seed block
+- `frontend/src/components/PromptEditor.tsx` — regex fix; HR + column labels; textarea rows formula
+- `tests/routes/test_prompts.py` — updated seeded prompt assertions
+
+**Note:** `SYSTEM_PROMPT_TEMPLATE` in `evaluator.py` is now dead code (its only caller was
+the removed seed). Deferred cleanup.
 
 ---
 

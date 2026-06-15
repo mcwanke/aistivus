@@ -61,11 +61,12 @@ def _seed_model() -> int:
 
 class TestGetPrompts:
     def test_returns_startup_seeded_prompts(self, client):
-        # Startup lifespan seeds eval_internal and eval_external
+        # Startup lifespan seeds eval_analysis, eval_scoring, eval_external
         resp = client.get("/api/v1/prompts")
         assert resp.status_code == 200
         keys = [r["prompt_key"] for r in resp.json()]
-        assert "eval_internal" in keys
+        assert "eval_analysis" in keys
+        assert "eval_scoring" in keys
         assert "eval_external" in keys
 
     def test_returns_additional_seeded_prompt(self, client):
