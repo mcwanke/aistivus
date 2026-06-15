@@ -387,6 +387,7 @@ export interface EvaluateResponse {
   error: string | null
   duplicate_detected: boolean
   existing_jobs: ExistingJob[] | null
+  prompt_usage_id: number | null
 }
 
 // ─── GET /api/v1/applications/{id}/questions ─────────────────────────────────
@@ -461,12 +462,9 @@ export interface CreateJobResult {
   job_id: number
 }
 
-// ─── POST /api/v1/prompt-feedback ────────────────────────────────────────────
+// ─── POST /api/v1/prompt-usage/{id}/feedback ─────────────────────────────────
 
-export interface PromptFeedbackPayload {
-  prompt_type: 'evaluation_internal' | 'evaluation_external'
-  evaluation_id?: number
-  llm_call_log_id?: number
+export interface PromptUsageFeedbackPayload {
   agree: 0 | 1
   dimension?: string
   feedback_text?: string

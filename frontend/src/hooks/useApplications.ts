@@ -108,12 +108,12 @@ export function useDeleteLog() {
 export function useGeneratePrompt() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (applicationId: number): Promise<{ prompt: string; log_id: number }> => {
+    mutationFn: async (applicationId: number): Promise<{ prompt: string; log_id: number; prompt_usage_id: number }> => {
       const res = await fetch(`/api/v1/applications/${applicationId}/generate-prompt`, {
         method: 'POST',
       })
       if (!res.ok) throw new Error(`generate prompt ${res.status}`)
-      return res.json() as Promise<{ prompt: string; log_id: number }>
+      return res.json() as Promise<{ prompt: string; log_id: number; prompt_usage_id: number }>
     },
     onSuccess: (_data, applicationId) => {
       void qc.invalidateQueries({ queryKey: ['application', applicationId] })

@@ -1,13 +1,11 @@
 import { useState } from 'react'
-import { useSubmitPromptFeedback } from '@/hooks/useEvaluate'
-import type { PromptFeedbackPayload } from '@/types/api'
+import { useSubmitPromptUsageFeedback } from '@/hooks/useEvaluate'
+import type { PromptUsageFeedbackPayload } from '@/types/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface EvaluationFeedbackButtonProps {
-  promptType: 'evaluation_internal' | 'evaluation_external'
-  evaluationId: number
-  llmCallLogId?: number
+  promptUsageId: number
   // When isOpen is provided the component is in controlled mode — no trigger
   // button is rendered; the modal appears/disappears based on isOpen.
   isOpen?: boolean
@@ -27,34 +25,27 @@ const DIMENSIONS = [
 // ─── Modal ────────────────────────────────────────────────────────────────────
 
 function FeedbackModal({
-  promptType,
-  evaluationId,
-  llmCallLogId,
+  promptUsageId,
   onClose,
   onSubmitted,
 }: {
-  promptType: 'evaluation_internal' | 'evaluation_external'
-  evaluationId: number
-  llmCallLogId?: number
+  promptUsageId: number
   onClose: () => void
   onSubmitted: () => void
 }): React.JSX.Element {
   const [agree, setAgree] = useState<AgreeValue | null>(null)
   const [dimension, setDimension] = useState<string | null>(null)
   const [feedbackText, setFeedbackText] = useState('')
-  const submitMutation = useSubmitPromptFeedback()
+  const submitMutation = useSubmitPromptUsageFeedback()
 
   async function handleSubmit(): Promise<void> {
     if (agree === null) return
-    const payload: PromptFeedbackPayload = {
-      prompt_type: promptType,
-      evaluation_id: evaluationId,
-      ...(llmCallLogId !== undefined ? { llm_call_log_id: llmCallLogId } : {}),
+    const payload: PromptUsageFeedbackPayload = {
       agree,
       ...(agree === 0 && dimension ? { dimension } : {}),
       ...(feedbackText.trim() ? { feedback_text: feedbackText.trim() } : {}),
     }
-    await submitMutation.mutateAsync(payload)
+    await submitMutation.mutateAsync({ promptUsageId, payload })
     onSubmitted()
   }
 
@@ -166,9 +157,7 @@ function FeedbackModal({
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function EvaluationFeedbackButton({
-  promptType,
-  evaluationId,
-  llmCallLogId,
+  promptUsageId,
   isOpen,
   onClose,
 }: EvaluationFeedbackButtonProps): React.JSX.Element {
@@ -214,9 +203,7 @@ export default function EvaluationFeedbackButton({
 
       {modalVisible && (
         <FeedbackModal
-          promptType={promptType}
-          evaluationId={evaluationId}
-          llmCallLogId={llmCallLogId}
+          promptUsageId={promptUsageId}
           onClose={handleClose}
           onSubmitted={handleSubmitted}
         />

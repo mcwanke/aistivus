@@ -463,7 +463,7 @@ export const handlers = [
       error: null,
     }),
   ),
-  http.post('/api/v1/prompt-feedback', () =>
-    HttpResponse.json({ success: true, id: 1 }),
+  http.post('/api/v1/prompt-usage/:id/feedback', () =>
+    HttpResponse.json({ success: true }),
   ),
 ]

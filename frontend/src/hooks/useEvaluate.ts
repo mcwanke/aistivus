@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { LlmModel, ModelsResponse, EvaluateResponse, ScrapeResult, FillGapsPayload, FillGapsResult, CreateJobPayload, CreateJobResult, PromptFeedbackPayload } from '@/types/api'
+import type { LlmModel, ModelsResponse, EvaluateResponse, ScrapeResult, FillGapsPayload, FillGapsResult, CreateJobPayload, CreateJobResult, PromptUsageFeedbackPayload } from '@/types/api'
 
 // ─── Fetchers ─────────────────────────────────────────────────────────────────
 
@@ -149,18 +149,24 @@ export function useCreateJobMutation() {
   })
 }
 
-// ─── Prompt feedback mutation ─────────────────────────────────────────────────
+// ─── Prompt usage feedback mutation ──────────────────────────────────────────
 
-async function postPromptFeedback(payload: PromptFeedbackPayload): Promise<{ success: boolean; id: number }> {
-  const res = await fetch('/api/v1/prompt-feedback', {
+async function postPromptUsageFeedback({
+  promptUsageId,
+  payload,
+}: {
+  promptUsageId: number
+  payload: PromptUsageFeedbackPayload
+}): Promise<{ success: boolean }> {
+  const res = await fetch(`/api/v1/prompt-usage/${promptUsageId}/feedback`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
-  if (!res.ok) throw new Error(`prompt-feedback ${res.status}`)
-  return res.json() as Promise<{ success: boolean; id: number }>
+  if (!res.ok) throw new Error(`prompt-usage feedback ${res.status}`)
+  return res.json() as Promise<{ success: boolean }>
 }
 
-export function useSubmitPromptFeedback() {
-  return useMutation({ mutationFn: postPromptFeedback })
+export function useSubmitPromptUsageFeedback() {
+  return useMutation({ mutationFn: postPromptUsageFeedback })
 }

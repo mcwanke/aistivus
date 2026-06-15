@@ -482,6 +482,7 @@ class EvaluateResponse(BaseModel):
     error: str | None
     duplicate_detected: bool = False
     existing_jobs: list | None = None
+    prompt_usage_id: int | None = None
 
 
 class RerunRequest(BaseModel):
@@ -646,6 +647,12 @@ class SaveJobsearchRequest(BaseModel):
 
 class SaveResumeTemplateRequest(BaseModel):
     content: str
+
+
+class PromptUsageFeedbackRequest(BaseModel):
+    agree: int
+    dimension: str | None = None
+    feedback_text: str | None = None
 
 
 # Valid application status values per spec
@@ -909,6 +916,26 @@ async def import_evaluation(request: Request, body: ImportEvaluationRequest):
     )
     log.info("evaluation_imported", extra={"eval_id": eval_id, "job_id": body.job_id})
     return JSONResponse({"success": True, "evaluation_id": eval_id})
+
+
+@app.post("/api/v1/prompt-usage/{prompt_usage_id}/feedback")
+@limiter.limit("60/minute")
+async def submit_prompt_usage_feedback(
+    request: Request, prompt_usage_id: int, body: PromptUsageFeedbackRequest
+):
+    """Record agree/disagree feedback on a prompt_usage row."""
+    usage = database.get_prompt_usage(prompt_usage_id)
+    if not usage:
+        raise HTTPException(
+            status_code=404, detail=f"prompt_usage {prompt_usage_id} not found."
+        )
+    database.update_prompt_feedback(
+        prompt_usage_id=prompt_usage_id,
+        agree=body.agree,
+        dimension=body.dimension,
+        feedback_text=body.feedback_text,
+    )
+    return JSONResponse({"success": True})
 
 
 # ─────────────────────────────────────────────────────────────

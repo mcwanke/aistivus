@@ -118,8 +118,7 @@ See `app_docs/WORKORDER_p2.1.md` for full implementation detail.
 - ✅ `evaluator.py`: removed `_build_system_prompt()`; replaced with `prompt_generation.get_prompt('eval_internal', ...)`; `prompt_usage_id` passed to both `insert_llm_call_log` calls
 - ✅ `generate_prompt` route (`main.py`): uses `prompt_generation.get_prompt('eval_external', ...)`; response includes `prompt_usage_id`
 - ✅ `insert_llm_call_log` (`database.py`): added `prompt_usage_id` keyword param
-- 🔲 `EvaluationFeedbackButton`: props updated to `promptUsageId`; calls new `POST /api/v1/prompt-usage/{id}/feedback`
-- ⚠️ Known broken until Batch 5: `EvaluationFeedbackButton` still calls removed `/api/v1/prompt-feedback`
+- ✅ `EvaluationFeedbackButton`: props updated to `promptUsageId`; calls new `POST /api/v1/prompt-usage/{id}/feedback`; `PromptFeedbackPayload` → `PromptUsageFeedbackPayload`; MSW handler updated; test baseline 597/253
 
 ### Phase 2.1 — Step 5b: Prompt Editor UI + Feedback Loop Trigger 🔲
 - New "Prompts" section in Settings page

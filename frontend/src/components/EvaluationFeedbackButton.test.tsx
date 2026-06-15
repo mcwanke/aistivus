@@ -8,8 +8,7 @@ import EvaluationFeedbackButton from './EvaluationFeedbackButton'
 function renderButton(overrides: Partial<React.ComponentProps<typeof EvaluationFeedbackButton>> = {}) {
   return renderWithProviders(
     <EvaluationFeedbackButton
-      promptType="evaluation_internal"
-      evaluationId={1}
+      promptUsageId={1}
       {...overrides}
     />,
   )

@@ -826,11 +826,10 @@ export default function Evaluate(): React.JSX.Element {
         )}
         {panelState === 'result' && result !== null && (
           <>
-            {result.evaluation_id !== null && (
+            {result.prompt_usage_id !== null && result.prompt_usage_id !== undefined && (
               <div className="mx-6 mt-6">
                 <EvaluationFeedbackButton
-                  promptType="evaluation_internal"
-                  evaluationId={result.evaluation_id}
+                  promptUsageId={result.prompt_usage_id}
                 />
               </div>
             )}

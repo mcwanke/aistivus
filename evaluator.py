@@ -617,6 +617,7 @@ async def evaluate_jd(
         "job_id": job_id,
         "evaluation": parsed,
         "error": None,
+        "prompt_usage_id": prompt_usage_id,
     }
 
 

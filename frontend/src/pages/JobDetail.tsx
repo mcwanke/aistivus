@@ -2132,6 +2132,7 @@ function JobDetailsRight({
   async function handleGeneratePrompt(): Promise<void> {
     const result = await generatePrompt.mutateAsync(applicationId)
     setPromptText(result.prompt)
+    setImportedPromptUsageId(result.prompt_usage_id)
   }
 
   function copyDescription(): void {
@@ -3364,7 +3365,7 @@ export default function JobDetailPage(): React.JSX.Element {
   // Post-import feedback flow
   const [importFeedbackInviteOpen, setImportFeedbackInviteOpen] = useState(false)
   const [importFeedbackModalOpen, setImportFeedbackModalOpen] = useState(false)
-  const [importedEvalId, setImportedEvalId] = useState<number | null>(null)
+  const [importedPromptUsageId, setImportedPromptUsageId] = useState<number | null>(null)
   const { data: models = [] } = useModels()
   const qc = useQueryClient()
   const { data: healthData } = useQuery({
@@ -3431,7 +3432,6 @@ export default function JobDetailPage(): React.JSX.Element {
       const result = await importMutation.mutateAsync(payload)
       setImportOpen(false)
       void qc.invalidateQueries({ queryKey: ['job', jobId] })
-      setImportedEvalId(result.evaluation_id)
       setImportFeedbackInviteOpen(true)
     } catch (err) {
       setImportError((err as Error).message)
@@ -3623,10 +3623,9 @@ export default function JobDetailPage(): React.JSX.Element {
       )}
 
       {/* External eval feedback modal */}
-      {importedEvalId !== null && (
+      {importedPromptUsageId !== null && (
         <EvaluationFeedbackButton
-          promptType="evaluation_external"
-          evaluationId={importedEvalId}
+          promptUsageId={importedPromptUsageId}
           isOpen={importFeedbackModalOpen}
           onClose={() => setImportFeedbackModalOpen(false)}
         />
