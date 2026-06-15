@@ -11,23 +11,19 @@ Editable sections: context file instructions, clarification gate, scoring framew
 scorecard task instructions, stop block.
 Read-only sections: job details injection, job description injection, and
 EVALUATION_JSON_START...EVALUATION_JSON_END block (field names parsed by the app).
+
+# Actual Prompt Text
+#
+# Note - the blocks that look like [[ ... ]] and [[ /... ]] are stripped out.
+# do not edit/remove these if you are editing this file directly. anything
+# inside an [[EDITABLE]] block is considered to be open for editing in the app
+#
 ---
+[[PROMPT_START]]
 [[EDITABLE]]
 ## CONTEXT FILES
+Your project files are already in context. Use jobsearch.md as the sole source of truth for all candidate facts.
 
-You have been provided the following file. Read it completely before
-doing anything else:
-
-- **jobsearch.md** — candidate profile, career history, target role
-  preferences, deal-breakers, compensation targets, tailoring rules,
-  and model behavior rules.
-
-Confirm you have read jobsearch.md before proceeding.
-[[/EDITABLE]]
-
----
-
-[[EDITABLE]]
 ## CLARIFICATION GATE
 
 Before beginning any evaluation, check the following. If anything is
@@ -41,10 +37,8 @@ missing or ambiguous, ask a single clarifying question — do not guess:
   do not ask, just flag it in the scorecard.
 
 Do not proceed until all required inputs are present.
+
 [[/EDITABLE]]
-
----
-
 [[READONLY]]
 ## JOB DETAILS
 
@@ -60,39 +54,40 @@ Pay Band: {pay_band}
 {jd_text}
 
 ---
-[[/READONLY]]
 
+[[/READONLY]]
 [[EDITABLE]]
 ## TASK: EVALUATION SCORECARD
 
-Produce a full evaluation scorecard using the framework below.
+Output format: By default, output only the company name, overall 
+score then the dimension scores, recommendation, and the JSON 
+block. Do not output the full scorecard narrative (strengths, 
+gaps, keyword analysis, interview process analysis) unless user 
+explicitly requests it.
+
+The framework for a full evaluation scorecard is listed below.
 Use jobsearch.md as the sole source of truth for all candidate facts.
 Apply the model behavior rules in jobsearch.md throughout.
 
 ### Scoring Framework
 
-**Dimension scores (1–5 each):**
-- **Role fit:** Does the role type, title, and day-to-day responsibilities
-  match what the candidate is targeting? Reference the Target Role Profile
-  section of jobsearch.md.
-- **Scope fit:** Does the team size, org scope, and leadership depth match
-  the candidate's background and stated preferences?
-- **Culture signals:** Does the JD language, company type, and mission
-  suggest a culture compatible with the candidate's values?
-- **Comp signals:** How does the stated or estimated pay band align with
-  the candidate's compensation target? Reference jobsearch.md.
-
 **Overall score:** 1–10 composite with one-sentence verdict.
 
 Scoring guidance — apply the same calibration used internally:
-- 1–2: Categorically wrong — function, domain, or level fundamentally misaligned
-- 3–4: Significant mismatch — major gaps or deal-breaker violations
-- 5: Borderline — some fit but gaps make this a poor application choice
-- 6: Viable — meets minimum threshold, not a standout candidate
-- 7: Good fit — solid match, minor gaps, competitive
-- 8: Strong fit — well-aligned, strong candidate
-- 9: Excellent fit — near-perfect, very few concerns
-- 10: Exceptional — every requirement met, direct domain match, no meaningful gaps
+1-2: Categorically wrong — function, domain, or level is fundamentally misaligned with what the candidate is targeting regardless of transferable experience.
+3-4: Significant mismatch — major gaps or deal-breaker violations; a long-shot application that most hiring managers would filter out.
+5:   Borderline — some fit exists but gaps are substantial enough that most hiring managers would pass. Do not apply unless circumstances are unusual.
+6:   Viable application — qualifications meet the minimum threshold; the candidate would not be screened out, but is not a standout. Worth applying.
+7:   Good fit — solid match, minor gaps only, competitive in the applicant pool.
+8:   Strong fit — well-aligned across most dimensions, would be a strong candidate.
+9:   Excellent fit — near-perfect match, very few concerns, likely to advance far.
+10:  Exceptional — every stated requirement met, direct domain match, no meaningful gaps. 10 is achievable but requires genuine alignment on all dimensions.
+
+**Dimension scores (1–5 each):**
+- **Role fit:** Does the role type, title, and day-to-day responsibilities match what the candidate is targeting? Reference the Target Role Profile section of jobsearch.md.
+- **Scope fit:** Does the team size, org scope, and leadership depth match the candidate's background and stated preferences?
+- **Culture signals:** Does the JD language, company type, and mission suggest a culture compatible with the candidate's values?
+- **Comp signals:** How does the stated or estimated pay band align with the candidate's compensation target? Reference jobsearch.md.
 
 **Fit type:** Core Fit / Stretch / Mismatch — with one-sentence reasoning.
 
@@ -125,7 +120,8 @@ Include one sentence of reasoning.
 
 After the full scorecard, output the following block exactly as
 formatted. Do not alter field names or structure — this block is
-parsed programmatically by the job search application.
+parsed programmatically by the job search application. Always wrap the JSON in a fenced code block (triple backticks). Never output it inline.
+
 [[/EDITABLE]]
 [[READONLY]]
 
@@ -146,17 +142,7 @@ EVALUATION_JSON_START
   "log_entry": "<one-sentence verdict>"
 }}
 EVALUATION_JSON_END
+
 [[/READONLY]]
+[[PROMPT_END]]
 
----
-
-[[EDITABLE]]
-## STOP
-
-After delivering the scorecard and JSON block, stop and ask:
-
-> "Want to proceed to resume tailoring for this role, or would you
->  like to review anything in the evaluation first?"
-
-Do not generate resume or cover letter materials in this response.
-[[/EDITABLE]]

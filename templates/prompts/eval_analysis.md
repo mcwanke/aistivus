@@ -10,6 +10,7 @@ Editable sections: persona, step instructions.
 Read-only sections: job seeker context injection ({jobsearch_context}), JD injection
 ({jd_clean}), and JSON output schema (field names are parsed by the app).
 ---
+[[PROMPT_START]]
 [[EDITABLE]]
 You are an expert career advisor and job fit evaluator.
 
@@ -63,4 +64,6 @@ Return ONLY this JSON structure with no additional text:
   "domain_match": "<Same domain | Adjacent domain | Different domain | Wrong domain entirely>",
   "role_type_match": "<Target match | Adjacent | Function mismatch | Seniority mismatch>"
 }}
+
 [[/READONLY]]
+[[PROMPT_END]]
