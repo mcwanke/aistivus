@@ -24,9 +24,8 @@ import httpx
 # ─────────────────────────────────────────────────────────────
 
 PROVIDER_OLLAMA = "ollama"
-# Phase 1+ additions:
 PROVIDER_ANTHROPIC = "anthropic"
-# PROVIDER_OPENAI = "openai"
+PROVIDER_OPENAI_COMPAT = "openai-compat"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -86,6 +85,16 @@ async def complete(
             max_tokens=max_tokens,
         )
 
+    elif provider == PROVIDER_OPENAI_COMPAT:
+        return await _call_openai_compat(
+            prompt=prompt,
+            system=system,
+            model=model,
+            base_url=base_url,
+            max_tokens=max_tokens,
+            timeout=timeout,
+        )
+
     return _error_response(
         provider=provider,
         model=model,
@@ -128,6 +137,16 @@ async def complete_stream(
             system=system,
             model=model,
             max_tokens=max_tokens,
+        ):
+            yield token
+    elif provider == PROVIDER_OPENAI_COMPAT:
+        async for token in _stream_openai_compat(
+            prompt=prompt,
+            system=system,
+            model=model,
+            base_url=base_url,
+            max_tokens=max_tokens,
+            timeout=timeout,
         ):
             yield token
     else:
@@ -203,6 +222,168 @@ async def _stream_anthropic(
                     yield text
     except Exception:
         yield "[STREAM_ERROR]"
+
+
+# ─────────────────────────────────────────────────────────────
+# OpenAI-compatible (llama.cpp, LM Studio, vLLM, etc.)
+# ─────────────────────────────────────────────────────────────
+
+async def _call_openai_compat(
+    prompt: str,
+    system: str,
+    model: str,
+    base_url: str,
+    max_tokens: int,
+    timeout: float,
+) -> dict[str, Any]:
+    """Call an OpenAI-compatible /v1/chat/completions endpoint."""
+    url = f"{base_url.rstrip('/')}/v1/chat/completions"
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ],
+        "stream": False,
+        "temperature": 0,
+        "max_tokens": max_tokens,
+    }
+
+    start = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(url, json=payload)
+            response.raise_for_status()
+
+        latency_ms = int((time.monotonic() - start) * 1000)
+        data = response.json()
+
+        content = data["choices"][0]["message"]["content"]
+        usage = data.get("usage", {})
+        prompt_tokens = usage.get("prompt_tokens")
+        completion_tokens = usage.get("completion_tokens")
+        total_tokens = usage.get("total_tokens")
+
+        return {
+            "success": True,
+            "content": content.strip(),
+            "error": None,
+            "model": model,
+            "provider": PROVIDER_OPENAI_COMPAT,
+            "latency_ms": latency_ms,
+            "prompt_tokens_actual": prompt_tokens,
+            "completion_tokens_actual": completion_tokens,
+            "total_tokens_actual": total_tokens,
+        }
+
+    except (KeyError, IndexError) as e:
+        latency_ms = int((time.monotonic() - start) * 1000)
+        return _error_response(
+            provider=PROVIDER_OPENAI_COMPAT,
+            model=model,
+            error=f"Unexpected response shape from OpenAI-compat server: {e}",
+            latency_ms=latency_ms,
+        )
+    except httpx.TimeoutException:
+        latency_ms = int((time.monotonic() - start) * 1000)
+        return _error_response(
+            provider=PROVIDER_OPENAI_COMPAT,
+            model=model,
+            error=f"Request timed out after {timeout}s.",
+            latency_ms=latency_ms,
+        )
+    except httpx.HTTPStatusError as e:
+        latency_ms = int((time.monotonic() - start) * 1000)
+        return _error_response(
+            provider=PROVIDER_OPENAI_COMPAT,
+            model=model,
+            error=f"HTTP error {e.response.status_code}: {e.response.text}",
+            latency_ms=latency_ms,
+        )
+    except Exception as e:
+        latency_ms = int((time.monotonic() - start) * 1000)
+        return _error_response(
+            provider=PROVIDER_OPENAI_COMPAT,
+            model=model,
+            error=f"Unexpected error: {type(e).__name__}: {e}",
+            latency_ms=latency_ms,
+        )
+
+
+async def _stream_openai_compat(
+    prompt: str,
+    system: str,
+    model: str,
+    base_url: str,
+    max_tokens: int,
+    timeout: float,
+) -> AsyncGenerator[str, None]:
+    """Stream tokens from an OpenAI-compatible /v1/chat/completions endpoint."""
+    url = f"{base_url.rstrip('/')}/v1/chat/completions"
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ],
+        "stream": True,
+        "temperature": 0,
+        "max_tokens": max_tokens,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            async with client.stream("POST", url, json=payload) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    raw = line[len("data:"):].strip()
+                    if raw == "[DONE]":
+                        return
+                    try:
+                        chunk = json.loads(raw)
+                        content = chunk["choices"][0]["delta"].get("content", "")
+                        if content:
+                            yield content
+                    except (json.JSONDecodeError, KeyError, IndexError):
+                        continue
+    except Exception:
+        yield "[STREAM_ERROR]"
+
+
+async def check_openai_compat_health(base_url: str) -> dict[str, Any]:
+    """
+    Check reachability of an OpenAI-compatible server via GET /v1/models.
+
+    Returns the same shape as check_ollama_health() so callers can treat them
+    interchangeably.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"{base_url.rstrip('/')}/v1/models")
+            response.raise_for_status()
+
+        data = response.json()
+        models = [m["id"] for m in data.get("data", [])]
+
+        return {
+            "reachable": True,
+            "models": models,
+            "error": None,
+        }
+
+    except httpx.ConnectError:
+        return {
+            "reachable": False,
+            "models": [],
+            "error": "Cannot connect to server. Check the URL and ensure the server is running.",
+        }
+    except Exception as e:
+        return {
+            "reachable": False,
+            "models": [],
+            "error": f"Health check failed: {type(e).__name__}: {e}",
+        }
 
 
 # ─────────────────────────────────────────────────────────────

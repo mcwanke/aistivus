@@ -83,7 +83,38 @@ See `app_docs/WORKORDER_p2.3.md` for full implementation detail.
 ### Phase 2.3 — Goal
 Replace `server_type = 'local'` with a protocol discriminator (`'ollama'` | `'openai-compat'` | `'anthropic'`). Add full support for OpenAI-compatible endpoints (llama.cpp, LM Studio, vLLM) using `/v1/chat/completions`. Add auto-detection of server type via "Test Connection" in Settings.
 
-**Status:** 🔲 Not started — workorder written 2026-06-17
+### Phase 2.3 — Progress
+
+#### Step 1 — DB Migration ✅
+- `database.py`: DDL default `'local'` → `'ollama'`; delta migration `UPDATE llm_servers SET server_type = 'ollama' WHERE server_type = 'local'`; `seed_llm_models_from_config()` literal updated
+
+#### Step 2 — `llm_client.py`: OpenAI-Compatible Provider ✅
+- `PROVIDER_OPENAI_COMPAT = "openai-compat"` constant added
+- `_call_openai_compat()`: POST to `/v1/chat/completions`; parses `choices[0].message.content` and `usage.*` tokens
+- `_stream_openai_compat()`: SSE parser for `data: {...}` lines; terminates on `data: [DONE]`
+- `check_openai_compat_health()`: GET `/v1/models`; same return shape as `check_ollama_health()`
+- `complete()` and `complete_stream()`: dispatch branches added for `PROVIDER_OPENAI_COMPAT`
+
+#### Step 3 — `main.py` + `evaluator.py`: Protocol-Aware Dispatch ✅
+- `_VALID_SERVER_TYPES`: `{"local", "anthropic"}` → `{"ollama", "openai-compat", "anthropic"}`
+- `_update_model_availability`: dispatches `ollama` / `openai-compat` / `anthropic` separately
+- Provider resolution: both callers now use `model_info.get("server_type", "ollama")` directly (server_type IS the provider)
+- `create_server`, `update_server`: endpoint validation uses `!= "anthropic"` instead of `== "local"`
+- `test_server_connection`: ollama branch renamed; new `openai-compat` branch added (probes `/v1/models`)
+- `get_available_models`: new `openai-compat` branch (parses `/v1/models` `data[].id`)
+- `evaluator.py` `_provider_from_server_type()`: handles `openai-compat` explicitly
+
+#### Step 5 (backend) — Tests ✅
+- All test fixtures updated: `"local"` → `"ollama"` in `create_server()` calls and assertions (9 files)
+- `test_evaluator.py`: `test_local_returns_ollama` → `test_ollama_returns_ollama`; new `test_openai_compat_returns_openai_compat`
+- `test_servers.py`: new `TestOpenAICompatServer` class (5 tests)
+- `test_llm_client.py`: 7 new openai-compat tests (call success/failure, missing usage, health check, streaming)
+- Test baseline: 642 backend / 263 frontend
+
+#### Step 4 — Frontend Settings UI ✅ 🔲 Not started
+- Server type dropdown (`ollama` / `openai-compat` / `anthropic`)
+- Auto-detect "Test Connection" button + `POST /api/v1/servers/detect` endpoint
+- Label updates throughout Settings UI
 
 ---
 

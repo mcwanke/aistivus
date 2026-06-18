@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS llm_servers (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     server_name TEXT NOT NULL,
     endpoint    TEXT,
-    server_type TEXT NOT NULL DEFAULT 'local',
+    server_type TEXT NOT NULL DEFAULT 'ollama',
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -493,6 +493,10 @@ def init_db() -> None:
             conn.execute("ALTER TABLE evaluations ADD COLUMN analysis_json TEXT")
         except sqlite3.OperationalError:
             pass  # column already exists
+
+        conn.execute(
+            "UPDATE llm_servers SET server_type = 'ollama' WHERE server_type = 'local'"
+        )
 
         for type_name, type_value in _SYSTEM_TYPES_SEED:
             existing = conn.execute(
@@ -897,7 +901,7 @@ def seed_llm_models_from_config() -> bool:
             return False
 
         conn.execute(
-            "INSERT INTO llm_servers (server_name, endpoint, server_type) VALUES (?, ?, 'local')",
+            "INSERT INTO llm_servers (server_name, endpoint, server_type) VALUES (?, ?, 'ollama')",
             ("Local Ollama", base_url),
         )
         server_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]

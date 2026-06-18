@@ -137,7 +137,7 @@ class TestSystemTypes:
 
 class TestLlmModels:
     def _make_server(self) -> int:
-        return database.create_server("Local Ollama", "http://localhost:11434", "local")
+        return database.create_server("Local Ollama", "http://localhost:11434", "ollama")
 
     def test_insert_returns_id(self, tmp_db):
         sid = self._make_server()
@@ -228,7 +228,7 @@ class TestLlmModels:
         database.insert_llm_model("model-a", sid)
         model = database.get_all_llm_models()[0]
         assert model["server_name"] == "Local Ollama"
-        assert model["server_type"] == "local"
+        assert model["server_type"] == "ollama"
         assert model["endpoint"] == "http://localhost:11434"
 
     def test_seed_from_config_with_valid_config(self, tmp_db, monkeypatch):
@@ -251,7 +251,7 @@ class TestLlmModels:
         servers = database.get_all_servers()
         assert len(servers) == 1
         assert servers[0]["server_name"] == "Local Ollama"
-        assert servers[0]["server_type"] == "local"
+        assert servers[0]["server_type"] == "ollama"
 
     def test_seed_from_config_skips_if_not_empty(self, tmp_db, model_id, monkeypatch):
         monkeypatch.setattr(database, "_load_config", lambda: {

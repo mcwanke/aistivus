@@ -135,11 +135,14 @@ def eval_setup(tmp_db, model_id, jobsearch_file):
 # ─────────────────────────────────────────────────────────────
 
 class TestProviderFromServerType:
-    def test_local_returns_ollama(self):
-        assert evaluator._provider_from_server_type("local") == "ollama"
+    def test_ollama_returns_ollama(self):
+        assert evaluator._provider_from_server_type("ollama") == "ollama"
 
     def test_anthropic_returns_anthropic(self):
         assert evaluator._provider_from_server_type("anthropic") == "anthropic"
+
+    def test_openai_compat_returns_openai_compat(self):
+        assert evaluator._provider_from_server_type("openai-compat") == "openai-compat"
 
     def test_unknown_defaults_to_ollama(self):
         assert evaluator._provider_from_server_type("unknown") == "ollama"

@@ -99,7 +99,7 @@ def profile_client_no_file(client, tmp_path, monkeypatch):
 @pytest.fixture
 def profile_seeded_client(profile_client):
     """profile_client with a default LLM model inserted."""
-    server_id = database.create_server("Test Server", "http://localhost:11434", "local")
+    server_id = database.create_server("Test Server", "http://localhost:11434", "ollama")
     model_id = database.insert_llm_model(
         "test-model",
         server_id,
@@ -112,7 +112,7 @@ def profile_seeded_client(profile_client):
 @pytest.fixture
 def profile_seeded_client_no_file(profile_client_no_file):
     """profile_client_no_file with a default LLM model inserted."""
-    server_id = database.create_server("Test Server", "http://localhost:11434", "local")
+    server_id = database.create_server("Test Server", "http://localhost:11434", "ollama")
     model_id = database.insert_llm_model(
         "test-model",
         server_id,

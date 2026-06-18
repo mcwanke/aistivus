@@ -18,7 +18,7 @@ import database
 @pytest.fixture
 def server_client(client):
     """client with a pre-created local server."""
-    sid = database.create_server("Test Server", "http://localhost:11434", "local")
+    sid = database.create_server("Test Server", "http://localhost:11434", "ollama")
     return {"client": client, "server_id": sid}
 
 
@@ -54,7 +54,7 @@ class TestListModels:
         assert "server_name" in m
         assert "server_type" in m
         assert m["server_name"] == "Test Server"
-        assert m["server_type"] == "local"
+        assert m["server_type"] == "ollama"
 
     def test_endpoint_comes_from_server_join(self, model_client):
         resp = model_client["client"].get("/api/v1/models")

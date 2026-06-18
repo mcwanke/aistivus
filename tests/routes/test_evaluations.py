@@ -193,7 +193,7 @@ class TestRerunEvaluation:
         assert resp.status_code == 404
 
     def test_400_when_no_description_stored(self, client, jobsearch_file):
-        sid = database.create_server("Local Ollama", "http://localhost:11434", "local")
+        sid = database.create_server("Local Ollama", "http://localhost:11434", "ollama")
         database.insert_llm_model("test-model", sid, default_flag=1, available=1)
         job_id, _ = database.upsert_job("Corp", "Role", "general")
         # Remove description

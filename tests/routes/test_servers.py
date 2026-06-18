@@ -29,16 +29,16 @@ class TestListServers:
         assert resp.json()["servers"] == []
 
     def test_returns_created_server(self, client):
-        database.create_server("Local Ollama", "http://localhost:11434", "local")
+        database.create_server("Local Ollama", "http://localhost:11434", "ollama")
         resp = client.get("/api/v1/settings/llm-servers")
         servers = resp.json()["servers"]
         assert len(servers) == 1
         assert servers[0]["server_name"] == "Local Ollama"
         assert servers[0]["endpoint"] == "http://localhost:11434"
-        assert servers[0]["server_type"] == "local"
+        assert servers[0]["server_type"] == "ollama"
 
     def test_model_count_is_correct(self, client):
-        sid = database.create_server("Lab", "http://localhost:11434", "local")
+        sid = database.create_server("Lab", "http://localhost:11434", "ollama")
         database.insert_llm_model("llama3:8b", sid)
         database.insert_llm_model("mistral:7b", sid)
         resp = client.get("/api/v1/settings/llm-servers")
@@ -46,7 +46,7 @@ class TestListServers:
         assert servers[0]["model_count"] == 2
 
     def test_local_server_has_no_anthropic_key_field(self, client):
-        database.create_server("Lab", "http://localhost:11434", "local")
+        database.create_server("Lab", "http://localhost:11434", "ollama")
         resp = client.get("/api/v1/settings/llm-servers")
         server = resp.json()["servers"][0]
         assert "anthropic_key_present" not in server
@@ -71,13 +71,13 @@ class TestCreateServer:
         resp = client.post("/api/v1/settings/llm-servers", json={
             "server_name": "Home Lab",
             "endpoint": "http://192.168.1.10:11434",
-            "server_type": "local",
+            "server_type": "ollama",
         })
         assert resp.status_code == 201
         data = resp.json()
         assert data["server_name"] == "Home Lab"
         assert data["endpoint"] == "http://192.168.1.10:11434"
-        assert data["server_type"] == "local"
+        assert data["server_type"] == "ollama"
         assert data["model_count"] == 0
 
     def test_creates_anthropic_server_with_null_endpoint(self, client):
@@ -94,14 +94,14 @@ class TestCreateServer:
         resp = client.post("/api/v1/settings/llm-servers", json={
             "server_name": "Secure Lab",
             "endpoint": "https://192.168.1.10:11434",
-            "server_type": "local",
+            "server_type": "ollama",
         })
         assert resp.status_code == 201
 
     def test_local_missing_endpoint_returns_422(self, client):
         resp = client.post("/api/v1/settings/llm-servers", json={
             "server_name": "No Endpoint",
-            "server_type": "local",
+            "server_type": "ollama",
         })
         assert resp.status_code == 422
 
@@ -109,7 +109,7 @@ class TestCreateServer:
         resp = client.post("/api/v1/settings/llm-servers", json={
             "server_name": "Bad",
             "endpoint": "ftp://192.168.1.10:11434",
-            "server_type": "local",
+            "server_type": "ollama",
         })
         assert resp.status_code == 422
 
@@ -136,7 +136,7 @@ class TestCreateServer:
         client.post("/api/v1/settings/llm-servers", json={
             "server_name": "Persist Test",
             "endpoint": "http://localhost:11434",
-            "server_type": "local",
+            "server_type": "ollama",
         })
         servers = client.get("/api/v1/settings/llm-servers").json()["servers"]
         assert any(s["server_name"] == "Persist Test" for s in servers)
@@ -148,7 +148,7 @@ class TestCreateServer:
 
 class TestUpdateServer:
     def test_updates_server_name(self, client):
-        sid = database.create_server("Old Name", "http://localhost:11434", "local")
+        sid = database.create_server("Old Name", "http://localhost:11434", "ollama")
         resp = client.put(f"/api/v1/settings/llm-servers/{sid}", json={
             "server_name": "New Name",
             "endpoint": "http://localhost:11434",
@@ -157,7 +157,7 @@ class TestUpdateServer:
         assert resp.json()["server_name"] == "New Name"
 
     def test_updates_endpoint(self, client):
-        sid = database.create_server("Lab", "http://localhost:11434", "local")
+        sid = database.create_server("Lab", "http://localhost:11434", "ollama")
         resp = client.put(f"/api/v1/settings/llm-servers/{sid}", json={
             "server_name": "Lab",
             "endpoint": "http://192.168.1.20:11434",
@@ -166,12 +166,12 @@ class TestUpdateServer:
         assert resp.json()["endpoint"] == "http://192.168.1.20:11434"
 
     def test_server_type_unchanged_after_update(self, client):
-        sid = database.create_server("Lab", "http://localhost:11434", "local")
+        sid = database.create_server("Lab", "http://localhost:11434", "ollama")
         resp = client.put(f"/api/v1/settings/llm-servers/{sid}", json={
             "server_name": "Lab Updated",
             "endpoint": "http://localhost:11434",
         })
-        assert resp.json()["server_type"] == "local"
+        assert resp.json()["server_type"] == "ollama"
 
     def test_returns_404_for_unknown_server(self, client):
         resp = client.put("/api/v1/settings/llm-servers/9999", json={
@@ -181,7 +181,7 @@ class TestUpdateServer:
         assert resp.status_code == 404
 
     def test_response_includes_model_count(self, client):
-        sid = database.create_server("Lab", "http://localhost:11434", "local")
+        sid = database.create_server("Lab", "http://localhost:11434", "ollama")
         database.insert_llm_model("llama3:8b", sid)
         resp = client.put(f"/api/v1/settings/llm-servers/{sid}", json={
             "server_name": "Lab Updated",
@@ -196,19 +196,19 @@ class TestUpdateServer:
 
 class TestDeleteServer:
     def test_deletes_server_successfully(self, client):
-        sid = database.create_server("Temp", "http://localhost:11434", "local")
+        sid = database.create_server("Temp", "http://localhost:11434", "ollama")
         resp = client.delete(f"/api/v1/settings/llm-servers/{sid}")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
     def test_deleted_server_no_longer_in_list(self, client):
-        sid = database.create_server("Temp", "http://localhost:11434", "local")
+        sid = database.create_server("Temp", "http://localhost:11434", "ollama")
         client.delete(f"/api/v1/settings/llm-servers/{sid}")
         servers = client.get("/api/v1/settings/llm-servers").json()["servers"]
         assert all(s["id"] != sid for s in servers)
 
     def test_server_with_models_returns_409(self, client):
-        sid = database.create_server("In Use", "http://localhost:11434", "local")
+        sid = database.create_server("In Use", "http://localhost:11434", "ollama")
         database.insert_llm_model("llama3:8b", sid)
         resp = client.delete(f"/api/v1/settings/llm-servers/{sid}")
         assert resp.status_code == 409
@@ -236,7 +236,7 @@ class TestServerConnectionTest:
 
         with patch("httpx.AsyncClient", return_value=mock_client):
             resp = client.post("/api/v1/settings/llm-servers/test", json={
-                "server_type": "local",
+                "server_type": "ollama",
                 "endpoint": "http://192.168.1.10:11434",
             })
 
@@ -253,7 +253,7 @@ class TestServerConnectionTest:
 
         with patch("httpx.AsyncClient", return_value=mock_client):
             resp = client.post("/api/v1/settings/llm-servers/test", json={
-                "server_type": "local",
+                "server_type": "ollama",
                 "endpoint": "http://192.168.1.10:11434",
             })
 
@@ -264,7 +264,7 @@ class TestServerConnectionTest:
 
     def test_local_missing_endpoint_returns_422(self, client):
         resp = client.post("/api/v1/settings/llm-servers/test", json={
-            "server_type": "local",
+            "server_type": "ollama",
         })
         assert resp.status_code == 422
 
@@ -301,7 +301,7 @@ class TestAvailableModels:
         assert "claude-haiku-4-5-20251001" in models
 
     def test_local_returns_models_from_ollama(self, client):
-        sid = database.create_server("Lab", "http://localhost:11434", "local")
+        sid = database.create_server("Lab", "http://localhost:11434", "ollama")
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -322,7 +322,7 @@ class TestAvailableModels:
         assert "mistral:7b" in models
 
     def test_local_returns_sorted_models(self, client):
-        sid = database.create_server("Lab", "http://localhost:11434", "local")
+        sid = database.create_server("Lab", "http://localhost:11434", "ollama")
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -345,7 +345,7 @@ class TestAvailableModels:
         assert resp.status_code == 404
 
     def test_local_unreachable_returns_503(self, client):
-        sid = database.create_server("Lab", "http://localhost:11434", "local")
+        sid = database.create_server("Lab", "http://localhost:11434", "ollama")
 
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -356,6 +356,94 @@ class TestAvailableModels:
             resp = client.get(f"/api/v1/settings/llm-servers/{sid}/available-models")
 
         assert resp.status_code == 503
+
+
+# ─────────────────────────────────────────────────────────────
+# GET /api/v1/settings/anthropic-key
+# ─────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────
+# openai-compat server type
+# ─────────────────────────────────────────────────────────────
+
+class TestOpenAICompatServer:
+    def test_creates_openai_compat_server(self, client):
+        resp = client.post("/api/v1/settings/llm-servers", json={
+            "server_name": "LM Studio",
+            "endpoint": "http://192.168.1.10:1234",
+            "server_type": "openai-compat",
+        })
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["server_type"] == "openai-compat"
+        assert data["endpoint"] == "http://192.168.1.10:1234"
+
+    def test_openai_compat_missing_endpoint_returns_422(self, client):
+        resp = client.post("/api/v1/settings/llm-servers", json={
+            "server_name": "LM Studio",
+            "server_type": "openai-compat",
+        })
+        assert resp.status_code == 422
+
+    def test_connection_test_openai_compat_success(self, client):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [{"id": "llama-3.2-3b"}, {"id": "mistral-7b"}]
+        }
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.get = AsyncMock(return_value=mock_response)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            resp = client.post("/api/v1/settings/llm-servers/test", json={
+                "server_type": "openai-compat",
+                "endpoint": "http://192.168.1.10:1234",
+            })
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert data["model_count"] == 2
+
+    def test_connection_test_openai_compat_connection_failure(self, client):
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.get = AsyncMock(side_effect=httpx.ConnectError("refused"))
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            resp = client.post("/api/v1/settings/llm-servers/test", json={
+                "server_type": "openai-compat",
+                "endpoint": "http://192.168.1.10:1234",
+            })
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is False
+        assert "error" in data
+
+    def test_available_models_openai_compat(self, client):
+        sid = database.create_server("LM Studio", "http://192.168.1.10:1234", "openai-compat")
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [{"id": "llama-3.2-3b"}, {"id": "mistral-7b"}]
+        }
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.get = AsyncMock(return_value=mock_response)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            resp = client.get(f"/api/v1/settings/llm-servers/{sid}/available-models")
+
+        assert resp.status_code == 200
+        models = resp.json()["models"]
+        assert "llama-3.2-3b" in models
+        assert "mistral-7b" in models
 
 
 # ─────────────────────────────────────────────────────────────

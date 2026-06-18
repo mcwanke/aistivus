@@ -51,7 +51,7 @@ def _seed_prompt(key: str = _TEST_KEY, label: str = _TEST_LABEL) -> None:
 
 
 def _seed_model() -> int:
-    server_id = database.create_server("Local", "http://localhost:11434", "local")
+    server_id = database.create_server("Local", "http://localhost:11434", "ollama")
     return database.insert_llm_model("test-model", server_id, default_flag=1, available=1)
 
 

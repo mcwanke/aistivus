@@ -49,7 +49,7 @@ def client(tmp_path, monkeypatch):
 @pytest.fixture
 def seeded_client(client, tmp_path, monkeypatch):
     """client with a test model and a test job pre-inserted."""
-    server_id = database.create_server("Local Ollama", "http://localhost:11434", "local")
+    server_id = database.create_server("Local Ollama", "http://localhost:11434", "ollama")
     model_id = database.insert_llm_model(
         "test-model",
         server_id,

@@ -64,8 +64,8 @@ def _get_inbox_done_dir() -> Path:
 
 def _provider_from_server_type(server_type: str) -> str:
     """Derive provider constant from llm_servers.server_type."""
-    if server_type == "anthropic":
-        return llm_client.PROVIDER_ANTHROPIC
+    if server_type in (llm_client.PROVIDER_ANTHROPIC, llm_client.PROVIDER_OPENAI_COMPAT):
+        return server_type
     return llm_client.PROVIDER_OLLAMA
 
 

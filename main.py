@@ -679,8 +679,8 @@ The user confirms before any update is written.
 async def _update_model_availability(app_state=None) -> None:
     """
     Re-check availability of every llm_models record and update the available flag.
-    Uses server_type from the server JOIN: local → Ollama ping, anthropic → key present.
-    Failures are logged; the app continues regardless — usable for browsing.
+    Uses server_type from the server JOIN: ollama/openai-compat → ping endpoint,
+    anthropic → key present. Failures are logged; the app continues regardless.
     """
     models = database.get_all_llm_models()
     if not models:
@@ -693,7 +693,7 @@ async def _update_model_availability(app_state=None) -> None:
     available_count = 0
     for row in models:
         model_dict = dict(row)
-        server_type = model_dict.get("server_type", "local")
+        server_type = model_dict.get("server_type", "ollama")
         endpoint = model_dict.get("endpoint")
         model_name = model_dict["model"]
         model_id = model_dict["id"]
@@ -701,7 +701,16 @@ async def _update_model_availability(app_state=None) -> None:
         try:
             if server_type == "anthropic":
                 is_available = anthropic_key_present
-            else:
+            elif server_type == "openai-compat":
+                if not endpoint:
+                    is_available = False
+                else:
+                    health = await llm_client.check_openai_compat_health(endpoint)
+                    is_available = (
+                        health.get("reachable", False)
+                        and llm_client.model_is_available(model_name, health.get("models", []))
+                    )
+            else:  # ollama
                 if not endpoint:
                     is_available = False
                 else:
@@ -2145,7 +2154,7 @@ async def lesson_chat(
         )
     model_info = dict(default_model)
     endpoint = model_info.get("endpoint", "")
-    provider = "anthropic" if model_info.get("server_type") == "anthropic" else "ollama"
+    provider = model_info.get("server_type", "ollama")
 
     job = database.get_job(app_dict["job_id"])
     job_dict = dict(job) if job else {}
@@ -2553,7 +2562,7 @@ async def get_documents_storage(request: Request):
 # Settings / LLM Servers
 # ─────────────────────────────────────────────────────────────
 
-_VALID_SERVER_TYPES = frozenset({"local", "anthropic"})
+_VALID_SERVER_TYPES = frozenset({"ollama", "openai-compat", "anthropic"})
 
 # Claude models supported via Anthropic API — update as new versions ship
 _KNOWN_ANTHROPIC_MODELS = [
@@ -2584,9 +2593,9 @@ async def create_server(request: Request, body: CreateServerRequest):
     """Create a new LLM server record."""
     if body.server_type not in _VALID_SERVER_TYPES:
         raise HTTPException(status_code=422, detail=f"server_type must be one of: {', '.join(_VALID_SERVER_TYPES)}")
-    if body.server_type == "local":
+    if body.server_type in ("ollama", "openai-compat"):
         if not body.endpoint:
-            raise HTTPException(status_code=422, detail="endpoint is required for local servers.")
+            raise HTTPException(status_code=422, detail="endpoint is required for this server type.")
         if not (body.endpoint.startswith("http://") or body.endpoint.startswith("https://")):
             raise HTTPException(status_code=422, detail="endpoint must start with http:// or https://")
     if body.server_type == "anthropic":
@@ -2595,7 +2604,7 @@ async def create_server(request: Request, body: CreateServerRequest):
             raise HTTPException(status_code=409, detail="An Anthropic server is already configured.")
     server_id = database.create_server(
         server_name=body.server_name,
-        endpoint=body.endpoint if body.server_type == "local" else None,
+        endpoint=body.endpoint if body.server_type != "anthropic" else None,
         server_type=body.server_type,
     )
     row = database.get_server_by_id(server_id)
@@ -2615,7 +2624,7 @@ async def update_server(request: Request, server_id: int, body: UpdateServerRequ
     if not row:
         raise HTTPException(status_code=404, detail=f"Server {server_id} not found.")
     server = dict(row)
-    if server["server_type"] == "local" and body.endpoint:
+    if server["server_type"] != "anthropic" and body.endpoint:
         if not (body.endpoint.startswith("http://") or body.endpoint.startswith("https://")):
             raise HTTPException(status_code=422, detail="endpoint must start with http:// or https://")
     database.update_server(server_id, server_name=body.server_name, endpoint=body.endpoint)
@@ -2649,9 +2658,9 @@ async def delete_server(request: Request, server_id: int):
 @limiter.limit("20/minute")
 async def test_server_connection(request: Request, body: TestConnectionRequest):
     """Test a server connection without creating a record."""
-    if body.server_type == "local":
+    if body.server_type == "ollama":
         if not body.endpoint:
-            raise HTTPException(status_code=422, detail="endpoint is required for local server test.")
+            raise HTTPException(status_code=422, detail="endpoint is required for Ollama server test.")
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.get(f"{body.endpoint.rstrip('/')}/api/tags")
@@ -2662,6 +2671,22 @@ async def test_server_connection(request: Request, body: TestConnectionRequest):
             return JSONResponse({"success": False, "error": f"Ollama returned HTTP {resp.status_code}."})
         except httpx.ConnectError:
             return JSONResponse({"success": False, "error": f"Could not reach Ollama at {body.endpoint}."})
+        except Exception as exc:
+            return JSONResponse({"success": False, "error": f"Connection error: {exc}"})
+
+    if body.server_type == "openai-compat":
+        if not body.endpoint:
+            raise HTTPException(status_code=422, detail="endpoint is required for OpenAI-compatible server test.")
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(f"{body.endpoint.rstrip('/')}/v1/models")
+            if resp.status_code == 200:
+                data = resp.json()
+                model_count = len(data.get("data", []))
+                return JSONResponse({"success": True, "model_count": model_count})
+            return JSONResponse({"success": False, "error": f"Server returned HTTP {resp.status_code}."})
+        except httpx.ConnectError:
+            return JSONResponse({"success": False, "error": f"Could not reach server at {body.endpoint}."})
         except Exception as exc:
             return JSONResponse({"success": False, "error": f"Connection error: {exc}"})
 
@@ -2696,6 +2721,19 @@ async def get_available_models(request: Request, server_id: int):
     server = dict(row)
     if server["server_type"] == "anthropic":
         return JSONResponse({"models": _KNOWN_ANTHROPIC_MODELS})
+    if server["server_type"] == "openai-compat":
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(f"{server['endpoint'].rstrip('/')}/v1/models")
+            if resp.status_code != 200:
+                raise HTTPException(status_code=503, detail="Server returned an error.")
+            model_names = [m["id"] for m in resp.json().get("data", [])]
+            return JSONResponse({"models": sorted(model_names)})
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail=f"Could not reach server: {exc}")
+    # ollama
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(f"{server['endpoint'].rstrip('/')}/api/tags")
@@ -2791,7 +2829,7 @@ async def run_feedback_loop(request: Request, key: str):
         )
     model_info = dict(default_model)
     endpoint = model_info.get("endpoint", "")
-    provider = "anthropic" if model_info.get("server_type") == "anthropic" else "ollama"
+    provider = model_info.get("server_type", "ollama")
 
     assembled = database.assemble_prompt(prompt_row["segments_text"])
 

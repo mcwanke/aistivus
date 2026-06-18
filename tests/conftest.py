@@ -23,7 +23,7 @@ def tmp_db(tmp_path, monkeypatch):
 @pytest.fixture
 def model_id(tmp_db):
     """Insert a test LLM server and model; return the model id."""
-    server_id = database.create_server("Local Ollama", "http://localhost:11434", "local")
+    server_id = database.create_server("Local Ollama", "http://localhost:11434", "ollama")
     return database.insert_llm_model(
         "test-model",
         server_id,

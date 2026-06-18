@@ -1,5 +1,5 @@
 # AIstivus — Phase 2.3 Workorder
-> Status: Planned
+> Status: In Progress — Steps 1–3 + Step 5 (backend) complete
 > Last updated: 2026-06-17
 
 ---
@@ -25,6 +25,7 @@ server speaks.
 
 - Check `memory/MEMORY.md` for the current test baseline before starting
 - Baseline at design time: 629 backend / 263 frontend
+- Baseline after Steps 1–3 + Step 5 backend: 642 backend / 263 frontend
 - Step order: 1 → 2 → 3 → 4 → 5 (each step depends on the previous)
 
 ---

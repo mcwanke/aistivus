@@ -9,7 +9,7 @@ Async generators are exercised with asyncio.run() — no pytest-asyncio needed.
 import asyncio
 import json
 import os
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import llm_client
 
@@ -208,3 +208,196 @@ def test_complete_stream_unknown_provider_yields_stream_error():
         base_url="http://example.com",
     ))
     assert tokens == ["[STREAM_ERROR]"]
+
+
+# ─────────────────────────────────────────────────────────────
+# OpenAI-compatible call tests
+# ─────────────────────────────────────────────────────────────
+
+def _make_openai_compat_client(response_json: dict, status_code: int = 200):
+    """Return a mock httpx.AsyncClient that yields a single POST response."""
+    mock_response = MagicMock()
+    mock_response.status_code = status_code
+    mock_response.json.return_value = response_json
+    mock_response.raise_for_status = MagicMock()
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.post = AsyncMock(return_value=mock_response)
+    return mock_client
+
+
+def test_openai_compat_call_success():
+    payload = {
+        "choices": [{"message": {"content": "  Hello from openai-compat  "}}],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+    }
+    with patch("llm_client.httpx.AsyncClient", return_value=_make_openai_compat_client(payload)):
+        result = asyncio.run(llm_client.complete(
+            prompt="Say hello",
+            system="You are helpful",
+            model="llama-3.2-3b",
+            provider="openai-compat",
+            base_url="http://192.168.1.10:1234",
+        ))
+    assert result["success"] is True
+    assert result["content"] == "Hello from openai-compat"
+    assert result["prompt_tokens_actual"] == 10
+    assert result["completion_tokens_actual"] == 5
+    assert result["total_tokens_actual"] == 15
+    assert result["provider"] == "openai-compat"
+
+
+def test_openai_compat_call_parse_failure():
+    # Response is missing 'choices' entirely
+    payload = {"error": "model not found"}
+    mock_client = _make_openai_compat_client(payload)
+    with patch("llm_client.httpx.AsyncClient", return_value=mock_client):
+        result = asyncio.run(llm_client.complete(
+            prompt="Say hello",
+            system="You are helpful",
+            model="llama-3.2-3b",
+            provider="openai-compat",
+            base_url="http://192.168.1.10:1234",
+        ))
+    assert result["success"] is False
+    assert result["content"] == ""
+    assert "response shape" in result["error"].lower()
+
+
+def test_openai_compat_call_missing_usage_still_succeeds():
+    """usage field is optional — servers may omit it."""
+    payload = {
+        "choices": [{"message": {"content": "Hello"}}],
+    }
+    with patch("llm_client.httpx.AsyncClient", return_value=_make_openai_compat_client(payload)):
+        result = asyncio.run(llm_client.complete(
+            prompt="Say hello",
+            system="You are helpful",
+            model="llama-3.2-3b",
+            provider="openai-compat",
+            base_url="http://192.168.1.10:1234",
+        ))
+    assert result["success"] is True
+    assert result["content"] == "Hello"
+    assert result["prompt_tokens_actual"] is None
+    assert result["completion_tokens_actual"] is None
+    assert result["total_tokens_actual"] is None
+
+
+# ─────────────────────────────────────────────────────────────
+# OpenAI-compatible health check tests
+# ─────────────────────────────────────────────────────────────
+
+def test_openai_compat_health_check_success():
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "data": [{"id": "llama-3.2-3b"}, {"id": "mistral-7b"}]
+    }
+    mock_response.raise_for_status = MagicMock()
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.get = AsyncMock(return_value=mock_response)
+
+    with patch("llm_client.httpx.AsyncClient", return_value=mock_client):
+        result = asyncio.run(llm_client.check_openai_compat_health("http://192.168.1.10:1234"))
+
+    assert result["reachable"] is True
+    assert "llama-3.2-3b" in result["models"]
+    assert result["error"] is None
+
+
+def test_openai_compat_health_check_connection_refused():
+    import httpx
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.get = AsyncMock(side_effect=httpx.ConnectError("refused"))
+
+    with patch("llm_client.httpx.AsyncClient", return_value=mock_client):
+        result = asyncio.run(llm_client.check_openai_compat_health("http://192.168.1.10:1234"))
+
+    assert result["reachable"] is False
+    assert result["models"] == []
+    assert result["error"] is not None
+
+
+# ─────────────────────────────────────────────────────────────
+# OpenAI-compatible streaming tests
+# ─────────────────────────────────────────────────────────────
+
+_OPENAI_COMPAT_SSE_LINES = [
+    'data: ' + json.dumps({"choices": [{"delta": {"content": "Hello"}}]}),
+    'data: ' + json.dumps({"choices": [{"delta": {"content": " world"}}]}),
+    'data: ' + json.dumps({"choices": [{"delta": {"content": "!"}}]}),
+    "data: [DONE]",
+]
+
+
+class _FakeOpenAICompatStreamResponse:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        pass
+
+    def raise_for_status(self):
+        pass
+
+    async def aiter_lines(self):
+        for line in _OPENAI_COMPAT_SSE_LINES:
+            yield line
+
+
+class _FakeOpenAICompatHttpxClient:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        pass
+
+    def stream(self, *args, **kwargs):
+        return _FakeOpenAICompatStreamResponse()
+
+
+def test_complete_stream_openai_compat_yields_tokens():
+    with patch("llm_client.httpx.AsyncClient", return_value=_FakeOpenAICompatHttpxClient()):
+        tokens = run_stream(llm_client.complete_stream(
+            prompt="Say hello",
+            system="You are helpful",
+            model="llama-3.2-3b",
+            provider="openai-compat",
+            base_url="http://192.168.1.10:1234",
+        ))
+    assert tokens == ["Hello", " world", "!"]
+
+
+def test_complete_stream_openai_compat_stops_on_done():
+    lines_with_trailer = _OPENAI_COMPAT_SSE_LINES + [
+        'data: ' + json.dumps({"choices": [{"delta": {"content": "SHOULD_NOT_APPEAR"}}]}),
+    ]
+
+    class _TrailingLinesResponse(_FakeOpenAICompatStreamResponse):
+        async def aiter_lines(self):
+            for line in lines_with_trailer:
+                yield line
+
+    class _TrailingClient(_FakeOpenAICompatHttpxClient):
+        def stream(self, *args, **kwargs):
+            return _TrailingLinesResponse()
+
+    with patch("llm_client.httpx.AsyncClient", return_value=_TrailingClient()):
+        tokens = run_stream(llm_client.complete_stream(
+            prompt="Say hello",
+            system="You are helpful",
+            model="llama-3.2-3b",
+            provider="openai-compat",
+            base_url="http://192.168.1.10:1234",
+        ))
+    assert "SHOULD_NOT_APPEAR" not in tokens
+    assert tokens == ["Hello", " world", "!"]
