@@ -76,7 +76,18 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 ---
 
-## Current Phase: PHASE 2.2 — Prompt Templates + UX Polish (Active)
+## Current Phase: PHASE 2.3 — Protocol-Aware LLM Servers (Active)
+
+See `app_docs/WORKORDER_p2.3.md` for full implementation detail.
+
+### Phase 2.3 — Goal
+Replace `server_type = 'local'` with a protocol discriminator (`'ollama'` | `'openai-compat'` | `'anthropic'`). Add full support for OpenAI-compatible endpoints (llama.cpp, LM Studio, vLLM) using `/v1/chat/completions`. Add auto-detection of server type via "Test Connection" in Settings.
+
+**Status:** 🔲 Not started — workorder written 2026-06-17
+
+---
+
+## Phase 2.2 — Prompt Templates + UX Polish (Complete)
 
 See `app_docs/WORKORDER_p2.2.md` for full implementation detail.
 
@@ -100,6 +111,15 @@ See `app_docs/WORKORDER_p2.2.md` for full implementation detail.
 - `PromptEditor.tsx` textarea height: `rows` prop dropped entirely; callback ref sets `scrollHeight` on mount; `onChange` repeats resize; `overflow-hidden` prevents scrollbar flicker; `resize-y` kept for manual drag
 - `tests/routes/test_prompts.py`: `test_returns_startup_seeded_prompts` updated — asserts `eval_analysis`, `eval_scoring`, `eval_external` instead of removed `eval_internal`
 - Note: `SYSTEM_PROMPT_TEMPLATE` in `evaluator.py` is now dead code (no remaining callers) — deferred cleanup
+
+### Phase 2.2 — Step 5: CI Lint Fixes + PromptEditor Textarea Auto-Height ✅
+- CI lint errors fixed (unused endpoint import, ambiguous variable name `l`)
+- `PromptEditor.tsx` textarea height: switched from `rows` formula to `scrollHeight` via callback ref on mount; `onChange` repeats resize; `overflow-hidden` prevents scrollbar flicker
+
+### Phase 2.2 — Step 6: Gen Prompt Migration to Template System ✅
+- `gen_resume`, `gen_cover`, `gen_orgsummary` prompts migrated to `templates/prompts/` using `[[PROMPT_START]]` / `[[PROMPT_END]]` markers
+- All 6 prompts (3 eval + 3 gen) now managed through the template system
+- Test baseline: 629 backend / 263 frontend
 
 ---
 
