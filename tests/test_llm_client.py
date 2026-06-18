@@ -401,3 +401,104 @@ def test_complete_stream_openai_compat_stops_on_done():
         ))
     assert "SHOULD_NOT_APPEAR" not in tokens
     assert tokens == ["Hello", " world", "!"]
+
+
+# ─────────────────────────────────────────────────────────────
+# Temperature passthrough tests
+# ─────────────────────────────────────────────────────────────
+
+def test_complete_passes_temperature_to_ollama():
+    captured = {}
+
+    async def fake_post(url, **kwargs):
+        captured["json"] = kwargs.get("json", {})
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json.return_value = {
+            "message": {"content": "ok"},
+            "prompt_eval_count": 10,
+            "eval_count": 5,
+        }
+        return mock_response
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.post = fake_post
+
+    with patch("llm_client.httpx.AsyncClient", return_value=mock_client):
+        asyncio.run(llm_client.complete(
+            prompt="hi",
+            system="sys",
+            model="llama3",
+            provider="ollama",
+            base_url="http://localhost:11434",
+            temperature=0.7,
+        ))
+
+    assert captured["json"]["options"]["temperature"] == 0.7
+
+
+def test_complete_passes_temperature_to_openai_compat():
+    captured = {}
+
+    async def fake_post(url, **kwargs):
+        captured["json"] = kwargs.get("json", {})
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "ok"}}],
+            "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
+        }
+        return mock_response
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.post = fake_post
+
+    with patch("llm_client.httpx.AsyncClient", return_value=mock_client):
+        asyncio.run(llm_client.complete(
+            prompt="hi",
+            system="sys",
+            model="llama-3.2",
+            provider="openai-compat",
+            base_url="http://192.168.1.10:1234",
+            temperature=0.4,
+        ))
+
+    assert captured["json"]["temperature"] == 0.4
+
+
+def test_complete_passes_temperature_to_anthropic():
+    captured_kwargs: dict = {}
+
+    async def fake_create(**kwargs):
+        captured_kwargs.update(kwargs)
+        mock_response = MagicMock()
+        mock_response.content = [MagicMock(text="ok")]
+        mock_response.usage = MagicMock(input_tokens=5, output_tokens=3)
+        mock_response.model = "claude-sonnet-4-6"
+        return mock_response
+
+    mock_messages = MagicMock()
+    mock_messages.create = fake_create
+    mock_client = MagicMock()
+    mock_client.messages = mock_messages
+
+    class FakeAsyncAnthropic:
+        def __init__(self, **kwargs):
+            self.messages = mock_messages
+
+    with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
+        with patch("anthropic.AsyncAnthropic", new=FakeAsyncAnthropic):
+            asyncio.run(llm_client.complete(
+                prompt="hi",
+                system="sys",
+                model="claude-sonnet-4-6",
+                provider="anthropic",
+                base_url="",
+                temperature=0.3,
+            ))
+
+    assert captured_kwargs.get("temperature") == 0.3

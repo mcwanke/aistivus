@@ -330,6 +330,9 @@ export const handlers = [
   http.get('/api/v1/jobs', () => HttpResponse.json([MOCK_JOB])),
   http.get('/api/v1/jobs/:id', () => HttpResponse.json(MOCK_JOB_DETAIL)),
   http.patch('/api/v1/jobs/:id', () => new HttpResponse(null, { status: 200 })),
+  http.post('/api/v1/jobs/:id/re-evaluate', () =>
+    HttpResponse.json({ success: true, evaluation_id: 1, job_id: 1, evaluation: { score_overall: 7.5 }, error: null, duplicate_detected: false, existing_jobs: null, prompt_usage_id: null }),
+  ),
   http.post('/api/v1/jobs/:id/activate', () =>
     HttpResponse.json({ ...MOCK_JOB_DETAIL.job, is_active: 1 }),
   ),

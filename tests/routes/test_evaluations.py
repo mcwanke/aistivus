@@ -335,3 +335,58 @@ class TestGetEvaluation:
         assert data["score_overall"] == 8.0
         assert data["fit_type"] == "Core Fit"
         assert data["company_name"] == "Test Corp"
+
+
+# ─────────────────────────────────────────────────────────────
+# POST /api/v1/jobs/{job_id}/re-evaluate
+# ─────────────────────────────────────────────────────────────
+
+class TestReEvaluateEndpoint:
+    def test_job_not_found_returns_404(self, seeded_client):
+        resp = seeded_client["client"].post(
+            "/api/v1/jobs/9999/re-evaluate",
+            json={"llm_model_id": seeded_client["model_id"]},
+        )
+        assert resp.status_code == 404
+
+    def test_model_not_found_returns_404(self, seeded_client, jobsearch_file):
+        resp = seeded_client["client"].post(
+            f"/api/v1/jobs/{seeded_client['job_id']}/re-evaluate",
+            json={"llm_model_id": 9999},
+        )
+        assert resp.status_code == 404
+
+    def test_model_unavailable_returns_422(self, seeded_client, jobsearch_file, monkeypatch):
+        import database as db
+        db.set_llm_model_available(seeded_client["model_id"], 0)
+        resp = seeded_client["client"].post(
+            f"/api/v1/jobs/{seeded_client['job_id']}/re-evaluate",
+            json={"llm_model_id": seeded_client["model_id"]},
+        )
+        assert resp.status_code == 422
+
+    def test_no_jd_returns_422(self, client, jobsearch_file):
+        import database as db
+        server_id = db.create_server("Local Ollama", "http://localhost:11434", "ollama")
+        model_id = db.insert_llm_model("test-model", server_id, default_flag=1, available=1)
+        # Job with no description_merged and no posting
+        job_id, _ = db.upsert_job("Corp", "Role", "backend")
+        resp = client.post(
+            f"/api/v1/jobs/{job_id}/re-evaluate",
+            json={"llm_model_id": model_id},
+        )
+        assert resp.status_code == 422
+        assert "No job description" in resp.json()["detail"]
+
+    def test_success_returns_evaluation(self, seeded_client, jobsearch_file):
+        mock = AsyncMock(side_effect=[_LLM_ANALYSIS_SUCCESS, _LLM_SUCCESS])
+        with patch("llm_client.complete", new=mock):
+            resp = seeded_client["client"].post(
+                f"/api/v1/jobs/{seeded_client['job_id']}/re-evaluate",
+                json={"llm_model_id": seeded_client["model_id"]},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert data["evaluation_id"] is not None
+        assert data["job_id"] == seeded_client["job_id"]

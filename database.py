@@ -1362,12 +1362,19 @@ def insert_evaluation(job_id: int, llm_model_id: int, **kwargs) -> int:
 
 
 def get_evaluations_for_job(job_id: int) -> list[sqlite3.Row]:
-    """Return all evaluations for a job with model name and LLM prompt, newest first."""
+    """Return all evaluations for a job with model name, prompt metadata, newest first."""
     with get_connection() as conn:
         return conn.execute(
-            """SELECT e.*, m.model AS model_name
+            """SELECT e.*, m.model AS model_name,
+                      pu.prompt_version AS prompt_version,
+                      CASE WHEN e.llm_call_log_id IS NULL THEN 'external' ELSE 'local' END AS eval_source,
+                      p.temperature AS temperature
                FROM evaluations e
                JOIN llm_models m ON m.id = e.llm_model_id
+               LEFT JOIN llm_call_log l  ON l.id  = e.llm_call_log_id
+               LEFT JOIN prompt_usage pu ON pu.id = l.prompt_usage_id
+               LEFT JOIN prompts p       ON p.prompt_key = pu.prompt_key
+                                        AND p.version    = pu.prompt_version
                WHERE e.job_id = ?
                ORDER BY e.evaluated_at DESC, e.id DESC""",
             (job_id,)

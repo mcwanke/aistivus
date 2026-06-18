@@ -93,6 +93,23 @@ class TestListApplications:
         assert app["company_name"] == "Test Corp"
         assert app["title"] == "Software Engineer"
 
+    def test_includes_not_started_when_param_set(self, seeded_client):
+        # Default state: job has a not-started application, excluded by default
+        resp = seeded_client["client"].get(
+            "/api/v1/applications?include_not_started=true"
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["application_status"] == "not-started"
+
+    def test_excludes_not_started_by_default(self, seeded_client):
+        resp = seeded_client["client"].get("/api/v1/applications")
+        assert resp.status_code == 200
+        data = resp.json()
+        statuses = [a["application_status"] for a in data]
+        assert "not-started" not in statuses
+
 
 # ─────────────────────────────────────────────────────────────
 # GET /api/v1/applications/{id}

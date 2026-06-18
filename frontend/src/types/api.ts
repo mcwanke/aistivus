@@ -215,7 +215,12 @@ export interface CompanyLogEntry {
 
 export interface JobDetailResponse {
   job: Job
-  evaluations: Array<Evaluation & { model_name: string; prompt: string | null }>
+  evaluations: Array<Evaluation & {
+    model_name: string
+    eval_source: 'local' | 'external'
+    prompt_version: number | null
+    temperature: number | null
+  }>
   postings: JobPosting[]
   company_log: CompanyLogEntry[]
 }

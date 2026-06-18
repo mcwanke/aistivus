@@ -76,7 +76,11 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 ---
 
-## Current Phase: PHASE 2.4 — Temperature + Batch Re-Eval (In Progress)
+## Current Phase: PHASE 2.5 — TBD (Not Yet Designed)
+
+---
+
+## Phase 2.4 — Temperature + Batch Re-Eval (Complete)
 
 See `app_docs/WORKORDER_p2.4.md` for full implementation detail.
 
@@ -107,8 +111,23 @@ See `app_docs/WORKORDER_p2.4.md` for full implementation detail.
 #### Step 6 — Applications Page Redesign (Backend) ✅
 - `main.py`: `GET /api/v1/applications` gains `include_not_started: bool = False` query param; passes `exclude_not_started=not include_not_started` to DB function
 
-#### Steps 7–8 — Frontend Redesign + Tests 🔲
-- Pending next session
+#### Step 7 — Applications Page Redesign (Frontend) ✅
+- `useApplications(includeNotStarted?)` param added; Applications page passes `true`
+- Status filter pills (all 10, client-side toggle); "N of M jobs" header
+- Batch action bar: select-all checkbox, N-selected count, `ModelSelect`, Re-run Evals button
+- Per-row checkbox (separate click target from navigation); row click → `/jobs/{id}?tab=application`
+- `BatchEvalModal`: sequential `POST /api/v1/jobs/{id}/re-evaluate` loop, progress bar, time estimate, Stop / Stop & Close, cache invalidation on close
+
+#### Bonus — Eval Row Metadata ✅
+- `get_evaluations_for_job` extended with LEFT JOINs to `llm_call_log` → `prompt_usage` → `prompts`
+- Eval rows now display: `local · model · v4 · 0.3` or `external · model`
+- `prompt` field dropped entirely (column was removed from `llm_call_log` by prior delta migration)
+
+#### Step 8 — Tests ✅
+- Backend: `TestReEvaluateEndpoint` (5), `TestPromptTemperature` (3), temperature passthrough (3), `include_not_started` (2)
+- Frontend: `Applications.test.tsx` rewritten (11), `ModelSelect.test.tsx` new (4), `BatchEvalModal.test.tsx` new (6)
+- Global MSW handler for `POST /api/v1/jobs/:id/re-evaluate`
+- Test baseline: 660 backend / 282 frontend
 
 ---
 

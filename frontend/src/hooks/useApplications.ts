@@ -3,8 +3,9 @@ import type { ApplicationListItem, ApplicationDetailResponse, AppSetting } from 
 
 // ─── Fetchers ─────────────────────────────────────────────────────────────────
 
-async function fetchApplications(): Promise<ApplicationListItem[]> {
-  const res = await fetch('/api/v1/applications')
+async function fetchApplications(includeNotStarted = false): Promise<ApplicationListItem[]> {
+  const url = includeNotStarted ? '/api/v1/applications?include_not_started=true' : '/api/v1/applications'
+  const res = await fetch(url)
   if (!res.ok) throw new Error(`applications ${res.status}`)
   return res.json() as Promise<ApplicationListItem[]>
 }
@@ -17,8 +18,11 @@ async function fetchApplicationDetail(id: number): Promise<ApplicationDetailResp
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
-export function useApplications() {
-  return useQuery({ queryKey: ['applications'], queryFn: fetchApplications })
+export function useApplications(includeNotStarted = false) {
+  return useQuery({
+    queryKey: ['applications', includeNotStarted],
+    queryFn: () => fetchApplications(includeNotStarted),
+  })
 }
 
 export function useApplicationDetail(id: number | undefined) {

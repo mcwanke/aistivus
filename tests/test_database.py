@@ -1107,3 +1107,35 @@ class TestGetEarliestApplicationForJob:
         assert result == first_app_id
 
 
+
+
+# ─────────────────────────────────────────────────────────────
+# Prompt temperature
+# ─────────────────────────────────────────────────────────────
+
+class TestPromptTemperature:
+    def test_save_prompt_stores_temperature(self, tmp_db):
+        database.seed_prompt_if_missing(
+            "test_prompt", "Test Prompt", "[[EDITABLE]]\nSay hello.\n[[/EDITABLE]]", temperature=0.7
+        )
+        row = database.get_active_prompt("test_prompt")
+        assert row is not None
+        assert row["temperature"] == 0.7
+
+    def test_get_active_prompt_returns_temperature(self, tmp_db):
+        database.seed_prompt_if_missing(
+            "temp_field_test", "Temp Test", "[[EDITABLE]]\nhi\n[[/EDITABLE]]", temperature=0.6
+        )
+        row = database.get_active_prompt("temp_field_test")
+        assert row is not None
+        assert "temperature" in dict(row).keys()
+        assert row["temperature"] == 0.6
+
+    def test_save_prompt_updates_temperature(self, tmp_db):
+        database.seed_prompt_if_missing(
+            "test_prompt2", "Test 2", "[[EDITABLE]]\nHello.\n[[/EDITABLE]]", temperature=0.0
+        )
+        database.save_prompt("test_prompt2", "[[EDITABLE]]\nUpdated.\n[[/EDITABLE]]", temperature=0.5)
+        row = database.get_active_prompt("test_prompt2")
+        assert row is not None
+        assert row["temperature"] == 0.5

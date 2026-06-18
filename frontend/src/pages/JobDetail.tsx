@@ -543,19 +543,15 @@ function MyRatingsSection({ jobId, job }: MyRatingsSectionProps): React.JSX.Elem
 
 // ─── Evaluation card (expandable row) ─────────────────────────────────────────
 
-type EvalWithMeta = Evaluation & { model_name: string; prompt: string | null }
+type EvalWithMeta = Evaluation & {
+  model_name: string
+  eval_source: 'local' | 'external'
+  prompt_version: number | null
+  temperature: number | null
+}
 
 function EvalRow({ evaluation }: { evaluation: EvalWithMeta }): React.JSX.Element {
   const [open, setOpen] = useState(false)
-  const [copied, setCopied] = useState(false)
-
-  function copyPrompt(): void {
-    if (!evaluation.prompt) return
-    void navigator.clipboard.writeText(evaluation.prompt).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    })
-  }
 
   return (
     <div className="bg-surface2 rounded mb-0.5 last:mb-0 hover:bg-[#2a2a2a] transition-colors">
@@ -565,7 +561,9 @@ function EvalRow({ evaluation }: { evaluation: EvalWithMeta }): React.JSX.Elemen
       >
         <span className="text-[10px] font-mono text-muted w-24 shrink-0">{fmtDate(evaluation.evaluated_at)}</span>
         <span className="text-xs font-mono text-muted flex-1 group-hover:text-text transition-colors truncate">
-          {evaluation.model_name}
+          {evaluation.eval_source} · {evaluation.model_name}
+          {evaluation.prompt_version != null && ` · v${evaluation.prompt_version}`}
+          {evaluation.eval_source === 'local' && evaluation.temperature != null && ` · ${evaluation.temperature}`}
         </span>
         <span className="text-xs font-mono text-text shrink-0">
           {evaluation.score_overall != null ? `${fmtScore(evaluation.score_overall)}/10` : '—'}
@@ -651,23 +649,6 @@ function EvalRow({ evaluation }: { evaluation: EvalWithMeta }): React.JSX.Elemen
             </div>
           )}
 
-          {/* LLM Prompt */}
-          {evaluation.prompt && (
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-[10px] font-mono text-muted uppercase tracking-widest">LLM Prompt</p>
-                <button
-                  onClick={copyPrompt}
-                  className="text-xs font-mono text-muted hover:text-accent transition-colors px-2 py-0.5 border border-surface2 rounded"
-                >
-                  {copied ? 'Copied!' : 'Copy'}
-                </button>
-              </div>
-              <pre className="text-[10px] font-mono text-muted/70 leading-relaxed whitespace-pre-wrap break-words bg-surface2 rounded p-2 max-h-40 overflow-y-auto">
-                {evaluation.prompt}
-              </pre>
-            </div>
-          )}
         </div>
       )}
     </div>
