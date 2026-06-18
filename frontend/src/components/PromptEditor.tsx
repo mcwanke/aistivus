@@ -40,13 +40,18 @@ function reassembleSegments(segments: Segment[]): string {
     .join('')
 }
 
+const EVAL_PROMPT_KEYS = ['eval_analysis', 'eval_scoring']
+
 export default function PromptEditor(): React.JSX.Element {
   const [selectedKey, setSelectedKey] = useState<string>('')
   const [localSegments, setLocalSegments] = useState<Segment[]>([])
+  const [localTemperature, setLocalTemperature] = useState<number>(0.0)
   const [savedVersion, setSavedVersion] = useState<number | null>(null)
   const [suggestions, setSuggestions] = useState<string | null>(null)
   const [suggestionsVisible, setSuggestionsVisible] = useState(false)
   const [noFeedbackMsg, setNoFeedbackMsg] = useState(false)
+
+  const showTemperature = EVAL_PROMPT_KEYS.includes(selectedKey)
 
   const { data: promptList } = usePrompts()
   const { data: promptData } = usePrompt(selectedKey)
@@ -63,6 +68,7 @@ export default function PromptEditor(): React.JSX.Element {
   useEffect(() => {
     if (promptData) {
       setLocalSegments(parseSegments(promptData.segments_text))
+      setLocalTemperature(promptData.temperature ?? 0.0)
       setSavedVersion(null)
       setSuggestions(null)
       setSuggestionsVisible(false)
@@ -80,7 +86,7 @@ export default function PromptEditor(): React.JSX.Element {
   function handleSave(): void {
     const segmentsText = reassembleSegments(localSegments)
     saveMutation.mutate(
-      { segments_text: segmentsText },
+      { segments_text: segmentsText, temperature: localTemperature },
       {
         onSuccess: data => {
           setSavedVersion(data.version)
@@ -123,6 +129,20 @@ export default function PromptEditor(): React.JSX.Element {
         </select>
         {promptData && (
           <span className="text-xs text-muted font-mono">v{promptData.version}</span>
+        )}
+        {showTemperature && (
+          <label className="flex items-center gap-1.5 text-xs text-muted font-mono">
+            Temp:
+            <input
+              type="number"
+              min={0}
+              max={1}
+              step={0.05}
+              value={localTemperature}
+              onChange={e => { setLocalTemperature(parseFloat(e.target.value)); setSavedVersion(null); }}
+              className="w-16 bg-surface border border-surface2 text-text rounded px-2 py-1 focus:outline-none focus:border-accent/50"
+            />
+          </label>
         )}
 
         <div className="ml-auto flex items-center gap-2">

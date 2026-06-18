@@ -778,19 +778,20 @@ async def lifespan(app: FastAPI):
     database.init_db()
 
     _PROMPT_TEMPLATES = [
-        ("eval_external", "External Evaluation Prompt", "eval_external.md", EXTERNAL_EVAL_PROMPT_TEMPLATE),
-        ("eval_analysis", "Evaluation — Analysis", "eval_analysis.md", evaluator.EVAL_ANALYSIS_PROMPT_TEMPLATE),
-        ("eval_scoring", "Evaluation — Scoring", "eval_scoring.md", evaluator.EVAL_SCORING_PROMPT_TEMPLATE),
-        ("gen_resume", "Resume Generation Prompt", "gen_resume.md", RESUME_PROMPT_TEMPLATE),
-        ("gen_cover", "Cover Letter Generation Prompt", "gen_cover.md", COVER_PROMPT_TEMPLATE),
-        ("gen_orgsummary", "Org Summary Prompt", "gen_orgsummary.md", GEN_ORGSUMMARY_PROMPT_TEMPLATE),
+        ("eval_external", "External Evaluation Prompt", "eval_external.md", EXTERNAL_EVAL_PROMPT_TEMPLATE, 0.0),
+        ("eval_analysis", "Evaluation — Analysis", "eval_analysis.md", evaluator.EVAL_ANALYSIS_PROMPT_TEMPLATE, 0.3),
+        ("eval_scoring", "Evaluation — Scoring", "eval_scoring.md", evaluator.EVAL_SCORING_PROMPT_TEMPLATE, 0.3),
+        ("gen_resume", "Resume Generation Prompt", "gen_resume.md", RESUME_PROMPT_TEMPLATE, 0.0),
+        ("gen_cover", "Cover Letter Generation Prompt", "gen_cover.md", COVER_PROMPT_TEMPLATE, 0.0),
+        ("gen_orgsummary", "Org Summary Prompt", "gen_orgsummary.md", GEN_ORGSUMMARY_PROMPT_TEMPLATE, 0.0),
     ]
-    for _key, _label, _filename, _fallback in _PROMPT_TEMPLATES:
+    for _key, _label, _filename, _fallback, _temperature in _PROMPT_TEMPLATES:
         _tagged = load_prompt_template(_filename)
         database.seed_prompt_if_missing(
             prompt_key=_key,
             label=_label,
             segments_text=_tagged if _tagged is not None else _fallback,
+            temperature=_temperature,
         )
         # v2 migration: if active row has no [[EDITABLE]] tags, re-seed with tagged text
         if _tagged is not None:
@@ -935,6 +936,10 @@ class EvaluateResponse(BaseModel):
 class RerunRequest(BaseModel):
     job_id: int
     llm_model_id: int | None = None
+
+
+class ReEvaluateRequest(BaseModel):
+    llm_model_id: int
 
 
 class ImportEvaluationRequest(BaseModel):
@@ -1109,6 +1114,7 @@ class PromptUsageFeedbackRequest(BaseModel):
 class PromptSaveRequest(BaseModel):
     segments_text: str
     note: str | None = None
+    temperature: float = 0.0
 
 
 # Valid application status values per spec
@@ -1320,6 +1326,42 @@ async def rerun_evaluation(request: Request, body: RerunRequest):
         location=job_dict.get("location"),
         remote_type=job_dict.get("remote_type"),
         llm_model_id=body.llm_model_id,
+    )
+    return JSONResponse(result)
+
+
+@app.post("/api/v1/jobs/{job_id}/re-evaluate")
+@limiter.limit("30/minute")
+async def re_evaluate_job(request: Request, job_id: int, body: ReEvaluateRequest):
+    """Re-run the full eval pipeline for a job using its stored JD."""
+    job = database.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found.")
+
+    model_row = database.get_llm_model(body.llm_model_id)
+    if not model_row:
+        raise HTTPException(status_code=404, detail=f"LLM model {body.llm_model_id} not found.")
+    if dict(model_row).get("available") != 1:
+        raise HTTPException(status_code=422, detail=f"LLM model {body.llm_model_id} is not available.")
+
+    job_dict = dict(job)
+    jd_text = job_dict.get("description_merged") or ""
+    if not jd_text:
+        postings = database.get_postings_for_job(job_id)
+        if postings:
+            jd_text = dict(postings[0]).get("description_raw") or ""
+
+    if not jd_text.strip():
+        raise HTTPException(status_code=422, detail="No job description found for this job.")
+
+    result = await evaluator.evaluate_jd(
+        jd_text=jd_text,
+        company_name=job_dict.get("company_name", "Unknown Company"),
+        job_title=job_dict.get("title", "Unknown Role"),
+        location=job_dict.get("location"),
+        remote_type=job_dict.get("remote_type"),
+        llm_model_id=body.llm_model_id,
+        existing_job_id=job_id,
     )
     return JSONResponse(result)
 
@@ -1792,9 +1834,9 @@ async def create_application(request: Request, body: CreateApplicationRequest):
 
 @app.get("/api/v1/applications")
 @limiter.limit("60/minute")
-async def list_applications(request: Request):
-    """All active applications (excludes not-started) with job info."""
-    rows = database.get_all_applications(exclude_not_started=True)
+async def list_applications(request: Request, include_not_started: bool = False):
+    """All applications with job info. Excludes not-started by default."""
+    rows = database.get_all_applications(exclude_not_started=not include_not_started)
     return JSONResponse([dict(r) for r in rows])
 
 
@@ -2818,7 +2860,7 @@ async def save_prompt(request: Request, key: str, body: PromptSaveRequest):
     existing = database.get_active_prompt(key)
     if not existing:
         raise HTTPException(status_code=404, detail=f"Prompt '{key}' not found.")
-    database.save_prompt(key, body.segments_text, body.note)
+    database.save_prompt(key, body.segments_text, body.note, body.temperature)
     updated = database.get_active_prompt(key)
     return JSONResponse({"success": True, "version": updated["version"]})
 

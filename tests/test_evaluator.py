@@ -113,11 +113,6 @@ def jobsearch_file(tmp_path, monkeypatch):
 def eval_setup(tmp_db, model_id, jobsearch_file):
     """DB + model + jobsearch.md for evaluator integration tests."""
     database.seed_prompt_if_missing(
-        prompt_key="eval_internal",
-        label="Internal Evaluation Prompt",
-        segments_text=evaluator.SYSTEM_PROMPT_TEMPLATE,
-    )
-    database.seed_prompt_if_missing(
         prompt_key="eval_analysis",
         label="Evaluation — Analysis",
         segments_text=evaluator.EVAL_ANALYSIS_PROMPT_TEMPLATE,

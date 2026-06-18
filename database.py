@@ -344,7 +344,8 @@ CREATE TABLE IF NOT EXISTS prompts (
     preview_context  TEXT,
     saved_at         TEXT NOT NULL DEFAULT (datetime('now')),
     note             TEXT,
-    is_active        INTEGER NOT NULL DEFAULT 0
+    is_active        INTEGER NOT NULL DEFAULT 0,
+    temperature      REAL NOT NULL DEFAULT 0.0
 );
 
 CREATE TABLE IF NOT EXISTS prompt_usage (
@@ -491,6 +492,13 @@ def init_db() -> None:
 
         try:
             conn.execute("ALTER TABLE evaluations ADD COLUMN analysis_json TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+        try:
+            conn.execute(
+                "ALTER TABLE prompts ADD COLUMN temperature REAL NOT NULL DEFAULT 0.0"
+            )
         except sqlite3.OperationalError:
             pass  # column already exists
 
@@ -2208,7 +2216,7 @@ def get_active_prompt(prompt_key: str) -> dict | None:
     with get_connection() as conn:
         row = conn.execute(
             """SELECT id, prompt_key, label, version, segments_text,
-                      preview_context, saved_at, note
+                      preview_context, saved_at, note, temperature
                FROM prompts
                WHERE prompt_key = ? AND is_active = 1""",
             (prompt_key,)
@@ -2216,7 +2224,12 @@ def get_active_prompt(prompt_key: str) -> dict | None:
         return dict(row) if row else None
 
 
-def save_prompt(prompt_key: str, segments_text: str, note: str | None = None) -> int:
+def save_prompt(
+    prompt_key: str,
+    segments_text: str,
+    note: str | None = None,
+    temperature: float = 0.0,
+) -> int:
     """
     Save a new version of a prompt.
     Deactivates the current active row; carries forward label and preview_context.
@@ -2242,9 +2255,9 @@ def save_prompt(prompt_key: str, segments_text: str, note: str | None = None) ->
         )
         conn.execute(
             """INSERT INTO prompts
-               (prompt_key, label, version, segments_text, preview_context, note, is_active)
-               VALUES (?, ?, ?, ?, ?, ?, 1)""",
-            (prompt_key, label, next_version, segments_text, preview_context, note)
+               (prompt_key, label, version, segments_text, preview_context, note, is_active, temperature)
+               VALUES (?, ?, ?, ?, ?, ?, 1, ?)""",
+            (prompt_key, label, next_version, segments_text, preview_context, note, temperature)
         )
         return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
@@ -2268,6 +2281,7 @@ def seed_prompt_if_missing(
     label: str,
     segments_text: str,
     preview_context: str | None = None,
+    temperature: float = 0.0,
 ) -> None:
     """Insert a prompt at version=1, is_active=1 if no rows exist for the key."""
     with get_connection() as conn:
@@ -2279,9 +2293,9 @@ def seed_prompt_if_missing(
             return
         conn.execute(
             """INSERT INTO prompts
-               (prompt_key, label, version, segments_text, preview_context, is_active)
-               VALUES (?, ?, 1, ?, ?, 1)""",
-            (prompt_key, label, segments_text, preview_context)
+               (prompt_key, label, version, segments_text, preview_context, is_active, temperature)
+               VALUES (?, ?, 1, ?, ?, 1, ?)""",
+            (prompt_key, label, segments_text, preview_context, temperature)
         )
 
 

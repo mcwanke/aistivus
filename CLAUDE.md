@@ -76,7 +76,43 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 ---
 
-## Current Phase: PHASE 2.3 — Protocol-Aware LLM Servers (Complete)
+## Current Phase: PHASE 2.4 — Temperature + Batch Re-Eval (In Progress)
+
+See `app_docs/WORKORDER_p2.4.md` for full implementation detail.
+
+### Phase 2.4 — Progress
+
+#### Step 1 — Dead Code Cleanup ✅
+- `evaluator.py`: removed `SYSTEM_PROMPT_TEMPLATE` and `EVALUATION_USER_PROMPT` (no callers since Phase 2.2)
+- `tests/test_evaluator.py`: removed vestigial `eval_internal` seed from `eval_setup` fixture
+
+#### Step 2 — Temperature: Backend ✅
+- `database.py`: `temperature REAL NOT NULL DEFAULT 0.0` added to `prompts` DDL + delta migration; `get_active_prompt()` selects temperature; `save_prompt()` + `seed_prompt_if_missing()` accept and write temperature
+- `prompt_generation.py`: `get_prompt()` returns `temperature` in result dict
+- `llm_client.py`: `temperature: float = 0.0` added to `complete()`, `complete_stream()`, `_call_ollama()`, `_call_openai_compat()`, `_call_anthropic()`, `_stream_openai_compat()`; passed through to each provider's request body
+- `evaluator.py`: all three `llm_client.complete()` calls in `evaluate_with_split()` pass `temperature` from prompt result
+- `main.py`: `PromptSaveRequest` gets `temperature: float = 0.0`; save route passes it through; seed loop expanded to 5-tuple with temperature (eval prompts: 0.3, gen prompts: 0.0)
+
+#### Step 3 — Temperature: Frontend ✅
+- `types/api.ts`: `PromptRecord` + `PromptSavePayload` both gain `temperature: number`
+- `PromptEditor.tsx`: `localTemperature` state synced from `promptData.temperature`; numeric input shown in header row for `eval_analysis` / `eval_scoring` only; included in save payload
+
+#### Step 4 — Extract `ModelSelect` Component ✅
+- `frontend/src/components/ModelSelect.tsx`: new shared component (props: `models`, `value`, `onChange`, `disabled`); grouped by server, sorted, unavailable disabled
+- `Evaluate.tsx`: inline model selector replaced with `<ModelSelect />`
+
+#### Step 5 — Re-Evaluate Endpoint ✅
+- `main.py`: `ReEvaluateRequest` Pydantic model added; `POST /api/v1/jobs/{job_id}/re-evaluate` route added — loads stored JD, validates model availability (422), runs `evaluator.evaluate_jd()` with `existing_job_id`
+
+#### Step 6 — Applications Page Redesign (Backend) ✅
+- `main.py`: `GET /api/v1/applications` gains `include_not_started: bool = False` query param; passes `exclude_not_started=not include_not_started` to DB function
+
+#### Steps 7–8 — Frontend Redesign + Tests 🔲
+- Pending next session
+
+---
+
+## Phase 2.3 — Protocol-Aware LLM Servers (Complete)
 
 See `app_docs/WORKORDER_p2.3.md` for full implementation detail.
 

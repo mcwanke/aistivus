@@ -11,6 +11,7 @@ import {
 import type { EvaluateResponse, ExistingJob } from '@/types/api'
 import AppHeader from '@/components/AppHeader'
 import EvaluationFeedbackButton from '@/components/EvaluationFeedbackButton'
+import ModelSelect from '@/components/ModelSelect'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -588,39 +589,12 @@ export default function Evaluate(): React.JSX.Element {
           {models.length > 0 && (
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-mono text-muted uppercase tracking-wider">Model</label>
-              <select
-                value={selectedModelId ?? ''}
-                onChange={(e) =>
-                  setSelectedModelId(e.target.value ? parseInt(e.target.value, 10) : null)
-                }
+              <ModelSelect
+                models={models}
+                value={selectedModelId}
+                onChange={setSelectedModelId}
                 disabled={isRunning}
-                className="bg-surface border border-surface2 rounded px-3 py-2 text-sm font-mono text-text focus:outline-none focus:border-accent/50 disabled:opacity-50"
-              >
-                {Array.from(
-                  [...models]
-                    .sort((a, b) => {
-                      const s = a.server_name.localeCompare(b.server_name)
-                      return s !== 0 ? s : a.model.localeCompare(b.model)
-                    })
-                    .reduce<Map<string, typeof models>>((acc, m) => {
-                      const g = acc.get(m.server_name) ?? []
-                      g.push(m)
-                      acc.set(m.server_name, g)
-                      return acc
-                    }, new Map())
-                    .entries(),
-                ).map(([serverName, serverModels]) => (
-                  <optgroup key={serverName} label={serverName}>
-                    {serverModels.map((m) => (
-                      <option key={m.id} value={m.id} disabled={m.available !== 1}>
-                        {m.model}
-                        {m.default_flag === 1 ? ' (default)' : ''}
-                        {m.available !== 1 ? ' (unavailable)' : ''}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
+              />
             </div>
           )}
 

@@ -524,11 +524,13 @@ export interface PromptRecord {
   version: number
   segments_text: string
   preview_context: string | null
+  temperature: number
 }
 
 export interface PromptSavePayload {
   segments_text: string
   note?: string
+  temperature: number
 }
 
 export interface PromptPreviewResult {

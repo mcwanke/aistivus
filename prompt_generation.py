@@ -32,4 +32,8 @@ def get_prompt(
         job_id=job_id,
     )
 
-    return {"prompt_text": prompt_text, "prompt_usage_id": prompt_usage_id}
+    return {
+        "prompt_text": prompt_text,
+        "prompt_usage_id": prompt_usage_id,
+        "temperature": row.get("temperature", 0.0),
+    }

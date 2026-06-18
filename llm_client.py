@@ -41,6 +41,7 @@ async def complete(
     max_tokens: int = 2000,
     timeout: float = 300.0,
     think: bool = True,
+    temperature: float = 0.0,
 ) -> dict[str, Any]:
     """
     Send a completion request to the configured LLM provider.
@@ -75,6 +76,7 @@ async def complete(
             max_tokens=max_tokens,
             timeout=timeout,
             think=think,
+            temperature=temperature,
         )
 
     elif provider == PROVIDER_ANTHROPIC:
@@ -83,6 +85,7 @@ async def complete(
             system=system,
             model=model,
             max_tokens=max_tokens,
+            temperature=temperature,
         )
 
     elif provider == PROVIDER_OPENAI_COMPAT:
@@ -93,6 +96,7 @@ async def complete(
             base_url=base_url,
             max_tokens=max_tokens,
             timeout=timeout,
+            temperature=temperature,
         )
 
     return _error_response(
@@ -114,6 +118,7 @@ async def complete_stream(
     base_url: str = "http://localhost:11434",
     max_tokens: int = 2000,
     timeout: float = 300.0,
+    temperature: float = 0.0,
 ) -> AsyncGenerator[str, None]:
     """
     Stream tokens from the configured LLM provider.
@@ -147,6 +152,7 @@ async def complete_stream(
             base_url=base_url,
             max_tokens=max_tokens,
             timeout=timeout,
+            temperature=temperature,
         ):
             yield token
     else:
@@ -235,6 +241,7 @@ async def _call_openai_compat(
     base_url: str,
     max_tokens: int,
     timeout: float,
+    temperature: float = 0.0,
 ) -> dict[str, Any]:
     """Call an OpenAI-compatible /v1/chat/completions endpoint."""
     url = f"{base_url.rstrip('/')}/v1/chat/completions"
@@ -245,7 +252,7 @@ async def _call_openai_compat(
             {"role": "user", "content": prompt},
         ],
         "stream": False,
-        "temperature": 0,
+        "temperature": temperature,
         "max_tokens": max_tokens,
     }
 
@@ -317,6 +324,7 @@ async def _stream_openai_compat(
     base_url: str,
     max_tokens: int,
     timeout: float,
+    temperature: float = 0.0,
 ) -> AsyncGenerator[str, None]:
     """Stream tokens from an OpenAI-compatible /v1/chat/completions endpoint."""
     url = f"{base_url.rstrip('/')}/v1/chat/completions"
@@ -327,7 +335,7 @@ async def _stream_openai_compat(
             {"role": "user", "content": prompt},
         ],
         "stream": True,
-        "temperature": 0,
+        "temperature": temperature,
         "max_tokens": max_tokens,
     }
     try:
@@ -398,6 +406,7 @@ async def _call_ollama(
     max_tokens: int,
     timeout: float,
     think: bool = True,
+    temperature: float = 0.0,
 ) -> dict[str, Any]:
     """
     Call the Ollama /api/chat endpoint.
@@ -415,6 +424,7 @@ async def _call_ollama(
         "options": {
             "num_predict": max_tokens,
             "num_ctx": 4096,
+            "temperature": temperature,
         }
     }
 
@@ -489,6 +499,7 @@ async def _call_anthropic(
     system: str,
     model: str,
     max_tokens: int,
+    temperature: float = 0.0,
 ) -> dict[str, Any]:
     """
     Call Anthropic API using the official SDK.
@@ -514,6 +525,7 @@ async def _call_anthropic(
             max_tokens=max_tokens,
             system=system,
             messages=[{"role": "user", "content": prompt}],
+            temperature=temperature,
         )
 
         latency_ms = int((time.monotonic() - start) * 1000)

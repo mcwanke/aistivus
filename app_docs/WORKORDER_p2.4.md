@@ -1,5 +1,5 @@
 # AIstivus — Phase 2.4 Workorder
-> Status: IN PROGRESS
+> Status: IN PROGRESS — Steps 1–6 complete, Steps 7–8 pending
 > Last updated: 2026-06-18
 
 ---
@@ -27,7 +27,7 @@ into a true data-review surface rather than just a list of active applications.
 
 ---
 
-## Step 1 — Dead Code Cleanup
+## Step 1 — Dead Code Cleanup ✅
 
 **Goal:** Remove `SYSTEM_PROMPT_TEMPLATE` from `evaluator.py`. It has had no callers since
 Phase 2.2 when `prompt_generation.py` replaced the inline prompt-building logic.
@@ -42,7 +42,7 @@ remaining references in any file before deleting (`grep -rn SYSTEM_PROMPT_TEMPLA
 
 ---
 
-## Step 2 — Temperature: Backend
+## Step 2 — Temperature: Backend ✅
 
 **Goal:** Add `temperature` to the `prompts` table and thread it through every layer from
 DB to LLM call. Gen prompts default to `0.0` and are never surfaced in the UI; eval prompts
@@ -119,7 +119,7 @@ Update the `save_prompt` route to pass `body.temperature` through to `database.s
 
 ---
 
-## Step 3 — Temperature: Frontend
+## Step 3 — Temperature: Frontend ✅
 
 **Goal:** Show a temperature input in the PromptEditor for eval prompts only. Gen prompts
 (`gen_resume`, `gen_cover`, `gen_orgsummary`) show no temperature UI.
@@ -159,7 +159,7 @@ same way as segments (Save button handles both).
 
 ---
 
-## Step 4 — Extract `ModelSelect` Component
+## Step 4 — Extract `ModelSelect` Component ✅
 
 **Goal:** The model selector in `Evaluate.tsx` is inline JSX. Extract it to a shared
 component so both Evaluate and the batch eval modal can use it without duplication.
@@ -190,7 +190,7 @@ Replace the inline model selector block with `<ModelSelect ... />`.
 
 ---
 
-## Step 5 — Re-Evaluate Endpoint (Backend)
+## Step 5 — Re-Evaluate Endpoint (Backend) ✅
 
 **Goal:** New endpoint that re-runs the full eval pipeline for a job using its stored JD.
 The frontend calls this per-job during batch processing without needing to send JD text.
@@ -219,7 +219,7 @@ Logic:
 
 ---
 
-## Step 6 — Applications Page Redesign (Backend)
+## Step 6 — Applications Page Redesign (Backend) ✅
 
 **Goal:** The existing `GET /api/v1/applications` excludes `not-started` records. Add a
 query param to include them so the redesigned page can show all jobs.
