@@ -67,9 +67,9 @@ describe('Settings page — AI Servers tab', () => {
     expect(screen.getByText('Anthropic Claude')).toBeInTheDocument()
   })
 
-  it('renders Local and Anthropic type badges', async () => {
+  it('renders Ollama and Anthropic type badges', async () => {
     await openServersTab()
-    await waitFor(() => expect(screen.getByText('Local')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Ollama')).toBeInTheDocument())
     expect(screen.getByText('Anthropic')).toBeInTheDocument()
   })
 
@@ -145,46 +145,46 @@ describe('Settings page — AI Servers tab', () => {
     expect(screen.getByPlaceholderText(/192\.168/)).toBeInTheDocument()
   })
 
-  it('add server modal has Remote (Anthropic) tab', async () => {
+  it('add server modal has Anthropic option in type dropdown', async () => {
     const user = await openServersTab()
     await waitFor(() => expect(screen.getByRole('button', { name: '+ Add AI/Server' })).toBeInTheDocument())
     await user.click(screen.getByRole('button', { name: '+ Add AI/Server' }))
     await waitFor(() => expect(screen.getByText('Add AI Server')).toBeInTheDocument())
-    expect(screen.getByRole('button', { name: /Anthropic/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Anthropic' })).toBeInTheDocument()
   })
 
-  it('switching to Remote tab shows key status', async () => {
+  it('switching to Anthropic in type dropdown shows API key status', async () => {
     const user = await openServersTab()
     await waitFor(() => expect(screen.getByRole('button', { name: '+ Add AI/Server' })).toBeInTheDocument())
     await user.click(screen.getByRole('button', { name: '+ Add AI/Server' }))
     await waitFor(() => expect(screen.getByText('Add AI Server')).toBeInTheDocument())
-    await user.click(screen.getByRole('button', { name: /Anthropic/i }))
+    const typeSelect = screen.getByRole('combobox')
+    await user.selectOptions(typeSelect, 'anthropic')
     await waitFor(() =>
       expect(screen.getByText(/ANTHROPIC_API_KEY/)).toBeInTheDocument()
     )
   })
 
-  it('"Test Connection" button is present in local tab', async () => {
+  it('"Detect & Test" button is present for ollama server type', async () => {
     const user = await openServersTab()
     await waitFor(() => expect(screen.getByRole('button', { name: '+ Add AI/Server' })).toBeInTheDocument())
     await user.click(screen.getByRole('button', { name: '+ Add AI/Server' }))
     await waitFor(() => expect(screen.getByText('Add AI Server')).toBeInTheDocument())
-    expect(screen.getByRole('button', { name: 'Test Connection' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Detect & Test' })).toBeInTheDocument()
   })
 
-  it('test connection shows result inline after click', async () => {
+  it('detect & test shows detected type inline after click', async () => {
     const user = await openServersTab()
     await waitFor(() => expect(screen.getByRole('button', { name: '+ Add AI/Server' })).toBeInTheDocument())
     await user.click(screen.getByRole('button', { name: '+ Add AI/Server' }))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Test Connection' })).toBeInTheDocument())
-    // Fill in required fields first (placeholders match Settings.tsx modal)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Detect & Test' })).toBeInTheDocument())
     const nameInput = screen.getByPlaceholderText('Home Lab')
     const endpointInput = screen.getByPlaceholderText('http://192.168.1.10:11434')
     await user.type(nameInput, 'Test Lab')
     await user.type(endpointInput, 'http://localhost:11434')
-    await user.click(screen.getByRole('button', { name: 'Test Connection' }))
+    await user.click(screen.getByRole('button', { name: 'Detect & Test' }))
     await waitFor(() =>
-      expect(screen.getByText(/Connected/)).toBeInTheDocument()
+      expect(screen.getByText(/Detected:/)).toBeInTheDocument()
     )
   })
 })

@@ -25,7 +25,7 @@ export const MOCK_SERVER: LlmServer = {
   id: 1,
   server_name: 'Local Ollama',
   endpoint: 'http://localhost:11434',
-  server_type: 'local',
+  server_type: 'ollama',
   created_at: '2024-01-01T00:00:00',
   model_count: 1,
 }
@@ -45,7 +45,7 @@ export const MOCK_MODEL: LlmModel = {
   model: 'llama3',
   server_id: 1,
   server_name: 'Local Ollama',
-  server_type: 'local',
+  server_type: 'ollama',
   endpoint: 'http://localhost:11434',
   available: 1,
   default_flag: 1,
@@ -57,7 +57,7 @@ export const MOCK_MODEL: LlmModel = {
 export const MOCK_HEALTH: HealthResponse = {
   status: 'ok',
   database: { schema_version: '1.0' },
-  models: [{ id: 1, model: 'llama3', server_name: 'Local Ollama', server_type: 'local', available: true, default_flag: true }],
+  models: [{ id: 1, model: 'llama3', server_name: 'Local Ollama', server_type: 'ollama', available: true, default_flag: true }],
   anthropic_configured: false,
   typst_available: true,
   version: '1.0.0',
@@ -383,6 +383,9 @@ export const handlers = [
   http.delete('/api/v1/settings/llm-servers/:id', () => HttpResponse.json({ success: true })),
   http.post('/api/v1/settings/llm-servers/test', () =>
     HttpResponse.json({ success: true, model_count: 2 }),
+  ),
+  http.post('/api/v1/servers/detect', () =>
+    HttpResponse.json({ detected_type: 'ollama', reachable: true }),
   ),
   http.get('/api/v1/settings/llm-servers/:id/available-models', () =>
     HttpResponse.json({ models: ['llama3:8b', 'mistral:7b'] }),

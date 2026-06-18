@@ -87,6 +87,7 @@ SPA catch-all (Phase 1.1+):
   GET  /{full_path}  → serves frontend/dist/index.html (React Router handles routing)
 """
 
+import asyncio
 import os
 import re
 import subprocess
@@ -1057,6 +1058,10 @@ class UpdateServerRequest(BaseModel):
 class TestConnectionRequest(BaseModel):
     server_type: str
     endpoint: str | None = None
+
+
+class DetectServerRequest(BaseModel):
+    url: str
 
 
 class CreateModelRequest(BaseModel):
@@ -2709,6 +2714,37 @@ async def test_server_connection(request: Request, body: TestConnectionRequest):
             return JSONResponse({"success": False, "error": f"Anthropic API error: {exc}"})
 
     raise HTTPException(status_code=422, detail=f"server_type must be one of: {', '.join(_VALID_SERVER_TYPES)}")
+
+
+@app.post("/api/v1/servers/detect")
+@limiter.limit("20/minute")
+async def detect_server_type(request: Request, body: DetectServerRequest):
+    """Probe a URL in parallel to auto-detect Ollama vs OpenAI-compatible protocol."""
+    url = body.url.rstrip('/')
+    if not (url.startswith('http://') or url.startswith('https://')):
+        raise HTTPException(status_code=422, detail="URL must start with http:// or https://")
+
+    async def probe(endpoint: str) -> tuple[bool, bool]:
+        """Returns (got_response, status_ok)."""
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                resp = await client.get(endpoint)
+            return True, resp.status_code == 200
+        except Exception:
+            return False, False
+
+    (ollama_reached, ollama_ok), (oai_reached, oai_ok) = await asyncio.gather(
+        probe(f"{url}/api/tags"),
+        probe(f"{url}/v1/models"),
+    )
+
+    if ollama_ok:
+        return JSONResponse({"detected_type": "ollama", "reachable": True})
+    if oai_ok:
+        return JSONResponse({"detected_type": "openai-compat", "reachable": True})
+
+    reachable = ollama_reached or oai_reached
+    return JSONResponse({"detected_type": None, "reachable": reachable})
 
 
 @app.get("/api/v1/settings/llm-servers/{server_id}/available-models")

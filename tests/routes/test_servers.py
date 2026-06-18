@@ -10,6 +10,7 @@ Routes covered:
   POST   /api/v1/settings/llm-servers/test
   GET    /api/v1/settings/llm-servers/{id}/available-models
   GET    /api/v1/settings/anthropic-key
+  POST   /api/v1/servers/detect
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -474,3 +475,91 @@ class TestAnthropicKeyStatus:
     def test_response_contains_only_expected_field(self, client):
         resp = client.get("/api/v1/settings/anthropic-key")
         assert set(resp.json().keys()) == {"anthropic_key_present"}
+
+
+class TestDetectServer:
+    def test_detects_ollama(self, client):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+
+        async def fake_get(url, **kwargs):
+            return mock_resp
+
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.get = fake_get
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            resp = client.post("/api/v1/servers/detect", json={"url": "http://192.168.1.10:11434"})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["detected_type"] == "ollama"
+        assert data["reachable"] is True
+
+    def test_detects_openai_compat(self, client):
+        async def fake_get(url, **kwargs):
+            mock_resp = MagicMock()
+            # /api/tags returns 404, /v1/models returns 200
+            mock_resp.status_code = 200 if "v1/models" in url else 404
+            return mock_resp
+
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.get = fake_get
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            resp = client.post("/api/v1/servers/detect", json={"url": "http://192.168.1.10:8080"})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["detected_type"] == "openai-compat"
+        assert data["reachable"] is True
+
+    def test_unreachable_server(self, client):
+        import httpx as httpx_mod
+
+        async def fake_get(url, **kwargs):
+            raise httpx_mod.ConnectError("refused")
+
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.get = fake_get
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            resp = client.post("/api/v1/servers/detect", json={"url": "http://10.0.0.99:11434"})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["detected_type"] is None
+        assert data["reachable"] is False
+
+    def test_invalid_url_returns_422(self, client):
+        resp = client.post("/api/v1/servers/detect", json={"url": "ftp://bad-url"})
+        assert resp.status_code == 422
+
+    def test_reachable_but_unknown_protocol(self, client):
+        async def fake_get(url, **kwargs):
+            mock_resp = MagicMock()
+            mock_resp.status_code = 404
+            return mock_resp
+
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.get = fake_get
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            resp = client.post("/api/v1/servers/detect", json={"url": "http://192.168.1.10:9999"})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["detected_type"] is None
+        assert data["reachable"] is True

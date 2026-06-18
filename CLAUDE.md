@@ -76,7 +76,7 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 ---
 
-## Current Phase: PHASE 2.3 — Protocol-Aware LLM Servers (Active)
+## Current Phase: PHASE 2.3 — Protocol-Aware LLM Servers (Complete)
 
 See `app_docs/WORKORDER_p2.3.md` for full implementation detail.
 
@@ -111,10 +111,12 @@ Replace `server_type = 'local'` with a protocol discriminator (`'ollama'` | `'op
 - `test_llm_client.py`: 7 new openai-compat tests (call success/failure, missing usage, health check, streaming)
 - Test baseline: 642 backend / 263 frontend
 
-#### Step 4 — Frontend Settings UI ✅ 🔲 Not started
-- Server type dropdown (`ollama` / `openai-compat` / `anthropic`)
-- Auto-detect "Test Connection" button + `POST /api/v1/servers/detect` endpoint
-- Label updates throughout Settings UI
+#### Step 4 — Frontend Settings UI ✅
+- `AddServerModal`: tab bar → 3-option type dropdown; "Detect & Test" button calls `POST /api/v1/servers/detect`, auto-sets dropdown, then shows model count
+- `EditServerModal` / `ServersSection` / `ModelForm`: all `'local'` comparisons updated; type labels for all 3 values
+- `POST /api/v1/servers/detect`: probes `/api/tags` + `/v1/models` in parallel (3s timeout); returns `{ detected_type, reachable }`
+- `ServerType` updated in `types/api.ts`; `useDetectServer` hook added
+- Test baseline: 647 backend / 267 frontend
 
 ---
 

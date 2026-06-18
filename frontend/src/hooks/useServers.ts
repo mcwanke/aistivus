@@ -5,6 +5,7 @@ import type {
   AvailableModelsResponse,
   AnthropicKeyStatus,
   ServerType,
+  ServerDetectResponse,
 } from '@/types/api'
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
@@ -145,6 +146,27 @@ export function useTestConnection() {
         throw new Error(err.detail ?? `test connection ${res.status}`)
       }
       return res.json() as Promise<ConnectionTestResult>
+    },
+  })
+}
+
+export interface DetectServerPayload {
+  url: string
+}
+
+export function useDetectServer() {
+  return useMutation({
+    mutationFn: async (payload: DetectServerPayload) => {
+      const res = await fetch('/api/v1/servers/detect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw new Error(err.detail ?? `detect server ${res.status}`)
+      }
+      return res.json() as Promise<ServerDetectResponse>
     },
   })
 }

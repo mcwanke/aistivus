@@ -1,5 +1,5 @@
 # AIstivus — Phase 2.3 Workorder
-> Status: In Progress — Steps 1–3 + Step 5 (backend) complete
+> Status: COMPLETE
 > Last updated: 2026-06-17
 
 ---

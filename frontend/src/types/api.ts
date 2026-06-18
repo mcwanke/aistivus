@@ -1,6 +1,6 @@
 // ─── LLM Server types ─────────────────────────────────────────────────────────
 
-export type ServerType = 'local' | 'anthropic'
+export type ServerType = 'ollama' | 'openai-compat' | 'anthropic'
 
 export interface LlmServer {
   id: number
@@ -15,7 +15,12 @@ export interface LlmServer {
 export interface ConnectionTestResult {
   success: boolean
   error?: string
-  model_count?: number  // only present on successful local Ollama test
+  model_count?: number
+}
+
+export interface ServerDetectResponse {
+  detected_type: ServerType | null
+  reachable: boolean
 }
 
 export interface AvailableModelsResponse {

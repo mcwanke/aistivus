@@ -10,6 +10,7 @@ import {
   useUpdateServer,
   useDeleteServer,
   useTestConnection,
+  useDetectServer,
   useAvailableModels,
   useAnthropicKeyStatus,
 } from './useServers'
@@ -40,11 +41,11 @@ describe('useServers', () => {
     await waitFor(() => expect(result.current.isError).toBe(true))
   })
 
-  it('returns both local and anthropic servers', async () => {
+  it('returns both ollama and anthropic servers', async () => {
     const { result } = renderHook(() => useServers(), { wrapper: makeWrapper() })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     const types = result.current.data!.map((s) => s.server_type)
-    expect(types).toContain('local')
+    expect(types).toContain('ollama')
     expect(types).toContain('anthropic')
   })
 })
@@ -57,7 +58,7 @@ describe('useCreateServer', () => {
     result.current.mutate({
       server_name: 'Home Lab',
       endpoint: 'http://192.168.1.10:11434',
-      server_type: 'local',
+      server_type: 'ollama',
     })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
   })
@@ -136,7 +137,7 @@ describe('useDeleteServer', () => {
 describe('useTestConnection', () => {
   it('returns success result for local server', async () => {
     const { result } = renderHook(() => useTestConnection(), { wrapper: makeWrapper() })
-    result.current.mutate({ server_type: 'local', endpoint: 'http://localhost:11434' })
+    result.current.mutate({ server_type: 'ollama', endpoint: 'http://localhost:11434' })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(result.current.data?.success).toBe(true)
     expect(result.current.data?.model_count).toBe(2)
@@ -149,10 +150,60 @@ describe('useTestConnection', () => {
       ),
     )
     const { result } = renderHook(() => useTestConnection(), { wrapper: makeWrapper() })
-    result.current.mutate({ server_type: 'local', endpoint: 'http://bad:11434' })
+    result.current.mutate({ server_type: 'ollama', endpoint: 'http://bad:11434' })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(result.current.data?.success).toBe(false)
     expect(result.current.data?.error).toBeDefined()
+  })
+})
+
+// ─── useDetectServer ──────────────────────────────────────────────────────────
+
+describe('useDetectServer', () => {
+  it('returns detected_type ollama when server speaks Ollama protocol', async () => {
+    const { result } = renderHook(() => useDetectServer(), { wrapper: makeWrapper() })
+    result.current.mutate({ url: 'http://192.168.1.10:11434' })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data?.detected_type).toBe('ollama')
+    expect(result.current.data?.reachable).toBe(true)
+  })
+
+  it('returns detected_type openai-compat when server speaks OpenAI protocol', async () => {
+    server.use(
+      http.post('/api/v1/servers/detect', () =>
+        HttpResponse.json({ detected_type: 'openai-compat', reachable: true }),
+      ),
+    )
+    const { result } = renderHook(() => useDetectServer(), { wrapper: makeWrapper() })
+    result.current.mutate({ url: 'http://192.168.1.10:8080' })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data?.detected_type).toBe('openai-compat')
+    expect(result.current.data?.reachable).toBe(true)
+  })
+
+  it('returns reachable false when server is unreachable', async () => {
+    server.use(
+      http.post('/api/v1/servers/detect', () =>
+        HttpResponse.json({ detected_type: null, reachable: false }),
+      ),
+    )
+    const { result } = renderHook(() => useDetectServer(), { wrapper: makeWrapper() })
+    result.current.mutate({ url: 'http://10.0.0.99:11434' })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data?.detected_type).toBeNull()
+    expect(result.current.data?.reachable).toBe(false)
+  })
+
+  it('enters error state on non-ok response', async () => {
+    server.use(
+      http.post('/api/v1/servers/detect', () =>
+        HttpResponse.json({ detail: 'URL must start with http://' }, { status: 422 }),
+      ),
+    )
+    const { result } = renderHook(() => useDetectServer(), { wrapper: makeWrapper() })
+    result.current.mutate({ url: 'ftp://bad-url' })
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(result.current.error?.message).toContain('http://')
   })
 })
 

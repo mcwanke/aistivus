@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import AppHeader from '@/components/AppHeader'
 import { useQueryClient } from '@tanstack/react-query'
-import type { LlmModel, LlmServer, SystemType } from '@/types/api'
+import type { LlmModel, LlmServer, SystemType, ServerType } from '@/types/api'
 import {
   useSettings,
   useLlmModels,
@@ -26,6 +26,7 @@ import {
   useUpdateServer,
   useDeleteServer,
   useTestConnection,
+  useDetectServer,
   useAvailableModels,
   useAnthropicKeyStatus,
 } from '@/hooks/useServers'
@@ -52,7 +53,7 @@ function SectionHeader({ title }: { title: string }): React.JSX.Element {
 type TestStatus = { success: boolean; message: string } | null
 
 function AddServerModal({ onClose }: { onClose: () => void }): React.JSX.Element {
-  const [tab, setTab] = useState<'local' | 'anthropic'>('local')
+  const [serverType, setServerType] = useState<ServerType>('ollama')
   const [serverName, setServerName] = useState('')
   const [endpoint, setEndpoint] = useState('')
   const [testStatus, setTestStatus] = useState<TestStatus>(null)
@@ -66,38 +67,69 @@ function AddServerModal({ onClose }: { onClose: () => void }): React.JSX.Element
   const { data: servers = [] } = useServers()
   const { data: existingModels = [] } = useLlmModels()
   const testConn = useTestConnection()
+  const detectServer = useDetectServer()
   const createServer = useCreateServer()
   const createModel = useCreateModel()
   const availableModels = useAvailableModels(importServerId)
 
   const anthropicExists = servers.some((s) => s.server_type === 'anthropic')
 
-  function handleTabChange(t: 'local' | 'anthropic'): void {
-    setTab(t)
+  function handleTypeChange(t: ServerType): void {
+    setServerType(t)
     setTestStatus(null)
     setFormError('')
-    if (t === 'anthropic' && (serverName === '' || serverName === 'Local Ollama')) {
+    if (t === 'anthropic' && (serverName === '' || serverName === 'Home Lab')) {
       setServerName('Anthropic Claude')
-    } else if (t === 'local' && serverName === 'Anthropic Claude') {
+    } else if (t !== 'anthropic' && serverName === 'Anthropic Claude') {
       setServerName('')
     }
   }
 
   async function handleTestConnection(): Promise<void> {
     setTestStatus(null)
+
+    if (serverType === 'anthropic') {
+      try {
+        const result = await testConn.mutateAsync({ server_type: 'anthropic' })
+        if (result.success) {
+          setTestStatus({ success: true, message: 'Connected' })
+        } else {
+          setTestStatus({ success: false, message: result.error ?? 'Connection failed' })
+        }
+      } catch (e) {
+        setTestStatus({ success: false, message: (e as Error).message })
+      }
+      return
+    }
+
+    const ep = endpoint.trim().replace(/\/$/, '')
     try {
-      const result = await testConn.mutateAsync({
-        server_type: tab,
-        endpoint: tab === 'local' ? endpoint.trim().replace(/\/$/, '') : undefined,
+      const detected = await detectServer.mutateAsync({ url: ep })
+      if (!detected.reachable) {
+        setTestStatus({ success: false, message: `Could not reach server at ${ep}` })
+        return
+      }
+      if (!detected.detected_type) {
+        setTestStatus({
+          success: false,
+          message: 'Server reachable but protocol unknown — select type manually',
+        })
+        return
+      }
+      setServerType(detected.detected_type)
+      const testResult = await testConn.mutateAsync({
+        server_type: detected.detected_type,
+        endpoint: ep,
       })
-      if (result.success) {
+      if (testResult.success) {
+        const label = detected.detected_type === 'ollama' ? 'Ollama' : 'OpenAI-Compatible'
         const msg =
-          tab === 'local' && result.model_count !== undefined
-            ? `Connected — ${result.model_count} model${result.model_count !== 1 ? 's' : ''} found`
-            : 'Connected'
+          testResult.model_count !== undefined
+            ? `Detected: ${label} — ${testResult.model_count} model${testResult.model_count !== 1 ? 's' : ''} found`
+            : `Detected: ${label}`
         setTestStatus({ success: true, message: msg })
       } else {
-        setTestStatus({ success: false, message: result.error ?? 'Connection failed' })
+        setTestStatus({ success: false, message: testResult.error ?? 'Connection failed' })
       }
     } catch (e) {
       setTestStatus({ success: false, message: (e as Error).message })
@@ -111,10 +143,10 @@ function AddServerModal({ onClose }: { onClose: () => void }): React.JSX.Element
       setFormError('Server name is required.')
       return
     }
-    if (tab === 'local') {
+    if (serverType !== 'anthropic') {
       const ep = endpoint.trim().replace(/\/$/, '')
       if (!ep) {
-        setFormError('Endpoint is required for local servers.')
+        setFormError('Endpoint is required.')
         return
       }
       if (!ep.startsWith('http://') && !ep.startsWith('https://')) {
@@ -125,8 +157,8 @@ function AddServerModal({ onClose }: { onClose: () => void }): React.JSX.Element
     try {
       const created = await createServer.mutateAsync({
         server_name: name,
-        server_type: tab,
-        endpoint: tab === 'local' ? endpoint.trim().replace(/\/$/, '') : null,
+        server_type: serverType,
+        endpoint: serverType !== 'anthropic' ? endpoint.trim().replace(/\/$/, '') : null,
       })
       setImportServerId(created.id)
       setStep('import')
@@ -170,11 +202,14 @@ function AddServerModal({ onClose }: { onClose: () => void }): React.JSX.Element
   }
 
   const localEndpointClean = endpoint.trim().replace(/\/$/, '')
+  const isPending = testConn.isPending || detectServer.isPending
   const canTest =
-    tab === 'local' ? localEndpointClean.length > 0 : (keyStatus?.anthropic_key_present ?? false)
+    serverType === 'anthropic'
+      ? (keyStatus?.anthropic_key_present ?? false)
+      : localEndpointClean.length > 0
   const formValid =
-    serverName.trim().length > 0 && (tab === 'anthropic' || localEndpointClean.length > 0)
-  const blocked = tab === 'anthropic' && anthropicExists
+    serverName.trim().length > 0 && (serverType === 'anthropic' || localEndpointClean.length > 0)
+  const blocked = serverType === 'anthropic' && anthropicExists
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
@@ -193,20 +228,22 @@ function AddServerModal({ onClose }: { onClose: () => void }): React.JSX.Element
 
         {step === 'form' && (
           <>
-            <div className="flex border-b border-surface2 px-6">
-              {(['local', 'anthropic'] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => handleTabChange(t)}
-                  className={`px-4 py-2 text-sm font-mono border-b-2 transition-colors ${
-                    tab === t
-                      ? 'border-accent text-accent'
-                      : 'border-transparent text-muted hover:text-text'
-                  }`}
+            <div className="px-6 pt-4 pb-0">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-mono text-muted uppercase tracking-wider">
+                  Server Type
+                </label>
+                <select
+                  value={serverType}
+                  onChange={(e) => handleTypeChange(e.target.value as ServerType)}
+                  disabled={blocked}
+                  className="bg-surface2 border border-surface2 rounded px-3 py-1.5 text-sm font-mono text-text focus:outline-none focus:border-accent/50 disabled:opacity-50"
                 >
-                  {t === 'local' ? 'Local' : 'Remote (Anthropic)'}
-                </button>
-              ))}
+                  <option value="ollama">Ollama</option>
+                  <option value="openai-compat">OpenAI-Compatible (llama.cpp, LM Studio, vLLM…)</option>
+                  <option value="anthropic">Anthropic</option>
+                </select>
+              </div>
             </div>
 
             <div className="px-6 py-5 space-y-4">
@@ -223,27 +260,34 @@ function AddServerModal({ onClose }: { onClose: () => void }): React.JSX.Element
                 <input
                   value={serverName}
                   onChange={(e) => setServerName(e.target.value)}
-                  placeholder={tab === 'local' ? 'Home Lab' : 'Anthropic Claude'}
+                  placeholder={serverType === 'anthropic' ? 'Anthropic Claude' : 'Home Lab'}
                   disabled={blocked}
                   className="bg-surface2 border border-surface2 rounded px-3 py-1.5 text-sm font-mono text-text focus:outline-none focus:border-accent/50 disabled:opacity-50"
                 />
               </div>
 
-              {tab === 'local' && (
+              {serverType !== 'anthropic' && (
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] font-mono text-muted uppercase tracking-wider">
                     Endpoint
                   </label>
                   <input
                     value={endpoint}
-                    onChange={(e) => setEndpoint(e.target.value)}
-                    placeholder="http://192.168.1.10:11434"
+                    onChange={(e) => {
+                      setEndpoint(e.target.value)
+                      setTestStatus(null)
+                    }}
+                    placeholder={
+                      serverType === 'ollama'
+                        ? 'http://192.168.1.10:11434'
+                        : 'http://192.168.1.10:8080'
+                    }
                     className="bg-surface2 border border-surface2 rounded px-3 py-1.5 text-sm font-mono text-text focus:outline-none focus:border-accent/50"
                   />
                 </div>
               )}
 
-              {tab === 'anthropic' && (
+              {serverType === 'anthropic' && (
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] font-mono text-muted uppercase tracking-wider">
                     API Key
@@ -261,15 +305,19 @@ function AddServerModal({ onClose }: { onClose: () => void }): React.JSX.Element
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => void handleTestConnection()}
-                  disabled={!canTest || testConn.isPending || blocked}
+                  disabled={!canTest || isPending || blocked}
                   title={
-                    tab === 'anthropic' && !keyStatus?.anthropic_key_present
+                    serverType === 'anthropic' && !keyStatus?.anthropic_key_present
                       ? 'Set ANTHROPIC_API_KEY in .env first'
                       : undefined
                   }
                   className="px-3 py-1.5 text-sm font-mono text-muted border border-surface2 rounded hover:text-accent hover:border-accent/40 transition-colors disabled:opacity-40"
                 >
-                  {testConn.isPending ? 'Testing…' : 'Test Connection'}
+                  {isPending
+                    ? 'Detecting…'
+                    : serverType === 'anthropic'
+                      ? 'Test Connection'
+                      : 'Detect & Test'}
                 </button>
                 {testStatus && (
                   <span
@@ -386,11 +434,11 @@ function EditServerModal({
       const result = await testConn.mutateAsync({
         server_type: server.server_type,
         endpoint:
-          server.server_type === 'local' ? endpoint.trim().replace(/\/$/, '') : undefined,
+          server.server_type !== 'anthropic' ? endpoint.trim().replace(/\/$/, '') : undefined,
       })
       if (result.success) {
         const msg =
-          server.server_type === 'local' && result.model_count !== undefined
+          server.server_type !== 'anthropic' && result.model_count !== undefined
             ? `Connected — ${result.model_count} model${result.model_count !== 1 ? 's' : ''} found`
             : 'Connected'
         setTestStatus({ success: true, message: msg })
@@ -409,10 +457,10 @@ function EditServerModal({
       setFormError('Server name is required.')
       return
     }
-    if (server.server_type === 'local') {
+    if (server.server_type !== 'anthropic') {
       const ep = endpoint.trim().replace(/\/$/, '')
       if (!ep) {
-        setFormError('Endpoint is required for local servers.')
+        setFormError('Endpoint is required.')
         return
       }
     }
@@ -421,7 +469,7 @@ function EditServerModal({
         serverId: server.id,
         updates: {
           server_name: name,
-          endpoint: server.server_type === 'local' ? endpoint.trim().replace(/\/$/, '') : null,
+          endpoint: server.server_type !== 'anthropic' ? endpoint.trim().replace(/\/$/, '') : null,
         },
       })
       onClose()
@@ -431,12 +479,19 @@ function EditServerModal({
   }
 
   const canTest =
-    server.server_type === 'local'
+    server.server_type !== 'anthropic'
       ? endpoint.trim().length > 0
       : (keyStatus?.anthropic_key_present ?? false)
   const formValid =
     serverName.trim().length > 0 &&
     (server.server_type === 'anthropic' || endpoint.trim().length > 0)
+
+  const serverTypeLabel =
+    server.server_type === 'ollama'
+      ? 'Ollama'
+      : server.server_type === 'openai-compat'
+        ? 'OpenAI-Compatible'
+        : 'Anthropic'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
@@ -456,9 +511,7 @@ function EditServerModal({
             <label className="text-[10px] font-mono text-muted uppercase tracking-wider">
               Type
             </label>
-            <p className="text-sm font-mono text-muted">
-              {server.server_type === 'local' ? 'Local (Ollama)' : 'Remote (Anthropic)'}
-            </p>
+            <p className="text-sm font-mono text-muted">{serverTypeLabel}</p>
           </div>
 
           <div className="flex flex-col gap-1">
@@ -472,7 +525,7 @@ function EditServerModal({
             />
           </div>
 
-          {server.server_type === 'local' && (
+          {server.server_type !== 'anthropic' && (
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-mono text-muted uppercase tracking-wider">
                 Endpoint
@@ -612,7 +665,11 @@ function ServersSection(): React.JSX.Element {
                         : 'bg-surface2 text-muted border-surface2'
                     }`}
                   >
-                    {server.server_type === 'local' ? 'Local' : 'Anthropic'}
+                    {server.server_type === 'ollama'
+                      ? 'Ollama'
+                      : server.server_type === 'openai-compat'
+                        ? 'OAI-Compat'
+                        : 'Anthropic'}
                   </span>
                 </div>
                 <div className="px-3 py-3 min-w-0">
@@ -865,7 +922,7 @@ function ModelForm({
               <option value="">— select server —</option>
               {servers.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.server_name} ({s.server_type === 'local' ? 'Local' : 'Anthropic'})
+                  {s.server_name} ({s.server_type === 'ollama' ? 'Ollama' : s.server_type === 'openai-compat' ? 'OAI-Compat' : 'Anthropic'})
                 </option>
               ))}
             </select>
