@@ -30,7 +30,7 @@ server speaks.
 
 ---
 
-## Step 1 — DB Migration: Repurpose `server_type`
+## Step 1 — DB Migration: Repurpose `server_type` ✅
 
 **Goal:** Rename the existing `'local'` value to `'ollama'` so the column encodes
 protocol, not network scope. Update the column default.
@@ -79,7 +79,7 @@ Change the literal to `'ollama'`.
 
 ---
 
-## Step 2 — `llm_client.py`: Add OpenAI-Compatible Provider
+## Step 2 — `llm_client.py`: Add OpenAI-Compatible Provider ✅
 
 **Goal:** Add a complete call + stream path for OpenAI-compatible endpoints. These
 servers accept the standard OpenAI request format and return the standard OpenAI
@@ -137,7 +137,7 @@ interchangeably.
 
 ---
 
-## Step 3 — `main.py`: Protocol-Aware Health Checks + Remove Localhost Defaults
+## Step 3 — `main.py`: Protocol-Aware Health Checks + Remove Localhost Defaults ✅
 
 **Goal:** The server health check endpoint currently assumes Ollama. Make it dispatch
 based on `server_type`. Remove any remaining hardcoded `localhost` defaults.
@@ -168,7 +168,7 @@ parameter is fine to leave as a fallback in the function signature — but calle
 
 ---
 
-## Step 4 — Frontend Settings: Server Type UI + Auto-Detection
+## Step 4 — Frontend Settings: Server Type UI + Auto-Detection ✅
 
 **Goal:** When adding or editing a server in Settings, the user selects a server type
 from a dropdown. A "Test Connection" button probes the URL and auto-selects the type
@@ -216,7 +216,7 @@ update to display the human-readable form:
 
 ---
 
-## Step 5 — Tests
+## Step 5 — Tests ✅
 
 **Goal:** Keep the test suite green and cover the new dispatch path.
 

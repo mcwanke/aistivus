@@ -240,7 +240,7 @@ The DB function already supports `exclude_not_started` — this just exposes it.
 
 ---
 
-## Step 7 — Applications Page Redesign (Frontend)
+## Step 7 — Applications Page Redesign (Frontend) ✅
 
 **Goal:** Redesign Applications to be a full job-data review surface. Show all records by
 default, let the user filter by status, select rows for batch eval, and trigger the batch
@@ -336,7 +336,7 @@ The model was already selected in the action bar — no confirmation step in the
 
 ---
 
-## Step 8 — Tests
+## Step 8 — Tests ✅
 
 **Goal:** Cover all new backend paths and keep the frontend suite green.
 
@@ -387,6 +387,25 @@ The model was already selected in the action bar — no confirmation step in the
 - `frontend/src/components/ModelSelect.test.tsx` — new
 - `frontend/src/pages/Applications.test.tsx` — updated
 - `frontend/src/components/BatchEvalModal.test.tsx` — new
+
+---
+
+## Bonus — Eval Row Metadata ✅
+
+Not pre-planned; added during Step 7 implementation.
+
+- `get_evaluations_for_job` extended with LEFT JOINs: `llm_call_log` → `prompt_usage` → `prompts`
+- Eval rows in Job Details → Evaluations tab now display:
+  `local · model · v4 · 0.3` (for internal evals) or `external · model`
+- `eval_source` derived in SQL: `CASE WHEN e.llm_call_log_id IS NULL THEN 'external' ELSE 'local' END`
+- `prompt` field dropped from `EvalWithMeta` and `JobDetailResponse` (column was already
+  removed from `llm_call_log` by prior delta migration — the UI block was dead code)
+
+### Files touched
+- `database.py` — `get_evaluations_for_job` extended with 3 LEFT JOINs
+- `main.py` — `EvalWithMeta` updated, `prompt` field removed
+- `frontend/src/types/api.ts` — `EvalWithMeta` type updated
+- `frontend/src/pages/JobDetail.tsx` — eval row metadata display added
 
 ---
 

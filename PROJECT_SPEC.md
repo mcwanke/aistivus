@@ -1,6 +1,6 @@
-# AIstivus — Project Specification v2.0
+# AIstivus — Project Specification v2.4
 > AI-Powered Job Search Management Platform
-> Version 2.0 — Phase 1.6 Complete, Phase 1.7 Active
+> Version 2.4.0 — Phase 2.4 Complete, Phase 2.5 TBD
 
 ---
 

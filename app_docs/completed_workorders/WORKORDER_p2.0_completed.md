@@ -346,7 +346,7 @@ required.
 
 ---
 
-## Step 4 — Prompt Editing 🔲 (STUB — design session required)
+## Step 4 — Prompt Editing ⛔ Superseded by Phase 2.1
 
 **Goal:** Users can view and customize AI prompts without touching source code.
 Prompts are extracted from inline route handlers into a manageable, editable store.
@@ -365,7 +365,7 @@ See `app_docs/DESIGN_p2.0.md` Section 5 for full open questions list.
 
 ---
 
-## Step 5 — Pending 🔲
+## Step 5 — Pending ⏭ Deferred to future phases / FEATURES.md
 
 Items identified for Phase 2 but not yet designed or scheduled:
 

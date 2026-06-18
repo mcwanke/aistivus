@@ -858,7 +858,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AIstivus",
     description="AI Job Search Helper for the Rest of Us",
-    version="1.0.0",
+    version="2.4.0",
     lifespan=lifespan,
     docs_url=None,
     redoc_url=None,
@@ -1211,7 +1211,7 @@ async def health_check(request: Request):
         "models": models_out,
         "anthropic_configured": bool(os.environ.get("ANTHROPIC_API_KEY")),
         "typst_available": getattr(request.app.state, "typst_available", False),
-        "version": "1.0.0",
+        "version": "2.4.0",
     })
 
 
@@ -2466,7 +2466,7 @@ async def get_settings(request: Request):
     """Return runtime settings. API key values are never echoed — boolean presence only."""
     config = _load_config()
     return JSONResponse({
-        "app_version": "1.0.0",
+        "app_version": "2.4.0",
         "schema_version": database.get_schema_version(),
         "anthropic_api_key_configured": bool(os.environ.get("ANTHROPIC_API_KEY")),
         "server": config.get("server", {}),

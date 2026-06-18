@@ -215,6 +215,34 @@ the removed seed). Deferred cleanup.
 
 ---
 
+## Step 5 — CI Lint Fixes + PromptEditor Textarea Auto-Height ✅
+
+Completed post-merge, not pre-planned.
+
+- CI lint errors fixed: unused endpoint import, ambiguous variable name `l`
+- `PromptEditor.tsx` textarea height: switched from `rows` formula to `scrollHeight` via
+  callback ref on mount; `onChange` repeats resize; `overflow-hidden` prevents scrollbar flicker
+
+### Files touched
+- `main.py` — removed unused import
+- `frontend/src/components/PromptEditor.tsx` — textarea scrollHeight auto-height
+
+---
+
+## Step 6 — Gen Prompt Migration to Template System ✅
+
+- `gen_resume`, `gen_cover`, `gen_orgsummary` prompts migrated to `templates/prompts/`
+  using `[[PROMPT_START]]` / `[[PROMPT_END]]` markers
+- All 6 prompts (3 eval + 3 gen) now managed through the template system
+
+### Files touched
+- `templates/prompts/gen_resume.md` — new template file
+- `templates/prompts/gen_cover.md` — new template file
+- `templates/prompts/gen_orgsummary.md` — new template file
+- `main.py` — seed calls updated to load from template files
+
+---
+
 ## Deferred from Phase 2.1
 
 - **Prompt version history:** Version dropdown + diff view in the PromptEditor.

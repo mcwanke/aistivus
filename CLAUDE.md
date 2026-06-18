@@ -81,212 +81,33 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 ---
 
 ## Phase 2.4 — Temperature + Batch Re-Eval (Complete)
-
 See `app_docs/WORKORDER_p2.4.md` for full implementation detail.
-
-### Phase 2.4 — Progress
-
-#### Step 1 — Dead Code Cleanup ✅
-- `evaluator.py`: removed `SYSTEM_PROMPT_TEMPLATE` and `EVALUATION_USER_PROMPT` (no callers since Phase 2.2)
-- `tests/test_evaluator.py`: removed vestigial `eval_internal` seed from `eval_setup` fixture
-
-#### Step 2 — Temperature: Backend ✅
-- `database.py`: `temperature REAL NOT NULL DEFAULT 0.0` added to `prompts` DDL + delta migration; `get_active_prompt()` selects temperature; `save_prompt()` + `seed_prompt_if_missing()` accept and write temperature
-- `prompt_generation.py`: `get_prompt()` returns `temperature` in result dict
-- `llm_client.py`: `temperature: float = 0.0` added to `complete()`, `complete_stream()`, `_call_ollama()`, `_call_openai_compat()`, `_call_anthropic()`, `_stream_openai_compat()`; passed through to each provider's request body
-- `evaluator.py`: all three `llm_client.complete()` calls in `evaluate_with_split()` pass `temperature` from prompt result
-- `main.py`: `PromptSaveRequest` gets `temperature: float = 0.0`; save route passes it through; seed loop expanded to 5-tuple with temperature (eval prompts: 0.3, gen prompts: 0.0)
-
-#### Step 3 — Temperature: Frontend ✅
-- `types/api.ts`: `PromptRecord` + `PromptSavePayload` both gain `temperature: number`
-- `PromptEditor.tsx`: `localTemperature` state synced from `promptData.temperature`; numeric input shown in header row for `eval_analysis` / `eval_scoring` only; included in save payload
-
-#### Step 4 — Extract `ModelSelect` Component ✅
-- `frontend/src/components/ModelSelect.tsx`: new shared component (props: `models`, `value`, `onChange`, `disabled`); grouped by server, sorted, unavailable disabled
-- `Evaluate.tsx`: inline model selector replaced with `<ModelSelect />`
-
-#### Step 5 — Re-Evaluate Endpoint ✅
-- `main.py`: `ReEvaluateRequest` Pydantic model added; `POST /api/v1/jobs/{job_id}/re-evaluate` route added — loads stored JD, validates model availability (422), runs `evaluator.evaluate_jd()` with `existing_job_id`
-
-#### Step 6 — Applications Page Redesign (Backend) ✅
-- `main.py`: `GET /api/v1/applications` gains `include_not_started: bool = False` query param; passes `exclude_not_started=not include_not_started` to DB function
-
-#### Step 7 — Applications Page Redesign (Frontend) ✅
-- `useApplications(includeNotStarted?)` param added; Applications page passes `true`
-- Status filter pills (all 10, client-side toggle); "N of M jobs" header
-- Batch action bar: select-all checkbox, N-selected count, `ModelSelect`, Re-run Evals button
-- Per-row checkbox (separate click target from navigation); row click → `/jobs/{id}?tab=application`
-- `BatchEvalModal`: sequential `POST /api/v1/jobs/{id}/re-evaluate` loop, progress bar, time estimate, Stop / Stop & Close, cache invalidation on close
-
-#### Bonus — Eval Row Metadata ✅
-- `get_evaluations_for_job` extended with LEFT JOINs to `llm_call_log` → `prompt_usage` → `prompts`
-- Eval rows now display: `local · model · v4 · 0.3` or `external · model`
-- `prompt` field dropped entirely (column was removed from `llm_call_log` by prior delta migration)
-
-#### Step 8 — Tests ✅
-- Backend: `TestReEvaluateEndpoint` (5), `TestPromptTemperature` (3), temperature passthrough (3), `include_not_started` (2)
-- Frontend: `Applications.test.tsx` rewritten (11), `ModelSelect.test.tsx` new (4), `BatchEvalModal.test.tsx` new (6)
-- Global MSW handler for `POST /api/v1/jobs/:id/re-evaluate`
-- Test baseline: 660 backend / 282 frontend
+Test baseline: 660 backend / 282 frontend.
 
 ---
 
 ## Phase 2.3 — Protocol-Aware LLM Servers (Complete)
-
 See `app_docs/WORKORDER_p2.3.md` for full implementation detail.
-
-### Phase 2.3 — Goal
-Replace `server_type = 'local'` with a protocol discriminator (`'ollama'` | `'openai-compat'` | `'anthropic'`). Add full support for OpenAI-compatible endpoints (llama.cpp, LM Studio, vLLM) using `/v1/chat/completions`. Add auto-detection of server type via "Test Connection" in Settings.
-
-### Phase 2.3 — Progress
-
-#### Step 1 — DB Migration ✅
-- `database.py`: DDL default `'local'` → `'ollama'`; delta migration `UPDATE llm_servers SET server_type = 'ollama' WHERE server_type = 'local'`; `seed_llm_models_from_config()` literal updated
-
-#### Step 2 — `llm_client.py`: OpenAI-Compatible Provider ✅
-- `PROVIDER_OPENAI_COMPAT = "openai-compat"` constant added
-- `_call_openai_compat()`: POST to `/v1/chat/completions`; parses `choices[0].message.content` and `usage.*` tokens
-- `_stream_openai_compat()`: SSE parser for `data: {...}` lines; terminates on `data: [DONE]`
-- `check_openai_compat_health()`: GET `/v1/models`; same return shape as `check_ollama_health()`
-- `complete()` and `complete_stream()`: dispatch branches added for `PROVIDER_OPENAI_COMPAT`
-
-#### Step 3 — `main.py` + `evaluator.py`: Protocol-Aware Dispatch ✅
-- `_VALID_SERVER_TYPES`: `{"local", "anthropic"}` → `{"ollama", "openai-compat", "anthropic"}`
-- `_update_model_availability`: dispatches `ollama` / `openai-compat` / `anthropic` separately
-- Provider resolution: both callers now use `model_info.get("server_type", "ollama")` directly (server_type IS the provider)
-- `create_server`, `update_server`: endpoint validation uses `!= "anthropic"` instead of `== "local"`
-- `test_server_connection`: ollama branch renamed; new `openai-compat` branch added (probes `/v1/models`)
-- `get_available_models`: new `openai-compat` branch (parses `/v1/models` `data[].id`)
-- `evaluator.py` `_provider_from_server_type()`: handles `openai-compat` explicitly
-
-#### Step 5 (backend) — Tests ✅
-- All test fixtures updated: `"local"` → `"ollama"` in `create_server()` calls and assertions (9 files)
-- `test_evaluator.py`: `test_local_returns_ollama` → `test_ollama_returns_ollama`; new `test_openai_compat_returns_openai_compat`
-- `test_servers.py`: new `TestOpenAICompatServer` class (5 tests)
-- `test_llm_client.py`: 7 new openai-compat tests (call success/failure, missing usage, health check, streaming)
-- Test baseline: 642 backend / 263 frontend
-
-#### Step 4 — Frontend Settings UI ✅
-- `AddServerModal`: tab bar → 3-option type dropdown; "Detect & Test" button calls `POST /api/v1/servers/detect`, auto-sets dropdown, then shows model count
-- `EditServerModal` / `ServersSection` / `ModelForm`: all `'local'` comparisons updated; type labels for all 3 values
-- `POST /api/v1/servers/detect`: probes `/api/tags` + `/v1/models` in parallel (3s timeout); returns `{ detected_type, reachable }`
-- `ServerType` updated in `types/api.ts`; `useDetectServer` hook added
-- Test baseline: 647 backend / 267 frontend
 
 ---
 
 ## Phase 2.2 — Prompt Templates + UX Polish (Complete)
-
 See `app_docs/WORKORDER_p2.2.md` for full implementation detail.
-
-### Phase 2.2 — Step 1: Prompt Defaults as Template Files ✅
-- `templates/prompts/` directory created with 3 files: `eval_analysis.md`, `eval_scoring.md`, `eval_external.md`
-- Each file: doc header → `---` separator → tagged prompt content with `[[EDITABLE]]`/`[[READONLY]]` blocks
-- `main.py`: `load_prompt_template(filename)` loader (line-based split on first `---`); updated seed calls for `eval_analysis`, `eval_scoring`, `eval_external` to load from template files with Python constants as fallback
-- v2 migration guard at startup: if active DB row has no `[[EDITABLE]]` tags, calls `save_prompt()` to create tagged v2 row (preserves v1 as history)
-- `eval_internal` seed call unchanged at this step (superseded, no template file)
-
-### Phase 2.2 — Step 2: Remove Inline Timer from Evaluate Button Row ✅
-- `Evaluate.tsx`: removed `{isRunning && ...}` timer span from button row; `RunningPanel` in right column remains sole display of elapsed/countdown
-
-### Phase 2.2 — Step 3: Company + Title in Job Detail Job Info Grid ✅
-- `JobDetail.tsx` (`activeAction === 'job-details'`): removed standalone `{job.company_name}` heading; added Company + Title as first two rows in Job Info labeled grid
-
-### Phase 2.2 — Step 4: eval_internal Removal + PromptEditor UX Polish ✅
-- `main.py`: removed `eval_internal` seed call from startup — prompt is superseded by the two-call pipeline and was the last reference to `evaluator.SYSTEM_PROMPT_TEMPLATE`
-- `PromptEditor.tsx` regex fix: inner capture group `(EDITABLE|READONLY)` changed to non-capturing `(?:EDITABLE|READONLY)` — JS `split()` was emitting the bare word as a content segment, causing "EDITABLE" to appear as literal text in editable textareas
-- `PromptEditor.tsx` layout: HR separator between header row and two-column grid; "EDIT PROMPT" label above left column; "PROMPT PREVIEW" label moved outside and above the preview box
-- `PromptEditor.tsx` textarea height: `rows` prop dropped entirely; callback ref sets `scrollHeight` on mount; `onChange` repeats resize; `overflow-hidden` prevents scrollbar flicker; `resize-y` kept for manual drag
-- `tests/routes/test_prompts.py`: `test_returns_startup_seeded_prompts` updated — asserts `eval_analysis`, `eval_scoring`, `eval_external` instead of removed `eval_internal`
-- Note: `SYSTEM_PROMPT_TEMPLATE` in `evaluator.py` is now dead code (no remaining callers) — deferred cleanup
-
-### Phase 2.2 — Step 5: CI Lint Fixes + PromptEditor Textarea Auto-Height ✅
-- CI lint errors fixed (unused endpoint import, ambiguous variable name `l`)
-- `PromptEditor.tsx` textarea height: switched from `rows` formula to `scrollHeight` via callback ref on mount; `onChange` repeats resize; `overflow-hidden` prevents scrollbar flicker
-
-### Phase 2.2 — Step 6: Gen Prompt Migration to Template System ✅
-- `gen_resume`, `gen_cover`, `gen_orgsummary` prompts migrated to `templates/prompts/` using `[[PROMPT_START]]` / `[[PROMPT_END]]` markers
-- All 6 prompts (3 eval + 3 gen) now managed through the template system
-- Test baseline: 629 backend / 263 frontend
 
 ---
 
 ## Phase 2.1 — Evaluation Quality + Prompt System (Complete)
-
 See `app_docs/WORKORDER_p2.1.md` for full implementation detail.
 
-### Phase 2.1 — Step 1: Prompt Calibration Fixes ✅
-- `evaluator.py` `SYSTEM_PROMPT_TEMPLATE`: reframe scoring bands 1–10; remove "10 is rare" language; remove contradictory "don't suppress high scores" instruction
-- `main.py` external eval prompt: extract to `EXTERNAL_EVAL_PROMPT_TEMPLATE` constant; add matching calibration guidance
+---
 
-### Phase 2.1 — Step 2: Quick UX Wins + Re-Run Eval ✅
-- Spinner icon on Fill With AI button (`Evaluate.tsx`)
-- Text search input (first element in Jobs filter bar, client-side, company + title)
-- Company name + title added to existing Job Info edit modal (`JobDetail.tsx`)
-- "Re-Run Internal Eval" button on Job Details → Evaluations tab: navigates to Evaluate page with all 7 fields pre-populated via router state; `job_id` in state bypasses dedup detection
+## Phase 2.0 — Steps 1–3 Complete; Steps 4–5 Superseded/Deferred
+See `app_docs/WORKORDER_p2.0.md` for full implementation detail.
 
-### Phase 2.1 — Step 3: Create Job Without Eval + Post-Action Widget ✅
-- New "Create Job Without Eval" button on Evaluate page (same fields, no model selector, no AI call)
-- All evaluated jobs auto-activate (`is_active = 1`) — evaluate endpoint sets this directly; "Yes/No, build this job" buttons removed
-- New `POST /api/v1/jobs/create` endpoint
-- Post-eval and post-import: inline widget (not a modal) with **Go To Job** | **Evaluate Again**; appears above evaluation result
+---
 
-### Phase 2.1 — Step 4: Evaluation Feedback System ✅
-- New `prompt_feedback` table (superseded by `prompt_usage` in Step 5a — not deployed to production)
-- New `POST /api/v1/prompt-feedback` endpoint
-- `EvaluationFeedbackButton` component: inline button → modal with agree/disagree + dimension selector + optional text
-- Wired in two places: above result on Evaluate page (internal eval); second modal after Import External Eval success (external eval)
-- Feedback not displayed to user in this phase — stored for Phase 2.2 review tool
-
-### Phase 2.1 — Immediate Fixes (Issue 1 + 2) ✅
-- `Evaluate.tsx` `ResultPanel`: add prominent `score_overall` display above sub-score grid (field exists in response, not rendered)
-- `EvaluationFeedbackButton.tsx`: convert "Rate this evaluation" text link into bordered card-style widget with explanation line and real button
-
-### Phase 2.1 — Step 5a: Schema Foundation + prompt_generation.py ✅ (Batch 4 done)
-- ✅ New `prompts` table added to `database.py`
-- ✅ New `prompt_usage` table added to `database.py` (replaces `prompt_feedback`)
-- ✅ `prompt_feedback` table dropped; `add_prompt_feedback()` removed; `POST /api/v1/prompt-feedback` removed
-- ✅ `llm_call_log`: ADD COLUMN `prompt_usage_id` INTEGER (delta migration in `init_db()`); schema v1.6
-- ✅ DB functions: `assemble_prompt`, `get_active_prompt`, `save_prompt`, `get_prompt_history`, `seed_prompt_if_missing`, `create_prompt_usage`, `update_prompt_feedback`, `get_prompt_usage`, `get_unprocessed_feedback`, `mark_feedback_consumed`
-- ✅ Data migration (startup): seed `prompts` with current eval constants (`eval_internal`, `eval_external`); backfill `prompt_usage` from `llm_call_log` evaluation rows (PRAGMA guard for idempotency); DROP COLUMN `prompt`; DROP COLUMN `prompt_hash`; schema v1.7; all `insert_llm_call_log` callers updated
-- ✅ New `prompt_generation.py`: `get_prompt(prompt_key, context, job_id, source)` → `{ prompt_text, prompt_usage_id }`
-- ✅ `evaluator.py`: removed `_build_system_prompt()`; replaced with `prompt_generation.get_prompt('eval_internal', ...)`; `prompt_usage_id` passed to both `insert_llm_call_log` calls
-- ✅ `generate_prompt` route (`main.py`): uses `prompt_generation.get_prompt('eval_external', ...)`; response includes `prompt_usage_id`
-- ✅ `insert_llm_call_log` (`database.py`): added `prompt_usage_id` keyword param
-- ✅ `EvaluationFeedbackButton`: props updated to `promptUsageId`; calls new `POST /api/v1/prompt-usage/{id}/feedback`; `PromptFeedbackPayload` → `PromptUsageFeedbackPayload`; MSW handler updated; test baseline 597/253
-
-### Phase 2.1 — Step 5b: Prompt Editor UI + Feedback Loop Trigger ✅
-- ✅ New API endpoints: `GET /api/v1/prompts`, `GET /api/v1/prompts/{key}`, `POST /api/v1/prompts/{key}/save`, `GET /api/v1/prompts/{key}/preview`, `POST /api/v1/prompts/{key}/feedback-loop`
-- ✅ `database.get_all_active_prompts()` added; `PromptSaveRequest` Pydantic model added to `main.py`
-- ✅ `tests/routes/test_prompts.py` — 22 tests
-- ✅ CI TypeScript fixes from Step 5a: `JobDetail.tsx` scope bug + unused var; `handlers.ts` missing `prompt_usage_id`
-- ✅ New "Prompts" section in Settings page (`Settings.tsx` — `'prompts'` tab + `<PromptEditor />`)
-- ✅ `PromptEditor` component: prompt dropdown; left column = editable segments as `<textarea>`, locked segments as muted read-only; right column = assembled preview
-- ✅ "Run Feedback Loop" button: suggestions panel on success; Dismiss button; "no unprocessed feedback" message
-- ✅ `JobDetail.tsx` CI fix: `onPromptGenerated` callback prop wired from `JobDetailsRight` → `JobDetailPage` so `setImportedPromptUsageId` is actually called
-- ✅ Test baseline: 622 backend / 262 frontend
-
-### Phase 2.1 — Step 6: Multi-Prompt Split ✅
-- Four prompt keys seeded at startup: `eval_analysis_system`, `eval_analysis_user`, `eval_scoring_system`, `eval_scoring_user`
-- `evaluate_with_split()` in `evaluator.py`: Call 1 commits archetype/deal-breaker/domain; Call 2 scores with committed analysis injected; `evaluate_jd()` delegates LLM work to it
-- `evaluations.llm_call_log_id` points to Call 2; Call 1 traceable via `job_id` on `llm_call_log`
-- Call 1 failure → fail entire evaluation; Call 2 failure → retry once (existing contract)
-- `analysis_json TEXT` column on `evaluations` (delta migration); `_sanitize_jd()` replaces `_build_user_prompt()`
-- `test_evaluator.py` rewritten for two-call mocking (73 tests); route tests updated; test baseline: 629 backend / 263 frontend
-
-### Phase 2.0 — Steps 1–3 ✅ Complete
-- Step 1: CI/CD — `.github/workflows/ci.yml`; pytest + ruff + vitest + build on every push/PR
-- Step 2: Nav restructure — `AppHeader.tsx` three-item nav group; `/career` stub route
-- Step 3: URL ingestion — `scrape_routes.py`; Crawl4AI client; fill-gaps AI endpoint; Evaluate page UI
-- Step 4: Superseded by Phase 2.1 workorder
-- Step 5: 🔲 Not yet designed — Memory, Dashboard redesign, Career workflow
-
-### Phase 1.7 — Docker ✅ Complete
-- Dockerfile (multi-stage: Node:20-slim build → python:3.11-slim serve; Typst v0.14.2 baked in; HEALTHCHECK)
-- docker-compose.yml (volume mounts: user_data/, app_data/; env_file: .env; port 127.0.0.1:8080)
-- .dockerignore
-- main.py: StaticFiles + SPA catch-all already in place from Phase 1.1
-- README.md: Docker setup instructions complete; Ollama host.docker.internal note added
+## Phase 1.7 — Docker Complete
+See `app_docs/completed_workorders/WORKORDER_phase1.7_completed.md` for full implementation detail.
 
 ### Target File Structure
 ```

@@ -499,7 +499,7 @@ Pass `promptType="evaluation_external"` and the `evaluationId` of the newly impo
 
 ---
 
-## Immediate Fixes — Issue 1 + Issue 2 🔲
+## Immediate Fixes — Issue 1 + Issue 2 ✅
 
 **Do these before Step 5a. Both are independent of the schema changes.**
 
@@ -545,7 +545,7 @@ No changes to the modal interior. No backend changes.
 
 ---
 
-## Step 5a — Schema Foundation + prompt_generation.py 🔄 (Batch 1 of 7 done)
+## Step 5a — Schema Foundation + prompt_generation.py ✅
 
 **Goal:** Replace the ad-hoc `prompt_feedback` table with a proper three-layer prompt
 data architecture: `prompts` (versioned templates) → `prompt_usage` (per-call instances
