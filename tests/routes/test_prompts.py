@@ -127,6 +127,12 @@ class TestGetPrompt:
         assert data["version"] == 2
         assert data["segments_text"] == _SEGMENTS_TEXT_V2
 
+    def test_returns_temperature_field(self, client):
+        database.seed_prompt_if_missing(_TEST_KEY, _TEST_LABEL, _SEGMENTS_TEXT, temperature=0.4)
+        data = client.get(f"/api/v1/prompts/{_TEST_KEY}").json()
+        assert "temperature" in data
+        assert data["temperature"] == 0.4
+
 
 # ─────────────────────────────────────────────────────────────
 # POST /api/v1/prompts/{key}/save
@@ -172,6 +178,15 @@ class TestSavePrompt:
         client.post(f"/api/v1/prompts/{_TEST_KEY}/save", json={"segments_text": "v2"})
         resp = client.post(f"/api/v1/prompts/{_TEST_KEY}/save", json={"segments_text": "v3"})
         assert resp.json()["version"] == 3
+
+    def test_temperature_persists_after_save(self, client):
+        _seed_prompt()
+        client.post(
+            f"/api/v1/prompts/{_TEST_KEY}/save",
+            json={"segments_text": _SEGMENTS_TEXT_V2, "temperature": 0.7},
+        )
+        data = client.get(f"/api/v1/prompts/{_TEST_KEY}").json()
+        assert data["temperature"] == 0.7
 
 
 # ─────────────────────────────────────────────────────────────

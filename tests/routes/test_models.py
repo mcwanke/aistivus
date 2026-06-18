@@ -232,6 +232,18 @@ class TestDeleteModel:
         resp = client.delete("/api/v1/models/9999")
         assert resp.status_code == 404
 
+    def test_model_with_evaluations_returns_409(self, server_client):
+        c = server_client["client"]
+        sid = server_client["server_id"]
+        # Two models so the "only model" guard doesn't fire first
+        mid = database.insert_llm_model("model-with-eval", sid, default_flag=0, available=1)
+        database.insert_llm_model("model-other", sid, default_flag=1, available=1)
+        job_id, _ = database.upsert_job("Acme", "Engineer", "eng")
+        database.insert_evaluation(job_id, mid)
+        resp = c.delete(f"/api/v1/models/{mid}")
+        assert resp.status_code == 409
+        assert "evaluations" in resp.json()["detail"].lower()
+
 
 # ─────────────────────────────────────────────────────────────
 # POST /api/v1/models/{id}/set-default

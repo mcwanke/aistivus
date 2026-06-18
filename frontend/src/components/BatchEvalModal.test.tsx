@@ -83,6 +83,24 @@ describe('BatchEvalModal', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  it('calls re-evaluate exactly once per job (no double-fire)', async () => {
+    let callCount = 0
+    server.use(
+      http.post('/api/v1/jobs/:id/re-evaluate', () => {
+        callCount++
+        return HttpResponse.json(SUCCESS_RESPONSE)
+      }),
+    )
+    renderWithProviders(
+      <BatchEvalModal jobs={JOBS} modelId={1} modelName="llama3" onClose={vi.fn()} />
+    )
+    await waitFor(
+      () => expect(screen.getByText('2 of 2 complete')).toBeInTheDocument(),
+      { timeout: 3000 },
+    )
+    expect(callCount).toBe(2)
+  })
+
   it('shows Stop button while running', () => {
     // Use a handler that never resolves to keep the modal in running state
     server.use(

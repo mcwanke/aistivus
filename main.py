@@ -1780,6 +1780,11 @@ async def delete_model(request: Request, model_id: int):
                 status_code=409,
                 detail="Cannot delete the only configured model.",
             )
+    if database.model_has_evaluations(model_id):
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot delete model — it has existing evaluations. Remove the evaluations first or keep the model.",
+        )
     deleted = database.delete_llm_model(model_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Model {model_id} not found.")

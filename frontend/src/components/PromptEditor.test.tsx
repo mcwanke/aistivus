@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
+import { server } from '@/test/mocks/server'
 import { renderWithProviders } from '@/test/utils'
 import PromptEditor from './PromptEditor'
 
@@ -86,6 +88,62 @@ describe('PromptEditor', () => {
       const textarea = screen.getByDisplayValue('Rate the job.')
       await user.type(textarea, ' Updated.')
       expect(screen.queryByText('Saved (v2)')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('temperature', () => {
+    it('renders temperature input when prompt key is eval_analysis', async () => {
+      server.use(
+        http.get('/api/v1/prompts', () =>
+          HttpResponse.json([{ prompt_key: 'eval_analysis', label: 'Eval Analysis', version: 1 }]),
+        ),
+        http.get('/api/v1/prompts/:key', () =>
+          HttpResponse.json({
+            prompt_key: 'eval_analysis',
+            label: 'Eval Analysis',
+            version: 1,
+            segments_text: '[[EDITABLE]]Rate the job.[[/EDITABLE]]',
+            preview_context: null,
+            temperature: 0.3,
+          }),
+        ),
+      )
+      renderWithProviders(<PromptEditor />)
+      await waitFor(() =>
+        expect((screen.getByRole('spinbutton') as HTMLInputElement).value).toBe('0.3'),
+      )
+    })
+
+    it('includes temperature in save payload', async () => {
+      let capturedBody: Record<string, unknown> | null = null
+      server.use(
+        http.get('/api/v1/prompts', () =>
+          HttpResponse.json([{ prompt_key: 'eval_analysis', label: 'Eval Analysis', version: 1 }]),
+        ),
+        http.get('/api/v1/prompts/:key', () =>
+          HttpResponse.json({
+            prompt_key: 'eval_analysis',
+            label: 'Eval Analysis',
+            version: 1,
+            segments_text: '[[EDITABLE]]Rate the job.[[/EDITABLE]]',
+            preview_context: null,
+            temperature: 0.3,
+          }),
+        ),
+        http.post('/api/v1/prompts/:key/save', async ({ request }) => {
+          capturedBody = (await request.json()) as Record<string, unknown>
+          return HttpResponse.json({ success: true, version: 2 })
+        }),
+      )
+      const user = userEvent.setup()
+      renderWithProviders(<PromptEditor />)
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Save' })).not.toBeDisabled(),
+      )
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      await waitFor(() => expect(capturedBody).not.toBeNull())
+      expect(capturedBody).toHaveProperty('temperature')
+      expect(typeof capturedBody!['temperature']).toBe('number')
     })
   })
 

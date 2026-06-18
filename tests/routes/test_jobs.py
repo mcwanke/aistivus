@@ -125,6 +125,16 @@ class TestGetJob:
         assert resp.status_code == 200
         assert resp.json()["job"]["is_active"] == 0
 
+    def test_eval_row_includes_metadata_fields(self, seeded_client):
+        sc = seeded_client
+        database.insert_evaluation(sc["job_id"], sc["model_id"])
+        resp = sc["client"].get(f"/api/v1/jobs/{sc['job_id']}")
+        ev = resp.json()["evaluations"][0]
+        assert "model_name" in ev
+        assert "eval_source" in ev
+        assert "prompt_version" in ev
+        assert "temperature" in ev
+
 
 class TestGetJobApplication:
     def test_returns_application_for_new_job(self, seeded_client):

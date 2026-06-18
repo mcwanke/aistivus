@@ -856,10 +856,20 @@ def set_llm_model_available(model_id: int, available: int) -> None:
         )
 
 
+def model_has_evaluations(model_id: int) -> bool:
+    """Return True if any evaluation references this model."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM evaluations WHERE llm_model_id = ? LIMIT 1",
+            (model_id,)
+        ).fetchone()
+        return row is not None
+
+
 def delete_llm_model(model_id: int) -> bool:
     """
     Delete an LLM model. Returns True if deleted, False if not found.
-    Note: blocked by FK if evaluations reference this model.
+    Caller must check model_has_evaluations() first; FK will block if evaluations exist.
     """
     with get_connection() as conn:
         conn.execute("DELETE FROM llm_models WHERE id = ?", (model_id,))

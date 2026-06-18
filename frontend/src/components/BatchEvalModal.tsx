@@ -56,6 +56,7 @@ export default function BatchEvalModal({
 }: BatchEvalModalProps): React.JSX.Element {
   const qc = useQueryClient()
   const stopRef = useRef(false)
+  const hasStarted = useRef(false)
 
   const [jobStates, setJobStates] = useState<JobState[]>(() =>
     jobs.map(j => ({ ...j, status: 'pending', score: null, error: null }))
@@ -118,8 +119,9 @@ export default function BatchEvalModal({
   }, [jobs, modelId])
 
   useEffect(() => {
+    if (hasStarted.current) return
+    hasStarted.current = true
     void runBatch()
-  // runBatch is stable — only runs once on mount
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

@@ -32,6 +32,19 @@ describe('useApplications', () => {
     const { result } = renderHook(() => useApplications(), { wrapper: makeWrapper() })
     await waitFor(() => expect(result.current.isError).toBe(true))
   })
+
+  it('appends include_not_started=true when flag is set', async () => {
+    let capturedUrl = ''
+    server.use(
+      http.get('/api/v1/applications', ({ request }) => {
+        capturedUrl = request.url
+        return HttpResponse.json([MOCK_APPLICATION])
+      }),
+    )
+    const { result } = renderHook(() => useApplications(true), { wrapper: makeWrapper() })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(capturedUrl).toContain('include_not_started=true')
+  })
 })
 
 describe('useApplicationDetail', () => {
