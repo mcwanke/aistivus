@@ -759,8 +759,8 @@ def load_prompt_template(filename: str) -> str | None:
         log.warning("prompt_template_missing", extra={"file": filename})
         return None
     lines = path.read_text(encoding="utf-8").splitlines()
-    start_idx = next((i for i, l in enumerate(lines) if l.strip() == "[[PROMPT_START]]"), None)
-    end_idx = next((i for i, l in enumerate(lines) if l.strip() == "[[PROMPT_END]]"), None)
+    start_idx = next((i for i, line in enumerate(lines) if line.strip() == "[[PROMPT_START]]"), None)
+    end_idx = next((i for i, line in enumerate(lines) if line.strip() == "[[PROMPT_END]]"), None)
     if start_idx is None or end_idx is None or end_idx <= start_idx:
         log.warning("prompt_template_missing_markers", extra={"file": filename})
         return None
