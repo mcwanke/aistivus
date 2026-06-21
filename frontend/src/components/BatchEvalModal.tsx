@@ -132,6 +132,7 @@ export default function BatchEvalModal({
   function handleClose(): void {
     void qc.invalidateQueries({ queryKey: ['applications'] })
     void qc.invalidateQueries({ queryKey: ['jobs'] })
+    void qc.invalidateQueries({ queryKey: ['models'] })
     onClose()
   }
 

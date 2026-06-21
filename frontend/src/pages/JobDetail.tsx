@@ -2824,6 +2824,14 @@ function DocRow({ doc, applicationId, typstAvailable }: DocRowProps): React.JSX.
   const [renameValue, setRenameValue] = useState('')
   const [renameError, setRenameError] = useState('')
   const contentInitRef = useRef(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const lineNumRef = useRef<HTMLDivElement>(null)
+
+  function handleEditorScroll(): void {
+    if (lineNumRef.current && textareaRef.current) {
+      lineNumRef.current.scrollTop = textareaRef.current.scrollTop
+    }
+  }
 
   const isTyp = doc.extension === '.typ'
   const isPdf = doc.extension === '.pdf'
@@ -2929,7 +2937,7 @@ function DocRow({ doc, applicationId, typstAvailable }: DocRowProps): React.JSX.
         {/* Filename + badges */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap min-w-0">
-            <span className={`text-sm font-mono truncate ${isMissing ? 'text-red/70' : 'text-text'}`}>
+            <span className={`text-sm font-mono truncate ${isMissing ? 'text-red/70' : isFinal ? 'text-accent' : 'text-muted'}`}>
               {doc.filename}
             </span>
             {isMissing && (
@@ -3075,12 +3083,25 @@ function DocRow({ doc, applicationId, typstAvailable }: DocRowProps): React.JSX.
             <p className="text-xs text-muted">Loading…</p>
           ) : (
             <>
-              <textarea
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                rows={12}
-                className="w-full bg-surface border border-surface2 rounded px-3 py-2 text-xs font-mono text-text focus:outline-none focus:border-accent/50 resize-y"
-              />
+              <div className="flex border border-surface2 rounded overflow-hidden focus-within:border-accent/50">
+                <div
+                  ref={lineNumRef}
+                  className="bg-surface2 text-muted text-xs font-mono py-2 px-2 text-right select-none overflow-hidden leading-[1.5rem] shrink-0"
+                  style={{ minWidth: '2.5rem' }}
+                >
+                  {editContent.split('\n').map((_, i) => (
+                    <div key={i}>{i + 1}</div>
+                  ))}
+                </div>
+                <textarea
+                  ref={textareaRef}
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  onScroll={handleEditorScroll}
+                  rows={25}
+                  className="flex-1 bg-surface px-3 py-2 text-xs font-mono text-text focus:outline-none resize-y leading-[1.5rem]"
+                />
+              </div>
               {editError && <p className="text-xs font-mono text-red">{editError}</p>}
               <div className="flex items-center gap-2">
                 <button
@@ -3193,14 +3214,14 @@ function ResumeCoverTab({ applicationId, typstAvailable }: ResumeCoverTabProps):
             disabled={generateResume.isPending}
             className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50"
           >
-            {generateResume.isPending ? 'Generating…' : 'Generate Resume'}
+            {generateResume.isPending ? 'Generating…' : 'Generate External Resume Prompt'}
           </button>
           <button
             onClick={() => void handleGenerateCover()}
             disabled={generateCover.isPending}
             className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50"
           >
-            {generateCover.isPending ? 'Generating…' : 'Generate Cover Letter'}
+            {generateCover.isPending ? 'Generating…' : 'Generate External Cover Letter Prompt'}
           </button>
         </div>
         {generateResume.isError && (

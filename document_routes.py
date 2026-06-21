@@ -681,20 +681,25 @@ async def finalize_document(request: Request, application_id: int, doc_id: int):
     job = database.get_job(dict(application)["job_id"])
     job_dict = dict(job)
     company = _sanitize_for_final_filename(job_dict["company_name"])
-    title = _sanitize_for_final_filename(job_dict["title"])
+    is_cover = doc_dict.get("type_value") == "cover_letter"
 
     cfg = _load_config()
     jobsearch_path = cfg.get("evaluation", {}).get("jobsearch_md_path", "./jobsearch.md")
     raw_name = _get_candidate_name(jobsearch_path)
     if raw_name:
-        name = _sanitize_for_final_filename(raw_name)
-        final_name = f"{name}_{company}_{title}.pdf"
+        parts = raw_name.strip().split(None, 1)
+        first = _sanitize_for_final_filename(parts[0])
+        last = _sanitize_for_final_filename(parts[1]) if len(parts) > 1 else ""
+        name_part = f"{first}_{last}" if last else first
+        suffix = "_cover" if is_cover else ""
+        final_name = f"{name_part}_{company}{suffix}.pdf"
     else:
         log.warning(
             "candidate_name_not_found",
-            extra={"fallback": f"{company}_{title}.pdf"},
+            extra={"fallback": f"{company}.pdf"},
         )
-        final_name = f"{company}_{title}.pdf"
+        suffix = "_cover" if is_cover else ""
+        final_name = f"{company}{suffix}.pdf"
 
     final_path = _unique_path(source_path.parent, final_name)  # absolute — for filesystem only
     source_rel = Path(doc_dict["file_path"])

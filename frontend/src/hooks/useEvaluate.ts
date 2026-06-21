@@ -47,6 +47,7 @@ export function useEvaluateMutation() {
     mutationFn: postEvaluate,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['jobs'] })
+      void qc.invalidateQueries({ queryKey: ['models'] })
     },
   })
 }
