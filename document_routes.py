@@ -603,9 +603,13 @@ async def compile_document(request: Request, application_id: int, doc_id: int):
         database.delete_application_document(dict(existing)["id"])
 
     typst_binary: str = getattr(request.app.state, "typst_binary", "typst")
+    typst_fonts_dir: Path = getattr(request.app.state, "typst_fonts_dir", None)
     try:
+        cmd = [typst_binary, "compile", str(source_path), str(pdf_path)]
+        if typst_fonts_dir and typst_fonts_dir.is_dir():
+            cmd += ["--font-path", str(typst_fonts_dir)]
         result = subprocess.run(
-            [typst_binary, "compile", str(source_path), str(pdf_path)],
+            cmd,
             capture_output=True,
             text=True,
             timeout=30,

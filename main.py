@@ -829,6 +829,7 @@ async def lifespan(app: FastAPI):
     app.state.typst_available = typst_available
     app.state.typst_binary = typst_binary
     app.state.application_docs_dir = application_docs_dir
+    app.state.typst_fonts_dir = Path("./user_data/my_data/resume_cover_fonts")
 
     if typst_available:
         log.info("typst_available", extra={"binary": typst_binary})

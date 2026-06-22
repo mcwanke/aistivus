@@ -20,7 +20,9 @@ def get_prompt(
         raise ValueError(f"No active prompt found for key '{prompt_key}'")
 
     raw_text = database.assemble_prompt(row["segments_text"])
-    prompt_text = raw_text.format(**context)
+    prompt_text = raw_text
+    for key, val in context.items():
+        prompt_text = prompt_text.replace(f"{{{key}}}", str(val))
     prompt_hash = hashlib.sha256(prompt_text.encode()).hexdigest()
 
     prompt_usage_id = database.create_prompt_usage(
