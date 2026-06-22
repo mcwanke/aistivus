@@ -2952,19 +2952,30 @@ function DocRow({ doc, applicationId, typstAvailable }: DocRowProps): React.JSX.
             )}
             {typeBadge}
           </div>
-          <span className="text-[10px] font-mono text-muted">{fmtDate(doc.created_at)}</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[10px] font-mono text-muted shrink-0">{fmtDate(doc.created_at)}</span>
+            <span className="text-[10px] font-mono text-muted/50 truncate">{doc.file_path}</span>
+          </div>
         </div>
 
         {/* Buttons — normal state */}
         {!deleteConfirm ? (
           <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
             {isTyp && !isMissing && (
-              <button
-                onClick={handleOpenEditor}
-                className="text-xs font-mono text-muted hover:text-text border border-surface2 rounded px-2 py-0.5 transition-colors hover:border-accent/40"
-              >
-                Edit
-              </button>
+              <>
+                <button
+                  onClick={handleOpenEditor}
+                  className="text-xs font-mono text-muted hover:text-text border border-surface2 rounded px-2 py-0.5 transition-colors hover:border-accent/40"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => { window.open(`/api/v1/documents/file/${doc.id}?download=true`, '_blank') }}
+                  className="text-xs font-mono text-muted hover:text-text border border-surface2 rounded px-2 py-0.5 transition-colors hover:border-accent/40"
+                >
+                  Download
+                </button>
+              </>
             )}
             {isTyp && typstAvailable && !isMissing && (
               <button
@@ -3083,10 +3094,10 @@ function DocRow({ doc, applicationId, typstAvailable }: DocRowProps): React.JSX.
             <p className="text-xs text-muted">Loading…</p>
           ) : (
             <>
-              <div className="flex border border-surface2 rounded overflow-hidden focus-within:border-accent/50">
+              <div className="flex border border-surface2 rounded overflow-hidden focus-within:border-accent/50" style={{ height: 'calc(25 * 1.5rem + 1rem)' }}>
                 <div
                   ref={lineNumRef}
-                  className="bg-surface2 text-muted text-xs font-mono py-2 px-2 text-right select-none overflow-hidden leading-[1.5rem] shrink-0"
+                  className="bg-surface2 text-muted text-xs font-mono py-2 px-2 text-right select-none overflow-y-hidden leading-[1.5rem] shrink-0"
                   style={{ minWidth: '2.5rem' }}
                 >
                   {editContent.split('\n').map((_, i) => (
@@ -3098,8 +3109,7 @@ function DocRow({ doc, applicationId, typstAvailable }: DocRowProps): React.JSX.
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
                   onScroll={handleEditorScroll}
-                  rows={25}
-                  className="flex-1 bg-surface px-3 py-2 text-xs font-mono text-text focus:outline-none resize-y leading-[1.5rem]"
+                  className="flex-1 h-full bg-surface px-3 py-2 text-xs font-mono text-text focus:outline-none resize-none overflow-y-auto leading-[1.5rem]"
                 />
               </div>
               {editError && <p className="text-xs font-mono text-red">{editError}</p>}

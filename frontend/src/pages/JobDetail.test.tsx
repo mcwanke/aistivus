@@ -211,7 +211,7 @@ describe('JobDetailPage workspace', () => {
       expect(screen.getByText('resume')).toBeInTheDocument()
     })
 
-    it('.typ row shows Edit and Compile; no Open, Download, or Finalize', async () => {
+    it('.typ row shows Edit, Compile, and Download; no Open or Finalize', async () => {
       server.use(
         http.get('/api/v1/applications/:id/documents', () =>
           HttpResponse.json([MOCK_TYP_DOC]),
@@ -221,8 +221,8 @@ describe('JobDetailPage workspace', () => {
       await waitFor(() => expect(screen.getByText('resume_v1.typ')).toBeInTheDocument())
       expect(screen.getByText('Edit')).toBeInTheDocument()
       expect(screen.getByText('Compile')).toBeInTheDocument()
+      expect(screen.getByText('Download')).toBeInTheDocument()
       expect(screen.queryByText('Open')).not.toBeInTheDocument()
-      expect(screen.queryByText('Download')).not.toBeInTheDocument()
       expect(screen.queryByText('Finalize')).not.toBeInTheDocument()
     })
 
