@@ -153,6 +153,28 @@ org and the product roadmap."]
 **Cover letter voice:**
 [AUTO — e.g. Warm, direct, specific. No hollow openers like "I am excited to apply..."]
 
+### Key Impacts selection logic
+
+When selecting and ordering Key Impacts bullets for a tailored resume, apply this logic
+based on signals present in the JD. All content must come from documented achievements
+in this file — these are selection and ordering rules, not content.
+
+- **People development / manager pipeline:** Include when the role involves developing
+  managers or building leadership depth. Drop or compress for IC-heavy or technical roles
+  where this is low signal.
+- **AI tooling adoption:** Include for most roles. Compress if space is tight. Drop only
+  if the JD has zero AI/tooling signal and a stronger bullet serves better.
+- **Largest scale / growth metric:** Include for growth, consumer, acquisition, or
+  product-scale roles. Use the strongest documented scale signal.
+- **Regulated/compliance delivery:** Include for regulated, enterprise, government, or
+  healthcare-adjacent roles.
+- **Cloud/platform delivery:** Include for platform, SaaS, or cloud-infrastructure roles.
+- **0-to-1 product launch:** Include for hardware, IoT, or build-from-scratch roles.
+- **Distributed remote team leadership:** Include when the JD explicitly values distributed
+  or async team management.
+- **Operational excellence / incident response:** Include when the JD calls out reliability,
+  observability, or engineering process rigor.
+
 ---
 
 ## 8. Insights & Lessons Learned
@@ -185,6 +207,9 @@ org and the product roadmap."]
 - Do NOT generate resume or cover letter materials in the same response as a JD evaluation
 - After delivering tailored resume changes, offer cover letter as optional next step — do not generate automatically
 - Apply all Always and Never rules from Section 7 without exception — flag conflicts explicitly
+
+### Resume generation behavior
+- Resume header tagline: [FILL — e.g. use "Senior Engineering Manager" for EM-titled roles; use "Director of Engineering" for Director-titled roles. Infer from JD title. Default to X if ambiguous.]
 
 ### Interview process
 - When a JD includes an interview process description, analyze each stage for conflicts
