@@ -5,6 +5,7 @@ prompts.md
 .env
 ignore/
 memory/
+app_docs/prompt_design/
 
 # Python
 __pycache__/
