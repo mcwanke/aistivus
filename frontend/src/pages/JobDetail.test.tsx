@@ -60,11 +60,10 @@ describe('JobDetailPage workspace', () => {
     await waitFor(() => expect(screen.getByText(/📍/)).toBeInTheDocument())
   })
 
-  it('renders all 5 tab buttons', async () => {
+  it('renders all 4 tab buttons', async () => {
     renderWorkspace()
     await waitFor(() => expect(screen.getByText('Job Details')).toBeInTheDocument())
-    expect(screen.getByText('Application')).toBeInTheDocument()
-    expect(screen.getByText('Resume / Cover')).toBeInTheDocument()
+    expect(screen.getByText('Apply')).toBeInTheDocument()
     expect(screen.getByText('Interview')).toBeInTheDocument()
     expect(screen.getByText('Application Log')).toBeInTheDocument()
   })
@@ -80,18 +79,10 @@ describe('JobDetailPage workspace', () => {
   it('activates tab on click', async () => {
     const user = userEvent.setup()
     renderWorkspace()
-    await waitFor(() => screen.getByText('Resume / Cover'))
-    await user.click(screen.getByText('Resume / Cover'))
-    const tabBtn = screen.getByText('Resume / Cover').closest('button')
+    await waitFor(() => screen.getByText('Apply'))
+    await user.click(screen.getByText('Apply'))
+    const tabBtn = screen.getByText('Apply').closest('button')
     expect(tabBtn?.className).toContain('text-accent')
-  })
-
-  it('shows upload form on RESUME/COVER tab', async () => {
-    const user = userEvent.setup()
-    renderWorkspace()
-    await waitFor(() => screen.getByText('Resume / Cover'))
-    await user.click(screen.getByText('Resume / Cover'))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Upload' })).toBeInTheDocument())
   })
 
   it('shows INTERVIEW stub card when that tab is active', async () => {
@@ -105,14 +96,6 @@ describe('JobDetailPage workspace', () => {
       expect(screen.getByText('Interview Tracking')).toBeInTheDocument(),
     )
     expect(screen.getByText(/Coming soon/)).toBeInTheDocument()
-  })
-
-  it('opens RESUME/COVER tab when ?tab=resume-cover in URL', async () => {
-    renderWorkspace(1, 'resume-cover')
-    await waitFor(() => {
-      const tabBtn = screen.getByText('Resume / Cover').closest('button')
-      expect(tabBtn?.className).toContain('text-accent')
-    })
   })
 
   it('opens APPLICATION LOG tab when ?tab=application-log in URL', async () => {
@@ -142,10 +125,10 @@ describe('JobDetailPage workspace', () => {
     await waitFor(() => expect(screen.getAllByText('—').length).toBeGreaterThan(0))
   })
 
-  it('activates APPLICATION tab from ?tab=application URL param', async () => {
-    renderWorkspace(1, 'application')
+  it('activates APPLY tab from ?tab=apply URL param', async () => {
+    renderWorkspace(1, 'apply')
     await waitFor(() => {
-      const tabBtn = screen.getByText('Application').closest('button')
+      const tabBtn = screen.getByText('Apply').closest('button')
       expect(tabBtn?.className).toContain('text-accent')
     })
   })
@@ -167,15 +150,15 @@ describe('JobDetailPage workspace', () => {
     )
   })
 
-  it('shows APP DETAIL SUMMARY action active by default on APPLICATION tab', async () => {
-    renderWorkspace(1, 'application')
-    await waitFor(() => screen.getByText('App Detail Summary'))
-    const btn = screen.getByText('App Detail Summary').closest('button')
+  it('shows APPLICATION DETAILS action active by default on APPLY tab', async () => {
+    renderWorkspace(1, 'apply')
+    await waitFor(() => screen.getByText('Application Details'))
+    const btn = screen.getByText('Application Details').closest('button')
     expect(btn?.className).toContain('text-accent')
   })
 
   it('shows I APPLIED! button when applied is 0', async () => {
-    renderWorkspace(1, 'application')
+    renderWorkspace(1, 'apply')
     await waitFor(() => expect(screen.getByText('I APPLIED!')).toBeInTheDocument())
   })
 
@@ -189,7 +172,7 @@ describe('JobDetailPage workspace', () => {
 
   it('shows APPLICATION QUESTIONS zero state when no questions exist', async () => {
     const user = userEvent.setup()
-    renderWorkspace(1, 'application')
+    renderWorkspace(1, 'apply')
     await waitFor(() => screen.getByText('Application Questions'))
     await user.click(screen.getByText('Application Questions'))
     await waitFor(() =>
@@ -197,296 +180,6 @@ describe('JobDetailPage workspace', () => {
         screen.getByText(/No application questions captured yet/),
       ).toBeInTheDocument(),
     )
-  })
-
-  describe('RESUME/COVER tab', () => {
-    it('renders document list with filename, type badge, and date', async () => {
-      server.use(
-        http.get('/api/v1/applications/:id/documents', () =>
-          HttpResponse.json([MOCK_TYP_DOC]),
-        ),
-      )
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => expect(screen.getByText('resume_v1.typ')).toBeInTheDocument())
-      expect(screen.getByText('resume')).toBeInTheDocument()
-    })
-
-    it('.typ row shows Edit, Compile, and Download; no Open or Finalize', async () => {
-      server.use(
-        http.get('/api/v1/applications/:id/documents', () =>
-          HttpResponse.json([MOCK_TYP_DOC]),
-        ),
-      )
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => expect(screen.getByText('resume_v1.typ')).toBeInTheDocument())
-      expect(screen.getByText('Edit')).toBeInTheDocument()
-      expect(screen.getByText('Compile')).toBeInTheDocument()
-      expect(screen.getByText('Download')).toBeInTheDocument()
-      expect(screen.queryByText('Open')).not.toBeInTheDocument()
-      expect(screen.queryByText('Finalize')).not.toBeInTheDocument()
-    })
-
-    it('DRAFT_ PDF row shows Finalize, Open, Download; no Compile', async () => {
-      server.use(
-        http.get('/api/v1/applications/:id/documents', () =>
-          HttpResponse.json([MOCK_DRAFT_PDF]),
-        ),
-      )
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => expect(screen.getByText('DRAFT_resume_v1.pdf')).toBeInTheDocument())
-      expect(screen.getByText('Finalize')).toBeInTheDocument()
-      expect(screen.getByText('Open')).toBeInTheDocument()
-      expect(screen.getByText('Download')).toBeInTheDocument()
-      expect(screen.queryByText('Compile')).not.toBeInTheDocument()
-    })
-
-    it('final PDF row shows [Final] badge, Open, Download; no Compile or Finalize', async () => {
-      server.use(
-        http.get('/api/v1/applications/:id/documents', () =>
-          HttpResponse.json([MOCK_FINAL_PDF]),
-        ),
-      )
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => expect(screen.getByText('jane_acme_corp_senior_engineer.pdf')).toBeInTheDocument())
-      expect(screen.getByText('Final')).toBeInTheDocument()
-      expect(screen.getByText('Open')).toBeInTheDocument()
-      expect(screen.getByText('Download')).toBeInTheDocument()
-      expect(screen.queryByText('Compile')).not.toBeInTheDocument()
-      expect(screen.queryByText('Finalize')).not.toBeInTheDocument()
-    })
-
-    it('non-DRAFT uploaded PDF shows Open and Download; no Compile or Finalize', async () => {
-      server.use(
-        http.get('/api/v1/applications/:id/documents', () =>
-          HttpResponse.json([MOCK_UPLOADED_PDF]),
-        ),
-      )
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => expect(screen.getByText('cover.pdf')).toBeInTheDocument())
-      expect(screen.getByText('Open')).toBeInTheDocument()
-      expect(screen.getByText('Download')).toBeInTheDocument()
-      expect(screen.queryByText('Compile')).not.toBeInTheDocument()
-      expect(screen.queryByText('Finalize')).not.toBeInTheDocument()
-    })
-
-    it('Compile button hidden when typst_available is false', async () => {
-      server.use(
-        http.get('/api/v1/health', () =>
-          HttpResponse.json({ ...MOCK_HEALTH, typst_available: false }),
-        ),
-        http.get('/api/v1/applications/:id/documents', () =>
-          HttpResponse.json([MOCK_TYP_DOC]),
-        ),
-      )
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => expect(screen.getByText('resume_v1.typ')).toBeInTheDocument())
-      expect(screen.queryByText('Compile')).not.toBeInTheDocument()
-      expect(screen.getByText('Edit')).toBeInTheDocument()
-    })
-
-    it('shows Typst unavailable banner when typst_available is false', async () => {
-      server.use(
-        http.get('/api/v1/health', () =>
-          HttpResponse.json({ ...MOCK_HEALTH, typst_available: false }),
-        ),
-      )
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => expect(screen.getByText(/Typst not found/)).toBeInTheDocument())
-    })
-
-    it('Compile button shows Compiling… during request', async () => {
-      const user = userEvent.setup()
-      server.use(
-        http.get('/api/v1/applications/:id/documents', () =>
-          HttpResponse.json([MOCK_TYP_DOC]),
-        ),
-        http.post('/api/v1/applications/:id/documents/:docId/compile', async () => {
-          await delay('infinite')
-          return HttpResponse.json({ success: true })
-        }),
-      )
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => screen.getByText('Compile'))
-      void user.click(screen.getByText('Compile'))
-      await waitFor(() => expect(screen.getByText('Compiling…')).toBeInTheDocument())
-    })
-
-    it('shows compile error inline on failure', async () => {
-      const user = userEvent.setup()
-      server.use(
-        http.get('/api/v1/applications/:id/documents', () =>
-          HttpResponse.json([MOCK_TYP_DOC]),
-        ),
-        http.post('/api/v1/applications/:id/documents/:docId/compile', () =>
-          HttpResponse.json(
-            { success: false, error: 'Compilation failed', detail: 'error: expected identifier at line 5' },
-            { status: 400 },
-          ),
-        ),
-      )
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => screen.getByText('Compile'))
-      await user.click(screen.getByText('Compile'))
-      await waitFor(() => expect(screen.getByText(/expected identifier/)).toBeInTheDocument())
-    })
-
-    it('finalize adds a Final-badged row after list refreshes', async () => {
-      const user = userEvent.setup()
-      let docCallCount = 0
-      server.use(
-        http.get('/api/v1/applications/:id/documents', () => {
-          docCallCount++
-          return HttpResponse.json(docCallCount === 1 ? [MOCK_DRAFT_PDF] : [MOCK_FINAL_PDF])
-        }),
-      )
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => screen.getByText('Finalize'))
-      await user.click(screen.getByText('Finalize'))
-      await waitFor(() => expect(screen.getByText('Final')).toBeInTheDocument())
-    })
-
-    it('Delete shows inline confirmation; Cancel does not call DELETE', async () => {
-      const user = userEvent.setup()
-      server.use(
-        http.get('/api/v1/applications/:id/documents', () =>
-          HttpResponse.json([MOCK_TYP_DOC]),
-        ),
-      )
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => screen.getByText('Delete'))
-      await user.click(screen.getByText('Delete'))
-      await waitFor(() => expect(screen.getByText(/Delete resume_v1\.typ\?/)).toBeInTheDocument())
-      await user.click(screen.getByText('Cancel'))
-      expect(screen.queryByText(/Delete resume_v1\.typ\?/)).not.toBeInTheDocument()
-    })
-
-    it('Delete Confirm calls DELETE and list refreshes', async () => {
-      const user = userEvent.setup()
-      let deleted = false
-      server.use(
-        http.get('/api/v1/applications/:id/documents', () =>
-          HttpResponse.json(deleted ? [] : [MOCK_TYP_DOC]),
-        ),
-        http.delete('/api/v1/applications/:id/documents/:docId', () => {
-          deleted = true
-          return HttpResponse.json({ success: true })
-        }),
-      )
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => screen.getByText('Delete'))
-      await user.click(screen.getByText('Delete'))
-      await waitFor(() => screen.getByText('Confirm'))
-      await user.click(screen.getByText('Confirm'))
-      await waitFor(() =>
-        expect(screen.getByText(/No documents yet/)).toBeInTheDocument(),
-      )
-    })
-
-    it('Edit button opens inline textarea pre-filled with file content', async () => {
-      const user = userEvent.setup()
-      server.use(
-        http.get('/api/v1/applications/:id/documents', () =>
-          HttpResponse.json([MOCK_TYP_DOC]),
-        ),
-      )
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => screen.getByText('Edit'))
-      await user.click(screen.getByText('Edit'))
-      await waitFor(() =>
-        expect(screen.getByRole('textbox', { name: '' })).toHaveValue('#let name = "Test"\n\nHello world'),
-      )
-    })
-
-    it('Save calls PUT and closes editor on success', async () => {
-      const user = userEvent.setup()
-      server.use(
-        http.get('/api/v1/applications/:id/documents', () =>
-          HttpResponse.json([MOCK_TYP_DOC]),
-        ),
-      )
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => screen.getByText('Edit'))
-      await user.click(screen.getByText('Edit'))
-      await waitFor(() => screen.getByRole('textbox', { name: '' }))
-      await user.click(screen.getByText('Save'))
-      await waitFor(() => expect(screen.queryByText('Save')).not.toBeInTheDocument())
-    })
-
-    it('Cancel closes editor without saving', async () => {
-      const user = userEvent.setup()
-      server.use(
-        http.get('/api/v1/applications/:id/documents', () =>
-          HttpResponse.json([MOCK_TYP_DOC]),
-        ),
-      )
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => screen.getByText('Edit'))
-      await user.click(screen.getByText('Edit'))
-      await waitFor(() => screen.getByRole('textbox', { name: '' }))
-      await user.click(screen.getByText('Cancel'))
-      expect(screen.queryByRole('textbox', { name: '' })).not.toBeInTheDocument()
-    })
-
-    it('upload form renders type selector and file picker', async () => {
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Upload' })).toBeInTheDocument())
-      expect(screen.getByRole('combobox')).toBeInTheDocument()
-    })
-
-    it('template picker renders when templates exist', async () => {
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => expect(screen.getByText('Simple Resume')).toBeInTheDocument())
-    })
-
-    it('template picker hidden when both template categories are empty', async () => {
-      server.use(
-        http.get('/api/v1/templates/typst', () =>
-          HttpResponse.json({ resume: [], cover_letter: [] }),
-        ),
-      )
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Upload' })).toBeInTheDocument())
-      expect(screen.queryByText('New from template')).not.toBeInTheDocument()
-    })
-
-    it('selecting a template calls copy endpoint and list refreshes', async () => {
-      const user = userEvent.setup()
-      let copied = false
-      server.use(
-        http.get('/api/v1/applications/:id/documents', () =>
-          HttpResponse.json(copied ? [MOCK_TYP_DOC] : []),
-        ),
-        http.post('/api/v1/applications/:id/documents/from-template', () => {
-          copied = true
-          return HttpResponse.json(MOCK_TYP_DOC, { status: 201 })
-        }),
-      )
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => screen.getByText('Simple Resume'))
-      await user.click(screen.getByText('Simple Resume'))
-      await waitFor(() => expect(screen.getByText('resume_v1.typ')).toBeInTheDocument())
-    })
-
-    it('shows empty state when document list is empty', async () => {
-      server.use(
-        http.get('/api/v1/applications/:id/documents', () => HttpResponse.json([])),
-      )
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() =>
-        expect(screen.getByText(/No documents yet/)).toBeInTheDocument(),
-      )
-    })
-
-    it('file_exists false shows ⚠ File missing badge', async () => {
-      server.use(
-        http.get('/api/v1/applications/:id/documents', () =>
-          HttpResponse.json([MOCK_MISSING_TYP]),
-        ),
-      )
-      renderWorkspace(1, 'resume-cover')
-      await waitFor(() => expect(screen.getByText('missing.typ')).toBeInTheDocument())
-      expect(screen.getByText('⚠ File missing')).toBeInTheDocument()
-    })
   })
 
   describe('APPLICATION LOG ActivityLogRow', () => {

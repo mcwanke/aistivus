@@ -1,5 +1,5 @@
 import { useState, useRef, useLayoutEffect, useEffect } from 'react'
-import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import AppHeader from '@/components/AppHeader'
 import { useJobDetail, usePatchJob, useAddCompanyLog, useUpdateCompanySummary, useActivityLog, useGenerateOrgSummaryPrompt } from '@/hooks/useJobs'
@@ -8,7 +8,6 @@ import {
   usePatchApplication,
   useAddLog,
   useDeleteLog,
-  useGeneratePrompt,
   useGenerateResumePrompt,
   useGenerateCoverPrompt,
   usePatchLogTimestamp,
@@ -71,12 +70,11 @@ function fmtDateTime(iso: string | null | undefined): string {
 
 // ─── Tab type ─────────────────────────────────────────────────────────────────
 
-type TabId = 'job-details' | 'application' | 'resume-cover' | 'interview' | 'application-log'
+type TabId = 'job-details' | 'apply' | 'interview' | 'application-log'
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'job-details',     label: 'Job Details' },
-  { id: 'application',     label: 'Application' },
-  { id: 'resume-cover',    label: 'Resume / Cover' },
+  { id: 'apply',           label: 'Apply' },
   { id: 'interview',       label: 'Interview' },
   { id: 'application-log', label: 'Application Log' },
 ]
@@ -1993,7 +1991,7 @@ function ActivityLogRow({ entry, applicationId, onTimestampSaved, llmCallEntry }
 
 // ─── JOB DETAILS tab — left column ───────────────────────────────────────────
 
-type JobDetailsAction = 'job-details' | 'evaluations' | 'job-description' | 'company-info' | 'job-actions'
+type JobDetailsAction = 'job-details' | 'job-description' | 'company-info' | 'job-actions'
 
 interface JobDetailsLeftProps {
   jobId: number
@@ -2004,7 +2002,6 @@ interface JobDetailsLeftProps {
 function JobDetailsLeft({ jobId: _jobId, active, onSelect }: JobDetailsLeftProps): React.JSX.Element {
   const infoActions: { id: JobDetailsAction; label: string }[] = [
     { id: 'job-details',     label: 'Job Detail Summary' },
-    { id: 'evaluations',     label: 'Evaluations' },
     { id: 'job-description', label: 'Job Description' },
     { id: 'company-info',    label: 'Company Info' },
   ]
@@ -2055,37 +2052,26 @@ interface JobDetailsRightProps {
   jobId: number
   job: Job
   applicationId: number
-  evaluations: EvalWithMeta[]
   companyLog: CompanyLogEntry[]
   activeAction: JobDetailsAction
-  onOpenImport: () => void
-  onPromptGenerated: (promptUsageId: number) => void
-  applyUrl: string
 }
 
 function JobDetailsRight({
   jobId,
   job,
   applicationId,
-  evaluations,
   companyLog,
   activeAction,
-  onOpenImport,
-  onPromptGenerated,
-  applyUrl,
 }: JobDetailsRightProps): React.JSX.Element {
-  const navigate = useNavigate()
   const [editDescOpen, setEditDescOpen] = useState(false)
   const [descCopied, setDescCopied] = useState(false)
   const [savedInfo, setSavedInfo] = useState(false)
   const [collapseSignal, setCollapseSignal] = useState(0)
-  const [promptText, setPromptText] = useState<string | null>(null)
   const [ratingsOpen, setRatingsOpen] = useState(false)
   const [jobInfoOpen, setJobInfoOpen] = useState(false)
   const [editSummaryOpen, setEditSummaryOpen] = useState(false)
   const [summaryPromptText, setSummaryPromptText] = useState<string | null>(null)
   const [exportStatus, setExportStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
-  const generatePrompt = useGeneratePrompt()
   const generateOrgSummaryPrompt = useGenerateOrgSummaryPrompt()
   const patch = usePatchJob()
 
@@ -2111,14 +2097,6 @@ function JobDetailsRight({
   const excitementNum = job.excitement_level !== null
     ? (isNaN(parseInt(job.excitement_level, 10)) ? null : parseInt(job.excitement_level, 10))
     : null
-
-  async function handleGeneratePrompt(): Promise<void> {
-    const result = await generatePrompt.mutateAsync(applicationId)
-    setPromptText(result.prompt)
-    if (result.prompt_usage_id != null) {
-      onPromptGenerated(result.prompt_usage_id)
-    }
-  }
 
   function copyDescription(): void {
     if (!job.description_merged) return
@@ -2203,94 +2181,6 @@ function JobDetailsRight({
         )}
         {jobInfoOpen && (
           <EditJobInfoModal jobId={jobId} initial={job} onClose={() => setJobInfoOpen(false)} />
-        )}
-      </>
-    )
-  }
-
-  // ── EVALUATIONS view ────────────────────────────────────────────────────────
-  if (activeAction === 'evaluations') {
-    return (
-      <>
-        {/* Agg score row */}
-        <div className="flex items-center gap-6 mb-6 pb-4 border-b border-surface2">
-          <div className="flex items-center gap-4 flex-1 flex-wrap">
-            {([
-              ['Overall', job.agg_score_overall, 10],
-              ['Role',    job.agg_role_fit,      5],
-              ['Scope',   job.agg_scope_fit,     5],
-              ['Culture', job.agg_culture,       5],
-              ['Comp',    job.agg_comp,          5],
-            ] as [string, number | null, number][]).map(([label, val, max]) => (
-              <div key={label} className="flex flex-col items-center">
-                <span className="text-[10px] font-mono text-muted uppercase tracking-widest">{label}</span>
-                <span className="font-serif text-xl text-accent leading-none mt-1">
-                  {val != null ? fmtScore(val) : '—'}
-                </span>
-                <span className="text-[10px] font-mono text-muted">/{max}</span>
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={() => navigate('/evaluate', {
-                state: {
-                  rerunJobId: jobId,
-                  company: job.company_name,
-                  title: job.title,
-                  location: job.location ?? '',
-                  workType: job.remote_type ?? '',
-                  applyUrl,
-                  payBand: job.pay_band ?? '',
-                  description: job.description_merged ?? '',
-                },
-              })}
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
-            >
-              Re-Run Internal Eval
-            </button>
-            <button
-              onClick={onOpenImport}
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
-            >
-              Import External Eval
-            </button>
-            <button
-              onClick={() => void handleGeneratePrompt()}
-              disabled={generatePrompt.isPending}
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 disabled:opacity-50 transition-colors"
-            >
-              {generatePrompt.isPending ? 'Generating…' : 'Generate External Eval'}
-            </button>
-          </div>
-        </div>
-        {generatePrompt.isError && (
-          <p className="text-red text-xs mb-2">{generatePrompt.error.message}</p>
-        )}
-
-        {/* Evaluation rows */}
-        {evaluations.length === 0 ? (
-          <p className="text-sm text-muted italic">
-            No evaluations yet. Run one from the Evaluate page.
-          </p>
-        ) : (
-          <div>
-            {evaluations.map((ev) => (
-              <EvalRow key={ev.id} evaluation={ev} />
-            ))}
-          </div>
-        )}
-
-        {promptText !== null && (
-          <PromptModal prompt={promptText} onClose={() => setPromptText(null)} />
-        )}
-
-        {editDescOpen && (
-          <EditDescriptionModal
-            jobId={jobId}
-            initial={job.description_merged ?? ''}
-            onClose={() => setEditDescOpen(false)}
-          />
         )}
       </>
     )
@@ -2429,7 +2319,15 @@ function JobDetailsRight({
 
 // ─── APPLICATION tab — left column ───────────────────────────────────────────
 
-type AppAction = 'details' | 'change-status' | 'add-note' | 'questions' | 'lesson'
+type AppAction =
+  | 'application-details'
+  | 'apply-workflow'
+  | 'evaluations'
+  | 'resume'
+  | 'cover-letter'
+  | 'add-note'
+  | 'questions'
+  | 'lesson'
 
 interface ApplicationLeftProps {
   active: AppAction
@@ -2438,11 +2336,14 @@ interface ApplicationLeftProps {
 
 function ApplicationLeft({ active, onSelect }: ApplicationLeftProps): React.JSX.Element {
   const actions: { id: AppAction; label: string }[] = [
-    { id: 'details',       label: 'App Detail Summary' },
-    { id: 'change-status', label: 'Change Application Status' },
-    { id: 'add-note',      label: 'Add App Note/Comms' },
-    { id: 'questions',     label: 'Application Questions' },
-    { id: 'lesson',        label: 'Add Lesson' },
+    { id: 'application-details', label: 'Application Details' },
+    { id: 'apply-workflow',      label: 'Apply Workflow' },
+    { id: 'evaluations',         label: 'Evaluations' },
+    { id: 'resume',              label: 'Resume' },
+    { id: 'cover-letter',        label: 'Cover Letter' },
+    { id: 'add-note',            label: 'Add App Note/Comms' },
+    { id: 'questions',           label: 'Application Questions' },
+    { id: 'lesson',              label: 'Add Lesson' },
   ]
 
   return (
@@ -2472,6 +2373,7 @@ interface ApplicationRightProps {
   job: Job
   applicationId: number
   application: Application
+  evaluations: EvalWithMeta[]
   logs: ApplicationLog[]
   postings: JobPosting[]
   activeAction: AppAction
@@ -2483,6 +2385,7 @@ function ApplicationRight({
   job,
   applicationId,
   application,
+  evaluations,
   logs,
   postings,
   activeAction,
@@ -2496,6 +2399,10 @@ function ApplicationRight({
 
   const [newStatus, setNewStatus] = useState(application.application_status)
   const [statusNote, setStatusNote] = useState('')
+  const [applyDate, setApplyDate] = useState(application.apply_date ?? '')
+  const [endDate, setEndDate] = useState(application.end_date ?? '')
+  const [requestedSalary, setRequestedSalary] = useState(application.requested_salary ?? '')
+  const [detailsSaved, setDetailsSaved] = useState(false)
 
   const [noteType, setNoteType] = useState(LOG_TYPE_OPTIONS[0]!.value)
   const [noteText, setNoteText] = useState('')
@@ -2506,12 +2413,25 @@ function ApplicationRight({
 
   const isApplied = application.applied === 1
   const applyUrl = postings.find((p) => p.source_url)?.source_url ?? null
+  const statusChanged = newStatus !== application.application_status
 
   const LOG_VALUES = new Set(LOG_TYPE_OPTIONS.map((o) => o.value))
   const noteLogs = logs.filter((l) => LOG_VALUES.has(l.type_value))
 
-  async function handleChangeStatus(e: React.FormEvent<HTMLFormElement>): Promise<void> {
-    e.preventDefault()
+  async function handleSaveDetails(): Promise<void> {
+    await patch.mutateAsync({
+      applicationId,
+      updates: {
+        apply_date: applyDate || undefined,
+        end_date: endDate || undefined,
+        requested_salary: requestedSalary || undefined,
+      },
+    })
+    setDetailsSaved(true)
+    setTimeout(() => setDetailsSaved(false), 2000)
+  }
+
+  async function handleChangeStatus(): Promise<void> {
     const logText = statusNote.trim() || `Status changed to ${newStatus}`
     try {
       await patch.mutateAsync({ applicationId, updates: { application_status: newStatus } })
@@ -2540,105 +2460,91 @@ function ApplicationRight({
     setNewR('')
   }
 
-  // ── DETAILS view ────────────────────────────────────────────────────────────
-  if (activeAction === 'details') {
+  // ── APPLICATION DETAILS view ────────────────────────────────────────────────
+  if (activeAction === 'application-details') {
     return (
-      <>
-        <div className="mb-4">
-          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Apply URL</p>
-          {applyUrl ? (
-            <a
-              href={applyUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-accent hover:underline break-all"
+      <div className="space-y-5">
+        {/* Row 1 — Status · Apply button · Apply URL */}
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block mb-1">Status</span>
+            <span className="text-sm text-text font-mono">{application.application_status}</span>
+          </div>
+          <div>
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block mb-1">&nbsp;</span>
+            <button
+              onClick={() => patch.mutate({ applicationId, updates: { applied: 1, application_status: 'applied' } })}
+              disabled={isApplied || patch.isPending}
+              className={`px-4 py-1.5 text-sm rounded transition-colors disabled:opacity-60 ${
+                isApplied ? 'bg-green/20 text-green cursor-default' : 'bg-accent text-bg hover:bg-accent/90'
+              }`}
             >
-              {applyUrl}
-            </a>
-          ) : (
-            <span className="text-xs text-muted italic">—</span>
-          )}
+              {isApplied ? 'Applied ✓' : 'I APPLIED!'}
+            </button>
+          </div>
+          <div>
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block mb-1">Apply URL</span>
+            {applyUrl ? (
+              <a
+                href={applyUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-accent hover:underline break-all"
+              >
+                {applyUrl}
+              </a>
+            ) : (
+              <span className="text-xs text-muted italic">—</span>
+            )}
+          </div>
         </div>
 
-        <div className="mb-5">
+        {/* Row 2 — Apply Date · Requested Salary · End Date · Save */}
+        <div className="flex items-end gap-3">
+          <label className="block flex-1">
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block mb-1">Apply Date</span>
+            <input
+              type="date"
+              className="w-full bg-surface2 rounded px-3 py-1.5 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              value={applyDate}
+              onChange={(e) => setApplyDate(e.target.value)}
+            />
+          </label>
+          <label className="block flex-1">
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block mb-1">Requested Salary</span>
+            <input
+              type="text"
+              className="w-full bg-surface2 rounded px-3 py-1.5 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
+              placeholder="e.g. $120k"
+              value={requestedSalary}
+              onChange={(e) => setRequestedSalary(e.target.value)}
+            />
+          </label>
+          <label className="block flex-1">
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block mb-1">End Date</span>
+            <input
+              type="date"
+              className="w-full bg-surface2 rounded px-3 py-1.5 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+          </label>
           <button
-            onClick={() => patch.mutate({ applicationId, updates: { applied: 1, application_status: 'applied' } })}
-            disabled={isApplied || patch.isPending}
-            className={`px-4 py-2 text-sm rounded transition-colors disabled:opacity-60 ${
-              isApplied ? 'bg-green/20 text-green cursor-default' : 'bg-accent text-bg hover:bg-accent/90'
-            }`}
+            onClick={() => void handleSaveDetails()}
+            disabled={patch.isPending}
+            className="px-4 py-1.5 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors shrink-0"
           >
-            {isApplied ? 'Applied ✓' : 'I APPLIED!'}
+            {detailsSaved ? 'Saved!' : patch.isPending ? 'Saving…' : 'Save'}
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mb-5">
-          <div className="block">
-            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Status</span>
-            <span className="mt-1 block text-sm text-text font-mono">{application.application_status}</span>
-          </div>
+        <hr className="border-surface2" />
 
-          <label className="block">
-            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Apply Date</span>
-            <input
-              type="date"
-              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-              defaultValue={application.apply_date ?? ''}
-              onBlur={(e) => {
-                const val = e.target.value
-                if (val !== (application.apply_date ?? ''))
-                  patch.mutate({ applicationId, updates: { apply_date: val || undefined } })
-              }}
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">End Date</span>
-            <input
-              type="date"
-              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-              defaultValue={application.end_date ?? ''}
-              onBlur={(e) => {
-                const val = e.target.value
-                if (val !== (application.end_date ?? ''))
-                  patch.mutate({ applicationId, updates: { end_date: val || undefined } })
-              }}
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Requested Salary</span>
-            <input
-              type="text"
-              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
-              placeholder="e.g. $120k"
-              defaultValue={application.requested_salary ?? ''}
-              onBlur={(e) => {
-                const val = e.target.value.trim()
-                if (val !== (application.requested_salary ?? ''))
-                  patch.mutate({ applicationId, updates: { requested_salary: val || undefined } })
-              }}
-            />
-          </label>
-        </div>
-
-      </>
-    )
-  }
-
-  // ── CHANGE APPLICATION STATUS view ──────────────────────────────────────────
-  if (activeAction === 'change-status') {
-    return (
-      <form onSubmit={(e) => void handleChangeStatus(e)} className="space-y-3">
-        <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Change Application Status</p>
-        <div>
-          <span className="text-[10px] font-mono text-muted uppercase tracking-widest block mb-1">Current Status</span>
-          <span className="text-sm text-text font-mono">{application.application_status}</span>
-        </div>
+        {/* Row 3 — Change Status */}
         <label className="block">
-          <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">New Status</span>
+          <span className="text-[10px] font-mono text-muted uppercase tracking-widest block mb-1">Change Status</span>
           <select
-            className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+            className="w-full bg-surface2 rounded px-3 py-1.5 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
             value={newStatus}
             onChange={(e) => setNewStatus(e.target.value as ApplicationStatus)}
           >
@@ -2647,26 +2553,91 @@ function ApplicationRight({
             ))}
           </select>
         </label>
+
+        {/* Row 4 — Reason */}
         <label className="block">
-          <span className="text-[10px] font-mono text-muted uppercase tracking-widest block">Reason for change (optional)</span>
+          <span className="text-[10px] font-mono text-muted uppercase tracking-widest block mb-1">Reason for Change (Optional)</span>
           <textarea
-            className="mt-1 w-full h-20 bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent resize-y"
+            className="w-full h-16 bg-surface2 rounded px-3 py-1.5 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent resize-y"
             value={statusNote}
             onChange={(e) => setStatusNote(e.target.value)}
             placeholder="Add a note…"
           />
         </label>
+
         {(patch.isError || addLog.isError) && (
           <p className="text-red text-xs">{patch.error?.message ?? addLog.error?.message}</p>
         )}
+
+        {/* Row 5 — Save (status change) */}
         <button
-          type="submit"
-          disabled={patch.isPending || addLog.isPending}
-          className="px-4 py-2 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+          onClick={() => void handleChangeStatus()}
+          disabled={!statusChanged || patch.isPending || addLog.isPending}
+          className="px-4 py-1.5 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
         >
           {(patch.isPending || addLog.isPending) ? 'Saving…' : 'Save'}
         </button>
-      </form>
+      </div>
+    )
+  }
+
+  // ── APPLY WORKFLOW view (stub — wired in Pass 2) ─────────────────────────────
+  if (activeAction === 'apply-workflow') {
+    return (
+      <p className="text-sm text-muted italic">Apply Workflow — coming in Pass 2.</p>
+    )
+  }
+
+  // ── EVALUATIONS view ────────────────────────────────────────────────────────
+  if (activeAction === 'evaluations') {
+    return (
+      <>
+        {/* Agg score row */}
+        <div className="flex items-center gap-4 flex-wrap mb-6 pb-4 border-b border-surface2">
+          {([
+            ['Overall', job.agg_score_overall, 10],
+            ['Role',    job.agg_role_fit,      5],
+            ['Scope',   job.agg_scope_fit,     5],
+            ['Culture', job.agg_culture,       5],
+            ['Comp',    job.agg_comp,          5],
+          ] as [string, number | null, number][]).map(([label, val, max]) => (
+            <div key={label} className="flex flex-col items-center">
+              <span className="text-[10px] font-mono text-muted uppercase tracking-widest">{label}</span>
+              <span className="font-serif text-xl text-accent leading-none mt-1">
+                {val != null ? fmtScore(val) : '—'}
+              </span>
+              <span className="text-[10px] font-mono text-muted">/{max}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Evaluation rows */}
+        {evaluations.length === 0 ? (
+          <p className="text-sm text-muted italic">
+            No evaluations yet. Run one from the Evaluate page.
+          </p>
+        ) : (
+          <div>
+            {evaluations.map((ev) => (
+              <EvalRow key={ev.id} evaluation={ev} />
+            ))}
+          </div>
+        )}
+      </>
+    )
+  }
+
+  // ── RESUME view (stub — split in Pass 2) ─────────────────────────────────────
+  if (activeAction === 'resume') {
+    return (
+      <p className="text-sm text-muted italic">Resume — coming in Pass 2.</p>
+    )
+  }
+
+  // ── COVER LETTER view (stub — split in Pass 2) ───────────────────────────────
+  if (activeAction === 'cover-letter') {
+    return (
+      <p className="text-sm text-muted italic">Cover Letter — coming in Pass 2.</p>
     )
   }
 
@@ -3371,8 +3342,8 @@ export default function JobDetailPage(): React.JSX.Element {
   // JOB DETAILS tab action state
   const [jobDetailsAction, setJobDetailsAction] = useState<JobDetailsAction>('job-details')
 
-  // APPLICATION tab action state
-  const [activeAppAction, setActiveAppAction] = useState<AppAction>('details')
+  // APPLY tab action state
+  const [activeAppAction, setActiveAppAction] = useState<AppAction>('application-details')
 
   // Import modal state
   const [importOpen, setImportOpen] = useState(false)
@@ -3522,20 +3493,12 @@ export default function JobDetailPage(): React.JSX.Element {
                 onSelect={setJobDetailsAction}
               />
             )}
-            {activeTab === 'resume-cover' && (
-              <div className="space-y-1">
-                <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Typst</p>
-                <p className={`text-xs font-mono ${typstAvailable ? 'text-green' : 'text-red'}`}>
-                  {typstAvailable ? '● Available' : '✗ Not found'}
-                </p>
-              </div>
-            )}
             {activeTab === 'interview' && (
               <p className="text-[10px] font-mono text-muted uppercase tracking-widest">
                 Nothing to configure yet.
               </p>
             )}
-            {activeTab === 'application' && (
+            {activeTab === 'apply' && (
               <ApplicationLeft
                 active={activeAppAction}
                 onSelect={setActiveAppAction}
@@ -3550,20 +3513,9 @@ export default function JobDetailPage(): React.JSX.Element {
                 jobId={jobId}
                 job={job}
                 applicationId={applicationId ?? 0}
-                evaluations={evaluations}
                 companyLog={jobData.company_log}
                 activeAction={jobDetailsAction}
-                onOpenImport={() => setImportOpen(true)}
-                onPromptGenerated={(id) => setImportedPromptUsageId(id)}
-                applyUrl={jobData.postings.find((p) => p.source_url)?.source_url ?? ''}
               />
-            )}
-            {activeTab === 'resume-cover' && (
-              applicationId !== undefined ? (
-                <ResumeCoverTab applicationId={applicationId} typstAvailable={typstAvailable} />
-              ) : (
-                <p className="text-sm text-muted italic">Application not found.</p>
-              )
             )}
             {activeTab === 'interview' && (
               <div className="bg-surface border border-surface2 rounded-xl p-6 max-w-lg">
@@ -3574,7 +3526,7 @@ export default function JobDetailPage(): React.JSX.Element {
                 <p className="mt-4 text-xs font-mono text-muted/60">Coming soon.</p>
               </div>
             )}
-            {activeTab === 'application' && (
+            {activeTab === 'apply' && (
               appLoading ? (
                 <div className="p-6 text-muted text-sm">Loading application…</div>
               ) : appData && applicationId !== undefined ? (
@@ -3583,6 +3535,7 @@ export default function JobDetailPage(): React.JSX.Element {
                   job={job}
                   applicationId={applicationId}
                   application={appData.application}
+                  evaluations={evaluations}
                   logs={appData.logs}
                   postings={jobData.postings}
                   activeAction={activeAppAction}

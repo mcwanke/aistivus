@@ -6,6 +6,7 @@ prompts.md
 ignore/
 memory/
 app_docs/prompt_design/
+app_docs/prompt_design2/
 
 # Python
 __pycache__/

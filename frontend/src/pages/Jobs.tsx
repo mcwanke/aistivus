@@ -20,6 +20,11 @@ const FILTER_GROUPS: { key: FilterKey; label: string; statuses: string[] }[] = [
 
 const DEFAULT_FILTERS = new Set<FilterKey>(['not-applied', 'applied', 'in-process'])
 
+// Session-persistent filter state — survives navigation within the same browser tab
+let _sort: SortKey = 'score'
+let _filters: Set<FilterKey> = new Set(DEFAULT_FILTERS)
+let _search = ''
+
 // ─── Status config ────────────────────────────────────────────────────────────
 
 const STATUS_ORDER: Record<string, number> = {
@@ -210,14 +215,25 @@ function Toolbar({
 export default function Jobs(): React.JSX.Element {
   const navigate = useNavigate()
   const { data: jobs, isLoading, isError } = useJobs()
-  const [sort, setSort] = useState<SortKey>('score')
-  const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(DEFAULT_FILTERS)
-  const [searchTerm, setSearchTerm] = useState('')
+  const [sort, setSort] = useState<SortKey>(_sort)
+  const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(_filters)
+  const [searchTerm, setSearchTerm] = useState(_search)
+
+  function handleSort(key: SortKey): void {
+    _sort = key
+    setSort(key)
+  }
+
+  function handleSearchChange(val: string): void {
+    _search = val
+    setSearchTerm(val)
+  }
 
   function toggleFilter(key: FilterKey): void {
     setActiveFilters(prev => {
       const next = new Set(prev)
       next.has(key) ? next.delete(key) : next.add(key)
+      _filters = next
       return next
     })
   }
@@ -257,7 +273,7 @@ export default function Jobs(): React.JSX.Element {
           <span className="text-muted text-[0.65rem] font-mono">{visible.length} of {jobs.length} jobs</span>
         )}
       </div>
-      <Toolbar sort={sort} onSort={setSort} activeFilters={activeFilters} onToggleFilter={toggleFilter} searchTerm={searchTerm} onSearchChange={setSearchTerm} />
+      <Toolbar sort={sort} onSort={handleSort} activeFilters={activeFilters} onToggleFilter={toggleFilter} searchTerm={searchTerm} onSearchChange={handleSearchChange} />
       <div className="flex-1 overflow-y-auto">
         {isLoading && <p className="text-muted text-sm p-4">Loading jobs…</p>}
         {isError && <p className="text-red text-sm p-4">Failed to load jobs.</p>}
