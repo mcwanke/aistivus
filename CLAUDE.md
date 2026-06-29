@@ -76,11 +76,11 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 ---
 
-## Current Phase: PHASE 2.5 — Pass 1 In Progress
+## Current Phase: PHASE 2.5 — Pass 1 Complete
 
-Pass 1 (UI Restructure + Stub): Steps 1, 2, 3, 4, 5, 6, 7 complete. Step 8 pending.
+Pass 1 (UI Restructure + Stub): All steps complete.
 See `app_docs/WORKORDER_p2.5.md` for full detail.
-Test baseline: 660 backend / 263 frontend.
+Test baseline: 666 backend / 298 frontend.
 
 ---
 

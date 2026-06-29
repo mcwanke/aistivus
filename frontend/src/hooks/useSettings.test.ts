@@ -25,6 +25,7 @@ import {
   useSaveJobsearch,
   useJobsearchVersions,
   useJobsearchVersionContent,
+  useSystemFonts,
 } from './useSettings'
 
 function makeWrapper() {
@@ -154,5 +155,19 @@ describe('useJobsearchVersionContent', () => {
     const { result } = renderHook(() => useJobsearchVersionContent(null), { wrapper: makeWrapper() })
     expect(result.current.isPending).toBe(true)
     expect(result.current.fetchStatus).toBe('idle')
+  })
+})
+
+describe('useSystemFonts', () => {
+  it('returns fonts list on success', async () => {
+    const { result } = renderHook(() => useSystemFonts(), { wrapper: makeWrapper() })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data?.fonts).toEqual(['DM Mono.ttf', 'DM Sans.ttf'])
+  })
+
+  it('enters error state on failure', async () => {
+    server.use(http.get('/api/v1/system/fonts', () => new HttpResponse(null, { status: 500 })))
+    const { result } = renderHook(() => useSystemFonts(), { wrapper: makeWrapper() })
+    await waitFor(() => expect(result.current.isError).toBe(true))
   })
 })

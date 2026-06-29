@@ -1,5 +1,5 @@
 # AIstivus — Phase 2.5 Workorder
-> Status: IN PROGRESS — Pass 1 Steps 1/2/3/4/5/6/7 complete; Step 8 pending
+> Status: COMPLETE — Pass 1 all steps done; 666 backend / 298 frontend passing
 > Last updated: 2026-06-29
 
 ---
@@ -407,7 +407,7 @@ resets to default.
 
 ---
 
-## Step 8 — Tests
+## Step 8 — Tests ✓ COMPLETE
 
 **Goal:** Keep the test suite green after restructuring. No new backend tests are
 needed for this pass (no new backend logic). Frontend tests for moved or renamed

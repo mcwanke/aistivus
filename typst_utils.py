@@ -161,9 +161,9 @@ def _skip_block(lines: list[str], i: int) -> int:
     depth += line.count("{") - line.count("}")
     i += 1
     while i < len(lines) and depth > 0:
-        l = lines[i].strip()
-        depth += l.count("(") + l.count("[") + l.count("{")
-        depth -= l.count(")") + l.count("]") + l.count("}")
+        ln = lines[i].strip()
+        depth += ln.count("(") + ln.count("[") + ln.count("{")
+        depth -= ln.count(")") + ln.count("]") + ln.count("}")
         i += 1
     return i
 
@@ -179,10 +179,10 @@ def _collect_block(lines: list[str], i: int) -> tuple[str, int]:
     depth += line.count("{") - line.count("}")
     i += 1
     while i < len(lines) and depth > 0:
-        l = lines[i].strip()
-        collected.append(l)
-        depth += l.count("(") + l.count("[") + l.count("{")
-        depth -= l.count(")") + l.count("]") + l.count("}")
+        ln = lines[i].strip()
+        collected.append(ln)
+        depth += ln.count("(") + ln.count("[") + ln.count("{")
+        depth -= ln.count(")") + ln.count("]") + ln.count("}")
         i += 1
     return "\n".join(collected), i
 

@@ -229,3 +229,43 @@ class TestLlmCallLog:
     def test_limit_out_of_range_returns_422(self, client):
         resp = client.get("/api/v1/llm-call-log?limit=9999")
         assert resp.status_code == 422
+
+
+# ─────────────────────────────────────────────────────────────
+# GET /api/v1/system/fonts
+# ─────────────────────────────────────────────────────────────
+
+class TestSystemFonts:
+    def test_returns_200(self, client):
+        resp = client.get("/api/v1/system/fonts")
+        assert resp.status_code == 200
+
+    def test_response_has_fonts_list(self, client):
+        data = client.get("/api/v1/system/fonts").json()
+        assert "fonts" in data
+        assert isinstance(data["fonts"], list)
+
+    def test_returns_empty_list_when_fonts_dir_absent(self, client, tmp_path):
+        from main import app
+        orig = app.state.typst_fonts_dir
+        app.state.typst_fonts_dir = tmp_path / "no_such_dir"
+        try:
+            data = client.get("/api/v1/system/fonts").json()
+            assert data["fonts"] == []
+        finally:
+            app.state.typst_fonts_dir = orig
+
+    def test_returns_sorted_filenames_excluding_hidden(self, client, tmp_path):
+        from main import app
+        fonts_dir = tmp_path / "fonts"
+        fonts_dir.mkdir()
+        (fonts_dir / "Zebra.ttf").touch()
+        (fonts_dir / "Alpha.ttf").touch()
+        (fonts_dir / ".hidden_file").touch()
+        orig = app.state.typst_fonts_dir
+        app.state.typst_fonts_dir = fonts_dir
+        try:
+            data = client.get("/api/v1/system/fonts").json()
+            assert data["fonts"] == ["Alpha.ttf", "Zebra.ttf"]
+        finally:
+            app.state.typst_fonts_dir = orig

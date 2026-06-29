@@ -22,7 +22,7 @@ run_backend() {
         EXTRA_FLAGS="-q"
     fi
 
-    OUTPUT=$(cd "$SCRIPT_DIR" && python -m pytest $EXTRA_FLAGS $TB_FLAG 2>&1)
+    OUTPUT=$(cd "$SCRIPT_DIR" && .venv/bin/python3 -m pytest $EXTRA_FLAGS $TB_FLAG 2>&1)
     EXIT_CODE=$?
 
     SUMMARY_LINE=$(echo "$OUTPUT" | grep -E "^(FAILED|ERROR|[0-9]+ passed)" | tail -1)
@@ -35,12 +35,7 @@ run_backend() {
         FAILED=$(echo "$SUMMARY_LINE" | grep -oE "[0-9]+ failed" | head -1)
         BACKEND_STATUS="✗ Backend: ${FAILED:-FAILED}"
         HAS_FAILURES=1
-        RESULTS_CONTENT+="=== BACKEND FAILURES ===\n"
-        RESULTS_CONTENT+="$(echo "$OUTPUT" | grep -A 50 'FAILED\|ERROR\|short test summary')\n"
-        if [[ $VERBOSE -eq 1 ]]; then
-            RESULTS_CONTENT+="\n--- Full backend output ---\n${OUTPUT}\n"
-        fi
-        RESULTS_CONTENT+="\n"
+        RESULTS_CONTENT+="=== BACKEND FAILURES ===\n${OUTPUT}\n\n"
     fi
 }
 
@@ -63,12 +58,7 @@ run_frontend() {
         FAILED=$(echo "$SUMMARY_LINE" | grep -oE "[0-9]+ failed" | head -1)
         FRONTEND_STATUS="✗ Frontend: ${FAILED:-FAILED}"
         HAS_FAILURES=1
-        RESULTS_CONTENT+="=== FRONTEND FAILURES ===\n"
-        RESULTS_CONTENT+="$(echo "$OUTPUT" | grep -E "FAIL|●|✗|Error|AssertionError" -A 20)\n"
-        if [[ $VERBOSE -eq 1 ]]; then
-            RESULTS_CONTENT+="\n--- Full frontend output ---\n${OUTPUT}\n"
-        fi
-        RESULTS_CONTENT+="\n"
+        RESULTS_CONTENT+="=== FRONTEND FAILURES ===\n${OUTPUT}\n\n"
     fi
 }
 
@@ -83,12 +73,14 @@ echo ""
 echo "[$TIMESTAMP] ($MODE)"
 echo "$SUMMARY"
 
-if [[ $HAS_FAILURES -eq 1 ]]; then
-    {
-        echo "[$TIMESTAMP] ($MODE)"
-        echo "$SUMMARY"
+{
+    echo "[$TIMESTAMP] ($MODE)"
+    echo "$SUMMARY"
+    if [[ $HAS_FAILURES -eq 1 ]]; then
         echo ""
         echo -e "$RESULTS_CONTENT"
-    } > "$SCRIPT_DIR/$RESULTS_FILE"
+    fi
+} > "$SCRIPT_DIR/$RESULTS_FILE"
+if [[ $HAS_FAILURES -eq 1 ]]; then
     echo "Failure details written to $RESULTS_FILE"
 fi

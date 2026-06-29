@@ -57,10 +57,8 @@ interface ApplyWorkflowProps {
 }
 
 export function ApplyWorkflow({
-  jobId,
   applicationId,
   evaluations,
-  typstAvailable,
   onImportEval,
   onNavigateToEvals,
   onNavigateToResume,

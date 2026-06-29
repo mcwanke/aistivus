@@ -2040,7 +2040,6 @@ interface JobDetailsRightProps {
 function JobDetailsRight({
   jobId,
   job,
-  applicationId,
   companyLog,
   activeAction,
 }: JobDetailsRightProps): React.JSX.Element {
@@ -2805,7 +2804,7 @@ export default function JobDetailPage(): React.JSX.Element {
   // Post-import feedback flow
   const [importFeedbackInviteOpen, setImportFeedbackInviteOpen] = useState(false)
   const [importFeedbackModalOpen, setImportFeedbackModalOpen] = useState(false)
-  const [importedPromptUsageId, setImportedPromptUsageId] = useState<number | null>(null)
+  const [importedPromptUsageId, _setImportedPromptUsageId] = useState<number | null>(null)
   const { data: models = [] } = useModels()
   const qc = useQueryClient()
   const { data: healthData } = useQuery({

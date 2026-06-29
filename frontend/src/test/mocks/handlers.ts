@@ -436,6 +436,12 @@ export const handlers = [
   http.post('/api/v1/applications/:id/documents/:docId/finalize', () =>
     HttpResponse.json({ success: true, final_doc_id: 12, filename: 'jane_acme_corp_senior_engineer.pdf', file_path: 'generated/1_acme_corp/jane_acme_corp_senior_engineer.pdf' }),
   ),
+  http.patch('/api/v1/applications/:id/documents/:docId/rename', () =>
+    HttpResponse.json({ id: 10, application_id: 1, type_value: 'resume', file_path: 'generated/1_acme_corp/renamed.typ', filename: 'renamed.typ', is_final: 0, created_at: '2024-01-01T00:00:00' }),
+  ),
+  http.get('/api/v1/system/fonts', () =>
+    HttpResponse.json({ fonts: ['DM Mono.ttf', 'DM Sans.ttf'] }),
+  ),
   http.get('/api/v1/templates/typst', () =>
     HttpResponse.json(MOCK_TYPST_TEMPLATES),
   ),
