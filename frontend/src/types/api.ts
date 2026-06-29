@@ -122,6 +122,19 @@ export interface Evaluation {
   keyword_gaps: string | null
   llm_call_log_id: number | null
   evaluated_at: string
+  // Phase 2.5 new-schema fields
+  score_ats: number | null
+  score_recruiter_fast: number | null
+  score_recruiter_deep: number | null
+  score_candidate_role: number | null
+  score_candidate_scope: number | null
+  score_candidate_culture: number | null
+  composite_screenability: number | null
+  composite_company_fit: number | null
+  composite_candidate_fit: number | null
+  interview_prep_notes: string | null
+  score_reasons: string | null
+  research_confidence: string | null
 }
 
 // ─── EvalWithMeta — Evaluation row from job detail response ──────────────────

@@ -2,6 +2,8 @@ import { useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useUploadDocument } from '@/hooks/useDocuments'
 import { useGeneratePrompt } from '@/hooks/useApplications'
+import { useGenerateResearchPrompt, useImportResearch } from '@/hooks/useJobs'
+import { fmtScore } from '@/utils/formatting'
 import type { EvalWithMeta } from '@/types/api'
 
 // ─── Local prompt modal ───────────────────────────────────────────────────────
@@ -44,39 +46,106 @@ function PromptModal({ prompt, title, onClose }: { prompt: string; title: string
   )
 }
 
+// ─── Research import modal ────────────────────────────────────────────────────
+
+function ResearchImportModal({ jobId, onClose }: { jobId: number; onClose: () => void }): React.JSX.Element {
+  const [text, setText] = useState('')
+  const importMutation = useImportResearch(jobId)
+
+  async function handleImport(): Promise<void> {
+    await importMutation.mutateAsync(text.trim())
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-bg/80 flex items-center justify-center z-50 p-4">
+      <div className="bg-surface rounded p-6 w-full max-w-2xl flex flex-col gap-4 max-h-[80vh]">
+        <h2 className="font-serif text-accent text-lg">Import Research Results</h2>
+        <p className="text-xs font-mono text-muted">Paste the JSON output from the research prompt below.</p>
+        <textarea
+          className="flex-1 min-h-[300px] bg-surface2 rounded px-3 py-2 text-xs font-mono text-text focus:outline-none focus:ring-1 focus:ring-accent resize-y"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder='{ "research_summary": "...", "research_confidence": "high", ... }'
+        />
+        {importMutation.isError && (
+          <p className="text-red text-xs font-mono">{importMutation.error.message}</p>
+        )}
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-1.5 text-sm text-muted hover:text-text transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={() => void handleImport()}
+            disabled={!text.trim() || importMutation.isPending}
+            className="px-4 py-1.5 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+          >
+            {importMutation.isPending ? 'Importing…' : 'Parse & Import'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── ApplyWorkflow ────────────────────────────────────────────────────────────
 
 interface ApplyWorkflowProps {
   jobId: number
   applicationId: number
   evaluations: EvalWithMeta[]
+  aggScoreOverall: number | null
   typstAvailable: boolean
   onImportEval: () => void
   onNavigateToEvals: () => void
   onNavigateToResume: () => void
+  onNavigateToResearch: () => void
 }
 
 export function ApplyWorkflow({
+  jobId,
   applicationId,
   evaluations,
+  aggScoreOverall,
   onImportEval,
   onNavigateToEvals,
   onNavigateToResume,
+  onNavigateToResearch,
 }: ApplyWorkflowProps): React.JSX.Element {
   const [evalPromptText, setEvalPromptText] = useState<string | null>(null)
+  const [researchPromptText, setResearchPromptText] = useState<string | null>(null)
+  const [showResearchImport, setShowResearchImport] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const generatePrompt = useGeneratePrompt()
+  const generateEvalPrompt = useGeneratePrompt()
+  const generateResearchPrompt = useGenerateResearchPrompt(jobId)
   const upload = useUploadDocument(applicationId)
 
+  // Composite score averages from new-schema evals (composite_screenability populated)
+  const newSchemaEvals = evaluations.filter((e) => e.composite_screenability != null)
+  const avgScreen = newSchemaEvals.length > 0
+    ? newSchemaEvals.reduce((s, e) => s + (e.composite_screenability ?? 0), 0) / newSchemaEvals.length
+    : null
+  const avgCompany = newSchemaEvals.length > 0
+    ? newSchemaEvals.reduce((s, e) => s + (e.composite_company_fit ?? 0), 0) / newSchemaEvals.length
+    : null
+  const avgCandidate = newSchemaEvals.length > 0
+    ? newSchemaEvals.reduce((s, e) => s + (e.composite_candidate_fit ?? 0), 0) / newSchemaEvals.length
+    : null
+
   async function handleGenerateEvalPrompt(): Promise<void> {
-    const result = await generatePrompt.mutateAsync(applicationId)
+    const result = await generateEvalPrompt.mutateAsync(applicationId)
     setEvalPromptText(result.prompt)
   }
 
-  async function handleUpload(e: React.FormEvent<HTMLFormElement>): Promise<void> {
+  async function handleGenerateResearchPrompt(): Promise<void> {
+    const result = await generateResearchPrompt.mutateAsync()
+    setResearchPromptText(result.prompt)
+  }
+
+  async function handleUpload(e: React.SyntheticEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault()
     if (!selectedFile) return
     setUploadError('')
@@ -92,12 +161,54 @@ export function ApplyWorkflow({
   return (
     <div className="space-y-6">
 
-      {/* ── EVALUATIONS block ─────────────────────────────────────────────────── */}
+      {/* ── STEP 1 — RESEARCH ─────────────────────────────────────────────────── */}
       <div>
-        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-3">Evaluations</p>
+        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Step 1 — Research</p>
+        <p className="text-xs font-mono text-muted mb-3">
+          This is an external prompt — it requires internet access. Do this first to gather
+          information about the company before running evaluations. This data is inserted
+          into following prompts, so don't skip it.
+        </p>
+
+        <div className="flex gap-2 flex-wrap mb-3">
+          <button
+            onClick={() => void handleGenerateResearchPrompt()}
+            disabled={generateResearchPrompt.isPending}
+            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50"
+          >
+            {generateResearchPrompt.isPending ? 'Generating…' : 'Generate Research Prompt'}
+          </button>
+          <button
+            onClick={() => setShowResearchImport(true)}
+            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
+          >
+            Import Research Results
+          </button>
+          <button
+            onClick={onNavigateToResearch}
+            className="text-xs font-mono text-accent hover:underline px-3 py-1.5"
+          >
+            View Research →
+          </button>
+        </div>
+        {generateResearchPrompt.isError && (
+          <p className="text-xs font-mono text-red mb-2">{generateResearchPrompt.error.message}</p>
+        )}
+      </div>
+
+      <hr className="border-surface2" />
+
+      {/* ── STEP 2 — EVALUATE ─────────────────────────────────────────────────── */}
+      <div>
+        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Step 2 — Evaluate</p>
+        <p className="text-xs font-mono text-muted mb-3">
+          Run the evaluation after completing research. Scores reflect how well you match
+          this role from both the company's and your own perspective. Research context is
+          automatically included when available.
+        </p>
 
         {/* Summary row */}
-        <div className="grid grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-5 gap-4 mb-4">
           <div className="flex flex-col">
             <span className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Count</span>
             <span className="text-sm font-mono text-text">
@@ -106,15 +217,27 @@ export function ApplyWorkflow({
           </div>
           <div className="flex flex-col">
             <span className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Screenability</span>
-            <span className="text-sm font-mono text-muted">—</span>
+            <span className="text-sm font-mono text-text">
+              {avgScreen != null ? `${fmtScore(avgScreen)} / 10` : '—'}
+            </span>
           </div>
           <div className="flex flex-col">
             <span className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Company Fit</span>
-            <span className="text-sm font-mono text-muted">—</span>
+            <span className="text-sm font-mono text-text">
+              {avgCompany != null ? `${fmtScore(avgCompany)} / 10` : '—'}
+            </span>
           </div>
           <div className="flex flex-col">
             <span className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Candidate Fit</span>
-            <span className="text-sm font-mono text-muted">—</span>
+            <span className="text-sm font-mono text-text">
+              {avgCandidate != null ? `${fmtScore(avgCandidate)} / 10` : '—'}
+            </span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Overall</span>
+            <span className="text-sm font-mono text-text">
+              {aggScoreOverall != null ? fmtScore(aggScoreOverall) : '—'}
+            </span>
           </div>
         </div>
 
@@ -128,10 +251,10 @@ export function ApplyWorkflow({
           </Link>
           <button
             onClick={() => void handleGenerateEvalPrompt()}
-            disabled={generatePrompt.isPending}
+            disabled={generateEvalPrompt.isPending}
             className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50"
           >
-            {generatePrompt.isPending ? 'Generating…' : 'Generate External Eval'}
+            {generateEvalPrompt.isPending ? 'Generating…' : 'Generate External Eval'}
           </button>
           <button
             onClick={onImportEval}
@@ -140,8 +263,8 @@ export function ApplyWorkflow({
             Import External Eval
           </button>
         </div>
-        {generatePrompt.isError && (
-          <p className="text-xs font-mono text-red mb-2">{generatePrompt.error.message}</p>
+        {generateEvalPrompt.isError && (
+          <p className="text-xs font-mono text-red mb-2">{generateEvalPrompt.error.message}</p>
         )}
 
         <button
@@ -154,9 +277,12 @@ export function ApplyWorkflow({
 
       <hr className="border-surface2" />
 
-      {/* ── RESUME GENERATION block ───────────────────────────────────────────── */}
+      {/* ── STEP 3 — RESUME GENERATION ────────────────────────────────────────── */}
       <div>
-        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-4">Resume Generation</p>
+        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Step 3 — Resume Generation</p>
+        <p className="text-xs font-mono text-muted mb-4">
+          Generate tailored application materials after you've decided to pursue this role.
+        </p>
 
         {/* Pass 1 */}
         <div className="space-y-2 mb-5">
@@ -258,12 +384,25 @@ export function ApplyWorkflow({
         </div>
       </div>
 
-      {/* Eval prompt modal */}
+      {/* ── Modals ───────────────────────────────────────────────────────────── */}
       {evalPromptText !== null && (
         <PromptModal
           prompt={evalPromptText}
           title="External Eval Prompt"
           onClose={() => setEvalPromptText(null)}
+        />
+      )}
+      {researchPromptText !== null && (
+        <PromptModal
+          prompt={researchPromptText}
+          title="Company Research Prompt"
+          onClose={() => setResearchPromptText(null)}
+        />
+      )}
+      {showResearchImport && (
+        <ResearchImportModal
+          jobId={jobId}
+          onClose={() => setShowResearchImport(false)}
         />
       )}
     </div>

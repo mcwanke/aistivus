@@ -1205,45 +1205,6 @@ function TimestampModal({ current, onSave, onClose }: TimestampModalProps): Reac
   )
 }
 
-// ─── Prompt modal (APPLICATION tab — generate external eval + tailored resume) ─
-
-function PromptModal({ prompt, onClose, title = 'External Eval + Tailored Resume Prompt' }: { prompt: string; onClose: () => void; title?: string }): React.JSX.Element {
-  const [copied, setCopied] = useState(false)
-
-  function handleCopy(): void {
-    void navigator.clipboard.writeText(prompt).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
-  }
-
-  return (
-    <div className="fixed inset-0 bg-bg/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-surface rounded p-6 w-full max-w-2xl flex flex-col gap-4 max-h-[80vh]">
-        <div className="flex items-center justify-between">
-          <h2 className="font-serif text-accent text-lg">{title}</h2>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleCopy}
-              className="text-xs px-3 py-1.5 bg-accent text-bg rounded hover:bg-accent/90 transition-colors font-mono"
-            >
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
-            <button
-              onClick={onClose}
-              className="text-xs px-3 py-1.5 text-muted hover:text-text transition-colors"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-        <pre className="flex-1 overflow-y-auto text-xs font-mono text-text bg-surface2 rounded p-4 whitespace-pre-wrap break-words leading-relaxed">
-          {prompt}
-        </pre>
-      </div>
-    </div>
-  )
-}
 
 // ─── Lesson capture panel (APPLICATION tab → ADD LESSON) ──────────────────────
 
@@ -2454,7 +2415,7 @@ function ApplicationRight({
     }
   }
 
-  async function handleAddNote(e: React.FormEvent<HTMLFormElement>): Promise<void> {
+  async function handleAddNote(e: React.SyntheticEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault()
     if (!noteText.trim()) return
     await addLog.mutateAsync({ applicationId, type_value: noteType, log: noteText.trim(), url: noteUrl.trim() || undefined })
@@ -2463,7 +2424,7 @@ function ApplicationRight({
     onDataChanged()
   }
 
-  async function handleCreateQuestion(e: React.FormEvent<HTMLFormElement>): Promise<void> {
+  async function handleCreateQuestion(e: React.SyntheticEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault()
     if (!newQ.trim()) return
     await createQuestion.mutateAsync({ applicationId, jobId, question: newQ.trim(), response: newR.trim() || undefined })
@@ -2604,10 +2565,12 @@ function ApplicationRight({
         jobId={jobId}
         applicationId={applicationId}
         evaluations={evaluations}
+        aggScoreOverall={job.agg_score_overall}
         typstAvailable={typstAvailable}
         onImportEval={onImportEval}
         onNavigateToEvals={() => onSelectAction('evaluations')}
         onNavigateToResume={() => onSelectAction('resume')}
+        onNavigateToResearch={() => onSelectAction('research')}
       />
     )
   }

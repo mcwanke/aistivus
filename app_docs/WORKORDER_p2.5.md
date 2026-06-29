@@ -449,10 +449,11 @@ The fonts endpoint added in Step 6 should have a basic test:
 
 ## Phase 2.5 — Pass 2: Scoring Redesign + Research + External Eval
 
-> Status: IN PROGRESS — Steps 1–6 complete; Steps 7–10 next
+> Status: IN PROGRESS — Steps 1–7 complete; Steps 8–10 next
 > Test baseline at start: 666 backend / 298 frontend
 > Test baseline after Steps 1–5: 671 backend / 298 frontend
 > Test baseline after Step 6: all passing (2026-06-29)
+> Test baseline after Step 7: 678 backend / 298 frontend (2026-06-29)
 
 ### Goal
 
@@ -804,7 +805,7 @@ and `Apply Workflow`.
 
 ---
 
-### Step 7 — Apply Workflow Redesign
+### Step 7 — Apply Workflow Redesign ✓ COMPLETE
 
 **Goal:** Add STEP 1/2/3 structure; wire Research block; wire real composite + overall scores
 into the eval block.
@@ -865,12 +866,21 @@ Generate tailored application materials after you've decided to pursue this role
 ```
 
 #### Files touched
-- `frontend/src/components/ApplyWorkflow.tsx` — STEP 1 block added; STEP 2 wired + labeled;
-  STEP 3 labeled
-- `frontend/src/pages/JobDetail.tsx` — APPLY leftnav Research entry; ApplyWorkflow prop
-  updates for composite score data
-- `main.py` or existing route — extend job detail response to include composite averages
-  (identify during implementation)
+- `frontend/src/types/api.ts` — 12 new Phase 2.5 fields added to `Evaluation` interface
+- `frontend/src/components/ApplyWorkflow.tsx` — STEP 1/2/3 structure; ResearchImportModal added;
+  composite averages computed client-side from `evaluations` prop; `aggScoreOverall` prop added
+- `frontend/src/pages/JobDetail.tsx` — `aggScoreOverall` + `onNavigateToResearch` added to call
+  site; orphaned local `PromptModal` removed
+- `frontend/src/test/mocks/handlers.ts` — `website_url: null` added to `MOCK_JOB` and
+  `MOCK_JOB_DETAIL.job` to satisfy updated `Job` type
+
+#### Implementation notes
+- Composite averages computed client-side from `evaluations.composite_*` fields (already
+  returned by `SELECT e.*` in `get_evaluations_for_job()`); no backend change needed
+- `agg_score_overall` passed as `aggScoreOverall` prop from parent `ApplicationRight` (has `job`)
+- `ResearchImportModal` defined locally in `ApplyWorkflow.tsx`; imports `useImportResearch`
+  from `@/hooks/useJobs`
+- `useGenerateResearchPrompt` also imported from `@/hooks/useJobs`
 
 ---
 
