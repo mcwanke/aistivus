@@ -1,5 +1,5 @@
 # AIstivus — Phase 2.5 Workorder
-> Status: IN PROGRESS — Pass 1 Steps 1/2/3/7 complete; Steps 4/5/6/8 pending
+> Status: IN PROGRESS — Pass 1 Steps 1/2/3/4/5/7 complete; Steps 6/8 pending
 > Last updated: 2026-06-29
 
 ---
@@ -218,7 +218,7 @@ with their existing wired handlers.
 
 ---
 
-## Step 4 — Resume / Cover Split
+## Step 4 — Resume / Cover Split ✓ COMPLETE
 
 **Goal:** Split the existing RESUME / COVER tab content into two separate subpages
 (`Resume` and `Cover Letter`) under the APPLY tab. Remove the GENERATE and
@@ -246,14 +246,16 @@ Once both subpages are verified, the original RESUME / COVER tab component can b
 removed. The tab itself was removed in Step 1.
 
 ### Files touched
-- `frontend/src/pages/JobDetail.tsx` (subpage routing)
-- Resume subpage component (new, or split from existing RESUME/COVER component)
-- Cover Letter subpage component (new, or split from existing RESUME/COVER component)
-- Original RESUME/COVER component — delete after verification
+- `frontend/src/pages/JobDetail.tsx` — removed `DocRow`, `ResumeCoverTab`, document hook imports, `useGenerateResumePrompt`/`useGenerateCoverPrompt`; added `ResumeSubpage`/`CoverLetterSubpage` imports; updated `ApplicationRightProps`
+- `frontend/src/components/DocRow.tsx` (new — extracted from JobDetail; type badge removed)
+- `frontend/src/components/ResumeSubpage.tsx` (new — upload + resume-filtered doc list)
+- `frontend/src/components/CoverLetterSubpage.tsx` (new — upload + cover-filtered doc list)
+- `frontend/src/types/api.ts` — added `EvalWithMeta` named export
+- Original `ResumeCoverTab` component deleted; `DocRow` moved to its own file
 
 ---
 
-## Step 5 — Apply Workflow Subpage
+## Step 5 — Apply Workflow Subpage ✓ COMPLETE
 
 **Goal:** Build the Apply Workflow subpage. This is the central hub for the application
 workflow. Eval action buttons are wired to their existing handlers. All Pass 1/2/3
@@ -315,8 +317,8 @@ feedback data exists for the job. For now: always disabled.
 **`Review Resumes →`:** Navigates to the Resume subpage within APPLY.
 
 ### Files touched
-- `frontend/src/pages/JobDetail.tsx` (subpage routing)
-- `frontend/src/components/ApplyWorkflow.tsx` (new component)
+- `frontend/src/pages/JobDetail.tsx` — wired `ApplyWorkflow` stub; added `typstAvailable`, `onImportEval`, `onSelectAction` to `ApplicationRightProps`
+- `frontend/src/components/ApplyWorkflow.tsx` (new) — eval block + resume generation block; `Re-Run` as Link to /evaluate; `Generate External Eval` calls `useGeneratePrompt` with local PromptModal; `Import External Eval` calls `onImportEval` prop
 
 ---
 

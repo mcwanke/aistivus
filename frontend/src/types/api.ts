@@ -124,6 +124,15 @@ export interface Evaluation {
   evaluated_at: string
 }
 
+// ─── EvalWithMeta — Evaluation row from job detail response ──────────────────
+
+export type EvalWithMeta = Evaluation & {
+  model_name: string
+  eval_source: 'local' | 'external'
+  prompt_version: number | null
+  temperature: number | null
+}
+
 // ─── GET /api/v1/evaluations ─────────────────────────────────────────────────
 // Each row joins in job + model info
 
