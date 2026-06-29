@@ -562,22 +562,93 @@ function EvalRow({ evaluation }: { evaluation: EvalWithMeta }): React.JSX.Elemen
 
       {open && (
         <div className="px-3 pb-4 border-t border-surface pt-3 space-y-3">
-          {/* Scores row */}
-          <div className="flex items-center gap-4 flex-wrap">
-            {([
-              ['Role',    evaluation.score_role_fit,  5],
-              ['Scope',   evaluation.score_scope_fit, 5],
-              ['Culture', evaluation.score_culture,   5],
-              ['Comp',    evaluation.score_comp,      5],
-            ] as [string, number | null, number][]).map(([label, val, max]) => (
-              <div key={label} className="flex flex-col items-center">
-                <span className="text-[10px] font-mono text-muted uppercase">{label}</span>
-                <span className="text-sm font-mono text-text">
-                  {val != null ? `${fmtScore(val)}/${max}` : '—'}
-                </span>
+          {evaluation.score_ats != null ? (
+            /* New 9-dim schema */
+            <div className="space-y-2">
+              <div className="flex gap-6 flex-wrap">
+                <div>
+                  <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1">Screenability</p>
+                  <div className="flex gap-3">
+                    {([
+                      ['ATS',      evaluation.score_ats],
+                      ['Fast',     evaluation.score_recruiter_fast],
+                      ['Deep',     evaluation.score_recruiter_deep],
+                    ] as [string, number | null][]).map(([label, val]) => (
+                      <div key={label} className="flex flex-col items-center">
+                        <span className="text-[9px] font-mono text-muted uppercase">{label}</span>
+                        <span className="text-sm font-mono text-text">{val != null ? `${fmtScore(val)}/4` : '—'}</span>
+                      </div>
+                    ))}
+                    {evaluation.composite_screenability != null && (
+                      <div className="flex flex-col items-center ml-2 pl-2 border-l border-surface">
+                        <span className="text-[9px] font-mono text-accent uppercase">Score</span>
+                        <span className="text-sm font-mono text-accent">{fmtScore(evaluation.composite_screenability)}/10</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1">Company Fit</p>
+                  <div className="flex gap-3">
+                    {([
+                      ['Role',    evaluation.score_role_fit],
+                      ['Scope',   evaluation.score_scope_fit],
+                      ['Culture', evaluation.score_culture],
+                    ] as [string, number | null][]).map(([label, val]) => (
+                      <div key={label} className="flex flex-col items-center">
+                        <span className="text-[9px] font-mono text-muted uppercase">{label}</span>
+                        <span className="text-sm font-mono text-text">{val != null ? `${fmtScore(val)}/5` : '—'}</span>
+                      </div>
+                    ))}
+                    {evaluation.composite_company_fit != null && (
+                      <div className="flex flex-col items-center ml-2 pl-2 border-l border-surface">
+                        <span className="text-[9px] font-mono text-accent uppercase">Score</span>
+                        <span className="text-sm font-mono text-accent">{fmtScore(evaluation.composite_company_fit)}/10</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1">Candidate Fit</p>
+                  <div className="flex gap-3">
+                    {([
+                      ['Role',    evaluation.score_candidate_role],
+                      ['Scope',   evaluation.score_candidate_scope],
+                      ['Culture', evaluation.score_candidate_culture],
+                    ] as [string, number | null][]).map(([label, val]) => (
+                      <div key={label} className="flex flex-col items-center">
+                        <span className="text-[9px] font-mono text-muted uppercase">{label}</span>
+                        <span className="text-sm font-mono text-text">{val != null ? `${fmtScore(val)}/5` : '—'}</span>
+                      </div>
+                    ))}
+                    {evaluation.composite_candidate_fit != null && (
+                      <div className="flex flex-col items-center ml-2 pl-2 border-l border-surface">
+                        <span className="text-[9px] font-mono text-accent uppercase">Score</span>
+                        <span className="text-sm font-mono text-accent">{fmtScore(evaluation.composite_candidate_fit)}/10</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ) : (
+            /* Legacy 4-dim schema */
+            <div className="flex items-center gap-4 flex-wrap">
+              {([
+                ['Role',    evaluation.score_role_fit,  5],
+                ['Scope',   evaluation.score_scope_fit, 5],
+                ['Culture', evaluation.score_culture,   5],
+                ['Comp',    evaluation.score_comp,      5],
+              ] as [string, number | null, number][]).map(([label, val, max]) => (
+                <div key={label} className="flex flex-col items-center">
+                  <span className="text-[10px] font-mono text-muted uppercase">{label}</span>
+                  <span className="text-sm font-mono text-text">
+                    {val != null ? `${fmtScore(val)}/${max}` : '—'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {evaluation.archetype && (
             <p className="text-xs text-muted">
@@ -604,6 +675,12 @@ function EvalRow({ evaluation }: { evaluation: EvalWithMeta }): React.JSX.Elemen
               )}
             </p>
           )}
+          {evaluation.score_reasons && (
+            <div>
+              <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Score Reasons</p>
+              <p className="text-xs text-text leading-relaxed">{evaluation.score_reasons}</p>
+            </div>
+          )}
           {evaluation.strengths && (
             <div>
               <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Strengths</p>
@@ -614,6 +691,12 @@ function EvalRow({ evaluation }: { evaluation: EvalWithMeta }): React.JSX.Elemen
             <div>
               <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Gaps</p>
               <p className="text-xs text-text leading-relaxed">{evaluation.gaps}</p>
+            </div>
+          )}
+          {evaluation.interview_prep_notes && (
+            <div>
+              <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Interview Prep</p>
+              <p className="text-xs text-text leading-relaxed">{evaluation.interview_prep_notes}</p>
             </div>
           )}
           {evaluation.keywords && (

@@ -26,22 +26,35 @@ def run(coro):
 
 
 GOOD_RESPONSE_DICT = {
-    "score_overall": 7.5,
-    "score_role_fit": 4.0,
-    "score_scope_fit": 4.0,
-    "score_culture": 3.5,
-    "score_comp": 3.5,
+    # Screenability dims (1-4)
+    "score_ats": 3,
+    "score_recruiter_fast": 3,
+    "score_recruiter_deep": 3,
+    # Company fit dims (1-5)
+    "score_role_fit": 4,
+    "score_scope_fit": 4,
+    "score_culture": 4,
+    # Candidate fit dims (1-5)
+    "score_candidate_role": 4,
+    "score_candidate_scope": 4,
+    "score_candidate_culture": 4,
+    # Text fields
     "fit_type": "Core Fit",
     "archetype": "People Leader",
     "strengths": "Strong background in engineering leadership",
     "gaps": "No specific platform experience listed",
     "recommendation": "Apply",
-    "log_entry": "Acme | EM Platform | 7.5 | Core Fit | Apply",
     "keywords": "platform, kubernetes, leadership, distributed systems",
-    "domain_match": "Same domain",
-    "role_type_match": "Target match",
     "keyword_gaps": "Kubernetes, distributed systems, SRE",
+    "score_reasons": "Good fit across all dimensions",
+    "interview_prep_notes": "Prepare examples of leading large teams",
 }
+# Computed from GOOD_RESPONSE_DICT with default weights (0.40 / 0.30 / 0.30):
+# composite_screenability = 3/4*10 = 7.5
+# composite_company_fit   = 4/5*10 = 8.0
+# composite_candidate_fit = 4/5*10 = 8.0
+# score_overall           = 0.40*7.5 + 0.30*8.0 + 0.30*8.0 = 7.8
+GOOD_SCORE_OVERALL = 7.8
 
 LLM_SUCCESS = {
     "success": True,
@@ -265,7 +278,15 @@ class TestParseEvaluationResponse:
 class TestValidateParsedResponse:
     def _base(self) -> dict:
         return {
-            "score_overall": 7.5,
+            "score_ats": 3,
+            "score_recruiter_fast": 3,
+            "score_recruiter_deep": 3,
+            "score_role_fit": 4,
+            "score_scope_fit": 4,
+            "score_culture": 4,
+            "score_candidate_role": 4,
+            "score_candidate_scope": 4,
+            "score_candidate_culture": 4,
             "fit_type": "Core Fit",
             "archetype": "People Leader",
             "strengths": "Good match",
@@ -281,20 +302,24 @@ class TestValidateParsedResponse:
         del d["recommendation"]
         assert evaluator._validate_parsed_response(d) is False
 
-    def test_score_above_10_fails(self):
+    def test_missing_score_ats_fails(self):
         d = self._base()
-        d["score_overall"] = 11.0
+        del d["score_ats"]
         assert evaluator._validate_parsed_response(d) is False
 
-    def test_score_below_1_fails(self):
+    def test_screenability_score_clamped_to_max_4(self):
         d = self._base()
-        d["score_overall"] = 0.5
-        assert evaluator._validate_parsed_response(d) is False
+        d["score_ats"] = 6.0
+        result = evaluator._validate_parsed_response(d)
+        assert result is True
+        assert d["score_ats"] == 4.0  # clamped to 1-4 range
 
-    def test_score_on_boundary_passes(self):
+    def test_screenability_score_clamped_to_min_1(self):
         d = self._base()
-        d["score_overall"] = 1.0
-        assert evaluator._validate_parsed_response(d) is True
+        d["score_ats"] = 0.0
+        result = evaluator._validate_parsed_response(d)
+        assert result is True
+        assert d["score_ats"] == 1.0  # clamped to 1-4 range
 
     def test_placeholder_fit_type_fails(self):
         d = self._base()
@@ -308,11 +333,11 @@ class TestValidateParsedResponse:
         assert result is True
         assert d["score_role_fit"] == 5.0  # clamped
 
-    def test_score_rounded_to_one_decimal(self):
+    def test_dim_score_rounded_to_one_decimal(self):
         d = self._base()
-        d["score_overall"] = 7.56
+        d["score_role_fit"] = 4.56
         evaluator._validate_parsed_response(d)
-        assert d["score_overall"] == 7.6
+        assert d["score_role_fit"] == pytest.approx(4.6)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -400,7 +425,7 @@ class TestEvaluateJdSuccess:
         mock = AsyncMock(side_effect=[LLM_ANALYSIS_SUCCESS, LLM_SUCCESS])
         with patch("llm_client.complete", new=mock):
             result = run(evaluator.evaluate_jd("jd text", "Acme", "EM"))
-        assert result["evaluation"]["score_overall"] == 7.5
+        assert result["evaluation"]["score_ats"] == 3
         assert result["evaluation"]["fit_type"] == "Core Fit"
         assert result["evaluation"]["recommendation"] == "Apply"
 
@@ -451,25 +476,36 @@ class TestEvaluateJdDbWrites:
             result = run(evaluator.evaluate_jd("jd text", "Acme", "EM"))
         evals = database.get_evaluations_for_job(result["job_id"])
         e = evals[0]
-        assert e["score_overall"] == 7.5
-        assert e["score_role_fit"] == 4.0
-        assert e["score_scope_fit"] == 4.0
-        assert e["score_culture"] == 3.5
-        assert e["score_comp"] == 3.5
+        assert e["score_ats"] == 3
+        assert e["score_recruiter_fast"] == 3
+        assert e["score_recruiter_deep"] == 3
+        assert e["score_role_fit"] == 4
+        assert e["score_scope_fit"] == 4
+        assert e["score_culture"] == 4
+        assert e["score_candidate_role"] == 4
+        assert e["score_candidate_scope"] == 4
+        assert e["score_candidate_culture"] == 4
+        assert e["composite_screenability"] == pytest.approx(7.5)
+        assert e["composite_company_fit"] == pytest.approx(8.0)
+        assert e["composite_candidate_fit"] == pytest.approx(8.0)
+        assert e["score_overall"] == pytest.approx(GOOD_SCORE_OVERALL)
 
     def test_updates_job_agg_scores(self, eval_setup):
         mock = AsyncMock(side_effect=[LLM_ANALYSIS_SUCCESS, LLM_SUCCESS])
         with patch("llm_client.complete", new=mock):
             result = run(evaluator.evaluate_jd("jd text", "Acme", "EM"))
         job = database.get_job(result["job_id"])
-        assert job["agg_score_overall"] == 7.5
+        assert job["agg_score_overall"] == pytest.approx(GOOD_SCORE_OVERALL)
         assert job["agg_role_fit"] == 4.0
 
     def test_agg_scores_average_across_evaluations(self, eval_setup):
+        # Second eval: all dims at minimum → score_overall = 0.40*(1/4*10) + 0.30*(1/5*10)*2 = 2.2
+        # avg = (7.8 + 2.2) / 2 = 5.0
         second_response = {
             **GOOD_RESPONSE_DICT,
-            "score_overall": 8.5,
-            "score_role_fit": 4.5,
+            "score_ats": 1, "score_recruiter_fast": 1, "score_recruiter_deep": 1,
+            "score_role_fit": 1, "score_scope_fit": 1, "score_culture": 1,
+            "score_candidate_role": 1, "score_candidate_scope": 1, "score_candidate_culture": 1,
         }
         llm_second = {**LLM_SUCCESS, "content": json.dumps(second_response)}
 
@@ -481,7 +517,7 @@ class TestEvaluateJdDbWrites:
             run(evaluator.evaluate_jd("jd text", "Acme", "EM"))
 
         job = database.get_job(result["job_id"])
-        assert job["agg_score_overall"] == pytest.approx(8.0)
+        assert job["agg_score_overall"] == pytest.approx(5.0)
 
     def test_writes_llm_call_log_on_success(self, eval_setup):
         # Two calls = two log entries: evaluation_analysis + evaluation_scoring.
@@ -655,7 +691,14 @@ class TestEvaluateJdJobUpsert:
         assert r1["job_id"] == r2["job_id"]
 
     def test_second_evaluation_adds_to_agg(self, eval_setup):
-        second = {**GOOD_RESPONSE_DICT, "score_overall": 9.5}
+        # Second eval: all dims at max → score_overall = 0.40*10 + 0.30*10 + 0.30*10 = 10.0
+        # avg = (7.8 + 10.0) / 2 = 8.9
+        second = {
+            **GOOD_RESPONSE_DICT,
+            "score_ats": 4, "score_recruiter_fast": 4, "score_recruiter_deep": 4,
+            "score_role_fit": 5, "score_scope_fit": 5, "score_culture": 5,
+            "score_candidate_role": 5, "score_candidate_scope": 5, "score_candidate_culture": 5,
+        }
         llm2 = {**LLM_SUCCESS, "content": json.dumps(second)}
         mock1 = AsyncMock(side_effect=[LLM_ANALYSIS_SUCCESS, LLM_SUCCESS])
         with patch("llm_client.complete", new=mock1):
@@ -666,7 +709,7 @@ class TestEvaluateJdJobUpsert:
         evals = database.get_evaluations_for_job(r1["job_id"])
         assert len(evals) == 2
         job = database.get_job(r1["job_id"])
-        assert job["agg_score_overall"] == pytest.approx(8.5)
+        assert job["agg_score_overall"] == pytest.approx(8.9)
 
 
 # ─────────────────────────────────────────────────────────────

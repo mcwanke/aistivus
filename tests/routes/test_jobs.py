@@ -576,11 +576,13 @@ class TestEvaluateAutoActivate:
             "domain_match": "Same domain", "role_type_match": "Target match",
         })
         good_eval = json.dumps({
-            "score_overall": 7.5, "score_role_fit": 4.0, "score_scope_fit": 4.0,
-            "score_culture": 3.5, "score_comp": 3.5, "fit_type": "Core Fit",
-            "archetype": "People Leader", "strengths": "Good", "gaps": "Some",
-            "recommendation": "Apply", "keywords": "python", "domain_match": "Same domain",
-            "role_type_match": "Target match", "keyword_gaps": "docker",
+            "score_ats": 3, "score_recruiter_fast": 3, "score_recruiter_deep": 3,
+            "score_role_fit": 4, "score_scope_fit": 4, "score_culture": 4,
+            "score_candidate_role": 4, "score_candidate_scope": 4, "score_candidate_culture": 4,
+            "fit_type": "Core Fit", "archetype": "People Leader",
+            "strengths": "Good", "gaps": "Some", "recommendation": "Apply",
+            "keywords": "python", "keyword_gaps": "docker",
+            "score_reasons": "Good fit", "interview_prep_notes": "Prepare examples",
         })
         llm_analysis = {
             "success": True, "content": analysis, "error": None,

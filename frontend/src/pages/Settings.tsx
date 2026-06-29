@@ -19,6 +19,10 @@ import {
   useSaveResumeTemplate,
   useResumeTemplateBackup,
   useSystemFonts,
+  useEvalWeights,
+  useSaveEvalWeights,
+  useMigrateLegacy,
+  useRecalcScores,
 } from '@/hooks/useSettings'
 import { useDocumentsStorage } from '@/hooks/useDocuments'
 import {
@@ -1531,6 +1535,171 @@ function ResumeTemplateSection(): React.JSX.Element {
 
 // ─── App settings ─────────────────────────────────────────────────────────────
 
+function EvalScoringSection(): React.JSX.Element {
+  const { data: weights, isLoading, error } = useEvalWeights()
+  const saveWeights = useSaveEvalWeights()
+  const migrateLegacy = useMigrateLegacy()
+  const recalcScores = useRecalcScores()
+
+  const [screenability, setScreenability] = useState<string>('')
+  const [companyFit, setCompanyFit] = useState<string>('')
+  const [candidateFit, setCandidateFit] = useState<string>('')
+  const [saveError, setSaveError] = useState('')
+  const [migrateResult, setMigrateResult] = useState<string | null>(null)
+  const [recalcResult, setRecalcResult] = useState<string | null>(null)
+
+  // Populate fields once weights load
+  const [seeded, setSeeded] = useState(false)
+  if (weights && !seeded) {
+    setScreenability(String(weights.screenability))
+    setCompanyFit(String(weights.company_fit))
+    setCandidateFit(String(weights.candidate_fit))
+    setSeeded(true)
+  }
+
+  const total =
+    (parseInt(screenability) || 0) +
+    (parseInt(companyFit) || 0) +
+    (parseInt(candidateFit) || 0)
+  const totalValid = total === 100
+
+  async function handleSave(): Promise<void> {
+    setSaveError('')
+    try {
+      await saveWeights.mutateAsync({
+        screenability: parseInt(screenability),
+        company_fit: parseInt(companyFit),
+        candidate_fit: parseInt(candidateFit),
+      })
+    } catch (e) {
+      setSaveError((e as Error).message)
+    }
+  }
+
+  async function handleMigrate(): Promise<void> {
+    setMigrateResult(null)
+    try {
+      const res = await migrateLegacy.mutateAsync()
+      setMigrateResult(`Migrated ${res.updated} evaluation${res.updated === 1 ? '' : 's'}.`)
+    } catch (e) {
+      setMigrateResult(`Error: ${(e as Error).message}`)
+    }
+  }
+
+  async function handleRecalc(): Promise<void> {
+    setRecalcResult(null)
+    try {
+      const res = await recalcScores.mutateAsync()
+      setRecalcResult(`Updated ${res.updated} evaluation${res.updated === 1 ? '' : 's'}.`)
+    } catch (e) {
+      setRecalcResult(`Error: ${(e as Error).message}`)
+    }
+  }
+
+  if (isLoading) return <p className="text-sm text-muted">Loading…</p>
+  if (error) return <p className="text-sm text-red">{(error as Error).message}</p>
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-3">
+          Evaluation Scoring Weights
+        </p>
+        <p className="text-xs font-sans text-muted mb-4">
+          Controls how the three composite scores contribute to the overall score. Values must sum
+          to 100%.
+        </p>
+        <div className="flex gap-6 mb-3">
+          {(
+            [
+              { label: 'Screenability', value: screenability, set: setScreenability },
+              { label: 'Company Fit', value: companyFit, set: setCompanyFit },
+              { label: 'Candidate Fit', value: candidateFit, set: setCandidateFit },
+            ] as const
+          ).map(({ label, value, set }) => (
+            <div key={label} className="flex flex-col gap-1">
+              <label className="text-[10px] font-mono text-muted uppercase tracking-wider">
+                {label}
+              </label>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={value}
+                  onChange={(e) => {
+                    set(e.target.value)
+                    setSaveError('')
+                  }}
+                  className="w-16 bg-surface2 border border-surface rounded px-2 py-1 font-mono text-sm text-text text-right focus:outline-none focus:border-accent"
+                />
+                <span className="text-sm font-mono text-muted">%</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-4">
+          <span className={`text-sm font-mono ${totalValid ? 'text-muted' : 'text-red'}`}>
+            Total: {total}%
+          </span>
+          <button
+            onClick={() => void handleSave()}
+            disabled={!totalValid || saveWeights.isPending}
+            className="px-3 py-1 rounded bg-accent text-bg text-xs font-mono disabled:opacity-40"
+          >
+            {saveWeights.isPending ? 'Saving…' : 'Save Weights'}
+          </button>
+          {saveWeights.isSuccess && !saveError && (
+            <span className="text-xs font-mono text-green">Saved.</span>
+          )}
+        </div>
+        {saveError && <p className="text-xs font-mono text-red mt-2">{saveError}</p>}
+      </div>
+
+      <div className="border-t border-surface pt-5 space-y-4">
+        <p className="text-[10px] font-mono text-muted uppercase tracking-wider">
+          Evaluation Data
+        </p>
+
+        <div className="space-y-1">
+          <button
+            onClick={() => void handleMigrate()}
+            disabled={migrateLegacy.isPending}
+            className="px-3 py-1 rounded bg-surface2 border border-surface text-xs font-mono text-text hover:border-accent disabled:opacity-40"
+          >
+            {migrateLegacy.isPending ? 'Migrating…' : 'Migrate Legacy Evaluations'}
+          </button>
+          <p className="text-xs font-sans text-muted max-w-md">
+            Converts pre-2.5 evaluation scores to the 3-composite format. Run once after
+            upgrading. Migrated evaluations receive SCREENABILITY = 5.0 and CANDIDATE FIT = 5.0 as
+            neutral defaults.
+          </p>
+          {migrateResult && (
+            <p className="text-xs font-mono text-muted">{migrateResult}</p>
+          )}
+        </div>
+
+        <div className="space-y-1">
+          <button
+            onClick={() => void handleRecalc()}
+            disabled={recalcScores.isPending}
+            className="px-3 py-1 rounded bg-surface2 border border-surface text-xs font-mono text-text hover:border-accent disabled:opacity-40"
+          >
+            {recalcScores.isPending ? 'Recalculating…' : 'Recalculate All Evaluation Scores'}
+          </button>
+          <p className="text-xs font-sans text-muted max-w-md">
+            Recomputes composite scores and overall score for all new-schema evaluations using
+            current weights. Run after saving new weights.
+          </p>
+          {recalcResult && (
+            <p className="text-xs font-mono text-muted">{recalcResult}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AppSettingsSection(): React.JSX.Element {
   const { data: settings = [], isLoading, error } = useAppSettings()
   const patch = usePatchAppSetting()
@@ -1554,7 +1723,7 @@ function AppSettingsSection(): React.JSX.Element {
   return (
     <section className="mb-10">
       <SectionHeader title="Application Settings" />
-      <div className="space-y-4">
+      <div className="space-y-8">
         <div className="flex items-center justify-between max-w-sm bg-surface2 rounded-lg px-4 py-3">
           <div>
             <p className="text-sm font-sans text-text">Allow Audit Timestamp Edit</p>
@@ -1581,6 +1750,10 @@ function AppSettingsSection(): React.JSX.Element {
           </button>
         </div>
         {patchError && <p className="text-xs font-mono text-red">{patchError}</p>}
+
+        <div className="border-t border-surface pt-6">
+          <EvalScoringSection />
+        </div>
       </div>
     </section>
   )

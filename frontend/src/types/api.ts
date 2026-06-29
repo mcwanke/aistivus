@@ -578,6 +578,14 @@ export interface SystemFontsResponse {
   fonts: string[]
 }
 
+// ─── GET/POST /api/v1/settings/eval-weights ──────────────────────────────────
+
+export interface EvalWeights {
+  screenability: number
+  company_fit: number
+  candidate_fit: number
+}
+
 // ─── GET/POST /api/v1/jobs/:id/research ──────────────────────────────────────
 
 export interface JobResearch {

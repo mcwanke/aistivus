@@ -1106,6 +1106,12 @@ class PromptSaveRequest(BaseModel):
     temperature: float = 0.0
 
 
+class EvalWeightsRequest(BaseModel):
+    screenability: int
+    company_fit: int
+    candidate_fit: int
+
+
 # Valid application status values per spec
 _VALID_STATUSES = frozenset({
     "not-started", "draft", "skipped", "applied", "screening", "interview",
@@ -2874,6 +2880,53 @@ async def get_available_models(request: Request, server_id: int):
 async def get_anthropic_key_status(request: Request):
     """Return whether the Anthropic API key is set. Never echoes the key value."""
     return JSONResponse({"anthropic_key_present": request.app.state.anthropic_key_present})
+
+
+@app.get("/api/v1/settings/eval-weights")
+@limiter.limit("60/minute")
+async def get_eval_weights(request: Request):
+    """Return eval composite weights as integers (stored decimals × 100)."""
+    with database.get_connection() as conn:
+        weights = database.get_eval_weights(conn)
+    return JSONResponse({
+        "screenability": round(weights["screenability"] * 100),
+        "company_fit": round(weights["company_fit"] * 100),
+        "candidate_fit": round(weights["candidate_fit"] * 100),
+    })
+
+
+@app.post("/api/v1/settings/eval-weights")
+@limiter.limit("30/minute")
+async def save_eval_weights(request: Request, body: EvalWeightsRequest):
+    """Save eval composite weights. Body values are integers (percentages); must sum to 100."""
+    if body.screenability + body.company_fit + body.candidate_fit != 100:
+        raise HTTPException(status_code=400, detail="Weights must sum to 100.")
+    weights = {
+        "screenability": body.screenability / 100,
+        "company_fit": body.company_fit / 100,
+        "candidate_fit": body.candidate_fit / 100,
+    }
+    with database.get_connection() as conn:
+        database.set_eval_weights(conn, weights)
+    return JSONResponse({"success": True})
+
+
+@app.post("/api/v1/evaluations/migrate-legacy")
+@limiter.limit("10/minute")
+async def migrate_legacy_evaluations(request: Request):
+    """Migrate pre-2.5 evaluations to the 3-composite schema."""
+    with database.get_connection() as conn:
+        updated = database.migrate_legacy_evaluations(conn)
+    return JSONResponse({"updated": updated})
+
+
+@app.post("/api/v1/evaluations/recalc-scores")
+@limiter.limit("10/minute")
+async def recalc_eval_scores(request: Request):
+    """Recompute composite and overall scores for all new-schema evaluations."""
+    with database.get_connection() as conn:
+        updated = database.recalc_eval_scores(conn)
+    return JSONResponse({"updated": updated})
 
 
 # ─────────────────────────────────────────────────────────────

@@ -1401,10 +1401,14 @@ def insert_evaluation(job_id: int, llm_model_id: int, **kwargs) -> int:
     score_fields = [
         "score_overall", "score_role_fit", "score_scope_fit",
         "score_culture", "score_comp",
+        "score_ats", "score_recruiter_fast", "score_recruiter_deep",
+        "score_candidate_role", "score_candidate_scope", "score_candidate_culture",
+        "composite_screenability", "composite_company_fit", "composite_candidate_fit",
     ]
     text_fields = [
         "fit_type", "archetype", "strengths", "gaps", "recommendation",
         "keywords", "domain_match", "role_type_match", "keyword_gaps",
+        "interview_prep_notes", "score_reasons", "research_confidence",
     ]
     all_fields = score_fields + text_fields + ["llm_call_log_id", "analysis_json"]
 
@@ -1412,11 +1416,16 @@ def insert_evaluation(job_id: int, llm_model_id: int, **kwargs) -> int:
         conn.execute(
             """INSERT INTO evaluations
                (job_id, llm_model_id, score_overall, score_role_fit, score_scope_fit,
-                score_culture, score_comp, fit_type, archetype, strengths, gaps,
+                score_culture, score_comp,
+                score_ats, score_recruiter_fast, score_recruiter_deep,
+                score_candidate_role, score_candidate_scope, score_candidate_culture,
+                composite_screenability, composite_company_fit, composite_candidate_fit,
+                fit_type, archetype, strengths, gaps,
                 recommendation, keywords, domain_match, role_type_match, keyword_gaps,
+                interview_prep_notes, score_reasons, research_confidence,
                 llm_call_log_id, analysis_json)
                VALUES
-               (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 job_id, llm_model_id,
                 *(kwargs.get(f) for f in all_fields)

@@ -8,6 +8,7 @@ import type {
   JobsearchVersion,
   ResumeTemplateContent,
   SystemFontsResponse,
+  EvalWeights,
 } from '@/types/api'
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
@@ -287,6 +288,58 @@ export function useResumeTemplateBackup() {
       return res.json() as Promise<{ content: string }>
     },
     enabled: false,
+  })
+}
+
+// ─── Eval weights ─────────────────────────────────────────────────────────────
+
+export function useEvalWeights() {
+  return useQuery({
+    queryKey: ['eval-weights'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/settings/eval-weights')
+      if (!res.ok) throw new Error(`eval-weights ${res.status}`)
+      return res.json() as Promise<EvalWeights>
+    },
+  })
+}
+
+export function useSaveEvalWeights() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (weights: EvalWeights) => {
+      const res = await fetch('/api/v1/settings/eval-weights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(weights),
+      })
+      if (!res.ok) {
+        const data = (await res.json()) as { detail?: string }
+        throw new Error(data.detail ?? `save eval-weights ${res.status}`)
+      }
+      return res.json() as Promise<{ success: boolean }>
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['eval-weights'] }),
+  })
+}
+
+export function useMigrateLegacy() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/v1/evaluations/migrate-legacy', { method: 'POST' })
+      if (!res.ok) throw new Error(`migrate-legacy ${res.status}`)
+      return res.json() as Promise<{ updated: number }>
+    },
+  })
+}
+
+export function useRecalcScores() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/v1/evaluations/recalc-scores', { method: 'POST' })
+      if (!res.ok) throw new Error(`recalc-scores ${res.status}`)
+      return res.json() as Promise<{ updated: number }>
+    },
   })
 }
 

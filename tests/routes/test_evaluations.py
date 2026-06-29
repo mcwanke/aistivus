@@ -22,21 +22,28 @@ import database
 # ─────────────────────────────────────────────────────────────
 
 _GOOD_EVAL = {
-    "score_overall": 7.5,
-    "score_role_fit": 4.0,
-    "score_scope_fit": 4.0,
-    "score_culture": 3.5,
-    "score_comp": 3.5,
+    # Screenability dims (1-4) → composite_screenability = 3/4*10 = 7.5
+    "score_ats": 3,
+    "score_recruiter_fast": 3,
+    "score_recruiter_deep": 3,
+    # Company fit dims (1-5) → composite_company_fit = 4/5*10 = 8.0
+    "score_role_fit": 4,
+    "score_scope_fit": 4,
+    "score_culture": 4,
+    # Candidate fit dims (1-5) → composite_candidate_fit = 4/5*10 = 8.0
+    "score_candidate_role": 4,
+    "score_candidate_scope": 4,
+    "score_candidate_culture": 4,
+    # score_overall = 0.40*7.5 + 0.30*8.0 + 0.30*8.0 = 7.8
     "fit_type": "Core Fit",
     "archetype": "People Leader",
     "strengths": "Strong background",
     "gaps": "Some gaps",
     "recommendation": "Apply",
-    "log_entry": "Test | EM | 7.5 | Core Fit | Apply",
     "keywords": "platform, kubernetes",
-    "domain_match": "Same domain",
-    "role_type_match": "Target match",
     "keyword_gaps": "Kubernetes, Terraform",
+    "score_reasons": "Good fit",
+    "interview_prep_notes": "Prepare leadership examples",
 }
 
 _LLM_SUCCESS = {
@@ -124,7 +131,7 @@ class TestEvaluateEndpoint:
                 json={"jd_text": "Senior engineer role", "company_name": "Acme", "job_title": "EM"},
             )
         data = resp.json()
-        assert data["evaluation"]["score_overall"] == 7.5
+        assert data["evaluation"]["score_ats"] == 3
         assert data["evaluation"]["fit_type"] == "Core Fit"
 
     def test_duplicate_detected_without_force(self, seeded_client, jobsearch_file):
