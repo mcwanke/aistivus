@@ -7,6 +7,7 @@ import type {
   JobsearchContent,
   JobsearchVersion,
   ResumeTemplateContent,
+  SystemFontsResponse,
 } from '@/types/api'
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
@@ -286,5 +287,18 @@ export function useResumeTemplateBackup() {
       return res.json() as Promise<{ content: string }>
     },
     enabled: false,
+  })
+}
+
+// ─── System fonts ─────────────────────────────────────────────────────────────
+
+export function useSystemFonts() {
+  return useQuery({
+    queryKey: ['system-fonts'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/system/fonts')
+      if (!res.ok) throw new Error(`system fonts ${res.status}`)
+      return res.json() as Promise<SystemFontsResponse>
+    },
   })
 }

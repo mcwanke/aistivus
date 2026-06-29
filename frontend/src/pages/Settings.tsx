@@ -18,6 +18,7 @@ import {
   useResumeTemplate,
   useSaveResumeTemplate,
   useResumeTemplateBackup,
+  useSystemFonts,
 } from '@/hooks/useSettings'
 import { useDocumentsStorage } from '@/hooks/useDocuments'
 import {
@@ -1589,29 +1590,78 @@ function AppSettingsSection(): React.JSX.Element {
 
 function InfoSection(): React.JSX.Element {
   const { data: settings } = useSettings()
+  const { data: storage } = useDocumentsStorage()
+  const { data: fontsData } = useSystemFonts()
+
   if (!settings) return <></>
 
   return (
     <section className="mb-10">
       <SectionHeader title="System Info" />
-      <div className="grid grid-cols-2 gap-3 max-w-sm">
-        <div className="bg-surface2 rounded p-3">
-          <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1">Version</p>
-          <p className="font-mono text-sm text-text">{settings.app_version}</p>
+      <div className="space-y-4 max-w-sm">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-surface2 rounded p-3">
+            <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1">Version</p>
+            <p className="font-mono text-sm text-text">{settings.app_version}</p>
+          </div>
+          <div className="bg-surface2 rounded p-3">
+            <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1">Schema</p>
+            <p className="font-mono text-sm text-text">{settings.schema_version}</p>
+          </div>
+          <div className="bg-surface2 rounded p-3">
+            <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1">
+              Anthropic key
+            </p>
+            <p
+              className={`font-mono text-sm ${settings.anthropic_api_key_configured ? 'text-green' : 'text-muted'}`}
+            >
+              {settings.anthropic_api_key_configured ? 'configured' : 'not set'}
+            </p>
+          </div>
         </div>
-        <div className="bg-surface2 rounded p-3">
-          <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1">Schema</p>
-          <p className="font-mono text-sm text-text">{settings.schema_version}</p>
-        </div>
-        <div className="bg-surface2 rounded p-3">
-          <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1">
-            Anthropic key
+
+        {storage && (
+          <div className="bg-surface2 rounded-lg px-4 py-3 space-y-1">
+            <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-2">Typst</p>
+            {storage.typst_available ? (
+              <>
+                <p className="text-sm font-mono text-green">● Available</p>
+                <p className="text-xs font-mono text-muted">
+                  Binary: <span className="text-text">{storage.typst_binary}</span>
+                </p>
+              </>
+            ) : (
+              <div className="space-y-1">
+                <p className="text-sm font-mono text-red">✗ Not found — compile disabled</p>
+                <p className="text-xs font-mono text-muted">
+                  Install: <span className="text-text">brew install typst</span> (macOS)
+                </p>
+                <p className="text-xs font-mono text-muted">
+                  {'         '}<span className="text-text">snap install typst</span> (Linux)
+                </p>
+                <p className="text-xs font-mono text-muted">
+                  Restart the server after installing.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="bg-surface2 rounded-lg px-4 py-3">
+          <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-2">
+            Available Typst Fonts
           </p>
-          <p
-            className={`font-mono text-sm ${settings.anthropic_api_key_configured ? 'text-green' : 'text-muted'}`}
-          >
-            {settings.anthropic_api_key_configured ? 'configured' : 'not set'}
-          </p>
+          {!fontsData ? (
+            <p className="text-sm font-mono text-muted">Loading…</p>
+          ) : fontsData.fonts.length === 0 ? (
+            <p className="text-sm font-mono text-muted">No fonts found in fonts folder.</p>
+          ) : (
+            <div className="space-y-0.5">
+              {fontsData.fonts.map((name) => (
+                <p key={name} className="text-xs font-mono text-text">{name}</p>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </section>
@@ -1630,31 +1680,6 @@ function DocumentStorageSection(): React.JSX.Element {
       {error && <p className="text-sm text-red">{(error as Error).message}</p>}
       {data && (
         <div className="space-y-4 max-w-sm">
-          <div className="bg-surface2 rounded-lg px-4 py-3 space-y-1">
-            <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-2">Typst</p>
-            {data.typst_available ? (
-              <>
-                <p className="text-sm font-mono text-green">● Available</p>
-                <p className="text-xs font-mono text-muted">
-                  Binary: <span className="text-text">{data.typst_binary}</span>
-                </p>
-              </>
-            ) : (
-              <div className="space-y-1">
-                <p className="text-sm font-mono text-red">✗ Not found — compile disabled</p>
-                <p className="text-xs font-mono text-muted">
-                  Install: <span className="text-text">brew install typst</span> (macOS)
-                </p>
-                <p className="text-xs font-mono text-muted">
-                  {'         '}<span className="text-text">snap install typst</span> (Linux)
-                </p>
-                <p className="text-xs font-mono text-muted">
-                  Restart the server after installing.
-                </p>
-              </div>
-            )}
-          </div>
-
           <div className="bg-surface2 rounded-lg px-4 py-3 space-y-1">
             <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-2">
               Generated files

@@ -57,6 +57,7 @@ API routes:
   GET  /api/v1/settings/jobsearch/versions
   GET  /api/v1/settings/jobsearch/versions/{id}
   GET  /api/v1/settings/documents-storage
+  GET  /api/v1/system/fonts
   POST /api/v1/applications/{id}/documents
   GET  /api/v1/applications/{id}/documents
   DELETE /api/v1/applications/{id}/documents/{doc_id}
@@ -2609,6 +2610,20 @@ async def get_documents_storage(request: Request):
         "typst_available": typst_available,
         "typst_binary": typst_binary,
     })
+
+
+@app.get("/api/v1/system/fonts")
+@limiter.limit("30/minute")
+async def get_system_fonts(request: Request):
+    """List font files found in the user fonts directory."""
+    fonts_dir: Path = getattr(request.app.state, "typst_fonts_dir", Path("./user_data/my_data/resume_cover_fonts"))
+    fonts: list[str] = []
+    if fonts_dir.exists():
+        fonts = sorted(
+            f.name for f in fonts_dir.iterdir()
+            if f.is_file() and not f.name.startswith(".")
+        )
+    return JSONResponse({"fonts": fonts})
 
 
 # ─────────────────────────────────────────────────────────────

@@ -558,3 +558,9 @@ export interface FeedbackLoopResult {
   reason?: string
 }
 
+// ─── GET /api/v1/system/fonts ────────────────────────────────────────────────
+
+export interface SystemFontsResponse {
+  fonts: string[]
+}
+

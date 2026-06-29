@@ -1,5 +1,5 @@
 # AIstivus — Phase 2.5 Workorder
-> Status: IN PROGRESS — Pass 1 Steps 1/2/3/4/5/7 complete; Steps 6/8 pending
+> Status: IN PROGRESS — Pass 1 Steps 1/2/3/4/5/6/7 complete; Step 8 pending
 > Last updated: 2026-06-29
 
 ---
@@ -322,7 +322,7 @@ feedback data exists for the job. For now: always disabled.
 
 ---
 
-## Step 6 — Settings Changes
+## Step 6 — Settings Changes ✓ COMPLETE
 
 **Goal:** Move the TYPST block in Settings from the Storage subpage to the System Info
 subpage. Add a read-only fonts list block to System Info.
@@ -353,11 +353,18 @@ The font list data must come from a backend endpoint. Either:
 Identify the appropriate backend hook during implementation. The backend font discovery
 logic reads the user fonts directory (path from config) and returns a list of font names.
 
+### Implementation notes
+- TYPST block moved to `InfoSection`; sources `typst_available`/`typst_binary` from existing `useDocumentsStorage` hook — no endpoint change needed
+- `GET /api/v1/system/fonts` added to `main.py`; reads `app.state.typst_fonts_dir`, returns sorted non-hidden filenames
+- `SystemFontsResponse` added to `frontend/src/types/api.ts`
+- `useSystemFonts` added to `frontend/src/hooks/useSettings.ts`
+- `DocumentStorageSection` (Storage tab) now shows Generated files only
+
 ### Files touched
-- Settings page component (identify during implementation)
-- `main.py` — new or updated system info endpoint for font list
-- Possibly `frontend/src/hooks/` — new or updated hook for font data
-- Possibly `frontend/src/types/api.ts` — type update if system info response changes
+- `main.py` — new `GET /api/v1/system/fonts` endpoint; route map updated
+- `frontend/src/types/api.ts` — `SystemFontsResponse` added
+- `frontend/src/hooks/useSettings.ts` — `useSystemFonts` added
+- `frontend/src/pages/Settings.tsx` — `InfoSection` updated (TYPST + fonts blocks); `DocumentStorageSection` TYPST block removed
 
 ---
 
