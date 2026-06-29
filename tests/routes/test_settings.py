@@ -268,3 +268,98 @@ class TestSystemFonts:
             assert data["fonts"] == ["Alpha.ttf", "Zebra.ttf"]
         finally:
             app.state.typst_fonts_dir = orig
+
+
+# ─────────────────────────────────────────────────────────────
+# GET /api/v1/settings/eval-weights
+# POST /api/v1/settings/eval-weights
+# ─────────────────────────────────────────────────────────────
+
+class TestEvalWeightsRoutes:
+    def test_get_returns_defaults(self, client):
+        resp = client.get("/api/v1/settings/eval-weights")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["screenability"] == 40
+        assert data["company_fit"] == 30
+        assert data["candidate_fit"] == 30
+
+    def test_get_response_sums_to_100(self, client):
+        data = client.get("/api/v1/settings/eval-weights").json()
+        assert data["screenability"] + data["company_fit"] + data["candidate_fit"] == 100
+
+    def test_post_valid_weights_returns_200(self, client):
+        resp = client.post(
+            "/api/v1/settings/eval-weights",
+            json={"screenability": 50, "company_fit": 25, "candidate_fit": 25},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+
+    def test_post_returns_400_when_sum_not_100(self, client):
+        resp = client.post(
+            "/api/v1/settings/eval-weights",
+            json={"screenability": 50, "company_fit": 30, "candidate_fit": 30},
+        )
+        assert resp.status_code == 400
+
+    def test_post_returns_400_when_sum_under_100(self, client):
+        resp = client.post(
+            "/api/v1/settings/eval-weights",
+            json={"screenability": 30, "company_fit": 30, "candidate_fit": 30},
+        )
+        assert resp.status_code == 400
+
+
+# ─────────────────────────────────────────────────────────────
+# POST /api/v1/evaluations/migrate-legacy
+# POST /api/v1/evaluations/recalc-scores
+# ─────────────────────────────────────────────────────────────
+
+class TestMigrateRecalcRoutes:
+    def test_migrate_returns_updated_count(self, client):
+        resp = client.post("/api/v1/evaluations/migrate-legacy")
+        assert resp.status_code == 200
+        assert "updated" in resp.json()
+        assert resp.json()["updated"] == 0
+
+    def test_recalc_returns_updated_count(self, client):
+        resp = client.post("/api/v1/evaluations/recalc-scores")
+        assert resp.status_code == 200
+        assert "updated" in resp.json()
+        assert resp.json()["updated"] == 0
+
+    def test_migrate_returns_nonzero_count_with_legacy_evals(self, seeded_client):
+        # Insert a pre-2.5 evaluation (score_ats IS NULL, score_role_fit IS NOT NULL)
+        database.insert_evaluation(
+            job_id=seeded_client["job_id"],
+            llm_model_id=seeded_client["model_id"],
+            score_role_fit=4.0,
+            score_scope_fit=3.0,
+            score_culture=4.0,
+            score_overall=7.0,
+        )
+        resp = seeded_client["client"].post("/api/v1/evaluations/migrate-legacy")
+        assert resp.json()["updated"] == 1
+
+    def test_recalc_returns_nonzero_count_with_new_schema_evals(self, seeded_client):
+        # Insert a new-schema evaluation (score_ats IS NOT NULL)
+        database.insert_evaluation(
+            job_id=seeded_client["job_id"],
+            llm_model_id=seeded_client["model_id"],
+            score_ats=3,
+            score_recruiter_fast=3,
+            score_recruiter_deep=3,
+            score_role_fit=4,
+            score_scope_fit=4,
+            score_culture=4,
+            score_candidate_role=4,
+            score_candidate_scope=4,
+            score_candidate_culture=4,
+            composite_screenability=7.5,
+            composite_company_fit=8.0,
+            composite_candidate_fit=8.0,
+            score_overall=7.8,
+        )
+        resp = seeded_client["client"].post("/api/v1/evaluations/recalc-scores")
+        assert resp.json()["updated"] == 1

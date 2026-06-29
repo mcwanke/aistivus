@@ -2907,7 +2907,7 @@ async def save_eval_weights(request: Request, body: EvalWeightsRequest):
         "candidate_fit": body.candidate_fit / 100,
     }
     with database.get_connection() as conn:
-        database.set_eval_weights(conn, weights)
+        database.set_eval_weights(conn, **weights)
     return JSONResponse({"success": True})
 
 

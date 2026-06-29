@@ -308,3 +308,60 @@ describe('Settings page — AI Servers column header', () => {
     expect(screen.getByText('IN USE')).toBeInTheDocument()
   })
 })
+
+describe('Settings page — Eval Scoring weights', () => {
+  it('renders Evaluation Scoring Weights section in App Settings', async () => {
+    renderWithProviders(<Settings />)
+    await waitFor(() =>
+      expect(screen.getByText(/Evaluation Scoring Weights/i)).toBeInTheDocument()
+    )
+  })
+
+  it('renders Screenability, Company Fit, and Candidate Fit weight inputs', async () => {
+    renderWithProviders(<Settings />)
+    // "Screenability" appears as a label and also in the migrate description; use getAllByText
+    await waitFor(() =>
+      expect(screen.getAllByText(/Screenability/i).length).toBeGreaterThan(0)
+    )
+    expect(screen.getAllByText(/Company Fit/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Candidate Fit/i).length).toBeGreaterThan(0)
+  })
+
+  it('Save Weights button is present', async () => {
+    renderWithProviders(<Settings />)
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Save Weights/i })).toBeInTheDocument()
+    )
+  })
+
+  it('Save Weights button is disabled when inputs do not sum to 100', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<Settings />)
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Save Weights/i })).toBeInTheDocument()
+    )
+    // Clear one field so sum drops below 100
+    const inputs = screen.getAllByRole('spinbutton')
+    await user.clear(inputs[0])
+    await user.type(inputs[0], '0')
+    expect(screen.getByRole('button', { name: /Save Weights/i })).toBeDisabled()
+  })
+
+  it('renders Migrate Legacy Evaluations button', async () => {
+    renderWithProviders(<Settings />)
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /Migrate Legacy Evaluations/i })
+      ).toBeInTheDocument()
+    )
+  })
+
+  it('renders Recalculate All Evaluation Scores button', async () => {
+    renderWithProviders(<Settings />)
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /Recalculate All Evaluation Scores/i })
+      ).toBeInTheDocument()
+    )
+  })
+})

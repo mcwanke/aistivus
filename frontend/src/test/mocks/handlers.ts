@@ -475,6 +475,52 @@ export const handlers = [
       error: null,
     }),
   ),
+  // Research routes
+  http.get('/api/v1/jobs/:id/research', () =>
+    HttpResponse.json({ research: null }),
+  ),
+  http.post('/api/v1/jobs/:id/research', () =>
+    HttpResponse.json({
+      success: true,
+      id: 1,
+      research: {
+        id: 1,
+        job_id: 1,
+        research_summary: 'Strong Series B company in the payments space.',
+        research_confidence: 'high',
+        company_overview: 'A fintech startup.',
+        company_stage: 'Series B',
+        company_size_actual: '200-500',
+        company_trajectory: null,
+        company_culture_overview: null,
+        culture_signals: null,
+        comp_signals: null,
+        role_context: null,
+        interview_process: null,
+        red_flags: null,
+        green_flags: null,
+        research_notes: null,
+        raw_json: '{}',
+        imported_at: '2024-01-01T00:00:00',
+      },
+    }),
+  ),
+  http.post('/api/v1/jobs/:id/generate-research-prompt', () =>
+    HttpResponse.json({ prompt: 'Research this company.', log_id: 1 }),
+  ),
+  // Eval weights + migrate/recalc
+  http.get('/api/v1/settings/eval-weights', () =>
+    HttpResponse.json({ screenability: 40, company_fit: 30, candidate_fit: 30 }),
+  ),
+  http.post('/api/v1/settings/eval-weights', () =>
+    HttpResponse.json({ success: true }),
+  ),
+  http.post('/api/v1/evaluations/migrate-legacy', () =>
+    HttpResponse.json({ updated: 0 }),
+  ),
+  http.post('/api/v1/evaluations/recalc-scores', () =>
+    HttpResponse.json({ updated: 0 }),
+  ),
   http.post('/api/v1/prompt-usage/:id/feedback', () =>
     HttpResponse.json({ success: true }),
   ),

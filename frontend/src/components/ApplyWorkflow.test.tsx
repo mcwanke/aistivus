@@ -13,6 +13,7 @@ const BASE_PROPS = {
   onImportEval: vi.fn(),
   onNavigateToEvals: vi.fn(),
   onNavigateToResume: vi.fn(),
+  onNavigateToResearch: vi.fn(),
 }
 
 const MOCK_EVAL: EvalWithMeta = {
@@ -104,5 +105,27 @@ describe('ApplyWorkflow', () => {
     renderWithProviders(<ApplyWorkflow {...BASE_PROPS} onNavigateToResume={onNavigateToResume} />)
     await userEvent.click(screen.getByText('Review Resumes →'))
     expect(onNavigateToResume).toHaveBeenCalled()
+  })
+
+  it('renders Step 1 — Research block', () => {
+    renderWithProviders(<ApplyWorkflow {...BASE_PROPS} />)
+    expect(screen.getByText(/Step 1.*Research/i)).toBeInTheDocument()
+  })
+
+  it('renders Generate Research Prompt button in Step 1', () => {
+    renderWithProviders(<ApplyWorkflow {...BASE_PROPS} />)
+    expect(screen.getByText('Generate Research Prompt')).toBeInTheDocument()
+  })
+
+  it('renders View Research link in Step 1', () => {
+    renderWithProviders(<ApplyWorkflow {...BASE_PROPS} />)
+    expect(screen.getByText('View Research →')).toBeInTheDocument()
+  })
+
+  it('calls onNavigateToResearch when View Research is clicked', async () => {
+    const onNavigateToResearch = vi.fn()
+    renderWithProviders(<ApplyWorkflow {...BASE_PROPS} onNavigateToResearch={onNavigateToResearch} />)
+    await userEvent.click(screen.getByText('View Research →'))
+    expect(onNavigateToResearch).toHaveBeenCalled()
   })
 })
