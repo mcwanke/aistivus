@@ -878,7 +878,7 @@ Deliverables:
 
 ### Phase 2.5 — Job Detail Restructure + Scoring Redesign
 - Pass 1 (UI Restructure + Stub): ✅ Complete — 666 backend / 298 frontend
-- Pass 2 (Scoring Redesign + Research + External Eval): ⬜ Designed; ready for implementation
+- Pass 2 (Scoring Redesign + Research + External Eval): 🔶 In progress — Steps 1–5 complete (671 backend / 298 frontend); Steps 6–10 next
   - New 9-dim eval schema (3 composites: SCREENABILITY / COMPANY FIT / CANDIDATE FIT)
   - User-configurable weights; legacy migration; recalc button
   - Company research workflow (`gen_research` prompt; `job_research` table; Research subpage)

@@ -40,7 +40,7 @@ class TestHealth:
 
     def test_schema_version_in_response(self, client):
         data = client.get("/api/v1/health").json()
-        assert data["database"]["schema_version"] == "1.7"
+        assert data["database"]["schema_version"] == "2.5"
 
     def test_models_list_in_response(self, seeded_client):
         data = seeded_client["client"].get("/api/v1/health").json()
@@ -164,7 +164,6 @@ class TestSystemTypes:
         resp = client.get("/api/v1/system-types?type_name=application_log")
         values = {t["type_value"] for t in resp.json()}
         assert "prompt_eval" in values
-        assert "prompt_orgsummary" in values
         assert "prompt_resume" in values
         assert "prompt_cover" in values
 

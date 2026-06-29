@@ -2,7 +2,7 @@ import { useState, useRef, useLayoutEffect, useEffect } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import AppHeader from '@/components/AppHeader'
-import { useJobDetail, usePatchJob, useAddCompanyLog, useUpdateCompanySummary, useActivityLog, useGenerateOrgSummaryPrompt } from '@/hooks/useJobs'
+import { useJobDetail, usePatchJob, useAddCompanyLog, useUpdateCompanySummary, useActivityLog } from '@/hooks/useJobs'
 import {
   useApplicationDetail,
   usePatchApplication,
@@ -2050,9 +2050,7 @@ function JobDetailsRight({
   const [ratingsOpen, setRatingsOpen] = useState(false)
   const [jobInfoOpen, setJobInfoOpen] = useState(false)
   const [editSummaryOpen, setEditSummaryOpen] = useState(false)
-  const [summaryPromptText, setSummaryPromptText] = useState<string | null>(null)
   const [exportStatus, setExportStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
-  const generateOrgSummaryPrompt = useGenerateOrgSummaryPrompt()
   const patch = usePatchJob()
 
   function exportJob(): void {
@@ -2244,17 +2242,6 @@ function JobDetailsRight({
         >
           Edit Summary
         </button>
-        <button
-          onClick={() => {
-            generateOrgSummaryPrompt.mutate(jobId, {
-              onSuccess: (data) => setSummaryPromptText(data.prompt),
-            })
-          }}
-          disabled={generateOrgSummaryPrompt.isPending}
-          className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50"
-        >
-          {generateOrgSummaryPrompt.isPending ? 'Generating…' : 'Generate External Summary Prompt'}
-        </button>
       </div>
 
       <CompanyInfoInlineForm jobId={jobId} onSaved={() => setSavedInfo(!savedInfo)} />
@@ -2284,13 +2271,6 @@ function JobDetailsRight({
           jobId={jobId}
           initial={companyLog.find((e) => e.type_value === 'summary')?.log ?? ''}
           onClose={() => setEditSummaryOpen(false)}
-        />
-      )}
-      {summaryPromptText !== null && (
-        <PromptModal
-          prompt={summaryPromptText}
-          title="Generate External Summary Prompt"
-          onClose={() => setSummaryPromptText(null)}
         />
       )}
     </>

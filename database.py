@@ -381,6 +381,30 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- ─────────────────────────────────────────
+-- Company research — ACTIVE PHASE 2.5
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS job_research (
+    id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id                   INTEGER NOT NULL REFERENCES jobs(id),
+    raw_json                 TEXT,
+    research_summary         TEXT,
+    company_overview         TEXT,
+    company_stage            TEXT,
+    company_size_actual      TEXT,
+    company_trajectory       TEXT,
+    company_culture_overview TEXT,
+    culture_signals          TEXT,
+    comp_signals             TEXT,
+    role_context             TEXT,
+    interview_process        TEXT,
+    red_flags                TEXT,
+    green_flags              TEXT,
+    research_confidence      TEXT,
+    research_notes           TEXT,
+    imported_at              TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_jobs_company_name       ON jobs(company_name);
 CREATE INDEX IF NOT EXISTS idx_evaluations_job_id      ON evaluations(job_id);
 CREATE INDEX IF NOT EXISTS idx_applications_job_id     ON applications(job_id);
@@ -388,12 +412,16 @@ CREATE INDEX IF NOT EXISTS idx_llm_call_log_job_id     ON llm_call_log(job_id);
 CREATE INDEX IF NOT EXISTS idx_app_logs_app_id         ON application_logs(application_id);
 CREATE INDEX IF NOT EXISTS idx_job_company_log_job_id  ON job_company_log(job_id);
 CREATE INDEX IF NOT EXISTS idx_llm_models_server_id    ON llm_models(server_id);
+CREATE INDEX IF NOT EXISTS idx_job_research_job_id     ON job_research(job_id);
 """
 
-CURRENT_SCHEMA_VERSION = "1.7"
+CURRENT_SCHEMA_VERSION = "2.5"
 
 _APP_SETTINGS_SEED: list[tuple[str, str]] = [
     ("allow_audit_timestamp_edit", "0"),
+    ("eval_weight_screenability", "0.40"),
+    ("eval_weight_company_fit", "0.30"),
+    ("eval_weight_candidate_fit", "0.30"),
 ]
 
 _SYSTEM_TYPES_SEED: list[tuple[str, str]] = [
@@ -401,7 +429,6 @@ _SYSTEM_TYPES_SEED: list[tuple[str, str]] = [
     ("application_log", "general"),
     ("application_log", "prompt"),
     ("application_log", "prompt_eval"),
-    ("application_log", "prompt_orgsummary"),
     ("application_log", "prompt_resume"),
     ("application_log", "prompt_cover"),
     ("application_log", "lesson_learned"),
@@ -495,6 +522,29 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass  # column already exists
 
+        # Phase 2.5 — 9-dim scoring columns
+        for _col in (
+            "ALTER TABLE evaluations ADD COLUMN score_ats INTEGER",
+            "ALTER TABLE evaluations ADD COLUMN score_recruiter_fast INTEGER",
+            "ALTER TABLE evaluations ADD COLUMN score_recruiter_deep INTEGER",
+            "ALTER TABLE evaluations ADD COLUMN score_candidate_role INTEGER",
+            "ALTER TABLE evaluations ADD COLUMN score_candidate_scope INTEGER",
+            "ALTER TABLE evaluations ADD COLUMN score_candidate_culture INTEGER",
+            "ALTER TABLE evaluations ADD COLUMN interview_prep_notes TEXT",
+            "ALTER TABLE evaluations ADD COLUMN score_reasons TEXT",
+            "ALTER TABLE evaluations ADD COLUMN research_confidence TEXT",
+            "ALTER TABLE evaluations ADD COLUMN composite_screenability REAL",
+            "ALTER TABLE evaluations ADD COLUMN composite_company_fit REAL",
+            "ALTER TABLE evaluations ADD COLUMN composite_candidate_fit REAL",
+        ):
+            try:
+                conn.execute(_col)
+            except sqlite3.OperationalError:
+                pass  # column already exists
+
+        # Phase 2.5 — delete gen_orgsummary from prompts if present
+        conn.execute("DELETE FROM prompts WHERE prompt_key = 'gen_orgsummary'")
+
         try:
             conn.execute(
                 "ALTER TABLE prompts ADD COLUMN temperature REAL NOT NULL DEFAULT 0.0"
@@ -534,7 +584,7 @@ def init_db() -> None:
         if not existing_version:
             conn.execute(
                 "INSERT INTO schema_versions (version, description) VALUES (?, ?)",
-                (CURRENT_SCHEMA_VERSION, "Schema v1.7 — llm_call_log.prompt/prompt_hash dropped; prompt_usage backfilled from evaluation rows; prompts table seeded")
+                (CURRENT_SCHEMA_VERSION, "Schema v2.5 — evaluations 9-dim columns; job_research table; eval weight app_settings seeds; gen_orgsummary retired")
             )
 
     seed_llm_models_from_config()
@@ -2580,6 +2630,242 @@ def is_section_complete(section_content: str) -> bool:
     """Returns True if section has no [FILL] markers and has substantive content (>50 chars)."""
     stripped = section_content.strip()
     return "[FILL" not in stripped and len(stripped) > 50
+
+
+# ─────────────────────────────────────────────────────────────
+# Eval Scoring — Phase 2.5
+# ─────────────────────────────────────────────────────────────
+
+def get_eval_weights(conn: sqlite3.Connection) -> dict:
+    """Return eval composite weights from app_settings as floats."""
+    rows = conn.execute(
+        "SELECT key, value FROM app_settings WHERE key LIKE 'eval_weight_%'"
+    ).fetchall()
+    weights = {r["key"].replace("eval_weight_", ""): float(r["value"]) for r in rows}
+    return {
+        "screenability": weights.get("screenability", 0.40),
+        "company_fit": weights.get("company_fit", 0.30),
+        "candidate_fit": weights.get("candidate_fit", 0.30),
+    }
+
+
+def set_eval_weights(
+    conn: sqlite3.Connection,
+    screenability: float,
+    company_fit: float,
+    candidate_fit: float,
+) -> None:
+    """Write eval weights to app_settings. Raises ValueError if they don't sum to 1.0."""
+    total = screenability + company_fit + candidate_fit
+    if abs(total - 1.0) > 0.001:
+        raise ValueError(f"Weights must sum to 1.0; got {total:.4f}")
+    for key, value in (
+        ("eval_weight_screenability", screenability),
+        ("eval_weight_company_fit", company_fit),
+        ("eval_weight_candidate_fit", candidate_fit),
+    ):
+        existing = conn.execute(
+            "SELECT id FROM app_settings WHERE key = ?", (key,)
+        ).fetchone()
+        if existing:
+            conn.execute("UPDATE app_settings SET value = ? WHERE key = ?", (str(value), key))
+        else:
+            conn.execute(
+                "INSERT INTO app_settings (key, value) VALUES (?, ?)", (key, str(value))
+            )
+
+
+def compute_eval_composites(scores: dict, weights: dict) -> dict:
+    """
+    Compute the three composite scores and score_overall from raw 9-dim integer scores.
+
+    Screenability dims are 1–4; fit dims are 1–5.
+    All three composites are normalized to 0.0–10.0.
+    Returns None for score_overall if any composite is None.
+    """
+    def _avg_normalized(vals: list, scale: int) -> float | None:
+        if any(v is None for v in vals):
+            return None
+        return (sum(vals) / len(vals)) / scale * 10.0
+
+    comp_screen = _avg_normalized(
+        [scores.get("score_ats"), scores.get("score_recruiter_fast"), scores.get("score_recruiter_deep")],
+        4,
+    )
+    comp_company = _avg_normalized(
+        [scores.get("score_role_fit"), scores.get("score_scope_fit"), scores.get("score_culture")],
+        5,
+    )
+    comp_candidate = _avg_normalized(
+        [scores.get("score_candidate_role"), scores.get("score_candidate_scope"), scores.get("score_candidate_culture")],
+        5,
+    )
+
+    if comp_screen is not None and comp_company is not None and comp_candidate is not None:
+        overall = (
+            weights["screenability"] * comp_screen
+            + weights["company_fit"] * comp_company
+            + weights["candidate_fit"] * comp_candidate
+        )
+    else:
+        overall = None
+
+    return {
+        "composite_screenability": comp_screen,
+        "composite_company_fit": comp_company,
+        "composite_candidate_fit": comp_candidate,
+        "score_overall": overall,
+    }
+
+
+def migrate_legacy_evaluations(conn: sqlite3.Connection) -> int:
+    """
+    Migrate pre-2.5 evaluations to the 3-composite format.
+    Targets evals where score_ats IS NULL AND score_role_fit IS NOT NULL.
+    Returns count of rows updated.
+    """
+    weights = get_eval_weights(conn)
+    rows = conn.execute(
+        """SELECT id, score_role_fit, score_scope_fit, score_culture
+           FROM evaluations
+           WHERE score_ats IS NULL AND score_role_fit IS NOT NULL"""
+    ).fetchall()
+
+    updated = 0
+    for row in rows:
+        scores = {
+            "score_ats": None,
+            "score_recruiter_fast": None,
+            "score_recruiter_deep": None,
+            "score_role_fit": row["score_role_fit"],
+            "score_scope_fit": row["score_scope_fit"],
+            "score_culture": row["score_culture"],
+            "score_candidate_role": None,
+            "score_candidate_scope": None,
+            "score_candidate_culture": None,
+        }
+        comp_company = compute_eval_composites(scores, weights)["composite_company_fit"]
+        comp_screen = 5.0
+        comp_candidate = 5.0
+        overall = (
+            weights["screenability"] * comp_screen
+            + weights["company_fit"] * (comp_company or 5.0)
+            + weights["candidate_fit"] * comp_candidate
+        )
+        conn.execute(
+            """UPDATE evaluations
+               SET composite_screenability = ?,
+                   composite_company_fit = ?,
+                   composite_candidate_fit = ?,
+                   score_overall = ?
+               WHERE id = ?""",
+            (comp_screen, comp_company, comp_candidate, overall, row["id"]),
+        )
+        updated += 1
+    return updated
+
+
+def recalc_eval_scores(conn: sqlite3.Connection) -> int:
+    """
+    Recompute composites + score_overall for all new-schema evals (score_ats IS NOT NULL)
+    using current weights. Also recalculates jobs.agg_score_overall for affected jobs.
+    Returns count of evals updated.
+    """
+    weights = get_eval_weights(conn)
+    rows = conn.execute(
+        """SELECT id, job_id,
+                  score_ats, score_recruiter_fast, score_recruiter_deep,
+                  score_role_fit, score_scope_fit, score_culture,
+                  score_candidate_role, score_candidate_scope, score_candidate_culture
+           FROM evaluations
+           WHERE score_ats IS NOT NULL"""
+    ).fetchall()
+
+    updated = 0
+    affected_jobs: set[int] = set()
+    for row in rows:
+        composites = compute_eval_composites(dict(row), weights)
+        conn.execute(
+            """UPDATE evaluations
+               SET composite_screenability = ?,
+                   composite_company_fit = ?,
+                   composite_candidate_fit = ?,
+                   score_overall = ?
+               WHERE id = ?""",
+            (
+                composites["composite_screenability"],
+                composites["composite_company_fit"],
+                composites["composite_candidate_fit"],
+                composites["score_overall"],
+                row["id"],
+            ),
+        )
+        affected_jobs.add(row["job_id"])
+        updated += 1
+
+    for job_id in affected_jobs:
+        agg = conn.execute(
+            "SELECT AVG(score_overall) AS avg FROM evaluations WHERE job_id = ?",
+            (job_id,),
+        ).fetchone()
+        conn.execute(
+            "UPDATE jobs SET agg_score_overall = ? WHERE id = ?",
+            (agg["avg"], job_id),
+        )
+
+    return updated
+
+
+# ─────────────────────────────────────────────────────────────
+# Job Research — Phase 2.5
+# ─────────────────────────────────────────────────────────────
+
+def insert_job_research(
+    job_id: int,
+    raw_json: str,
+    research_summary: str | None = None,
+    company_overview: str | None = None,
+    company_stage: str | None = None,
+    company_size_actual: str | None = None,
+    company_trajectory: str | None = None,
+    company_culture_overview: str | None = None,
+    culture_signals: str | None = None,
+    comp_signals: str | None = None,
+    role_context: str | None = None,
+    interview_process: str | None = None,
+    red_flags: str | None = None,
+    green_flags: str | None = None,
+    research_confidence: str | None = None,
+    research_notes: str | None = None,
+) -> int:
+    """Insert a job_research record and return the new id."""
+    with get_connection() as conn:
+        conn.execute(
+            """INSERT INTO job_research
+               (job_id, raw_json, research_summary, company_overview, company_stage,
+                company_size_actual, company_trajectory, company_culture_overview,
+                culture_signals, comp_signals, role_context, interview_process,
+                red_flags, green_flags, research_confidence, research_notes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (job_id, raw_json, research_summary, company_overview, company_stage,
+             company_size_actual, company_trajectory, company_culture_overview,
+             culture_signals, comp_signals, role_context, interview_process,
+             red_flags, green_flags, research_confidence, research_notes),
+        )
+        return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def get_job_research_latest(job_id: int) -> dict | None:
+    """Return the most recent job_research record for a job, or None."""
+    with get_connection() as conn:
+        row = conn.execute(
+            """SELECT * FROM job_research
+               WHERE job_id = ?
+               ORDER BY imported_at DESC, id DESC
+               LIMIT 1""",
+            (job_id,),
+        ).fetchone()
+        return dict(row) if row else None
 
 
 # ─────────────────────────────────────────────────────────────

@@ -160,18 +160,3 @@ export function useStartApplication() {
   })
 }
 
-export function useGenerateOrgSummaryPrompt() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (jobId: number): Promise<{ prompt: string; log_id: number }> => {
-      const res = await fetch(`/api/v1/jobs/${jobId}/generate-orgsummary-prompt`, {
-        method: 'POST',
-      })
-      if (!res.ok) throw new Error(`generate orgsummary prompt ${res.status}`)
-      return res.json() as Promise<{ prompt: string; log_id: number }>
-    },
-    onSuccess: (_data, jobId) => {
-      void qc.invalidateQueries({ queryKey: ['activity-log', jobId] })
-    },
-  })
-}

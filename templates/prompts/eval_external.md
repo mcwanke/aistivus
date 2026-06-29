@@ -1,45 +1,34 @@
-# eval_external
-key: eval_external
-label: External Evaluation Prompt
-# description
-Prompt generated for use in an external LLM session (e.g. Claude.ai, ChatGPT).
-The user pastes this into their preferred model alongside their jobsearch.md file.
-Contains variable injections for job details ({company_name}, {title}, {location},
-{pay_band}, {jd_text}) and a machine-readable JSON output block parsed by the app.
-
-Editable sections: context file instructions, clarification gate, scoring framework,
-scorecard task instructions, stop block.
-Read-only sections: job details injection, job description injection, and
-EVALUATION_JSON_START...EVALUATION_JSON_END block (field names parsed by the app).
-
-# Actual Prompt Text
+# eval_single_draft
+# Replaces: eval_external.md
+# Status: draft — not yet validated against test cases
 #
-# Note - the blocks that look like [[ ... ]] and [[ /... ]] are stripped out.
-# do not edit/remove these if you are editing this file directly. anything
-# inside an [[EDITABLE]] block is considered to be open for editing in the app
+# Variable injections: {company_name}, {title}, {location}, {pay_band}, {jd_text}, {research_context}
+# {research_context} = raw JSON from job_research.research_json; inject null or omit if not available
 #
+# Machine-readable output fields parsed by app:
+# score_ats, score_recruiter_fast, score_recruiter_deep (1-4)
+# score_role_fit, score_scope_fit, score_culture (1-5, company lens)
+# score_candidate_role, score_candidate_scope, score_candidate_culture (1-5, candidate lens)
+# fit_type, archetype, strengths, gaps, recommendation, keywords, keyword_gaps,
+# interview_prep_notes, research_confidence, log_entry
 ---
-[[PROMPT_START]]
-[[EDITABLE]]
+
 ## CONTEXT FILES
+
 Your project files are already in context. Use jobsearch.md as the sole source of truth for all candidate facts.
 
 ## CLARIFICATION GATE
 
-Before beginning any evaluation, check the following. If anything is
-missing or ambiguous, ask a single clarifying question — do not guess:
+Before beginning any evaluation, check the following. If anything is missing or ambiguous, ask a single clarifying question — do not guess:
 
 - Is a job description present below? If not, ask for it.
-- Is the company name, role title, and location clearly stated?
-  If any are missing, ask.
-- If the JD does not include a salary band, note that comp scoring
-  will be estimated based on market norms for the role level —
-  do not ask, just flag it in the scorecard.
+- Is the company name, role title, and location clearly stated? If any are missing, ask.
+- Is the company research block present below? If the research block is absent or null, note it — Company Fit and Candidate Fit scores will be based on JD signals only, and research_confidence should be set to "none".
 
 Do not proceed until all required inputs are present.
 
-[[/EDITABLE]]
-[[READONLY]]
+---
+
 ## JOB DETAILS
 
 Company: {company_name}
@@ -55,83 +44,111 @@ Pay Band: {pay_band}
 
 ---
 
-[[/READONLY]]
-[[EDITABLE]]
+## COMPANY RESEARCH
+
+The following JSON block contains third-party research on this company and role. Use it to inform Step 2 (Company Fit) and Step 3 (Candidate Fit) only. Do not use it for Step 1 (Screenability) — those scores must reflect JD and resume signals only, as ATS systems and recruiters do not have access to this data.
+
+{research_context}
+
+---
+
 ## TASK: EVALUATION SCORECARD
 
-Output format: By default, output only the company name, overall 
-score then the dimension scores, recommendation, and the JSON 
-block. Do not output the full scorecard narrative (strengths, 
-gaps, keyword analysis, interview process analysis) unless user 
-explicitly requests it.
+**Output format:** By default, output only the scores for each group, fit type, recommendation, and the JSON block. Do not output full narrative sections (strengths, gaps, keyword list, interview prep notes) unless the user explicitly requests them in this session. For each of the 9 dimension scores, include a one-sentence reason — these populate the `score_reasons` object in the JSON block.
 
-The framework for a full evaluation scorecard is listed below.
-Use jobsearch.md as the sole source of truth for all candidate facts.
-Apply the model behavior rules in jobsearch.md throughout.
+Use jobsearch.md as the sole source of truth for all candidate facts. Apply all model behavior rules in jobsearch.md throughout.
 
-### Scoring Framework
+Work through all four steps before producing any output. Then output results in the order below.
 
-**Overall score:** 1–10 composite with one-sentence verdict.
+---
 
-Scoring guidance — apply the same calibration used internally:
-1-2: Categorically wrong — function, domain, or level is fundamentally misaligned with what the candidate is targeting regardless of transferable experience.
-3-4: Significant mismatch — major gaps or deal-breaker violations; a long-shot application that most hiring managers would filter out.
-5:   Borderline — some fit exists but gaps are substantial enough that most hiring managers would pass. Do not apply unless circumstances are unusual.
-6:   Viable application — qualifications meet the minimum threshold; the candidate would not be screened out, but is not a standout. Worth applying.
-7:   Good fit — solid match, minor gaps only, competitive in the applicant pool.
-8:   Strong fit — well-aligned across most dimensions, would be a strong candidate.
-9:   Excellent fit — near-perfect match, very few concerns, likely to advance far.
-10:  Exceptional — every stated requirement met, direct domain match, no meaningful gaps. 10 is achievable but requires genuine alignment on all dimensions.
+### Step 1 — Screenability
 
-**Dimension scores (1–5 each):**
-- **Role fit:** Does the role type, title, and day-to-day responsibilities match what the candidate is targeting? Reference the Target Role Profile section of jobsearch.md.
-- **Scope fit:** Does the team size, org scope, and leadership depth match the candidate's background and stated preferences?
-- **Culture signals:** Does the JD language, company type, and mission suggest a culture compatible with the candidate's values?
-- **Comp signals:** How does the stated or estimated pay band align with the candidate's compensation target? Reference jobsearch.md.
+**Source material: JD and master resume from jobsearch.md only. Do not use research context for these scores.**
 
-**Fit type:** Core Fit / Stretch / Mismatch — with one-sentence reasoning.
+Simulate how automated systems and recruiters process a resume before any human decision is made. Score each dimension independently.
 
-**Role archetype:** A concise label describing the nature of the role
-(e.g. "Hybrid: People Leadership + Platform Technical Direction" or
-"Pure People Leadership: EM-scale").
+**Scale:** 1 = clear fail | 2 = uncertain, lean negative | 3 = uncertain, lean positive | 4 = clear pass
 
-**Strengths of this match:** Bullet list. Be specific — cite actual
-experience from jobsearch.md that maps to a specific JD requirement.
+**ATS score (1–4):** Does the resume contain the keyword and terminology signals an ATS would match against this JD? Consider job title alignment, required skills verbatim or near-verbatim, technology names, and domain-specific language. A 4 requires the majority of high-priority JD keywords to appear in resume language. A 1 means an ATS would almost certainly filter this application.
 
-**Gaps or concerns:** Bullet list. Be honest — if a gap is real, name
-it. Flag anything that could surface as a challenge in an interview.
+**Recruiter fast-pass score (1–4):** Simulate an 8-second resume scan. Do the most visible signals — title, current/recent company, scope indicators — immediately suggest a qualified candidate for this role? A 4 means the right signals are immediately legible. A 1 means nothing registers correctly in a quick scan.
 
-**Interview process analysis:** If the JD includes a described interview
-process, analyze each stage for conflicts with known gaps or deal-breakers
-from jobsearch.md. Surface these here — not later.
+**Recruiter deep-pass score (1–4):** Simulate a full recruiter review of 2–3 minutes. After reading carefully, would a recruiter advance this candidate to a hiring manager? A 4 means clear advancement. A 1 means the recruiter would pass even after careful reading.
+
+---
+
+### Step 2 — Company Fit
+
+**Source material: JD + company research JSON. This is the company's lens — how would the hiring team view this candidate?**
+
+**Scale:** 1 = no meaningful match | 2 = weak match | 3 = moderate match | 4 = good match | 5 = excellent match
+
+If research context is absent, score from JD signals only and note the limitation.
+
+**Role fit (1–5):** Does the role type, title, and day-to-day responsibilities match what the candidate's background suggests they can credibly fill? Reference the Target Role Profile in jobsearch.md and cross-check against JD requirements. Assess from the hiring team's perspective.
+
+**Scope fit (1–5):** Does the team size, org scope, and leadership depth match what the candidate has actually done? Reference stated scope in jobsearch.md — IC count managed, org level, cross-functional surface area. Draw on role_context.team_signals from research if available.
+
+**Culture fit — company lens (1–5):** Based on JD language and research culture_signals, would this company view this candidate as a cultural fit? Draw on Glassdoor management style signals, stated values in the JD, and culture-specific requirements. This is the company's perspective, not the candidate's.
+
+---
+
+### Step 3 — Candidate Fit
+
+**Source material: jobsearch.md stated preferences + research comp_signals, culture_signals, red_flags, green_flags. This is the candidate's lens — would they want this role?**
+
+**Scale:** 1 = no meaningful appeal | 2 = weak appeal | 3 = moderate appeal | 4 = good appeal | 5 = excellent appeal
+
+If research context is absent, score from JD signals and jobsearch.md stated preferences only.
+
+**Role appeal (1–5):** Does this role genuinely match what the candidate wants to do? Reference stated role preferences, deal-breakers, and target role profile in jobsearch.md. If the role requires significant time in areas the candidate is actively moving away from, score lower.
+
+**Scope appeal (1–5):** Does the org structure, team size, and ownership scope match what the candidate is targeting? Reference scope preferences in jobsearch.md. Consider org maturity, autonomy level, and growth trajectory from research company_trajectory if available.
+
+**Culture compatibility — candidate lens (1–5):** Based on the candidate's stated values in jobsearch.md and research findings, would the candidate likely thrive here? Incorporate comp_signals from research — compensation misalignment is a relevant compatibility signal. Draw on red_flags and green_flags to calibrate. This is the candidate's perspective, not the company's.
+
+---
+
+### Step 4 — Qualitative Assessment
+
+Produce these only if explicitly requested in this session. Otherwise skip to the JSON block.
+
+**Fit type:** Core Fit / Stretch / Mismatch — one sentence of reasoning.
+
+**Role archetype:** Concise label for the nature of this role (e.g. "Hybrid: People Leadership + Platform Technical Direction" or "Pure People Leadership: EM-scale").
+
+**Strengths of this match:** Bullet list. Be specific — cite actual experience from jobsearch.md that maps to a specific JD requirement. No generalities.
+
+**Gaps or concerns:** Bullet list. Be honest — if a gap is real, name it. Flag anything likely to surface in a recruiter screen or hiring manager interview.
 
 **ATS keyword analysis:**
-- List 25–35 ATS-relevant keywords extracted from the JD.
-- Cross-reference against the master resume copy in jobsearch.md.
-- Call out any JD keywords not present in the master resume as
-  tailoring targets.
+- Extract 25–35 ATS-relevant keywords from the JD.
+- Cross-reference against the master resume in jobsearch.md.
+- List any JD keywords not present in the master resume as tailoring targets.
 
-**Recommended action:** Apply / Apply with modifications / Skip
-Include one sentence of reasoning.
+**Interview prep notes:** Based on research.interview_process and known gaps from the evaluation above, surface what the candidate should prepare for. If interview process data is absent, flag that and identify likely question areas based on JD requirements and gaps above.
+
+**Recommended action:** Apply / Apply with modifications / Skip — one sentence of reasoning.
 
 ---
 
 ## MACHINE-READABLE OUTPUT BLOCK
 
-After the full scorecard, output the following block exactly as
-formatted. Do not alter field names or structure — this block is
-parsed programmatically by the job search application. Always wrap the JSON in a fenced code block (triple backticks). Never output it inline.
-
-[[/EDITABLE]]
-[[READONLY]]
+After completing the evaluation, output the following block exactly as formatted. Do not alter field names or structure — this block is parsed programmatically by the job search application. Always wrap the JSON in a fenced code block (triple backticks). Never output it inline.
 
 EVALUATION_JSON_START
-{{
-  "score_overall": <1-10 integer>,
+```json
+{
+  "score_ats": <1-4 integer>,
+  "score_recruiter_fast": <1-4 integer>,
+  "score_recruiter_deep": <1-4 integer>,
   "score_role_fit": <1-5 integer>,
   "score_scope_fit": <1-5 integer>,
   "score_culture": <1-5 integer>,
-  "score_comp": <1-5 integer>,
+  "score_candidate_role": <1-5 integer>,
+  "score_candidate_scope": <1-5 integer>,
+  "score_candidate_culture": <1-5 integer>,
   "fit_type": "<Core Fit | Stretch | Mismatch>",
   "archetype": "<role archetype label>",
   "strengths": "<bullet 1|bullet 2|bullet 3>",
@@ -139,10 +156,20 @@ EVALUATION_JSON_START
   "recommendation": "<Apply | Apply with modifications | Skip>",
   "keywords": "<comma-separated ATS keywords, 25-35 terms>",
   "keyword_gaps": "<comma-separated keywords from JD not in master resume>",
+  "interview_prep_notes": "<note 1|note 2|note 3>",
+  "score_reasons": {
+    "score_ats": "<one sentence>",
+    "score_recruiter_fast": "<one sentence>",
+    "score_recruiter_deep": "<one sentence>",
+    "score_role_fit": "<one sentence>",
+    "score_scope_fit": "<one sentence>",
+    "score_culture": "<one sentence>",
+    "score_candidate_role": "<one sentence>",
+    "score_candidate_scope": "<one sentence>",
+    "score_candidate_culture": "<one sentence>"
+  },
+  "research_confidence": "<high | medium | low | none>",
   "log_entry": "<one-sentence verdict>"
-}}
+}
+```
 EVALUATION_JSON_END
-
-[[/READONLY]]
-[[PROMPT_END]]
-

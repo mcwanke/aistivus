@@ -19,7 +19,6 @@ API routes:
   PATCH /api/v1/jobs/{id}
   GET  /api/v1/jobs/{id}/application
   POST /api/v1/jobs/{id}/activate
-  POST /api/v1/jobs/{id}/generate-orgsummary-prompt
   GET  /api/v1/settings/llm-servers
   POST /api/v1/settings/llm-servers
   PUT  /api/v1/settings/llm-servers/{id}
@@ -454,28 +453,6 @@ prose before or after — just the file, ready to compile.
 
 
 # ─────────────────────────────────────────────────────────────
-# Org summary prompt template
-# ─────────────────────────────────────────────────────────────
-
-GEN_ORGSUMMARY_PROMPT_TEMPLATE = """[[EDITABLE]]
-You are helping a job seeker quickly evaluate a company before applying. Research the following company and write a concise 2-3 paragraph summary for personal reference.
-[[/EDITABLE]]
-[[READONLY]]
-*Company Name*: {company_name}
-*Company URL*: {website_url}
-*Job Title*: {title}
-[[/READONLY]]
-[[EDITABLE]]
-Cover the following in your summary:
-- What the company does, what market it operates in, and its approximate size
-- General company culture and, if relevant to the job title, engineering or technical culture specifically
-- Public reputation and employee sentiment (draw from sources like Glassdoor, Blind, or Reddit — keep research brief)
-
-Write in plain, conversational prose. No headers or bullet points. Keep it tight — this is a quick reference, not a deep dive. If the URL is blank or a detail can't be found, skip it rather than guessing. Output your summary inside a markdown code block.
-[[/EDITABLE]]"""
-
-
-# ─────────────────────────────────────────────────────────────
 # Cover letter generation prompt template
 # ─────────────────────────────────────────────────────────────
 
@@ -784,14 +761,18 @@ async def lifespan(app: FastAPI):
         ("eval_scoring", "Evaluation — Scoring", "eval_scoring.md", evaluator.EVAL_SCORING_PROMPT_TEMPLATE, 0.3),
         ("gen_resume", "Resume Generation Prompt", "gen_resume.md", RESUME_PROMPT_TEMPLATE, 0.0),
         ("gen_cover", "Cover Letter Generation Prompt", "gen_cover.md", COVER_PROMPT_TEMPLATE, 0.0),
-        ("gen_orgsummary", "Org Summary Prompt", "gen_orgsummary.md", GEN_ORGSUMMARY_PROMPT_TEMPLATE, 0.0),
+        ("gen_research", "Company Research Prompt", "gen_research.md", None, 0.0),
     ]
     for _key, _label, _filename, _fallback, _temperature in _PROMPT_TEMPLATES:
         _tagged = load_prompt_template(_filename)
+        _segments = _tagged if _tagged is not None else _fallback
+        if _segments is None:
+            log.warning("prompt_seed_skipped_no_content", extra={"key": _key})
+            continue
         database.seed_prompt_if_missing(
             prompt_key=_key,
             label=_label,
-            segments_text=_tagged if _tagged is not None else _fallback,
+            segments_text=_segments,
             temperature=_temperature,
         )
         # v2 migration: if active row has no [[EDITABLE]] tags, re-seed with tagged text
@@ -1650,66 +1631,6 @@ async def get_activity_log(request: Request, job_id: int):
     return JSONResponse({"entries": entries})
 
 
-@app.post("/api/v1/jobs/{job_id}/generate-orgsummary-prompt")
-@limiter.limit("10/minute")
-async def generate_orgsummary_prompt(request: Request, job_id: int):
-    """
-    Build an org-summary prompt for the given job and log it to application_logs.
-    Returns the prompt text.
-    """
-    job = database.get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail=f"Job {job_id} not found.")
-    job_dict = dict(job)
-
-    # Resolve application_id — earliest application for this job, same as get_activity_log
-    application_id = database.get_earliest_application_for_job(job_id)
-    if application_id is None:
-        raise HTTPException(
-            status_code=404, detail=f"No application found for job {job_id}."
-        )
-
-    # Pull website URL from company log if present
-    company_log = database.get_job_company_log(job_id, type_name="company_info")
-    website_url = ""
-    for entry in company_log:
-        if dict(entry).get("type_value") == "website":
-            website_url = dict(entry).get("url") or ""
-            break
-
-    company_name = job_dict.get("company_name") or "N/A"
-    title = job_dict.get("title") or "N/A"
-
-    prompt_result = prompt_generation.get_prompt(
-        "gen_orgsummary",
-        {
-            "company_name": company_name,
-            "website_url": website_url,
-            "title": title,
-        },
-        job_id=job_id,
-        source="orgsummary_prompt",
-    )
-    prompt = prompt_result["prompt_text"]
-    prompt_usage_id = prompt_result["prompt_usage_id"]
-
-    prompt_type_id = database.get_system_type_id("application_log", "prompt_orgsummary")
-    if prompt_type_id is None:
-        raise HTTPException(status_code=500, detail="system_types not seeded correctly.")
-
-    log_id = database.add_application_log(
-        application_id=application_id,
-        type_id=prompt_type_id,
-        log=prompt,
-    )
-    return JSONResponse({
-        "success": True,
-        "log_id": log_id,
-        "prompt": prompt,
-        "prompt_usage_id": prompt_usage_id,
-    })
-
-
 # ─────────────────────────────────────────────────────────────
 # Models
 # ─────────────────────────────────────────────────────────────
@@ -2014,6 +1935,9 @@ async def generate_prompt(request: Request, application_id: int):
     pay_band = job_dict.get("pay_band") or "Not listed"
     jd_text = job_dict.get("description_merged") or ""
 
+    research = database.get_job_research_latest(app_dict["job_id"])
+    research_context = research["raw_json"] if research and research.get("raw_json") else "null"
+
     prompt_result = prompt_generation.get_prompt(
         "eval_external",
         {
@@ -2022,6 +1946,7 @@ async def generate_prompt(request: Request, application_id: int):
             "location": location,
             "pay_band": pay_band,
             "jd_text": jd_text,
+            "research_context": research_context,
         },
         job_id=app_dict["job_id"],
         source="external_eval",

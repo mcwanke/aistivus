@@ -1,6 +1,6 @@
 # AIstivus — Phase 2.5 Workorder
 > Pass 1 Status: COMPLETE — 666 backend / 298 frontend passing
-> Pass 2 Status: IN DESIGN — workorder written 2026-06-29
+> Pass 2 Status: IN PROGRESS — Steps 1–5 complete (2026-06-29); Steps 6–10 next
 > Last updated: 2026-06-29
 
 ---
@@ -449,8 +449,9 @@ The fonts endpoint added in Step 6 should have a basic test:
 
 ## Phase 2.5 — Pass 2: Scoring Redesign + Research + External Eval
 
-> Status: DESIGNED — ready for implementation
+> Status: IN PROGRESS — Steps 1–5 complete; Steps 6–10 next
 > Test baseline at start: 666 backend / 298 frontend
+> Test baseline after Steps 1–5: 671 backend / 298 frontend
 
 ### Goal
 
@@ -477,7 +478,7 @@ Internal eval prompt redesign, resume generation, and cover letter are deferred 
 
 ---
 
-### Step 1 — DB Migration
+### Step 1 — DB Migration ✓ COMPLETE
 
 **Goal:** Add new columns to `evaluations`, create `job_research` table, create `app_settings`
 table. All changes are delta migrations — no drops, no recreates.
@@ -555,7 +556,7 @@ eval_weight_candidate_fit  →  '0.30'
 
 ---
 
-### Step 2 — Scoring Framework Backend
+### Step 2 — Scoring Framework Backend ✓ COMPLETE
 
 **Goal:** Backend helpers for composite computation, `score_overall` derivation, weight
 management, legacy migration, and recalc. All live in `database.py`.
@@ -608,7 +609,7 @@ After parsing eval JSON in `evaluator.py`:
 
 ---
 
-### Step 3 — gen_orgsummary Retirement
+### Step 3 — gen_orgsummary Retirement ✓ COMPLETE
 
 **Goal:** Remove the old org summary prompt from templates, DB seeding, and all UI references.
 
@@ -632,7 +633,7 @@ After parsing eval JSON in `evaluator.py`:
 
 ---
 
-### Step 4 — gen_research Promotion
+### Step 4 — gen_research Promotion ✓ COMPLETE
 
 **Goal:** Promote research prompt draft to production template; seed into DB.
 
@@ -663,7 +664,7 @@ When generating the research prompt for a job:
 
 ---
 
-### Step 5 — eval_single_draft Promotion
+### Step 5 — eval_single_draft Promotion ✓ COMPLETE
 
 **Goal:** Replace the existing `eval_external.md` with the new `eval_single_draft.md` content.
 

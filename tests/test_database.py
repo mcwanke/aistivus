@@ -23,7 +23,7 @@ class TestInitDb:
             "application_audit", "job_posting_audit", "jobsearch_versions",
             "resume_info", "search_runs", "search_run_errors", "chat_sessions",
             "chat_messages", "projects", "schema_versions", "schema_migrations",
-            "prompts", "prompt_usage",
+            "prompts", "prompt_usage", "job_research",
         }
         with database.get_connection() as conn:
             rows = conn.execute(
@@ -34,7 +34,7 @@ class TestInitDb:
 
     def test_seeds_system_types(self, tmp_db):
         types = database.get_all_system_types()
-        assert len(types) == 31
+        assert len(types) == 30
 
     def test_seeds_all_expected_type_names(self, tmp_db):
         names = {r["type_name"] for r in database.get_all_system_types()}
@@ -45,7 +45,7 @@ class TestInitDb:
         values = {r["type_value"] for r in rows}
         assert values == {
             "compensation", "general", "prompt",
-            "prompt_eval", "prompt_orgsummary", "prompt_resume", "prompt_cover",
+            "prompt_eval", "prompt_resume", "prompt_cover",
             "lesson_learned",
             "recruiter_outreach", "phone_screen", "onsite_interview",
             "offer_received", "rejection_received", "withdrawal",
@@ -65,13 +65,13 @@ class TestInitDb:
         assert values == {"resume", "cover_letter"}
 
     def test_records_schema_version(self, tmp_db):
-        assert database.get_schema_version() == "1.7"
+        assert database.get_schema_version() == "2.5"
 
     def test_idempotent(self, tmp_db):
         database.init_db()
         database.init_db()
-        assert len(database.get_all_system_types()) == 31
-        assert database.get_schema_version() == "1.7"
+        assert len(database.get_all_system_types()) == 30
+        assert database.get_schema_version() == "2.5"
 
     def test_no_auto_seed_without_config(self, tmp_db):
         models = database.get_all_llm_models()
@@ -84,11 +84,11 @@ class TestInitDb:
 
 class TestSystemTypes:
     def test_get_all_returns_all(self, tmp_db):
-        assert len(database.get_all_system_types()) == 31
+        assert len(database.get_all_system_types()) == 30
 
     def test_get_filtered_by_type_name(self, tmp_db):
         rows = database.get_all_system_types("application_log")
-        assert len(rows) == 21
+        assert len(rows) == 20
         assert all(r["type_name"] == "application_log" for r in rows)
 
     def test_get_system_type_id_found(self, tmp_db):
@@ -878,14 +878,14 @@ class TestUtilities:
         assert broken[0]["path"] == "/nonexistent/path/resume.pdf"
 
     def test_get_schema_version(self, tmp_db):
-        assert database.get_schema_version() == "1.7"
+        assert database.get_schema_version() == "2.5"
 
     def test_export_db_returns_dict(self, tmp_db):
         result = database.export_db()
-        assert result["schema_version"] == "1.7"
+        assert result["schema_version"] == "2.5"
         assert "tables" in result
         assert "system_types" in result["tables"]
-        assert len(result["tables"]["system_types"]) == 31
+        assert len(result["tables"]["system_types"]) == 30
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1139,3 +1139,178 @@ class TestPromptTemperature:
         row = database.get_active_prompt("test_prompt2")
         assert row is not None
         assert row["temperature"] == 0.5
+
+
+# ─────────────────────────────────────────────────────────────
+# Phase 2.5 — Eval Scoring Helpers
+# ─────────────────────────────────────────────────────────────
+
+class TestComputeEvalComposites:
+    def _weights(self):
+        return {"screenability": 0.40, "company_fit": 0.30, "candidate_fit": 0.30}
+
+    def test_all_scores_max_produces_10(self):
+        scores = {
+            "score_ats": 4, "score_recruiter_fast": 4, "score_recruiter_deep": 4,
+            "score_role_fit": 5, "score_scope_fit": 5, "score_culture": 5,
+            "score_candidate_role": 5, "score_candidate_scope": 5, "score_candidate_culture": 5,
+        }
+        result = database.compute_eval_composites(scores, self._weights())
+        assert result["composite_screenability"] == pytest.approx(10.0)
+        assert result["composite_company_fit"] == pytest.approx(10.0)
+        assert result["composite_candidate_fit"] == pytest.approx(10.0)
+        assert result["score_overall"] == pytest.approx(10.0)
+
+    def test_screenability_scale_is_4(self):
+        scores = {
+            "score_ats": 2, "score_recruiter_fast": 2, "score_recruiter_deep": 2,
+            "score_role_fit": 5, "score_scope_fit": 5, "score_culture": 5,
+            "score_candidate_role": 5, "score_candidate_scope": 5, "score_candidate_culture": 5,
+        }
+        result = database.compute_eval_composites(scores, self._weights())
+        assert result["composite_screenability"] == pytest.approx(5.0)
+
+    def test_fit_scale_is_5(self):
+        scores = {
+            "score_ats": 4, "score_recruiter_fast": 4, "score_recruiter_deep": 4,
+            "score_role_fit": 2, "score_scope_fit": 2, "score_culture": 2,
+            "score_candidate_role": 4, "score_candidate_scope": 4, "score_candidate_culture": 4,
+        }
+        result = database.compute_eval_composites(scores, self._weights())
+        assert result["composite_company_fit"] == pytest.approx(4.0)
+
+    def test_none_score_returns_none_composite(self):
+        scores = {
+            "score_ats": None, "score_recruiter_fast": 4, "score_recruiter_deep": 4,
+            "score_role_fit": 5, "score_scope_fit": 5, "score_culture": 5,
+            "score_candidate_role": 5, "score_candidate_scope": 5, "score_candidate_culture": 5,
+        }
+        result = database.compute_eval_composites(scores, self._weights())
+        assert result["composite_screenability"] is None
+        assert result["score_overall"] is None
+
+    def test_score_overall_uses_weights(self):
+        # Screen=10, Company=0, Candidate=0 → overall = 0.40 * 10 = 4.0
+        weights = {"screenability": 0.40, "company_fit": 0.30, "candidate_fit": 0.30}
+        scores = {
+            "score_ats": 4, "score_recruiter_fast": 4, "score_recruiter_deep": 4,
+            "score_role_fit": 0, "score_scope_fit": 0, "score_culture": 0,
+            "score_candidate_role": 0, "score_candidate_scope": 0, "score_candidate_culture": 0,
+        }
+        result = database.compute_eval_composites(scores, weights)
+        assert result["score_overall"] == pytest.approx(4.0)
+
+
+class TestGetSetEvalWeights:
+    def test_defaults_seeded_on_init(self, tmp_db):
+        with database.get_connection() as conn:
+            weights = database.get_eval_weights(conn)
+        assert weights["screenability"] == pytest.approx(0.40)
+        assert weights["company_fit"] == pytest.approx(0.30)
+        assert weights["candidate_fit"] == pytest.approx(0.30)
+
+    def test_set_then_get_roundtrip(self, tmp_db):
+        with database.get_connection() as conn:
+            database.set_eval_weights(conn, 0.50, 0.25, 0.25)
+            weights = database.get_eval_weights(conn)
+        assert weights["screenability"] == pytest.approx(0.50)
+        assert weights["company_fit"] == pytest.approx(0.25)
+        assert weights["candidate_fit"] == pytest.approx(0.25)
+
+    def test_sum_not_1_raises(self, tmp_db):
+        with database.get_connection() as conn:
+            with pytest.raises(ValueError):
+                database.set_eval_weights(conn, 0.50, 0.30, 0.30)
+
+
+class TestMigrateLegacyEvaluations:
+    def test_migrates_old_evals(self, tmp_db, model_id, job_id):
+        with database.get_connection() as conn:
+            conn.execute(
+                """INSERT INTO evaluations
+                   (job_id, llm_model_id, score_role_fit, score_scope_fit, score_culture,
+                    score_overall)
+                   VALUES (?, ?, 4.0, 3.0, 5.0, 7.0)""",
+                (job_id, model_id),
+            )
+            count = database.migrate_legacy_evaluations(conn)
+        assert count == 1
+
+    def test_migrated_eval_gets_neutral_screen_and_candidate(self, tmp_db, model_id, job_id):
+        with database.get_connection() as conn:
+            conn.execute(
+                """INSERT INTO evaluations
+                   (job_id, llm_model_id, score_role_fit, score_scope_fit, score_culture)
+                   VALUES (?, ?, 5.0, 5.0, 5.0)""",
+                (job_id, model_id),
+            )
+            database.migrate_legacy_evaluations(conn)
+            row = conn.execute("SELECT * FROM evaluations WHERE job_id = ?", (job_id,)).fetchone()
+        assert row["composite_screenability"] == pytest.approx(5.0)
+        assert row["composite_candidate_fit"] == pytest.approx(5.0)
+        assert row["composite_company_fit"] is not None
+
+    def test_new_schema_evals_not_touched(self, tmp_db, model_id, job_id):
+        with database.get_connection() as conn:
+            conn.execute(
+                """INSERT INTO evaluations
+                   (job_id, llm_model_id, score_ats, score_recruiter_fast, score_recruiter_deep,
+                    score_role_fit, score_scope_fit, score_culture,
+                    score_candidate_role, score_candidate_scope, score_candidate_culture)
+                   VALUES (?, ?, 3, 3, 3, 4, 4, 4, 3, 3, 3)""",
+                (job_id, model_id),
+            )
+            count = database.migrate_legacy_evaluations(conn)
+        assert count == 0
+
+
+class TestRecalcEvalScores:
+    def test_recalc_updates_new_schema_evals(self, tmp_db, model_id, job_id):
+        with database.get_connection() as conn:
+            conn.execute(
+                """INSERT INTO evaluations
+                   (job_id, llm_model_id, score_ats, score_recruiter_fast, score_recruiter_deep,
+                    score_role_fit, score_scope_fit, score_culture,
+                    score_candidate_role, score_candidate_scope, score_candidate_culture)
+                   VALUES (?, ?, 4, 4, 4, 5, 5, 5, 5, 5, 5)""",
+                (job_id, model_id),
+            )
+            count = database.recalc_eval_scores(conn)
+            row = conn.execute("SELECT * FROM evaluations WHERE job_id = ?", (job_id,)).fetchone()
+        assert count == 1
+        assert row["score_overall"] == pytest.approx(10.0)
+
+    def test_recalc_skips_legacy_evals(self, tmp_db, model_id, job_id):
+        with database.get_connection() as conn:
+            conn.execute(
+                """INSERT INTO evaluations
+                   (job_id, llm_model_id, score_role_fit, score_scope_fit, score_culture)
+                   VALUES (?, ?, 4.0, 3.0, 5.0)""",
+                (job_id, model_id),
+            )
+            count = database.recalc_eval_scores(conn)
+        assert count == 0
+
+
+class TestJobResearch:
+    def test_insert_and_get_latest(self, tmp_db, job_id):
+        rid = database.insert_job_research(
+            job_id=job_id,
+            raw_json='{"research_summary": "Test summary", "research_confidence": "high"}',
+            research_summary="Test summary",
+            research_confidence="high",
+        )
+        assert rid > 0
+        record = database.get_job_research_latest(job_id)
+        assert record is not None
+        assert record["research_summary"] == "Test summary"
+        assert record["research_confidence"] == "high"
+
+    def test_get_latest_returns_most_recent(self, tmp_db, job_id):
+        database.insert_job_research(job_id=job_id, raw_json='{"v": 1}', research_summary="First")
+        database.insert_job_research(job_id=job_id, raw_json='{"v": 2}', research_summary="Second")
+        record = database.get_job_research_latest(job_id)
+        assert record["research_summary"] == "Second"
+
+    def test_get_latest_returns_none_when_empty(self, tmp_db, job_id):
+        assert database.get_job_research_latest(job_id) is None

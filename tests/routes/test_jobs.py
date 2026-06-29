@@ -9,7 +9,6 @@ Routes covered:
   GET  /api/v1/jobs/{id}/activity-log
   POST /api/v1/jobs/create
   POST /api/v1/jobs/{id}/activate
-  POST /api/v1/jobs/{id}/generate-orgsummary-prompt
   GET  /api/v1/stats
 """
 
@@ -499,60 +498,6 @@ class TestGetAllJobsDatabase:
         jobs = database.get_all_jobs()
         assert len(jobs) == 1
         assert jobs[0]["is_active"] == 1
-
-
-# ─────────────────────────────────────────────────────────────
-# POST /api/v1/jobs/{id}/generate-orgsummary-prompt
-# ─────────────────────────────────────────────────────────────
-
-class TestGenerateOrgSummaryPrompt:
-    def test_404_for_unknown_job(self, client):
-        resp = client.post("/api/v1/jobs/9999/generate-orgsummary-prompt")
-        assert resp.status_code == 404
-
-    def test_404_when_no_application(self, client):
-        job_id, _ = database.upsert_job("NoApp Corp", "Engineer", "backend")
-        # wipe the auto-created not-started application and its audit rows
-        with database.get_connection() as conn:
-            conn.execute("PRAGMA foreign_keys = OFF")
-            conn.execute("DELETE FROM applications WHERE job_id = ?", (job_id,))
-            conn.execute("PRAGMA foreign_keys = ON")
-        resp = client.post(f"/api/v1/jobs/{job_id}/generate-orgsummary-prompt")
-        assert resp.status_code == 404
-
-    def test_returns_prompt_text(self, seeded_client):
-        resp = seeded_client["client"].post(
-            f"/api/v1/jobs/{seeded_client['job_id']}/generate-orgsummary-prompt"
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["success"] is True
-        assert "prompt" in data
-        assert len(data["prompt"]) > 50
-
-    def test_prompt_contains_job_details(self, seeded_client):
-        resp = seeded_client["client"].post(
-            f"/api/v1/jobs/{seeded_client['job_id']}/generate-orgsummary-prompt"
-        )
-        prompt = resp.json()["prompt"]
-        assert "Test Corp" in prompt
-        assert "Software Engineer" in prompt
-
-    def test_prompt_logged_with_orgsummary_type(self, seeded_client):
-        seeded_client["client"].post(
-            f"/api/v1/jobs/{seeded_client['job_id']}/generate-orgsummary-prompt"
-        )
-        logs = database.get_application_logs(seeded_client["app_id"])
-        orgsummary_logs = [log for log in logs if dict(log)["type_value"] == "prompt_orgsummary"]
-        assert len(orgsummary_logs) == 1
-
-    def test_prompt_log_id_returned(self, seeded_client):
-        resp = seeded_client["client"].post(
-            f"/api/v1/jobs/{seeded_client['job_id']}/generate-orgsummary-prompt"
-        )
-        data = resp.json()
-        assert "log_id" in data
-        assert isinstance(data["log_id"], int)
 
 
 class TestCreateJobWithoutEval:

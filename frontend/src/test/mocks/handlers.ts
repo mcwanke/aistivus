@@ -350,9 +350,6 @@ export const handlers = [
   http.post('/api/v1/applications/:id/generate-prompt', () =>
     HttpResponse.json({ prompt: 'Generated prompt text', log_id: 1 }),
   ),
-  http.post('/api/v1/jobs/:id/generate-orgsummary-prompt', () =>
-    HttpResponse.json({ success: true, prompt: 'Generated org summary prompt text', log_id: 2 }),
-  ),
   http.get('/api/v1/settings', () => HttpResponse.json(MOCK_SETTINGS)),
   http.patch('/api/v1/settings', () => new HttpResponse(null, { status: 200 })),
   http.get('/api/v1/settings/app', () =>
