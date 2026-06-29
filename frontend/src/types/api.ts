@@ -179,6 +179,7 @@ export interface Job {
   my_comp: number | null
   my_score_overall: number | null
   excitement_level: string | null
+  website_url: string | null
   created_at: string
   project_id: number | null
   is_active: number
@@ -562,5 +563,28 @@ export interface FeedbackLoopResult {
 
 export interface SystemFontsResponse {
   fonts: string[]
+}
+
+// ─── GET/POST /api/v1/jobs/:id/research ──────────────────────────────────────
+
+export interface JobResearch {
+  id: number
+  job_id: number
+  raw_json: string
+  research_summary: string | null
+  company_overview: string | null
+  company_stage: string | null
+  company_size_actual: string | null
+  company_trajectory: string | null
+  company_culture_overview: string | null
+  culture_signals: string | null
+  comp_signals: string | null
+  role_context: string | null
+  interview_process: string | null
+  red_flags: string | null
+  green_flags: string | null
+  research_confidence: 'high' | 'medium' | 'low' | string
+  research_notes: string | null
+  imported_at: string
 }
 

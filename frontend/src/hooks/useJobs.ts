@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { Job, JobListItem, JobDetailResponse, ActivityLogResponse } from '@/types/api'
+import type { Job, JobListItem, JobDetailResponse, ActivityLogResponse, JobResearch } from '@/types/api'
 
 export type { JobDetailResponse }
 
@@ -55,6 +55,7 @@ interface PatchJobPayload {
     description_merged?: string
     pay_band?: string | null
     role_keyword?: string | null
+    website_url?: string | null
     excitement_level?: string
     my_role_fit?: number | null
     my_scope_fit?: number | null
@@ -136,6 +137,55 @@ export function useActivateJob() {
       void qc.invalidateQueries({ queryKey: ['jobs'] })
       void qc.invalidateQueries({ queryKey: ['job', jobId] })
       void qc.invalidateQueries({ queryKey: ['activity-log', jobId] })
+    },
+  })
+}
+
+export function useJobResearch(jobId: number) {
+  return useQuery({
+    queryKey: ['job-research', jobId],
+    queryFn: async (): Promise<JobResearch | null> => {
+      const res = await fetch(`/api/v1/jobs/${jobId}/research`)
+      if (!res.ok) throw new Error(`fetch research ${res.status}`)
+      const data = (await res.json()) as { research: JobResearch | null }
+      return data.research
+    },
+  })
+}
+
+export function useImportResearch(jobId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (rawJson: string): Promise<JobResearch> => {
+      const res = await fetch(`/api/v1/jobs/${jobId}/research`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raw_json: rawJson }),
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw new Error(err.detail ?? `import research ${res.status}`)
+      }
+      const data = (await res.json()) as { research: JobResearch }
+      return data.research
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['job-research', jobId] })
+    },
+  })
+}
+
+export function useGenerateResearchPrompt(jobId: number) {
+  return useMutation({
+    mutationFn: async (): Promise<{ prompt: string; prompt_usage_id: number | null }> => {
+      const res = await fetch(`/api/v1/jobs/${jobId}/generate-research-prompt`, {
+        method: 'POST',
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw new Error(err.detail ?? `generate research prompt ${res.status}`)
+      }
+      return res.json() as Promise<{ prompt: string; prompt_usage_id: number | null }>
     },
   })
 }

@@ -3,6 +3,7 @@ import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import AppHeader from '@/components/AppHeader'
 import { useJobDetail, usePatchJob, useAddCompanyLog, useUpdateCompanySummary, useActivityLog } from '@/hooks/useJobs'
+import { ResearchSubpage } from '@/components/ResearchSubpage'
 import {
   useApplicationDetail,
   usePatchApplication,
@@ -711,7 +712,7 @@ function CompanyLogRow({ entry, collapseSignal = 0 }: CompanyLogRowProps): React
 
 interface EditJobInfoModalProps {
   jobId: number
-  initial: { company_name: string; title: string; location: string | null; remote_type: string | null; pay_band: string | null; role_keyword: string | null }
+  initial: { company_name: string; title: string; location: string | null; remote_type: string | null; pay_band: string | null; role_keyword: string | null; website_url: string | null }
   onClose: () => void
 }
 
@@ -722,6 +723,7 @@ function EditJobInfoModal({ jobId, initial, onClose }: EditJobInfoModalProps): R
   const [remoteType, setRemoteType] = useState(initial.remote_type ?? '')
   const [payBand, setPayBand] = useState(initial.pay_band ?? '')
   const [roleKeyword, setRoleKeyword] = useState(initial.role_keyword ?? '')
+  const [websiteUrl, setWebsiteUrl] = useState(initial.website_url ?? '')
   const patch = usePatchJob()
 
   const canSave = companyName.trim().length > 0 && title.trim().length > 0
@@ -737,6 +739,7 @@ function EditJobInfoModal({ jobId, initial, onClose }: EditJobInfoModalProps): R
         remote_type: remoteType || undefined,
         pay_band: payBand || null,
         role_keyword: roleKeyword || null,
+        website_url: websiteUrl || null,
       },
     })
     onClose()
@@ -798,6 +801,16 @@ function EditJobInfoModal({ jobId, initial, onClose }: EditJobInfoModalProps): R
               className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm focus:outline-none focus:ring-1 focus:ring-accent"
               value={roleKeyword}
               onChange={(e) => setRoleKeyword(e.target.value)}
+            />
+          </label>
+          <label className="block">
+            <span className="text-muted text-xs font-mono uppercase tracking-widest">Company URL</span>
+            <input
+              type="url"
+              className="mt-1 w-full bg-surface2 rounded px-3 py-2 text-text text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
+              value={websiteUrl}
+              onChange={(e) => setWebsiteUrl(e.target.value)}
+              placeholder="https://…"
             />
           </label>
         </div>
@@ -891,7 +904,7 @@ function AddCompanyInfoModal({ jobId, onClose }: AddCompanyInfoModalProps): Reac
 
 interface JobInfoSectionProps {
   jobId: number
-  job: { company_name: string; title: string; location: string | null; remote_type: string | null; pay_band: string | null; role_keyword: string | null }
+  job: { company_name: string; title: string; location: string | null; remote_type: string | null; pay_band: string | null; role_keyword: string | null; website_url: string | null }
   companyLog: CompanyLogEntry[]
 }
 
@@ -919,6 +932,21 @@ function JobInfoSection({ jobId, job, companyLog }: JobInfoSectionProps): React.
                 <span className="text-xs text-text">{val ?? '—'}</span>
               </div>
             ))}
+            <div className="flex items-baseline gap-2">
+              <span className="text-[10px] font-mono text-muted uppercase w-20 shrink-0">Company URL</span>
+              {job.website_url ? (
+                <a
+                  href={job.website_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-accent hover:underline font-mono truncate max-w-[180px]"
+                >
+                  {job.website_url}
+                </a>
+              ) : (
+                <span className="text-xs text-muted">—</span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -2150,6 +2178,21 @@ function JobDetailsRight({
                   <span className="text-xs text-text">{val ?? '—'}</span>
                 </div>
               ))}
+              <div className="flex items-baseline gap-2">
+                <span className="text-[10px] font-mono text-muted w-14 shrink-0">URL</span>
+                {job.website_url ? (
+                  <a
+                    href={job.website_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-accent hover:underline font-mono truncate max-w-[160px]"
+                  >
+                    {job.website_url}
+                  </a>
+                ) : (
+                  <span className="text-xs text-muted">—</span>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -2281,6 +2324,7 @@ function JobDetailsRight({
 
 type AppAction =
   | 'application-details'
+  | 'research'
   | 'apply-workflow'
   | 'evaluations'
   | 'resume'
@@ -2297,6 +2341,7 @@ interface ApplicationLeftProps {
 function ApplicationLeft({ active, onSelect }: ApplicationLeftProps): React.JSX.Element {
   const actions: { id: AppAction; label: string }[] = [
     { id: 'application-details', label: 'Application Details' },
+    { id: 'research',            label: 'Research' },
     { id: 'apply-workflow',      label: 'Apply Workflow' },
     { id: 'evaluations',         label: 'Evaluations' },
     { id: 'resume',              label: 'Resume' },
@@ -2545,6 +2590,11 @@ function ApplicationRight({
         </button>
       </div>
     )
+  }
+
+  // ── RESEARCH view ───────────────────────────────────────────────────────────
+  if (activeAction === 'research') {
+    return <ResearchSubpage jobId={jobId} />
   }
 
   // ── APPLY WORKFLOW view ─────────────────────────────────────────────────────

@@ -88,6 +88,7 @@ SPA catch-all (Phase 1.1+):
 """
 
 import asyncio
+import json
 import os
 import re
 import subprocess
@@ -966,6 +967,7 @@ class PatchJobRequest(BaseModel):
     description_merged: str | None = None
     pay_band: str | None = None
     role_keyword: str | None = None
+    website_url: str | None = None
     excitement_level: str | None = None
     my_role_fit: float | None = None
     my_scope_fit: float | None = None
@@ -982,6 +984,10 @@ class AddCompanyLogRequest(BaseModel):
 
 class CompanySummaryRequest(BaseModel):
     text: str
+
+
+class ImportResearchRequest(BaseModel):
+    raw_json: str
 
 
 class UpdateApplicationRequest(BaseModel):
@@ -1575,6 +1581,98 @@ async def create_job_without_eval(request: Request, body: CreateJobRequest):
         )
 
     return JSONResponse({"success": True, "job_id": job_id})
+
+
+@app.get("/api/v1/jobs/{job_id}/research")
+@limiter.limit("60/minute")
+async def get_job_research(request: Request, job_id: int):
+    """Return most recent research record for a job, or null."""
+    job = database.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found.")
+    record = database.get_job_research_latest(job_id)
+    return JSONResponse({"research": record})
+
+
+@app.post("/api/v1/jobs/{job_id}/research")
+@limiter.limit("10/minute")
+async def import_job_research(request: Request, job_id: int, body: ImportResearchRequest):
+    """Parse and store a research JSON blob for a job."""
+    job = database.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found.")
+
+    try:
+        parsed = json.loads(body.raw_json)
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON: {exc}") from exc
+
+    research_summary = parsed.get("research_summary")
+    research_confidence = parsed.get("research_confidence")
+    if not research_summary or not research_confidence:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing required fields: research_summary and research_confidence",
+        )
+
+    def _as_json(val) -> str | None:
+        if val is None:
+            return None
+        return json.dumps(val) if isinstance(val, (dict, list)) else str(val)
+
+    record_id = database.insert_job_research(
+        job_id=job_id,
+        raw_json=body.raw_json,
+        research_summary=research_summary,
+        company_overview=parsed.get("company_overview"),
+        company_stage=parsed.get("company_stage"),
+        company_size_actual=parsed.get("company_size_actual"),
+        company_trajectory=parsed.get("company_trajectory"),
+        company_culture_overview=parsed.get("company_culture_overview"),
+        culture_signals=_as_json(parsed.get("culture_signals")),
+        comp_signals=_as_json(parsed.get("comp_signals")),
+        role_context=_as_json(parsed.get("role_context")),
+        interview_process=parsed.get("interview_process"),
+        red_flags=_as_json(parsed.get("red_flags")),
+        green_flags=_as_json(parsed.get("green_flags")),
+        research_confidence=research_confidence,
+        research_notes=parsed.get("research_notes"),
+    )
+    record = database.get_job_research_latest(job_id)
+    return JSONResponse({"success": True, "id": record_id, "research": record})
+
+
+@app.post("/api/v1/jobs/{job_id}/generate-research-prompt")
+@limiter.limit("10/minute")
+async def generate_research_prompt(request: Request, job_id: int):
+    """Build a company research prompt for external use."""
+    job = database.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found.")
+    job_dict = dict(job)
+
+    company_name = job_dict.get("company_name") or "N/A"
+    title = job_dict.get("title") or "N/A"
+    website_url = job_dict.get("website_url") or "N/A"
+    jd_text = job_dict.get("description_merged") or ""
+
+    prompt_result = prompt_generation.get_prompt(
+        "gen_research",
+        {
+            "company_name": company_name,
+            "title": title,
+            "website_url": website_url,
+            "jd_text": jd_text,
+        },
+        job_id=job_id,
+    )
+    if not prompt_result.get("success"):
+        raise HTTPException(status_code=500, detail=prompt_result.get("error", "Prompt generation failed"))
+
+    return JSONResponse({
+        "prompt": prompt_result["prompt"],
+        "prompt_usage_id": prompt_result.get("prompt_usage_id"),
+    })
 
 
 @app.post("/api/v1/jobs/{job_id}/export")

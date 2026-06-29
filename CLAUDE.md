@@ -79,10 +79,11 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 ## Current Phase: PHASE 2.5 — Pass 2 In Progress
 
 Pass 1 (UI Restructure + Stub): All steps complete.
-Pass 2 (Scoring Redesign + Research + External Eval): Steps 1–5 complete; Steps 6–10 next.
+Pass 2 (Scoring Redesign + Research + External Eval): Steps 1–6 complete; Steps 7–10 next.
 - Steps 1–5: DB migration (schema v2.5), scoring helpers, gen_orgsummary retired, gen_research + eval_external promoted
-- Steps 6–10: Research subpage + backend, Apply Workflow redesign, App Settings weights UI, evaluator.py updates, tests
-Test baseline after Steps 1–5: 671 backend / 298 frontend.
+- Step 6: website_url on jobs table; research endpoints; ResearchSubpage; website_url in Job Detail + edit modal
+- Steps 7–10: Apply Workflow redesign (STEP 1/2/3), App Settings weights UI, evaluator.py updates, tests
+Test baseline after Step 6: all passing (2026-06-29).
 
 ---
 

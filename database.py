@@ -546,6 +546,11 @@ def init_db() -> None:
         conn.execute("DELETE FROM prompts WHERE prompt_key = 'gen_orgsummary'")
 
         try:
+            conn.execute("ALTER TABLE jobs ADD COLUMN website_url TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+        try:
             conn.execute(
                 "ALTER TABLE prompts ADD COLUMN temperature REAL NOT NULL DEFAULT 0.0"
             )
@@ -1159,6 +1164,7 @@ def update_job(job_id: int, **kwargs) -> bool:
         "company_name", "title", "location", "remote_type", "description_merged",
         "pay_band", "role_keyword", "excitement_level", "my_role_fit", "my_scope_fit",
         "my_culture", "my_comp", "my_score_overall", "dedup_status", "is_repost",
+        "website_url",
     }
     updates = {k: v for k, v in kwargs.items() if k in allowed}
     if not updates:

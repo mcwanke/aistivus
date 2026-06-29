@@ -1,6 +1,6 @@
 # AIstivus — Phase 2.5 Workorder
 > Pass 1 Status: COMPLETE — 666 backend / 298 frontend passing
-> Pass 2 Status: IN PROGRESS — Steps 1–5 complete (2026-06-29); Steps 6–10 next
+> Pass 2 Status: IN PROGRESS — Steps 1–6 complete (2026-06-29); Steps 7–10 next
 > Last updated: 2026-06-29
 
 ---
@@ -449,9 +449,10 @@ The fonts endpoint added in Step 6 should have a basic test:
 
 ## Phase 2.5 — Pass 2: Scoring Redesign + Research + External Eval
 
-> Status: IN PROGRESS — Steps 1–5 complete; Steps 6–10 next
+> Status: IN PROGRESS — Steps 1–6 complete; Steps 7–10 next
 > Test baseline at start: 666 backend / 298 frontend
 > Test baseline after Steps 1–5: 671 backend / 298 frontend
+> Test baseline after Step 6: all passing (2026-06-29)
 
 ### Goal
 
@@ -696,7 +697,7 @@ based on JD signals only and sets `research_confidence` to `'none'`.
 
 ---
 
-### Step 6 — Research Subpage + Backend Endpoints
+### Step 6 — Research Subpage + Backend Endpoints ✓ COMPLETE
 
 **Goal:** Add the Research subpage to the APPLY tab; wire backend import/fetch endpoints.
 
@@ -791,6 +792,15 @@ and `Apply Workflow`.
 - `frontend/src/hooks/` — `useJobResearch`, `useImportResearch` (add to appropriate file)
 - `frontend/src/components/ResearchSubpage.tsx` (new)
 - `frontend/src/pages/JobDetail.tsx` — APPLY leftnav updated
+
+#### Implementation notes
+- `website_url` added to `jobs` table as delta migration; `update_job()` allowed set + `PatchJobRequest` updated
+- Three endpoints added: `GET/POST /api/v1/jobs/{id}/research`, `POST /api/v1/jobs/{id}/generate-research-prompt`
+- `generate-research-prompt` reads `website_url` from jobs row; falls back to "N/A" if missing
+- `useGenerateResearchPrompt` added to `useJobs.ts` alongside other research hooks
+- `website_url` displayed in Job Detail Summary (inline + Edit modal) and `JobInfoSection` display + Edit modal
+- `Research` nav item inserted between `Application Details` and `Apply Workflow` in APPLY tab
+- `ResearchSubpage` renders generate-prompt modal, import modal, and full structured research display
 
 ---
 
