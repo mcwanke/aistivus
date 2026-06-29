@@ -1,5 +1,6 @@
 # AIstivus — Phase 2.5 Workorder
-> Status: COMPLETE — Pass 1 all steps done; 666 backend / 298 frontend passing
+> Pass 1 Status: COMPLETE — 666 backend / 298 frontend passing
+> Pass 2 Status: IN DESIGN — workorder written 2026-06-29
 > Last updated: 2026-06-29
 
 ---
@@ -435,18 +436,582 @@ The fonts endpoint added in Step 6 should have a basic test:
 
 ---
 
-## Deferred to Pass 2
+## Deferred to Pass 3
 
-- **New evaluation schema backend** — 9-dimension scoring, 3 composites, DB migration,
-  updated `evaluations` table columns; `agg_*` fields recalculated per new composites
-- **Internal eval prompt redesign** — must match new 9-dim output schema
-- **External eval prompt promotion** — `eval_single_draft.md` → `templates/prompts/`;
-  add `[[EDITABLE]]`/`[[READONLY]]` markup; seed into DB
-- **Research prompt promotion** — `research_prompt_draft.md` → `templates/prompts/`;
-  `job_research` DB table; import endpoint
-- **Apply Workflow button wiring** — Pass 1, Pass 2, Pass 3 generation prompts;
-  Pass 2 import/feedback DB storage; line count integration
-- **Eval score display on Workflow page** — real composite values once backend exists
-- **Cover letter workflow** — not yet designed
-- **Pass 2 and Pass 3 prompt drafts** — v2 versions not yet written
-- **Composite score formula** — discussed but not formally locked
+- **Internal eval prompt redesign** — in-app LLM call prompt needs full rewrite to produce
+  9-dim JSON output; separate design session required before implementation
+- **Resume generation** — 3-pass approach needs redesign; dedicated design session required
+  before any implementation; Apply Workflow Pass 1/2/3 buttons remain no-ops in Pass 2
+- **Cover letter workflow** — design + implementation; not yet designed
+- **Pass 2/3 resume prompt drafts** — blocked on resume design session
+
+---
+
+## Phase 2.5 — Pass 2: Scoring Redesign + Research + External Eval
+
+> Status: DESIGNED — ready for implementation
+> Test baseline at start: 666 backend / 298 frontend
+
+### Goal
+
+Pass 2 delivers the new 9-dimension evaluation schema, the company research workflow,
+external evaluation prompt promotion, and the scoring framework with user-configurable
+weights. The Apply Workflow page is fully wired for research and evaluation steps.
+
+Internal eval prompt redesign, resume generation, and cover letter are deferred to Pass 3.
+
+---
+
+### Pre-Work
+
+- Read `memory/MEMORY.md` and check `memory/ERRORS.md` before starting
+- Read `database.py` `init_db()` in full before Step 1 — understand existing `evaluations`
+  and `jobs` table structure before writing any ALTER TABLE statements
+- Read `evaluator.py` in full before Step 9 — understand the current parse/write/log flow
+- Read `frontend/src/pages/Settings.tsx` before Step 8 — identify existing subpages;
+  determine whether "App Settings" subpage already exists
+- Read `frontend/src/components/ApplyWorkflow.tsx` before Step 7
+- Verify `jobs` table has `website_url`, `location`, `pay_band` columns (confirmed in
+  design session; double-check before wiring variable injection in Steps 4/5)
+- Test baseline at start: 666 backend / 298 frontend
+
+---
+
+### Step 1 — DB Migration
+
+**Goal:** Add new columns to `evaluations`, create `job_research` table, create `app_settings`
+table. All changes are delta migrations — no drops, no recreates.
+
+#### 1.1 — `evaluations` table: new columns
+
+```sql
+ALTER TABLE evaluations ADD COLUMN score_ats INTEGER;
+ALTER TABLE evaluations ADD COLUMN score_recruiter_fast INTEGER;
+ALTER TABLE evaluations ADD COLUMN score_recruiter_deep INTEGER;
+ALTER TABLE evaluations ADD COLUMN score_candidate_role INTEGER;
+ALTER TABLE evaluations ADD COLUMN score_candidate_scope INTEGER;
+ALTER TABLE evaluations ADD COLUMN score_candidate_culture INTEGER;
+ALTER TABLE evaluations ADD COLUMN interview_prep_notes TEXT;
+ALTER TABLE evaluations ADD COLUMN score_reasons TEXT;        -- JSON blob
+ALTER TABLE evaluations ADD COLUMN research_confidence TEXT;  -- 'high'|'medium'|'low'|'none'
+ALTER TABLE evaluations ADD COLUMN composite_screenability REAL;
+ALTER TABLE evaluations ADD COLUMN composite_company_fit REAL;
+ALTER TABLE evaluations ADD COLUMN composite_candidate_fit REAL;
+```
+
+**Retained, not dropped:** `score_comp`, `domain_match`, `role_type_match` — legacy data only;
+no longer populated for new-schema evals.
+
+**Reused with shifted meaning:** `score_role_fit`, `score_scope_fit`, `score_culture` — column
+names unchanged; now explicitly the company-lens view (was blended in prior schema).
+
+#### 1.2 — `job_research` table
+
+```sql
+CREATE TABLE IF NOT EXISTS job_research (
+    id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id                   INTEGER NOT NULL REFERENCES jobs(id),
+    raw_json                 TEXT,     -- full JSON blob; injected as {research_context} in eval prompt
+    research_summary         TEXT,
+    company_overview         TEXT,
+    company_stage            TEXT,     -- 'public|private-series-X|private-early|bootstrap|nonprofit|unknown'
+    company_size_actual      TEXT,
+    company_trajectory       TEXT,     -- 'growing|stable|declining|unclear'
+    company_culture_overview TEXT,
+    culture_signals          TEXT,     -- JSON blob
+    comp_signals             TEXT,     -- JSON blob
+    role_context             TEXT,     -- JSON blob
+    interview_process        TEXT,
+    red_flags                TEXT,     -- JSON array
+    green_flags              TEXT,     -- JSON array
+    research_confidence      TEXT,     -- 'high'|'medium'|'low'
+    research_notes           TEXT,
+    imported_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+No unique constraint on `job_id` — multiple records per job allowed (user may re-run research
+later). Always read most recent by `imported_at DESC`.
+
+#### 1.3 — `app_settings` table
+
+```sql
+CREATE TABLE IF NOT EXISTS app_settings (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+Seed defaults on `init_db()` — INSERT only if key does not already exist:
+```
+eval_weight_screenability  →  '0.40'
+eval_weight_company_fit    →  '0.30'
+eval_weight_candidate_fit  →  '0.30'
+```
+
+#### Files touched
+- `database.py` — `init_db()`: ALTER TABLE statements, new table DDL, `app_settings` seed
+
+---
+
+### Step 2 — Scoring Framework Backend
+
+**Goal:** Backend helpers for composite computation, `score_overall` derivation, weight
+management, legacy migration, and recalc. All live in `database.py`.
+
+#### 2.1 — Composite and overall formulas
+
+```
+composite_screenability  = avg(score_ats, score_recruiter_fast, score_recruiter_deep) / 4.0 * 10.0
+composite_company_fit    = avg(score_role_fit, score_scope_fit, score_culture) / 5.0 * 10.0
+composite_candidate_fit  = avg(score_candidate_role, score_candidate_scope, score_candidate_culture) / 5.0 * 10.0
+
+score_overall = w_screen * composite_screenability
+              + w_company * composite_company_fit
+              + w_candidate * composite_candidate_fit
+```
+
+All composites are 0.0–10.0. `score_overall` is 0.0–10.0. `score_overall` is backend-computed
+on every eval write — never taken from LLM output.
+
+#### 2.2 — New `database.py` helpers
+
+- `get_eval_weights(conn) -> dict` — reads `eval_weight_*` from `app_settings`; returns
+  `{'screenability': float, 'company_fit': float, 'candidate_fit': float}`
+- `set_eval_weights(conn, screenability: float, company_fit: float, candidate_fit: float)` —
+  validates that the three values sum to 1.0 (±0.001 float tolerance); raises `ValueError` if
+  not; writes to `app_settings`
+- `compute_eval_composites(scores: dict, weights: dict) -> dict` — takes raw 9 dim score
+  integers + weights dict; returns `{'composite_screenability', 'composite_company_fit',
+  'composite_candidate_fit', 'score_overall'}`; all 9 input scores must be non-NULL
+- `migrate_legacy_evaluations(conn) -> int` — for evaluations WHERE `score_ats IS NULL`
+  AND `score_role_fit IS NOT NULL`: sets `composite_screenability = 5.0`,
+  `composite_candidate_fit = 5.0`; computes `composite_company_fit` from existing
+  `score_role_fit / score_scope_fit / score_culture`; computes `score_overall` from current
+  weights; writes back to each record; returns count updated
+- `recalc_eval_scores(conn) -> int` — for evaluations WHERE `score_ats IS NOT NULL`:
+  recomputes all composites + `score_overall` from stored raw dim scores and current weights;
+  then recalculates `jobs.agg_score_overall` for each affected job; returns count updated
+
+#### 2.3 — Post-eval write sequence (external eval import)
+
+After parsing eval JSON in `evaluator.py`:
+1. Call `get_eval_weights(conn)` to read current weights
+2. Call `compute_eval_composites(scores, weights)` with parsed 9 dim scores
+3. Write all 9 dims + 3 composites + `score_overall` to `evaluations`
+4. Write `llm_call_log` record (unchanged)
+5. Recalculate `jobs.agg_score_overall` (existing logic; no change needed)
+
+#### Files touched
+- `database.py` — new helper functions
+
+---
+
+### Step 3 — gen_orgsummary Retirement
+
+**Goal:** Remove the old org summary prompt from templates, DB seeding, and all UI references.
+
+#### 3.1 — Backend
+
+- Delete `templates/prompts/gen_orgsummary.md`
+- In `database.py` `init_db()`: remove `gen_orgsummary` from the prompt seeding block
+- In `database.py` migration: execute `DELETE FROM prompt_templates WHERE key = 'gen_orgsummary'`
+  on startup (guard with `IF EXISTS` check — safe to run repeatedly)
+
+#### 3.2 — Frontend
+
+- Search all frontend files for references to the string `gen_orgsummary`
+- Remove any button, hook call, modal reference, or route that generates this prompt
+- Do not guess at location — search first, then remove
+
+#### Files touched
+- `templates/prompts/gen_orgsummary.md` — deleted
+- `database.py` — seeding block removal + one-time DELETE migration
+- Frontend files referencing `gen_orgsummary` (identify by search during implementation)
+
+---
+
+### Step 4 — gen_research Promotion
+
+**Goal:** Promote research prompt draft to production template; seed into DB.
+
+#### 4.1 — File promotion
+
+Copy `app_docs/prompt_design2/research_prompt_draft.md` → `templates/prompts/gen_research.md`.
+Do not delete the draft source file.
+
+#### 4.2 — DB seeding
+
+Add to prompt seeding block in `database.py` `init_db()`:
+```python
+{'key': 'gen_research', 'label': 'Company Research Prompt',
+ 'runtime_vars': 'company_name,website_url,title,jd_text'}
+```
+
+#### 4.3 — Runtime variable injection mapping
+
+When generating the research prompt for a job:
+- `{company_name}` → `jobs.company_name`
+- `{website_url}` → `jobs.website_url`
+- `{title}` → `jobs.title`
+- `{jd_text}` → `jobs.jd_text`
+
+#### Files touched
+- `templates/prompts/gen_research.md` (new — copy of draft)
+- `database.py` — seeding block
+
+---
+
+### Step 5 — eval_single_draft Promotion
+
+**Goal:** Replace the existing `eval_external.md` with the new `eval_single_draft.md` content.
+
+#### 5.1 — File promotion
+
+Replace the contents of `templates/prompts/eval_external.md` with the contents of
+`app_docs/prompt_design2/eval_single_draft.md`. Do not rename the file — the key stays
+`eval_external`. Do not delete the draft source.
+
+#### 5.2 — DB seeding update
+
+Update the `eval_external` record's `runtime_vars` in `database.py` seeding:
+```
+runtime_vars: 'company_name,title,location,pay_band,jd_text,research_context'
+```
+
+#### 5.3 — research_context injection
+
+When generating the external eval prompt for a job:
+- If a `job_research` record exists for this job: inject `raw_json` as `{research_context}`
+- If no research record exists: inject the string `null` as `{research_context}`
+
+The eval prompt's clarification gate handles the `null` case — it notes that scores will be
+based on JD signals only and sets `research_confidence` to `'none'`.
+
+#### Files touched
+- `templates/prompts/eval_external.md` — contents replaced
+- `database.py` — seeding block (`runtime_vars` update)
+
+---
+
+### Step 6 — Research Subpage + Backend Endpoints
+
+**Goal:** Add the Research subpage to the APPLY tab; wire backend import/fetch endpoints.
+
+#### 6.1 — Backend endpoints
+
+`POST /api/v1/jobs/{job_id}/research`
+- Request body: `{ "raw_json": "<JSON string>" }`
+- Parse `raw_json` into individual fields
+- Validate: `research_summary` and `research_confidence` must be present; return 400 if missing
+- Insert full record to `job_research` table via `insert_job_research()`
+- Return: stored research record
+
+`GET /api/v1/jobs/{job_id}/research`
+- Returns most recent `job_research` record for the job (`ORDER BY imported_at DESC LIMIT 1`)
+- Returns `null` (200) if no record exists
+
+#### 6.2 — Types
+
+Add to `frontend/src/types/api.ts`:
+```typescript
+export interface JobResearch {
+  id: number;
+  jobId: number;
+  rawJson: string;
+  researchSummary: string | null;
+  companyOverview: string | null;
+  companyStage: string | null;
+  companySizeActual: string | null;
+  companyTrajectory: string | null;
+  companyCultureOverview: string | null;
+  cultureSignals: Record<string, unknown> | null;
+  compSignals: Record<string, unknown> | null;
+  roleContext: Record<string, unknown> | null;
+  interviewProcess: string | null;
+  redFlags: string[];
+  greenFlags: string[];
+  researchConfidence: 'high' | 'medium' | 'low';
+  researchNotes: string | null;
+  importedAt: string;
+}
+```
+
+Field name convention (camelCase) follows the existing project pattern — match the
+field mapping approach used in other types in `api.ts`.
+
+#### 6.3 — Hooks
+
+Add to the appropriate hooks file:
+- `useJobResearch(jobId: number)` — GET query; returns `JobResearch | null`; handles
+  loading, error, and empty states
+- `useImportResearch(jobId: number)` — mutation for POST; invalidates `useJobResearch`
+  on success
+
+#### 6.4 — ResearchSubpage component
+
+New `frontend/src/components/ResearchSubpage.tsx`:
+
+**When research exists:**
+- `RESEARCH CONFIDENCE` badge (high / medium / low; color-coded)
+- `LAST RESEARCHED` timestamp
+- `SUMMARY` — `research_summary` prose block
+- `COMPANY` — overview, stage, size, trajectory
+- `CULTURE` — `company_culture_overview` + key `culture_signals` fields
+- `COMPENSATION` — `comp_signals.estimated_band` + notes
+- `ROLE CONTEXT` — `role_context` fields
+- `INTERVIEW PROCESS` — prose block
+- `RED FLAGS` — list
+- `GREEN FLAGS` — list
+
+**When no research exists:**
+- "No research data yet. Generate a research prompt from the Apply Workflow tab and paste
+  the results here."
+
+**Import modal (always accessible):**
+- Textarea for pasting the LLM JSON output
+- Parse + Import button
+- Inline error display if parse fails (missing required fields)
+
+**Generate prompt action:**
+- Button or link that generates the `gen_research` prompt for this job
+- Follows the existing generate-prompt pattern used elsewhere in the app
+
+#### 6.5 — APPLY leftnav update
+
+In `JobDetail.tsx`, add `Research` to the APPLY tab nav list between `Application Details`
+and `Apply Workflow`.
+
+#### Files touched
+- `main.py` — two new endpoints + route map
+- `database.py` — `insert_job_research()`, `get_job_research_latest()` helpers
+- `frontend/src/types/api.ts` — `JobResearch` interface
+- `frontend/src/hooks/` — `useJobResearch`, `useImportResearch` (add to appropriate file)
+- `frontend/src/components/ResearchSubpage.tsx` (new)
+- `frontend/src/pages/JobDetail.tsx` — APPLY leftnav updated
+
+---
+
+### Step 7 — Apply Workflow Redesign
+
+**Goal:** Add STEP 1/2/3 structure; wire Research block; wire real composite + overall scores
+into the eval block.
+
+#### 7.1 — STEP 1 — RESEARCH block (new, above existing eval block)
+
+```
+STEP 1 — RESEARCH
+This is an external prompt — it requires internet access. Do this first to gather
+information about the company before running evaluations. This data is inserted
+into following prompts, so don't skip it.
+
+[Generate Research Prompt]   [Import Research Results]   [View Research →]
+─────────────────────────────────────────────────────────────────────────────
+```
+
+- `Generate Research Prompt` → existing generate-prompt pattern with key `gen_research`
+- `Import Research Results` → paste JSON modal (same import flow as ResearchSubpage)
+- `View Research →` → navigates to Research subpage within APPLY
+
+#### 7.2 — STEP 2 — EVALUATE block (update existing)
+
+Add STEP label + description. Replace `—` stubs with real computed values:
+
+```
+STEP 2 — EVALUATE
+Run the evaluation after completing research. Scores reflect how well you match
+this role from both the company's and your own perspective. Research context is
+automatically included when available.
+
+COUNT        SCREENABILITY    COMPANY FIT    CANDIDATE FIT    OVERALL
+[X evals]    [X.X / 10]       [X.X / 10]     [X.X / 10]       [X.X]
+
+[Re-Run Internal Eval]   [Generate External Eval]   [Import External Eval]
+
+Review Evaluations →
+─────────────────────────────────────────────────────────────────────────────
+```
+
+- COUNT: number of evaluations for this job
+- Composite scores: average of `composite_*` across all evaluations for this job
+- OVERALL: `agg_score_overall` from jobs table
+- Show `—` for all scores if no evaluations exist
+
+Data source: extend the existing job detail endpoint to return composite averages, or
+identify the right query pattern during implementation. Prefer extending the existing
+endpoint over adding a new one.
+
+#### 7.3 — STEP 3 — RESUME GENERATION block (relabel only)
+
+Add STEP label and description above the existing block. No functional changes:
+
+```
+STEP 3 — RESUME GENERATION
+Generate tailored application materials after you've decided to pursue this role.
+─────────────────────────────────────────────────────────────────────────────
+[existing Pass 1/2/3 no-op buttons unchanged]
+```
+
+#### Files touched
+- `frontend/src/components/ApplyWorkflow.tsx` — STEP 1 block added; STEP 2 wired + labeled;
+  STEP 3 labeled
+- `frontend/src/pages/JobDetail.tsx` — APPLY leftnav Research entry; ApplyWorkflow prop
+  updates for composite score data
+- `main.py` or existing route — extend job detail response to include composite averages
+  (identify during implementation)
+
+---
+
+### Step 8 — App Settings: Evaluation Section
+
+**Goal:** Add evaluation weights UI, legacy migration button, and recalc button to Settings.
+
+#### 8.1 — Locate or create App Settings subpage
+
+Check `Settings.tsx` during implementation:
+- If "App Settings" subpage already exists: add the evaluation section to it
+- If it does not exist: add "App Settings" to the Settings leftnav and create the subpage
+
+#### 8.2 — Weights block
+
+```
+EVALUATION SCORING WEIGHTS
+Weights control how the three composite scores contribute to the overall score.
+Values must sum to 100%.
+
+SCREENABILITY        COMPANY FIT          CANDIDATE FIT
+[___] %              [___] %              [___] %
+
+Total: XX%                                [Save Weights]
+```
+
+- Three integer percent inputs
+- `Total: XX%` shown inline — updates as user edits; turns red if not 100
+- `Save Weights` disabled until total = 100 exactly
+- On save: convert integers to decimals (÷ 100), call `POST /api/v1/settings/eval-weights`
+- On load: `GET /api/v1/settings/eval-weights` populates fields (returns percentages × 100)
+
+#### 8.3 — Evaluation data block
+
+```
+─────────────────────────────────────────────────────────────────────────────
+EVALUATION DATA
+
+[Migrate Legacy Evaluations]
+Converts pre-2.5 evaluation scores to the 3-composite format. Run once after
+upgrading. Migrated evaluations receive SCREENABILITY = 5.0 and CANDIDATE FIT = 5.0
+as neutral defaults. Company Fit is derived from existing role / scope / culture scores.
+
+[Recalculate All Evaluation Scores]
+Recomputes composite scores and overall score for all new-schema evaluations using
+current weights. Run after saving new weights.
+```
+
+- Both buttons return a count inline after operation completes:
+  "Migrated 34 evaluations." / "Updated 47 evaluations."
+- `Recalculate` operates only on evals WHERE `score_ats IS NOT NULL` (new schema only)
+- `Migrate` operates only on evals WHERE `score_ats IS NULL AND score_role_fit IS NOT NULL`
+  (legacy evals with old dim data)
+
+#### 8.4 — Backend endpoints
+
+- `GET /api/v1/settings/eval-weights` — returns `{screenability, company_fit, candidate_fit}`
+  as integers (stored decimals × 100)
+- `POST /api/v1/settings/eval-weights` — body: `{screenability, company_fit, candidate_fit}`
+  as integers; validates sum = 100; converts to decimals before calling `set_eval_weights()`
+- `POST /api/v1/evaluations/migrate-legacy` — calls `migrate_legacy_evaluations()`; returns
+  `{"updated": int}`
+- `POST /api/v1/evaluations/recalc-scores` — calls `recalc_eval_scores()`; returns
+  `{"updated": int}`
+
+#### Files touched
+- `frontend/src/types/api.ts` — `EvalWeights` interface
+- `frontend/src/hooks/useSettings.ts` — `useEvalWeights`, `useSaveEvalWeights`,
+  `useMigrateLegacy`, `useRecalcScores`
+- `frontend/src/pages/Settings.tsx` — App Settings subpage + evaluation section
+- `main.py` — four new endpoints + route map
+- `database.py` — `get_eval_weights()`, `set_eval_weights()`, `migrate_legacy_evaluations()`,
+  `recalc_eval_scores()`
+
+---
+
+### Step 9 — evaluator.py Updates (External Eval Import)
+
+**Goal:** Update the external eval import parser to handle the new 9-dim schema and compute
+composites on every eval write.
+
+#### 9.1 — Parse target update
+
+Remove from parse targets: `score_comp`, `domain_match`, `role_type_match`
+
+Add to parse targets: `score_ats`, `score_recruiter_fast`, `score_recruiter_deep`,
+`score_candidate_role`, `score_candidate_scope`, `score_candidate_culture`,
+`interview_prep_notes`, `score_reasons`, `research_confidence`
+
+`score_overall` is no longer a parse target — it is always backend-computed.
+
+#### 9.2 — Post-parse composite computation
+
+After successful parse, before DB write:
+1. Call `get_eval_weights(conn)` for current weights
+2. Call `compute_eval_composites(scores, weights)` to get composites + `score_overall`
+3. Include all composites in the DB write
+
+#### 9.3 — Parse failure contract (field list updated, behavior unchanged)
+
+On second parse failure: write evaluation with all 9 dim score fields NULL, all composite
+fields NULL, `score_overall` NULL. `raw_response` preserved in `llm_call_log`. Behavior
+is unchanged — only the field list changes.
+
+#### 9.4 — Mixed-schema eval display
+
+Eval rows must detect schema version and render accordingly:
+- `score_ats IS NULL` → legacy eval → render old 4-dim layout
+  (score_role_fit / score_scope_fit / score_culture / score_comp)
+- `score_ats IS NOT NULL` → new eval → render 9-dim layout grouped by
+  SCREENABILITY / COMPANY FIT / CANDIDATE FIT with composite scores
+
+This branching applies to the eval row component and any eval detail view.
+Identify the component during implementation; update to support both render paths.
+
+#### Files touched
+- `evaluator.py` — parse targets, post-parse composite computation, DB write fields
+- Frontend eval row component (identify during implementation) — mixed-schema render branch
+
+---
+
+### Step 10 — Tests
+
+**Goal:** Keep the test suite green. No test suite runs until all steps complete.
+Report: "Ready for a test run — please run `./run_tests.sh` and paste the result."
+
+#### 10.1 — Backend (new)
+
+- `test_database.py`: `compute_eval_composites()` with known inputs verifying math;
+  `migrate_legacy_evaluations()` count and field values; `recalc_eval_scores()` count;
+  `get_eval_weights()` / `set_eval_weights()` including sum-validation failure
+- `tests/routes/test_research.py` (new file): GET returns null when empty; POST stores and
+  returns record; GET returns most recent after multiple imports; POST returns 400 on missing
+  required fields
+- `tests/routes/test_settings.py` (new or update): weights GET/POST; POST returns error if
+  sum ≠ 100; migrate endpoint returns count; recalc endpoint returns count
+
+#### 10.2 — Backend (update)
+
+- `test_evaluator.py`: update for new parse field set; composite computation in import flow;
+  parse failure contract with new field list
+
+#### 10.3 — Frontend (new)
+
+- `ResearchSubpage.test.tsx`: renders empty state message; renders research data fields;
+  import modal opens; import error shown on bad JSON
+- `Settings.test.tsx` (new or update): weights inputs render; Save disabled until sum = 100;
+  migrate + recalc buttons present and call correct mutations
+
+#### 10.4 — Frontend (update)
+
+- `ApplyWorkflow.test.tsx`: STEP 1 block visible; STEP 2 shows composite score labels;
+  STEP 3 label present
+- Eval row test (identify during implementation): new-schema branch renders 9-dim layout;
+  legacy branch renders 4-dim layout

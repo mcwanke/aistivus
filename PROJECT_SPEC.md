@@ -1,6 +1,6 @@
-# AIstivus — Project Specification v2.4
+# AIstivus — Project Specification v2.5
 > AI-Powered Job Search Management Platform
-> Version 2.4.0 — Phase 2.4 Complete, Phase 2.5 TBD
+> Version 2.5.0 — Phase 2.5 Pass 1 Complete; Pass 2 Designed
 
 ---
 
@@ -863,15 +863,29 @@ Deliverables:
 - Step 4: Superseded by Phase 2.1 workorder
 - Step 5: 🔲 Not yet designed — Memory, Dashboard redesign, Career workflow
 
-### Phase 2.1 — Evaluation Quality + Prompt System (Active — see WORKORDER_p2.1.md)
-- Step 1: Prompt calibration ✅ — scoring band reframe; external eval prompt extracted + calibrated
-- Step 2: UX wins + re-run eval ✅ — spinner on Fill With AI; job search input; company/title in edit modal; Re-Run Internal Eval button
-- Step 3: Create job without eval + post-action widget ✅
-- Step 4: Evaluation feedback system ✅ (`prompt_feedback` table superseded by `prompt_usage` in Step 5a)
-- Immediate Fixes 🔲 — score_overall display in ResultPanel; EvaluationFeedbackButton polish
-- Step 5a: Schema foundation + prompt_generation.py 🔲 — `prompts` + `prompt_usage` tables; `llm_call_log` migration; centralised prompt construction
-- Step 5b: Prompt editor UI + feedback loop trigger 🔲 — segmented editor in Settings; feedback loop sends to cloud LLM, marks consumed
-- Step 6: Multi-prompt split 🔲 — two-call evaluation pipeline; eval prompts migrated to `prompts` table
+### Phase 2.1 — Evaluation Quality + Prompt System ✅ Complete
+- See `app_docs/completed_workorders/` for full detail.
+
+### Phase 2.2 — Prompt Templates + UX Polish ✅ Complete
+- See `app_docs/WORKORDER_p2.2.md` for full detail.
+
+### Phase 2.3 — Protocol-Aware LLM Servers ✅ Complete
+- See `app_docs/WORKORDER_p2.3.md` for full detail.
+
+### Phase 2.4 — Temperature + Batch Re-Eval ✅ Complete
+- See `app_docs/WORKORDER_p2.4.md` for full detail.
+- Test baseline: 660 backend / 282 frontend
+
+### Phase 2.5 — Job Detail Restructure + Scoring Redesign
+- Pass 1 (UI Restructure + Stub): ✅ Complete — 666 backend / 298 frontend
+- Pass 2 (Scoring Redesign + Research + External Eval): ⬜ Designed; ready for implementation
+  - New 9-dim eval schema (3 composites: SCREENABILITY / COMPANY FIT / CANDIDATE FIT)
+  - User-configurable weights; legacy migration; recalc button
+  - Company research workflow (`gen_research` prompt; `job_research` table; Research subpage)
+  - External eval prompt promoted (`eval_single_draft` → `eval_external.md`)
+  - gen_orgsummary retired
+  - See `app_docs/WORKORDER_p2.5.md` for full detail
+- Pass 3 (Internal Eval + Resume + Cover Letter): ⬜ Requires dedicated design session
 
 ### Phase 3 — Discovery 🔲 (Future)
 - `scraper.py` (jobspy or equivalent)
