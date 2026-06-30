@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
+import { server } from '@/test/mocks/server'
 import { renderWithProviders } from '@/test/utils'
 import { ApplyWorkflow } from './ApplyWorkflow'
 import type { EvalWithMeta } from '@/types/api'
@@ -127,5 +129,27 @@ describe('ApplyWorkflow', () => {
     renderWithProviders(<ApplyWorkflow {...BASE_PROPS} onNavigateToResearch={onNavigateToResearch} />)
     await userEvent.click(screen.getByText('Review Research →'))
     expect(onNavigateToResearch).toHaveBeenCalled()
+  })
+
+  it('opens InternalEvalModal when Run Internal Eval is clicked', async () => {
+    const encoder = new TextEncoder()
+    server.use(
+      http.post('/api/v1/jobs/1/eval/internal', () => {
+        const stream = new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode('data: {"event":"done","eval_id":1}\n\n'))
+            controller.close()
+          },
+        })
+        return new Response(stream, { headers: { 'Content-Type': 'text/event-stream' } })
+      }),
+    )
+
+    renderWithProviders(<ApplyWorkflow {...BASE_PROPS} />)
+    await userEvent.click(screen.getByText('Run Internal Eval'))
+
+    await waitFor(() =>
+      expect(screen.getByText('Running Internal Evaluation')).toBeInTheDocument()
+    )
   })
 })
