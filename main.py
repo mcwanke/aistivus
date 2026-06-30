@@ -610,12 +610,12 @@ def load_prompt_template(filename: str) -> dict | None:
         return None
 
     header_lines = lines[:start_idx]
-    key = next((l.split(":", 1)[1].strip() for l in header_lines if l.startswith("key:")), None)
-    label = next((l.split(":", 1)[1].strip() for l in header_lines if l.startswith("label:")), None)
+    key = next((line.split(":", 1)[1].strip() for line in header_lines if line.startswith("key:")), None)
+    label = next((line.split(":", 1)[1].strip() for line in header_lines if line.startswith("label:")), None)
     if not key or not label:
         log.warning("prompt_template_missing_header_fields", extra={"file": filename})
         return None
-    temperature_str = next((l.split(":", 1)[1].strip() for l in header_lines if l.startswith("temperature:")), "0.0")
+    temperature_str = next((line.split(":", 1)[1].strip() for line in header_lines if line.startswith("temperature:")), "0.0")
     try:
         temperature = float(temperature_str)
     except ValueError:
@@ -802,6 +802,10 @@ class RerunRequest(BaseModel):
 
 class ReEvaluateRequest(BaseModel):
     llm_model_id: int
+
+
+class InternalEvalRequest(BaseModel):
+    llm_model_id: int | None = None
 
 
 class ImportEvaluationRequest(BaseModel):
@@ -1246,6 +1250,20 @@ async def re_evaluate_job(request: Request, job_id: int, body: ReEvaluateRequest
         existing_job_id=job_id,
     )
     return JSONResponse(result)
+
+
+@app.post("/api/v1/jobs/{job_id}/eval/internal")
+@limiter.limit("5/minute")
+async def run_internal_eval(request: Request, job_id: int, body: InternalEvalRequest):
+    """
+    Run the 4-step internal eval prompt chain for a job, streaming progress
+    as SSE events. Writes the completed evaluation to the database and emits
+    {"event": "done", "eval_id": <int>} on completion.
+    """
+    return StreamingResponse(
+        evaluator.run_internal_eval(job_id=job_id, llm_model_id=body.llm_model_id),
+        media_type="text/event-stream",
+    )
 
 
 @app.post("/api/v1/evaluations/import")

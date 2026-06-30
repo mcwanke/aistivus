@@ -868,6 +868,292 @@ async def evaluate_jd(
 
 
 # ─────────────────────────────────────────────────────────────
+# Internal eval — 4-prompt SSE chain
+# ─────────────────────────────────────────────────────────────
+
+async def run_internal_eval(job_id: int, llm_model_id: int | None):
+    """
+    Async generator: runs the 4-step internal eval prompt chain and yields
+    SSE-formatted event strings. Writes the final evaluation to the DB and
+    emits {"event": "done", "eval_id": <int>}.
+
+    Error handling per workorder:
+    - Step 1 or 2 LLM/parse failure → emit error, stop (no write).
+    - Step 3 parse failure → write eval with fit scores NULL, emit done.
+    - Step 4 parse failure → write eval with synthesis fields NULL, emit done.
+    - LLM network failure at any step → emit error, stop.
+    """
+
+    def _sse(payload: dict) -> str:
+        return f"data: {json.dumps(payload)}\n\n"
+
+    def _to_str(val) -> str | None:
+        if val is None:
+            return None
+        if isinstance(val, list):
+            return "\n".join(f"- {item}" for item in val)
+        return str(val)
+
+    # ── Load context ──────────────────────────────────────────
+    job_row = database.get_job(job_id)
+    if job_row is None:
+        yield _sse({"event": "error", "step": 0, "message": f"Job {job_id} not found."})
+        return
+
+    job = dict(job_row)
+    jd_text = job.get("description_merged") or ""
+    if not jd_text.strip():
+        yield _sse({"event": "error", "step": 0, "message": "No job description stored for this job."})
+        return
+
+    jd_clean = jd_text.replace("[JD_START]", "").replace("[JD_END]", "")
+
+    research_row = database.get_job_research_latest(job_id)
+    research_context = (research_row["raw_json"] if research_row and research_row["raw_json"] else "null")
+
+    jobsearch_path = _get_jobsearch_path()
+    jobsearch_context = jobsearch_path.read_text(encoding="utf-8") if jobsearch_path.exists() else ""
+
+    try:
+        model_row = _resolve_llm_model(llm_model_id)
+    except ValueError as exc:
+        yield _sse({"event": "error", "step": 0, "message": str(exc)})
+        return
+
+    model = dict(model_row)
+    resolved_model_id = model["id"]
+    provider = _provider_from_server_type(model.get("server_type", "ollama"))
+    endpoint = model.get("endpoint", "")
+    temperature = model.get("temperature", 0.0)
+
+    with database.get_connection() as _conn:
+        weights = database.get_eval_weights(_conn)
+
+    # ── Step 1: Analysis ──────────────────────────────────────
+    base_ctx = {
+        "jobsearch_context": jobsearch_context,
+        "jd_clean": jd_clean,
+    }
+
+    yield _sse({"event": "step_start", "step": 1, "total": 4, "label": "Analyzing role…"})
+    try:
+        prompt_result_1 = prompt_generation.get_prompt(
+            "eval_internal_1_analysis", base_ctx, job_id=job_id, source="internal_eval"
+        )
+        r1 = await llm_client.complete(
+            prompt=prompt_result_1["prompt_text"],
+            system="",
+            model=model["model"],
+            provider=provider,
+            base_url=endpoint,
+            max_tokens=2000,
+            temperature=prompt_result_1.get("temperature", temperature),
+        )
+        raw1 = r1.get("content") or ""
+        database.insert_llm_call_log(
+            llm_model_id=resolved_model_id, call_type="internal_eval_step1",
+            raw_response=raw1,
+            prompt_tokens_actual=r1.get("prompt_tokens_actual"),
+            completion_tokens_actual=r1.get("completion_tokens_actual"),
+            total_tokens_actual=r1.get("total_tokens_actual"),
+            latency_ms=r1.get("latency_ms"),
+            success=1 if r1.get("success") else 0,
+            error_message=r1.get("error"), job_id=job_id,
+            prompt_usage_id=prompt_result_1["prompt_usage_id"],
+        )
+        if not r1.get("success"):
+            yield _sse({"event": "error", "step": 1, "message": r1.get("error") or "LLM call failed"})
+            return
+        analysis_json = _parse_evaluation_response(raw1)
+        if analysis_json is None:
+            yield _sse({"event": "error", "step": 1, "message": "Could not parse analysis response as JSON."})
+            return
+    except Exception as exc:
+        yield _sse({"event": "error", "step": 1, "message": str(exc)})
+        return
+    yield _sse({"event": "step_complete", "step": 1})
+
+    analysis_json_str = json.dumps(analysis_json)
+
+    # ── Step 2: Screenability ─────────────────────────────────
+    yield _sse({"event": "step_start", "step": 2, "total": 4, "label": "Scoring screenability…"})
+    try:
+        ctx2 = {**base_ctx, "analysis_json": analysis_json_str}
+        prompt_result_2 = prompt_generation.get_prompt(
+            "eval_internal_2_screenability", ctx2, job_id=job_id, source="internal_eval"
+        )
+        r2 = await llm_client.complete(
+            prompt=prompt_result_2["prompt_text"],
+            system="",
+            model=model["model"],
+            provider=provider,
+            base_url=endpoint,
+            max_tokens=2000,
+            temperature=prompt_result_2.get("temperature", temperature),
+        )
+        raw2 = r2.get("content") or ""
+        database.insert_llm_call_log(
+            llm_model_id=resolved_model_id, call_type="internal_eval_step2",
+            raw_response=raw2,
+            prompt_tokens_actual=r2.get("prompt_tokens_actual"),
+            completion_tokens_actual=r2.get("completion_tokens_actual"),
+            total_tokens_actual=r2.get("total_tokens_actual"),
+            latency_ms=r2.get("latency_ms"),
+            success=1 if r2.get("success") else 0,
+            error_message=r2.get("error"), job_id=job_id,
+            prompt_usage_id=prompt_result_2["prompt_usage_id"],
+        )
+        if not r2.get("success"):
+            yield _sse({"event": "error", "step": 2, "message": r2.get("error") or "LLM call failed"})
+            return
+        screenability_json = _parse_evaluation_response(raw2)
+        if screenability_json is None:
+            yield _sse({"event": "error", "step": 2, "message": "Could not parse screenability response as JSON."})
+            return
+    except Exception as exc:
+        yield _sse({"event": "error", "step": 2, "message": str(exc)})
+        return
+    yield _sse({"event": "step_complete", "step": 2})
+
+    screenability_json_str = json.dumps(screenability_json)
+
+    # ── Step 3: Fit ───────────────────────────────────────────
+    yield _sse({"event": "step_start", "step": 3, "total": 4, "label": "Scoring fit…"})
+    fit_json = None
+    fit_json_str = "null"
+    try:
+        ctx3 = {**base_ctx, "analysis_json": analysis_json_str, "research_context": research_context}
+        prompt_result_3 = prompt_generation.get_prompt(
+            "eval_internal_3_fit", ctx3, job_id=job_id, source="internal_eval"
+        )
+        r3 = await llm_client.complete(
+            prompt=prompt_result_3["prompt_text"],
+            system="",
+            model=model["model"],
+            provider=provider,
+            base_url=endpoint,
+            max_tokens=2000,
+            temperature=prompt_result_3.get("temperature", temperature),
+        )
+        raw3 = r3.get("content") or ""
+        database.insert_llm_call_log(
+            llm_model_id=resolved_model_id, call_type="internal_eval_step3",
+            raw_response=raw3,
+            prompt_tokens_actual=r3.get("prompt_tokens_actual"),
+            completion_tokens_actual=r3.get("completion_tokens_actual"),
+            total_tokens_actual=r3.get("total_tokens_actual"),
+            latency_ms=r3.get("latency_ms"),
+            success=1 if r3.get("success") else 0,
+            error_message=r3.get("error"), job_id=job_id,
+            prompt_usage_id=prompt_result_3["prompt_usage_id"],
+        )
+        if not r3.get("success"):
+            # LLM network failure — write partial eval and stop
+            yield _sse({"event": "error", "step": 3, "message": r3.get("error") or "LLM call failed"})
+            return
+        fit_json = _parse_evaluation_response(raw3)
+        if fit_json is not None:
+            fit_json_str = json.dumps(fit_json)
+        # step 3 parse failure is non-fatal — write eval with fit scores NULL
+    except Exception as exc:
+        yield _sse({"event": "error", "step": 3, "message": str(exc)})
+        return
+    yield _sse({"event": "step_complete", "step": 3})
+
+    # ── Step 4: Synthesis ─────────────────────────────────────
+    yield _sse({"event": "step_start", "step": 4, "total": 4, "label": "Synthesizing…"})
+    synthesis_json = None
+    try:
+        ctx4 = {
+            **base_ctx,
+            "analysis_json": analysis_json_str,
+            "screenability_json": screenability_json_str,
+            "fit_json": fit_json_str,
+        }
+        prompt_result_4 = prompt_generation.get_prompt(
+            "eval_internal_4_synthesis", ctx4, job_id=job_id, source="internal_eval"
+        )
+        r4 = await llm_client.complete(
+            prompt=prompt_result_4["prompt_text"],
+            system="",
+            model=model["model"],
+            provider=provider,
+            base_url=endpoint,
+            max_tokens=2000,
+            temperature=prompt_result_4.get("temperature", temperature),
+        )
+        raw4 = r4.get("content") or ""
+        database.insert_llm_call_log(
+            llm_model_id=resolved_model_id, call_type="internal_eval_step4",
+            raw_response=raw4,
+            prompt_tokens_actual=r4.get("prompt_tokens_actual"),
+            completion_tokens_actual=r4.get("completion_tokens_actual"),
+            total_tokens_actual=r4.get("total_tokens_actual"),
+            latency_ms=r4.get("latency_ms"),
+            success=1 if r4.get("success") else 0,
+            error_message=r4.get("error"), job_id=job_id,
+            prompt_usage_id=prompt_result_4["prompt_usage_id"],
+        )
+        if r4.get("success"):
+            synthesis_json = _parse_evaluation_response(raw4)
+    except Exception:
+        pass  # step 4 failure → write what we have, emit done
+    yield _sse({"event": "step_complete", "step": 4})
+
+    # ── Assemble + write evaluation ───────────────────────────
+    score_reasons: dict = {}
+    if screenability_json and isinstance(screenability_json.get("score_reasons_screenability"), dict):
+        score_reasons.update(screenability_json["score_reasons_screenability"])
+    if fit_json and isinstance(fit_json.get("score_reasons_fit"), dict):
+        score_reasons.update(fit_json["score_reasons_fit"])
+
+    scores = {
+        "score_ats":              screenability_json.get("score_ats") if screenability_json else None,
+        "score_recruiter_fast":   screenability_json.get("score_recruiter_fast") if screenability_json else None,
+        "score_recruiter_deep":   screenability_json.get("score_recruiter_deep") if screenability_json else None,
+        "score_role_fit":         fit_json.get("score_role_fit") if fit_json else None,
+        "score_scope_fit":        fit_json.get("score_scope_fit") if fit_json else None,
+        "score_culture":          fit_json.get("score_culture") if fit_json else None,
+        "score_candidate_role":   fit_json.get("score_candidate_role") if fit_json else None,
+        "score_candidate_scope":  fit_json.get("score_candidate_scope") if fit_json else None,
+        "score_candidate_culture": fit_json.get("score_candidate_culture") if fit_json else None,
+    }
+    composites = database.compute_eval_composites(scores, weights)
+
+    eval_kwargs: dict = {
+        **scores,
+        "score_overall":           composites.get("score_overall"),
+        "composite_screenability": composites.get("composite_screenability"),
+        "composite_company_fit":   composites.get("composite_company_fit"),
+        "composite_candidate_fit": composites.get("composite_candidate_fit"),
+        "score_reasons":           json.dumps(score_reasons) if score_reasons else None,
+        "research_confidence":     _to_str(fit_json.get("research_confidence") if fit_json else None),
+        "domain_match":            _to_str(analysis_json.get("domain_match")),
+        "role_type_match":         _to_str(analysis_json.get("role_type_match")),
+        "analysis_json":           analysis_json_str,
+    }
+
+    if synthesis_json:
+        eval_kwargs.update({
+            "fit_type":            _to_str(synthesis_json.get("fit_type")),
+            "archetype":           _to_str(synthesis_json.get("archetype")),
+            "strengths":           _to_str(synthesis_json.get("strengths")),
+            "gaps":                _to_str(synthesis_json.get("gaps")),
+            "recommendation":      _to_str(synthesis_json.get("recommendation")),
+            "keywords":            _to_str(synthesis_json.get("keywords")),
+            "keyword_gaps":        _to_str(synthesis_json.get("keyword_gaps")),
+            "interview_prep_notes": _to_str(synthesis_json.get("interview_prep_notes")),
+        })
+
+    eval_id = database.insert_evaluation(
+        job_id=job_id,
+        llm_model_id=resolved_model_id,
+        **eval_kwargs,
+    )
+    yield _sse({"event": "done", "eval_id": eval_id})
+
+
+# ─────────────────────────────────────────────────────────────
 # Entrypoint — quick test
 # ─────────────────────────────────────────────────────────────
 

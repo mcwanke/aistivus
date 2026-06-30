@@ -1,7 +1,10 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { useUploadDocument } from '@/hooks/useDocuments'
 import { useGeneratePrompt } from '@/hooks/useApplications'
 import { useGenerateResearchPrompt, useImportResearch } from '@/hooks/useJobs'
+import { useModels, useRunInternalEval } from '@/hooks/useEvaluate'
+import type { InternalEvalEvent } from '@/hooks/useEvaluate'
+import { InternalEvalModal } from '@/components/InternalEvalModal'
 import { fmtScore } from '@/utils/formatting'
 import type { EvalWithMeta } from '@/types/api'
 
@@ -121,6 +124,30 @@ export function ApplyWorkflow({
   const generateEvalPrompt = useGeneratePrompt()
   const generateResearchPrompt = useGenerateResearchPrompt(jobId)
   const upload = useUploadDocument(applicationId)
+  const { data: models } = useModels()
+  const { run: runInternalEval } = useRunInternalEval(jobId)
+
+  const [selectedModelId, setSelectedModelId] = useState<number | null>(null)
+  const [showInternalEvalModal, setShowInternalEvalModal] = useState(false)
+  const internalEvalHandlerRef = useRef<((evt: InternalEvalEvent) => void) | null>(null)
+
+  // Default selectedModelId to the default model once models load
+  const defaultModelId = models?.find(m => m.default_flag === 1)?.id ?? models?.[0]?.id ?? null
+  const resolvedModelId = selectedModelId ?? defaultModelId
+
+  const registerInternalEvalHandler = useCallback(
+    (handler: (evt: InternalEvalEvent) => void) => {
+      internalEvalHandlerRef.current = handler
+    },
+    [],
+  )
+
+  async function handleRunInternalEval(): Promise<void> {
+    setShowInternalEvalModal(true)
+    await runInternalEval(resolvedModelId, (evt) => {
+      internalEvalHandlerRef.current?.(evt)
+    })
+  }
 
   // Composite score averages from new-schema evals (composite_screenability populated)
   const newSchemaEvals = evaluations.filter((e) => e.composite_screenability != null)
@@ -246,13 +273,31 @@ export function ApplyWorkflow({
           </div>
         </div>
 
+        {/* Model selector + internal eval */}
+        <div className="flex flex-col gap-1 mb-2">
+          {models && models.length > 0 && (
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-mono text-muted shrink-0">Model:</span>
+              <select
+                value={resolvedModelId ?? ''}
+                onChange={e => setSelectedModelId(Number(e.target.value))}
+                className="text-xs font-mono text-text bg-surface2 border border-surface2 rounded px-2 py-1 focus:outline-none focus:border-accent/40"
+              >
+                {models.map(m => (
+                  <option key={m.id} value={m.id}>{m.model}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
         {/* Action buttons */}
         <div className="flex flex-col gap-2 mb-3">
           <div className="flex items-center gap-3">
             <button
-              disabled
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded opacity-40 cursor-not-allowed shrink-0"
-              title="Internal eval coming in a future update"
+              onClick={() => void handleRunInternalEval()}
+              disabled={showInternalEvalModal}
+              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
             >
               Run Internal Eval
             </button>
@@ -418,6 +463,12 @@ export function ApplyWorkflow({
         <ResearchImportModal
           jobId={jobId}
           onClose={() => setShowResearchImport(false)}
+        />
+      )}
+      {showInternalEvalModal && (
+        <InternalEvalModal
+          onEvent={registerInternalEvalHandler}
+          onClose={() => setShowInternalEvalModal(false)}
         />
       )}
     </div>

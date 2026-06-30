@@ -150,6 +150,63 @@ export function useCreateJobMutation() {
   })
 }
 
+// ─── Internal eval SSE hook ───────────────────────────────────────────────────
+
+export interface InternalEvalEvent {
+  event: 'step_start' | 'step_complete' | 'done' | 'error'
+  step?: number
+  total?: number
+  label?: string
+  eval_id?: number
+  message?: string
+}
+
+export function useRunInternalEval(jobId: number) {
+  const qc = useQueryClient()
+
+  async function run(
+    llmModelId: number | null,
+    onEvent: (evt: InternalEvalEvent) => void,
+  ): Promise<void> {
+    const res = await fetch(`/api/v1/jobs/${jobId}/eval/internal`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ llm_model_id: llmModelId }),
+    })
+    if (!res.ok || !res.body) {
+      onEvent({ event: 'error', message: `Request failed: ${res.status}` })
+      return
+    }
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        try {
+          const evt = JSON.parse(line.slice(6)) as InternalEvalEvent
+          onEvent(evt)
+          if (evt.event === 'done') {
+            void qc.invalidateQueries({ queryKey: ['job', jobId] })
+            void qc.invalidateQueries({ queryKey: ['jobs'] })
+          }
+        } catch {
+          // malformed SSE line — skip
+        }
+      }
+    }
+  }
+
+  return { run }
+}
+
 // ─── Prompt usage feedback mutation ──────────────────────────────────────────
 
 async function postPromptUsageFeedback({
