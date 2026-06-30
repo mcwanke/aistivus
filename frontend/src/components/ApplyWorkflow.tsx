@@ -163,32 +163,38 @@ export function ApplyWorkflow({
 
       {/* ── STEP 1 — RESEARCH ─────────────────────────────────────────────────── */}
       <div>
-        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Step 1 — Research</p>
+        <p className="text-xs font-mono text-muted uppercase tracking-widest mb-1">Step 1 — Research</p>
         <p className="text-xs font-mono text-muted mb-3">
           This is an external prompt — it requires internet access. Do this first to gather
           information about the company before running evaluations. This data is inserted
           into following prompts, so don't skip it.
         </p>
 
-        <div className="flex gap-2 flex-wrap mb-3">
-          <button
-            onClick={() => void handleGenerateResearchPrompt()}
-            disabled={generateResearchPrompt.isPending}
-            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50"
-          >
-            {generateResearchPrompt.isPending ? 'Generating…' : 'Generate Research Prompt'}
-          </button>
-          <button
-            onClick={() => setShowResearchImport(true)}
-            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
-          >
-            Import Research Results
-          </button>
+        <div className="flex flex-col gap-2 mb-3">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => void handleGenerateResearchPrompt()}
+              disabled={generateResearchPrompt.isPending}
+              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50 shrink-0"
+            >
+              {generateResearchPrompt.isPending ? 'Generating…' : 'Generate Research Prompt'}
+            </button>
+            <span className="text-xs font-mono text-muted">Build the external research prompt for this job.</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowResearchImport(true)}
+              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors shrink-0"
+            >
+              Import Research Results
+            </button>
+            <span className="text-xs font-mono text-muted">Paste the JSON output from the research prompt.</span>
+          </div>
           <button
             onClick={onNavigateToResearch}
-            className="text-xs font-mono text-accent hover:underline px-3 py-1.5"
+            className="text-xs font-mono text-accent hover:underline self-start"
           >
-            View Research →
+            Review Research →
           </button>
         </div>
         {generateResearchPrompt.isError && (
@@ -200,7 +206,7 @@ export function ApplyWorkflow({
 
       {/* ── STEP 2 — EVALUATE ─────────────────────────────────────────────────── */}
       <div>
-        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Step 2 — Evaluate</p>
+        <p className="text-xs font-mono text-muted uppercase tracking-widest mb-1">Step 2 — Evaluate</p>
         <p className="text-xs font-mono text-muted mb-3">
           Run the evaluation after completing research. Scores reflect how well you match
           this role from both the company's and your own perspective. Research context is
@@ -210,31 +216,31 @@ export function ApplyWorkflow({
         {/* Summary row */}
         <div className="grid grid-cols-5 gap-4 mb-4">
           <div className="flex flex-col">
-            <span className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Count</span>
+            <span className="text-xs font-mono text-muted uppercase tracking-widest mb-1">Evaluation Count</span>
             <span className="text-sm font-mono text-text">
               {evaluations.length > 0 ? `${evaluations.length}` : '—'}
             </span>
           </div>
           <div className="flex flex-col">
-            <span className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Screenability</span>
+            <span className="text-xs font-mono text-muted uppercase tracking-widest mb-1">Screenability</span>
             <span className="text-sm font-mono text-text">
               {avgScreen != null ? `${fmtScore(avgScreen)} / 10` : '—'}
             </span>
           </div>
           <div className="flex flex-col">
-            <span className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Company Fit</span>
+            <span className="text-xs font-mono text-muted uppercase tracking-widest mb-1">Company Fit</span>
             <span className="text-sm font-mono text-text">
               {avgCompany != null ? `${fmtScore(avgCompany)} / 10` : '—'}
             </span>
           </div>
           <div className="flex flex-col">
-            <span className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Candidate Fit</span>
+            <span className="text-xs font-mono text-muted uppercase tracking-widest mb-1">Candidate Fit</span>
             <span className="text-sm font-mono text-text">
               {avgCandidate != null ? `${fmtScore(avgCandidate)} / 10` : '—'}
             </span>
           </div>
           <div className="flex flex-col">
-            <span className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Overall</span>
+            <span className="text-xs font-mono text-muted uppercase tracking-widest mb-1">Overall</span>
             <span className="text-sm font-mono text-text">
               {aggScoreOverall != null ? fmtScore(aggScoreOverall) : '—'}
             </span>
@@ -242,30 +248,39 @@ export function ApplyWorkflow({
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-2 flex-wrap mb-3">
-          <Link
-            to={`/evaluate`}
-            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
-          >
-            Re-Run Internal Eval
-          </Link>
-          <button
-            onClick={() => void handleGenerateEvalPrompt()}
-            disabled={generateEvalPrompt.isPending}
-            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50"
-          >
-            {generateEvalPrompt.isPending ? 'Generating…' : 'Generate External Eval'}
-          </button>
-          <button
-            onClick={onImportEval}
-            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
-          >
-            Import External Eval
-          </button>
+        <div className="flex flex-col gap-2 mb-3">
+          <div className="flex items-center gap-3">
+            <Link
+              to={`/evaluate`}
+              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors shrink-0"
+            >
+              Generate Internal Eval
+            </Link>
+            <span className="text-xs font-mono text-muted">Run an in-app evaluation using your configured LLM.</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => void handleGenerateEvalPrompt()}
+              disabled={generateEvalPrompt.isPending}
+              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50 shrink-0"
+            >
+              {generateEvalPrompt.isPending ? 'Generating…' : 'Generate External Eval'}
+            </button>
+            <span className="text-xs font-mono text-muted">Build the external evaluation prompt for use in Claude.ai.</span>
+          </div>
+          {generateEvalPrompt.isError && (
+            <p className="text-xs font-mono text-red ml-0">{generateEvalPrompt.error.message}</p>
+          )}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onImportEval}
+              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors shrink-0"
+            >
+              Import External Eval
+            </button>
+            <span className="text-xs font-mono text-muted">Paste the JSON output from the external eval prompt.</span>
+          </div>
         </div>
-        {generateEvalPrompt.isError && (
-          <p className="text-xs font-mono text-red mb-2">{generateEvalPrompt.error.message}</p>
-        )}
 
         <button
           onClick={onNavigateToEvals}
@@ -279,7 +294,7 @@ export function ApplyWorkflow({
 
       {/* ── STEP 3 — RESUME GENERATION ────────────────────────────────────────── */}
       <div>
-        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Step 3 — Resume Generation</p>
+        <p className="text-xs font-mono text-muted uppercase tracking-widest mb-1">Step 3 — Resume Generation</p>
         <p className="text-xs font-mono text-muted mb-4">
           Generate tailored application materials after you've decided to pursue this role.
         </p>

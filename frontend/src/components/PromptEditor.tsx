@@ -5,6 +5,7 @@ import {
   useSavePrompt,
   usePromptPreview,
   useFeedbackLoop,
+  useReloadPromptFromFile,
 } from '@/hooks/usePrompts'
 
 type Segment = { type: 'editable' | 'readonly'; content: string }
@@ -50,6 +51,8 @@ export default function PromptEditor(): React.JSX.Element {
   const [suggestions, setSuggestions] = useState<string | null>(null)
   const [suggestionsVisible, setSuggestionsVisible] = useState(false)
   const [noFeedbackMsg, setNoFeedbackMsg] = useState(false)
+  const [reloadConfirmPending, setReloadConfirmPending] = useState(false)
+  const [reloadedVersion, setReloadedVersion] = useState<number | null>(null)
 
   const showTemperature = EVAL_PROMPT_KEYS.includes(selectedKey)
 
@@ -58,6 +61,7 @@ export default function PromptEditor(): React.JSX.Element {
   const { data: previewData } = usePromptPreview(selectedKey)
   const saveMutation = useSavePrompt(selectedKey)
   const feedbackLoopMutation = useFeedbackLoop(selectedKey)
+  const reloadFromFileMutation = useReloadPromptFromFile(selectedKey)
 
   useEffect(() => {
     if (promptList && promptList.length > 0 && selectedKey === '') {
@@ -93,6 +97,21 @@ export default function PromptEditor(): React.JSX.Element {
         },
       },
     )
+  }
+
+  function handleReloadFromFile(): void {
+    if (!reloadConfirmPending) {
+      setReloadConfirmPending(true)
+      return
+    }
+    setReloadConfirmPending(false)
+    setReloadedVersion(null)
+    reloadFromFileMutation.mutate(undefined, {
+      onSuccess: data => {
+        setReloadedVersion(data.version)
+        setSavedVersion(null)
+      },
+    })
   }
 
   function handleFeedbackLoop(): void {
@@ -146,6 +165,20 @@ export default function PromptEditor(): React.JSX.Element {
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={handleReloadFromFile}
+            disabled={reloadFromFileMutation.isPending || !selectedKey}
+            className="px-3 py-1.5 text-sm border border-surface2 rounded text-muted hover:text-text hover:border-text/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {reloadFromFileMutation.isPending
+              ? 'Reloading…'
+              : reloadConfirmPending
+              ? 'Confirm Reload?'
+              : 'Re-load from File'}
+          </button>
+          {reloadedVersion !== null && (
+            <span className="text-xs text-green font-mono">Reloaded (v{reloadedVersion})</span>
+          )}
           <button
             onClick={handleFeedbackLoop}
             disabled={feedbackLoopMutation.isPending || !selectedKey}

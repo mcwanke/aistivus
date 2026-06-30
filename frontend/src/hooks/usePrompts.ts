@@ -76,6 +76,29 @@ export function usePromptPreview(key: string) {
   })
 }
 
+// ─── Reload from File ──────────────────────────────────────────────────────────
+
+export function useReloadPromptFromFile(key: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/prompts/${key}/reload-from-file`, {
+        method: 'POST',
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw new Error(err.detail ?? `reload prompt ${res.status}`)
+      }
+      return res.json() as Promise<{ success: boolean; version: number }>
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['prompts'] })
+      void qc.invalidateQueries({ queryKey: ['prompt', key] })
+      void qc.invalidateQueries({ queryKey: ['prompt-preview', key] })
+    },
+  })
+}
+
 // ─── Feedback Loop ─────────────────────────────────────────────────────────────
 
 export function useFeedbackLoop(key: string) {

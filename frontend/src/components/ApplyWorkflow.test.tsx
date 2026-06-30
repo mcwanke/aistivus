@@ -64,7 +64,7 @@ describe('ApplyWorkflow', () => {
 
   it('renders evaluation action buttons', () => {
     renderWithProviders(<ApplyWorkflow {...BASE_PROPS} />)
-    expect(screen.getByText('Re-Run Internal Eval')).toBeInTheDocument()
+    expect(screen.getByText('Generate Internal Eval')).toBeInTheDocument()
     expect(screen.getByText('Generate External Eval')).toBeInTheDocument()
     expect(screen.getByText('Import External Eval')).toBeInTheDocument()
   })
@@ -119,13 +119,13 @@ describe('ApplyWorkflow', () => {
 
   it('renders View Research link in Step 1', () => {
     renderWithProviders(<ApplyWorkflow {...BASE_PROPS} />)
-    expect(screen.getByText('View Research →')).toBeInTheDocument()
+    expect(screen.getByText('Review Research →')).toBeInTheDocument()
   })
 
   it('calls onNavigateToResearch when View Research is clicked', async () => {
     const onNavigateToResearch = vi.fn()
     renderWithProviders(<ApplyWorkflow {...BASE_PROPS} onNavigateToResearch={onNavigateToResearch} />)
-    await userEvent.click(screen.getByText('View Research →'))
+    await userEvent.click(screen.getByText('Review Research →'))
     expect(onNavigateToResearch).toHaveBeenCalled()
   })
 })

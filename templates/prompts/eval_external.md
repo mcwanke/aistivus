@@ -1,18 +1,16 @@
-# eval_single_draft
-# Replaces: eval_external.md
-# Status: draft — not yet validated against test cases
-#
-# Variable injections: {company_name}, {title}, {location}, {pay_band}, {jd_text}, {research_context}
-# {research_context} = raw JSON from job_research.research_json; inject null or omit if not available
-#
-# Machine-readable output fields parsed by app:
-# score_ats, score_recruiter_fast, score_recruiter_deep (1-4)
-# score_role_fit, score_scope_fit, score_culture (1-5, company lens)
-# score_candidate_role, score_candidate_scope, score_candidate_culture (1-5, candidate lens)
-# fit_type, archetype, strengths, gaps, recommendation, keywords, keyword_gaps,
-# interview_prep_notes, research_confidence, log_entry
----
+# eval_external
+key: eval_external
+label: External Evaluation Prompt
+# description
+External evaluation prompt for use in a Claude.ai session with jobsearch.md in context.
+Produces a 9-dimension scorecard (3 screenability + 3 company fit + 3 candidate fit)
+and a machine-readable JSON block parsed and imported by the app.
 
+Runtime variable injections: {company_name}, {title}, {location}, {pay_band}, {jd_text}, {research_context}
+{research_context} = raw JSON from job_research table; "null" if not available
+
+[[PROMPT_START]]
+[[EDITABLE]]
 ## CONTEXT FILES
 
 Your project files are already in context. Use jobsearch.md as the sole source of truth for all candidate facts.
@@ -173,3 +171,5 @@ EVALUATION_JSON_START
 }
 ```
 EVALUATION_JSON_END
+[[/EDITABLE]]
+[[PROMPT_END]]

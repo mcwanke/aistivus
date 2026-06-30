@@ -2385,8 +2385,8 @@ interface ApplicationLeftProps {
 function ApplicationLeft({ active, onSelect }: ApplicationLeftProps): React.JSX.Element {
   const actions: { id: AppAction; label: string }[] = [
     { id: 'application-details', label: 'Application Details' },
-    { id: 'research',            label: 'Research' },
     { id: 'apply-workflow',      label: 'Apply Workflow' },
+    { id: 'research',            label: 'Research' },
     { id: 'evaluations',         label: 'Evaluations' },
     { id: 'resume',              label: 'Resume' },
     { id: 'cover-letter',        label: 'Cover Letter' },
