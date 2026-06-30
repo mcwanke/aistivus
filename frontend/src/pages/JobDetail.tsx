@@ -583,76 +583,58 @@ function EvalRow({ evaluation }: { evaluation: EvalWithMeta }): React.JSX.Elemen
       {open && (
         <div className="px-3 pb-4 border-t border-surface pt-3 space-y-3">
           {evaluation.score_ats != null ? (
-            /* New 9-dim schema */
+            /* New 9-dim schema — stacked composite cards */
             <div className="space-y-2">
-              <div className="flex gap-6 flex-wrap">
-                <div>
-                  <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1">Screenability</p>
-                  <div className="flex gap-3">
-                    {([
-                      ['ATS',  evaluation.score_ats,           'score_ats'],
-                      ['Fast', evaluation.score_recruiter_fast,'score_recruiter_fast'],
-                      ['Deep', evaluation.score_recruiter_deep,'score_recruiter_deep'],
-                    ] as [string, number | null, string][]).map(([label, val, key]) => (
-                      <div key={label} className="flex flex-col items-center max-w-[72px]">
-                        <span className="text-[9px] font-mono text-muted uppercase">{label}</span>
-                        <span className="text-sm font-mono text-text">{val != null ? `${fmtScore(val)}/4` : '—'}</span>
-                        {scoreReasons[key] && <p className="text-[9px] text-muted mt-0.5 text-center leading-tight">{scoreReasons[key]}</p>}
-                      </div>
-                    ))}
-                    {evaluation.composite_screenability != null && (
-                      <div className="flex flex-col items-center ml-2 pl-2 border-l border-surface">
-                        <span className="text-[9px] font-mono text-accent uppercase">Score</span>
-                        <span className="text-sm font-mono text-accent">{fmtScore(evaluation.composite_screenability)}/10</span>
-                      </div>
+              {([
+                {
+                  name: 'Screenability',
+                  composite: evaluation.composite_screenability,
+                  vectors: [
+                    ['ATS',  evaluation.score_ats,            'score_ats'],
+                    ['Fast', evaluation.score_recruiter_fast, 'score_recruiter_fast'],
+                    ['Deep', evaluation.score_recruiter_deep, 'score_recruiter_deep'],
+                  ] as [string, number | null, string][],
+                  max: 4,
+                },
+                {
+                  name: 'Company Fit',
+                  composite: evaluation.composite_company_fit,
+                  vectors: [
+                    ['Role',    evaluation.score_role_fit,  'score_role_fit'],
+                    ['Scope',   evaluation.score_scope_fit, 'score_scope_fit'],
+                    ['Culture', evaluation.score_culture,   'score_culture'],
+                  ] as [string, number | null, string][],
+                  max: 5,
+                },
+                {
+                  name: 'Candidate Fit',
+                  composite: evaluation.composite_candidate_fit,
+                  vectors: [
+                    ['Role',    evaluation.score_candidate_role,    'score_candidate_role'],
+                    ['Scope',   evaluation.score_candidate_scope,   'score_candidate_scope'],
+                    ['Culture', evaluation.score_candidate_culture, 'score_candidate_culture'],
+                  ] as [string, number | null, string][],
+                  max: 5,
+                },
+              ]).map(({ name, composite, vectors, max }) => (
+                <div key={name} className="bg-surface rounded p-2.5 space-y-1.5">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[10px] font-mono text-muted uppercase tracking-wider">{name}</span>
+                    {composite != null && (
+                      <span className="text-sm font-mono text-accent">{fmtScore(composite)} / 10</span>
                     )}
                   </div>
+                  {vectors.map(([label, val, key]) => (
+                    <div key={label} className="flex items-baseline gap-2 pl-1">
+                      <span className="text-[10px] font-mono text-muted uppercase w-12 shrink-0">{label}</span>
+                      <span className="text-xs font-mono text-text shrink-0">{val != null ? `${fmtScore(val)} / ${max}` : '—'}</span>
+                      {scoreReasons[key] && (
+                        <span className="text-xs text-text leading-snug">{scoreReasons[key]}</span>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1">Company Fit</p>
-                  <div className="flex gap-3">
-                    {([
-                      ['Role',    evaluation.score_role_fit,  'score_role_fit'],
-                      ['Scope',   evaluation.score_scope_fit, 'score_scope_fit'],
-                      ['Culture', evaluation.score_culture,   'score_culture'],
-                    ] as [string, number | null, string][]).map(([label, val, key]) => (
-                      <div key={label} className="flex flex-col items-center max-w-[72px]">
-                        <span className="text-[9px] font-mono text-muted uppercase">{label}</span>
-                        <span className="text-sm font-mono text-text">{val != null ? `${fmtScore(val)}/5` : '—'}</span>
-                        {scoreReasons[key] && <p className="text-[9px] text-muted mt-0.5 text-center leading-tight">{scoreReasons[key]}</p>}
-                      </div>
-                    ))}
-                    {evaluation.composite_company_fit != null && (
-                      <div className="flex flex-col items-center ml-2 pl-2 border-l border-surface">
-                        <span className="text-[9px] font-mono text-accent uppercase">Score</span>
-                        <span className="text-sm font-mono text-accent">{fmtScore(evaluation.composite_company_fit)}/10</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1">Candidate Fit</p>
-                  <div className="flex gap-3">
-                    {([
-                      ['Role',    evaluation.score_candidate_role,    'score_candidate_role'],
-                      ['Scope',   evaluation.score_candidate_scope,   'score_candidate_scope'],
-                      ['Culture', evaluation.score_candidate_culture, 'score_candidate_culture'],
-                    ] as [string, number | null, string][]).map(([label, val, key]) => (
-                      <div key={label} className="flex flex-col items-center max-w-[72px]">
-                        <span className="text-[9px] font-mono text-muted uppercase">{label}</span>
-                        <span className="text-sm font-mono text-text">{val != null ? `${fmtScore(val)}/5` : '—'}</span>
-                        {scoreReasons[key] && <p className="text-[9px] text-muted mt-0.5 text-center leading-tight">{scoreReasons[key]}</p>}
-                      </div>
-                    ))}
-                    {evaluation.composite_candidate_fit != null && (
-                      <div className="flex flex-col items-center ml-2 pl-2 border-l border-surface">
-                        <span className="text-[9px] font-mono text-accent uppercase">Score</span>
-                        <span className="text-sm font-mono text-accent">{fmtScore(evaluation.composite_candidate_fit)}/10</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
           ) : (
             /* Legacy 4-dim schema */
@@ -2951,20 +2933,29 @@ export default function JobDetailPage(): React.JSX.Element {
     const payload: ImportPayload = {
       job_id: job.id,
       llm_model_id: modelId,
-      score_overall:   (parsed.score_overall   as number | null) ?? null,
-      score_role_fit:  (parsed.score_role_fit  as number | null) ?? null,
-      score_scope_fit: (parsed.score_scope_fit as number | null) ?? null,
-      score_culture:   (parsed.score_culture   as number | null) ?? null,
-      score_comp:      (parsed.score_comp      as number | null) ?? null,
-      fit_type:        (parsed.fit_type        as string | null) ?? null,
-      archetype:       (parsed.archetype       as string | null) ?? null,
-      strengths:       (parsed.strengths       as string | null) ?? null,
-      gaps:            (parsed.gaps            as string | null) ?? null,
-      recommendation:  (parsed.recommendation  as string | null) ?? null,
-      keywords:        (parsed.keywords        as string | null) ?? null,
-      domain_match:    (parsed.domain_match    as string | null) ?? null,
-      role_type_match: (parsed.role_type_match as string | null) ?? null,
-      keyword_gaps:    (parsed.keyword_gaps    as string | null) ?? null,
+      score_overall:            (parsed.score_overall            as number | null) ?? null,
+      score_role_fit:           (parsed.score_role_fit           as number | null) ?? null,
+      score_scope_fit:          (parsed.score_scope_fit          as number | null) ?? null,
+      score_culture:            (parsed.score_culture            as number | null) ?? null,
+      score_comp:               (parsed.score_comp               as number | null) ?? null,
+      score_ats:                (parsed.score_ats                as number | null) ?? null,
+      score_recruiter_fast:     (parsed.score_recruiter_fast     as number | null) ?? null,
+      score_recruiter_deep:     (parsed.score_recruiter_deep     as number | null) ?? null,
+      score_candidate_role:     (parsed.score_candidate_role     as number | null) ?? null,
+      score_candidate_scope:    (parsed.score_candidate_scope    as number | null) ?? null,
+      score_candidate_culture:  (parsed.score_candidate_culture  as number | null) ?? null,
+      fit_type:                 (parsed.fit_type                 as string | null) ?? null,
+      archetype:                (parsed.archetype                as string | null) ?? null,
+      strengths:                (parsed.strengths                as string | null) ?? null,
+      gaps:                     (parsed.gaps                     as string | null) ?? null,
+      recommendation:           (parsed.recommendation           as string | null) ?? null,
+      keywords:                 (parsed.keywords                 as string | null) ?? null,
+      domain_match:             (parsed.domain_match             as string | null) ?? null,
+      role_type_match:          (parsed.role_type_match          as string | null) ?? null,
+      keyword_gaps:             (parsed.keyword_gaps             as string | null) ?? null,
+      interview_prep_notes:     (parsed.interview_prep_notes     as string | null) ?? null,
+      research_confidence:      (parsed.research_confidence      as string | null) ?? null,
+      score_reasons:            (parsed.score_reasons            as string | null) ?? null,
     }
     try {
       await importMutation.mutateAsync(payload)

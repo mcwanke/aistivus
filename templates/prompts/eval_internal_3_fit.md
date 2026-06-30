@@ -45,7 +45,9 @@ COMPANY FIT DIMENSIONS:
 
 Role Fit (1–5): Does the role type, title, and day-to-day responsibilities match what the
 candidate's background suggests they can credibly fill? Assess from the hiring team's perspective.
-Reference role_context.team_signals from research if available.
+Reference role_context.team_signals from research if available. If the JD's core requirements
+include technical competencies listed as documented stretch areas in jobsearch.md, cap this score
+at 4 — a general background match does not override a named specific gap.
 
 Scope Fit (1–5): Does the team size, org scope, and leadership depth match what the candidate
 has actually done? Draw on role_context.team_signals from research if available.
@@ -59,6 +61,8 @@ CANDIDATE FIT DIMENSIONS:
 Role Appeal (1–5): Does this role genuinely match what the candidate wants to do? Reference
 stated role preferences, deal-breakers, and target role profile in jobsearch.md. If the role
 requires significant time in areas the candidate is actively moving away from, score lower.
+Distinguish carefully: technical architecture ownership and ML/LLM strategy are strengths —
+only daily IC coding expectation is a deal-breaker. Do not penalize for technical depth alone.
 
 Scope Appeal (1–5): Does the org structure, team size, and ownership scope match what the
 candidate is targeting? Consider org maturity, autonomy level, and growth trajectory from

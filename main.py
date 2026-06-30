@@ -834,7 +834,7 @@ class ImportEvaluationRequest(BaseModel):
     keyword_gaps: str | None = None
     interview_prep_notes: str | None = None
     research_confidence: str | None = None
-    score_reasons: str | None = None
+    score_reasons: str | dict | None = None
 
 
 class CreateJobRequest(BaseModel):
@@ -1295,10 +1295,25 @@ async def import_evaluation(request: Request, body: ImportEvaluationRequest):
             )
         model_id = dict(default)["id"]
 
+    raw_scores = {
+        "score_ats": body.score_ats,
+        "score_recruiter_fast": body.score_recruiter_fast,
+        "score_recruiter_deep": body.score_recruiter_deep,
+        "score_role_fit": body.score_role_fit,
+        "score_scope_fit": body.score_scope_fit,
+        "score_culture": body.score_culture,
+        "score_candidate_role": body.score_candidate_role,
+        "score_candidate_scope": body.score_candidate_scope,
+        "score_candidate_culture": body.score_candidate_culture,
+    }
+    with database.get_connection() as _conn:
+        _weights = database.get_eval_weights(_conn)
+    composites = database.compute_eval_composites(raw_scores, _weights)
+
     eval_id = database.insert_evaluation(
         job_id=body.job_id,
         llm_model_id=model_id,
-        score_overall=body.score_overall,
+        score_overall=composites["score_overall"],
         score_role_fit=body.score_role_fit,
         score_scope_fit=body.score_scope_fit,
         score_culture=body.score_culture,
@@ -1320,7 +1335,10 @@ async def import_evaluation(request: Request, body: ImportEvaluationRequest):
         keyword_gaps=body.keyword_gaps,
         interview_prep_notes=body.interview_prep_notes,
         research_confidence=body.research_confidence,
-        score_reasons=body.score_reasons,
+        score_reasons=json.dumps(body.score_reasons) if isinstance(body.score_reasons, dict) else body.score_reasons,
+        composite_screenability=composites["composite_screenability"],
+        composite_company_fit=composites["composite_company_fit"],
+        composite_candidate_fit=composites["composite_candidate_fit"],
     )
     log.info("evaluation_imported", extra={"eval_id": eval_id, "job_id": body.job_id})
     return JSONResponse({"success": True, "evaluation_id": eval_id})

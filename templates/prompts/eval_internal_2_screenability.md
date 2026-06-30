@@ -33,6 +33,11 @@ prior analysis below and must not be contradicted.
 SOURCE MATERIAL: JD and master resume from jobsearch.md ONLY. Do not use research context
 for these scores. ATS systems and recruiters do not have access to research data.
 
+NOTE ON TITLE: The master resume lists "Director of Engineering" but tailoring rules
+specify that the submitted resume will use "Senior Engineering Manager" as the header
+tagline when the target role is EM-scoped. Do not penalize for title overqualification
+when the JD targets EM scope — the submitted resume will reflect the correct title.
+
 SCALE: 1 = clear fail | 2 = uncertain, lean negative | 3 = uncertain, lean positive | 4 = clear pass
 
 ATS SCORE (1–4):

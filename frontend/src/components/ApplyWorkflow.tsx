@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { useUploadDocument } from '@/hooks/useDocuments'
 import { useGeneratePrompt } from '@/hooks/useApplications'
-import { useGenerateResearchPrompt, useImportResearch } from '@/hooks/useJobs'
+import { useGenerateResearchPrompt, useImportResearch, useJobResearch } from '@/hooks/useJobs'
 import { useModels, useRunInternalEval } from '@/hooks/useEvaluate'
 import type { InternalEvalEvent } from '@/hooks/useEvaluate'
 import { InternalEvalModal } from '@/components/InternalEvalModal'
@@ -123,6 +123,7 @@ export function ApplyWorkflow({
 
   const generateEvalPrompt = useGeneratePrompt()
   const generateResearchPrompt = useGenerateResearchPrompt(jobId)
+  const { data: research } = useJobResearch(jobId)
   const upload = useUploadDocument(applicationId)
   const { data: models } = useModels()
   const { run: runInternalEval } = useRunInternalEval(jobId)
@@ -189,7 +190,10 @@ export function ApplyWorkflow({
 
       {/* ── STEP 1 — RESEARCH ─────────────────────────────────────────────────── */}
       <div>
-        <p className="text-xs font-mono text-muted uppercase tracking-widest mb-1">Step 1 — Research</p>
+        <p className="text-xs font-mono text-muted uppercase tracking-widest mb-1 flex items-center gap-2">
+          {research != null && <span className="text-green text-base leading-none">✓</span>}
+          Step 1 — Research
+        </p>
         <p className="text-xs font-mono text-muted mb-3">
           This is an external prompt — it requires internet access. Do this first to gather
           information about the company before running evaluations. This data is inserted
@@ -201,7 +205,7 @@ export function ApplyWorkflow({
             <button
               onClick={() => void handleGenerateResearchPrompt()}
               disabled={generateResearchPrompt.isPending}
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50 shrink-0"
+              className="px-3 py-1.5 text-xs font-mono text-text/70 border-2 border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50 shrink-0"
             >
               {generateResearchPrompt.isPending ? 'Generating…' : 'Generate Research Prompt'}
             </button>
@@ -210,7 +214,7 @@ export function ApplyWorkflow({
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowResearchImport(true)}
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors shrink-0"
+              className="px-3 py-1.5 text-xs font-mono text-text/70 border-2 border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors shrink-0"
             >
               Import Research Results
             </button>
@@ -232,7 +236,10 @@ export function ApplyWorkflow({
 
       {/* ── STEP 2 — EVALUATE ─────────────────────────────────────────────────── */}
       <div>
-        <p className="text-xs font-mono text-muted uppercase tracking-widest mb-1">Step 2 — Evaluate</p>
+        <p className="text-xs font-mono text-muted uppercase tracking-widest mb-1 flex items-center gap-2">
+          {evaluations.length >= 2 && <span className="text-green text-base leading-none">✓</span>}
+          Step 2 — Evaluate
+        </p>
         <p className="text-xs font-mono text-muted mb-3">
           Run the evaluation after completing research. Scores reflect how well you match
           this role from both the company's and your own perspective. Research context is
@@ -297,7 +304,7 @@ export function ApplyWorkflow({
             <button
               onClick={() => void handleRunInternalEval()}
               disabled={showInternalEvalModal}
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+              className="px-3 py-1.5 text-xs font-mono text-text/70 border-2 border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
             >
               Run Internal Eval
             </button>
@@ -307,7 +314,7 @@ export function ApplyWorkflow({
             <button
               onClick={() => void handleGenerateEvalPrompt()}
               disabled={generateEvalPrompt.isPending}
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50 shrink-0"
+              className="px-3 py-1.5 text-xs font-mono text-text/70 border-2 border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50 shrink-0"
             >
               {generateEvalPrompt.isPending ? 'Generating…' : 'Generate External Eval'}
             </button>
@@ -319,7 +326,7 @@ export function ApplyWorkflow({
           <div className="flex items-center gap-3">
             <button
               onClick={onImportEval}
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors shrink-0"
+              className="px-3 py-1.5 text-xs font-mono text-text/70 border-2 border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors shrink-0"
             >
               Import External Eval
             </button>

@@ -62,6 +62,12 @@ export interface ImportPayload {
   score_scope_fit: number | null
   score_culture: number | null
   score_comp: number | null
+  score_ats: number | null
+  score_recruiter_fast: number | null
+  score_recruiter_deep: number | null
+  score_candidate_role: number | null
+  score_candidate_scope: number | null
+  score_candidate_culture: number | null
   fit_type: string | null
   archetype: string | null
   strengths: string | null
@@ -71,6 +77,9 @@ export interface ImportPayload {
   domain_match: string | null
   role_type_match: string | null
   keyword_gaps: string | null
+  interview_prep_notes: string | null
+  research_confidence: string | null
+  score_reasons: string | null
 }
 
 async function postImportEvaluation(
