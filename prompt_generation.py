@@ -23,6 +23,8 @@ def get_prompt(
     prompt_text = raw_text
     for key, val in context.items():
         prompt_text = prompt_text.replace(f"{{{key}}}", str(val))
+    # Unescape literal braces written as {{ }} in prompt templates
+    prompt_text = prompt_text.replace("{{", "{").replace("}}", "}")
     prompt_hash = hashlib.sha256(prompt_text.encode()).hexdigest()
 
     prompt_usage_id = database.create_prompt_usage(

@@ -80,12 +80,16 @@ run_frontend() {
     fi
 }
 
+TOTAL_START=$(date +%s)
+run_ruff
 run_backend
 run_frontend
+TOTAL_END=$(date +%s)
+TOTAL_SECS=$((TOTAL_END - TOTAL_START))
 
 TIMESTAMP=$(date "+%Y-%m-%d %H:%M:%S")
 MODE=$([[ $VERBOSE -eq 1 ]] && echo "verbose" || echo "quick")
-SUMMARY="${BACKEND_STATUS} | ${FRONTEND_STATUS}"
+SUMMARY="${RUFF_STATUS} | ${BACKEND_STATUS} | ${FRONTEND_STATUS} | total: ${TOTAL_SECS}s"
 
 echo ""
 echo "[$TIMESTAMP] ($MODE)"
