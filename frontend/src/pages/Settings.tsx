@@ -8,6 +8,7 @@ import {
   useCreateModel,
   useUpdateModel,
   useDeleteModel,
+  useArchiveModel,
   useCheckAvailability,
   useSystemTypes,
   useAddSystemType,
@@ -741,12 +742,28 @@ const EMPTY_MODEL_FORM: ModelFormState = {
 function ModelRow({
   model,
   onDelete,
+  onArchive,
   onEdit,
 }: {
   model: LlmModel
   onDelete: (id: number) => void
+  onArchive: (id: number) => void
   onEdit: (model: LlmModel) => void
 }): React.JSX.Element {
+  const hasEvals = model.has_evaluations > 0
+
+  function handleDestructive(): void {
+    if (hasEvals) {
+      if (confirm(`Archive "${model.model}"? This is irreversible — the model will be hidden from all selectors but its evaluation history is preserved.`)) {
+        onArchive(model.id)
+      }
+    } else {
+      if (confirm(`Delete "${model.model}"? This cannot be undone.`)) {
+        onDelete(model.id)
+      }
+    }
+  }
+
   return (
     <div className="flex items-center gap-3 py-2.5 border-b border-surface2 last:border-0">
       <div className="flex-1 min-w-0">
@@ -781,10 +798,10 @@ function ModelRow({
           Edit
         </button>
         <button
-          onClick={() => onDelete(model.id)}
+          onClick={handleDestructive}
           className="px-2 py-1 text-xs font-mono text-muted border border-surface2 rounded hover:text-red hover:border-red/40 transition-colors"
         >
-          Delete
+          {hasEvals ? 'Archive' : 'Delete'}
         </button>
       </div>
     </div>
@@ -997,6 +1014,7 @@ function ModelsSection(): React.JSX.Element {
   const createModel = useCreateModel()
   const updateModel = useUpdateModel()
   const deleteModel = useDeleteModel()
+  const archiveModel = useArchiveModel()
   const checkAvailability = useCheckAvailability()
 
   const [showAddForm, setShowAddForm] = useState(false)
@@ -1058,6 +1076,15 @@ function ModelsSection(): React.JSX.Element {
     }
   }
 
+  async function handleArchive(modelId: number): Promise<void> {
+    setDeleteError('')
+    try {
+      await archiveModel.mutateAsync(modelId)
+    } catch (e) {
+      setDeleteError((e as Error).message)
+    }
+  }
+
   if (isLoading) return <p className="text-sm text-muted">Loading models…</p>
   if (error) return <p className="text-sm text-red">{(error as Error).message}</p>
 
@@ -1082,6 +1109,7 @@ function ModelsSection(): React.JSX.Element {
               key={m.id}
               model={m}
               onDelete={(id) => void handleDelete(id)}
+              onArchive={(id) => void handleArchive(id)}
               onEdit={(m) => {
                 setEditingModel(m)
                 setShowAddForm(false)

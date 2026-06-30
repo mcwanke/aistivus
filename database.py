@@ -562,6 +562,13 @@ def init_db() -> None:
             "UPDATE llm_servers SET server_type = 'ollama' WHERE server_type = 'local'"
         )
 
+        try:
+            conn.execute(
+                "ALTER TABLE llm_models ADD COLUMN archived INTEGER NOT NULL DEFAULT 0"
+            )
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
         for type_name, type_value in _SYSTEM_TYPES_SEED:
             existing = conn.execute(
                 "SELECT id FROM system_types WHERE type_name = ? AND type_value = ?",
@@ -798,17 +805,18 @@ def get_model_count_for_server(server_id: int) -> int:
 # ─────────────────────────────────────────────────────────────
 
 _LLM_MODEL_JOIN = """
-    SELECT lm.*, ls.server_name, ls.endpoint, ls.server_type
+    SELECT lm.*, ls.server_name, ls.endpoint, ls.server_type,
+           (SELECT COUNT(*) FROM evaluations e WHERE e.llm_model_id = lm.id) AS has_evaluations
     FROM llm_models lm
     JOIN llm_servers ls ON ls.id = lm.server_id
 """
 
 
 def get_all_llm_models() -> list[sqlite3.Row]:
-    """Return all LLM model records with server info, ordered by server name then model name."""
+    """Return all non-archived LLM model records with server info, ordered by server name then model name."""
     with get_connection() as conn:
         return conn.execute(
-            f"{_LLM_MODEL_JOIN} ORDER BY ls.server_name, lm.model"
+            f"{_LLM_MODEL_JOIN} WHERE lm.archived = 0 ORDER BY ls.server_name, lm.model"
         ).fetchall()
 
 
@@ -821,10 +829,10 @@ def get_llm_model(model_id: int) -> sqlite3.Row | None:
 
 
 def get_default_llm_model() -> sqlite3.Row | None:
-    """Return the model with default_flag = 1 with server info, or None."""
+    """Return the non-archived model with default_flag = 1 with server info, or None."""
     with get_connection() as conn:
         return conn.execute(
-            f"{_LLM_MODEL_JOIN} WHERE lm.default_flag = 1 LIMIT 1"
+            f"{_LLM_MODEL_JOIN} WHERE lm.default_flag = 1 AND lm.archived = 0 LIMIT 1"
         ).fetchone()
 
 
@@ -930,6 +938,24 @@ def delete_llm_model(model_id: int) -> bool:
     with get_connection() as conn:
         conn.execute("DELETE FROM llm_models WHERE id = ?", (model_id,))
         return conn.total_changes > 0
+
+
+def archive_llm_model(model_id: int) -> bool:
+    """
+    Archive an LLM model (one-way). Sets archived = 1 and clears default_flag.
+    Returns True if updated, False if model not found.
+    """
+    with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT id FROM llm_models WHERE id = ?", (model_id,)
+        ).fetchone()
+        if not existing:
+            return False
+        conn.execute(
+            "UPDATE llm_models SET archived = 1, default_flag = 0 WHERE id = ?",
+            (model_id,)
+        )
+        return True
 
 
 def get_recent_model_latencies(model_id: int, limit: int = 10) -> list[int]:

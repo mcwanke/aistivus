@@ -1066,7 +1066,7 @@ Pass 3 delivers three things:
 
 ---
 
-### Step 1 — EvalRow Display Update
+### Step 1 — EvalRow Display Update ✓ COMPLETE
 
 **Goal:** Fix the evaluation display in JobDetail to show the new 9-dim schema. Handle
 mixed-schema eval rows (old evals alongside new evals).
@@ -1136,7 +1136,7 @@ entirely, this cleanup happens as part of Step 2 — no separate action needed h
 
 ---
 
-### Step 2 — CreateJob Page
+### Step 2 — CreateJob Page ✓ COMPLETE
 
 **Goal:** Replace the Evaluate page with a focused job intake page. Internal evaluation
 moves to Apply Workflow (Step 5). The new page handles scraping, field entry, and job
@@ -1257,7 +1257,7 @@ this step. It is wired properly in Step 5 when the inline modal is built.
 
 ---
 
-### Step 3 — Internal Eval Prompt Files
+### Step 3 — Internal Eval Prompt Files ✓ COMPLETE
 
 **Goal:** Write the 4 internal eval prompt files. These are server-side prompts targeting
 the qwen2.5-7b model (or equivalent small local model). Output schema must match the
@@ -1404,7 +1404,7 @@ keys. Files `eval_analysis.md` and `eval_scoring.md` can be deleted from
 
 ---
 
-### Step 4 — Backend: Internal Eval Endpoint
+### Step 4 — Backend: Internal Eval Endpoint ✓ COMPLETE
 
 **Goal:** Add `POST /api/v1/jobs/{id}/eval/internal` as an SSE streaming endpoint that
 chains all 4 prompts sequentially, assembles the final JSON, and writes to the database
@@ -1514,7 +1514,7 @@ jd_clean = jd_text.replace("[JD_START]", "").replace("[JD_END]", "")
 
 ---
 
-### Step 5 — Frontend: Internal Eval Modal
+### Step 5 — Frontend: Internal Eval Modal ✓ COMPLETE
 
 **Goal:** Wire the `Run Internal Eval` button on Apply Workflow to trigger an inline
 blocking modal that shows step progress while the 4-prompt chain runs, then closes and
@@ -1584,7 +1584,7 @@ Wire in a custom hook: `useRunInternalEval(jobId)` in the appropriate hooks file
 
 ---
 
-### Step 6 — Tests
+### Step 6 — Tests ✓ COMPLETE
 
 **Goal:** Keep the test suite green. Report: "Ready for a test run — please run
 `./run_tests.sh` and paste the result." No test suite runs until all steps complete.

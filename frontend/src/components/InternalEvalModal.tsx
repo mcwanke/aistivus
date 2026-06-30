@@ -12,7 +12,6 @@ const TOTAL_STEPS = 4
 export function InternalEvalModal({ onEvent, onClose }: Props): React.JSX.Element {
   const [currentStep, setCurrentStep] = useState(0)
   const [currentLabel, setCurrentLabel] = useState('Starting…')
-  const [completedSteps, setCompletedSteps] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isDone, setIsDone] = useState(false)
   const [secondsRemaining, setSecondsRemaining] = useState(TOTAL_STEPS * SECONDS_PER_STEP)
@@ -34,7 +33,7 @@ export function InternalEvalModal({ onEvent, onClose }: Props): React.JSX.Elemen
         const remaining = ((TOTAL_STEPS - (evt.step ?? 1) + 1)) * SECONDS_PER_STEP
         setSecondsRemaining(remaining)
       } else if (evt.event === 'step_complete') {
-        setCompletedSteps(prev => Math.max(prev, evt.step ?? 0))
+        // step_complete event received; no additional state needed
       } else if (evt.event === 'done') {
         if (timerRef.current) clearInterval(timerRef.current)
         setIsDone(true)

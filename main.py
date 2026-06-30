@@ -31,6 +31,7 @@ API routes:
   PATCH /api/v1/models/{id}
   POST /api/v1/models/{id}/set-default
   DELETE /api/v1/models/{id}
+  POST /api/v1/models/{id}/archive
   POST /api/v1/applications
   GET  /api/v1/applications
   GET  /api/v1/applications/{id}
@@ -1710,7 +1711,7 @@ async def set_default_model(request: Request, model_id: int):
 @app.delete("/api/v1/models/{model_id}")
 @limiter.limit("30/minute")
 async def delete_model(request: Request, model_id: int):
-    """Delete a model. Blocked if it is the only configured default."""
+    """Delete a model. Blocked if it has evaluations (use archive instead) or is the only model."""
     row = database.get_llm_model(model_id)
     if not row:
         raise HTTPException(status_code=404, detail=f"Model {model_id} not found.")
@@ -1725,12 +1726,26 @@ async def delete_model(request: Request, model_id: int):
     if database.model_has_evaluations(model_id):
         raise HTTPException(
             status_code=409,
-            detail="Cannot delete model — it has existing evaluations. Remove the evaluations first or keep the model.",
+            detail="has_evaluations",
         )
     deleted = database.delete_llm_model(model_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Model {model_id} not found.")
     log.info("model_deleted", extra={"model_id": model_id})
+    return JSONResponse({"success": True})
+
+
+@app.post("/api/v1/models/{model_id}/archive")
+@limiter.limit("30/minute")
+async def archive_model(request: Request, model_id: int):
+    """Archive a model (one-way). Clears default_flag; model is hidden from all selectors."""
+    row = database.get_llm_model(model_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Model {model_id} not found.")
+    archived = database.archive_llm_model(model_id)
+    if not archived:
+        raise HTTPException(status_code=404, detail=f"Model {model_id} not found.")
+    log.info("model_archived", extra={"model_id": model_id})
     return JSONResponse({"success": True})
 
 

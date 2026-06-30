@@ -118,6 +118,20 @@ export function useDeleteModel() {
   })
 }
 
+export function useArchiveModel() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (modelId: number) => {
+      const res = await fetch(`/api/v1/models/${modelId}/archive`, { method: 'POST' })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw new Error(err.detail ?? `archive model ${res.status}`)
+      }
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['models'] }),
+  })
+}
+
 export function useCheckAvailability() {
   const qc = useQueryClient()
   return useMutation({

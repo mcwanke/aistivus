@@ -91,8 +91,10 @@ export interface LlmModel {
   endpoint: string | null // from JOIN (null for anthropic)
   available: number       // 0 | 1 from SQLite
   default_flag: number    // 0 | 1 from SQLite
+  archived: number        // 0 | 1 from SQLite
   model_weight: number
   estimated_eval_time: number | null
+  has_evaluations: number // subquery count — > 0 means archive instead of delete
   created_at: string
 }
 
