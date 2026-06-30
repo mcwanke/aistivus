@@ -1,6 +1,8 @@
 # gen_research
+# Header info. Do not modify!
 key: gen_research
 label: Company Research Prompt
+temperature: 0.0
 # description
 Prompt generated for use in an external LLM session (e.g. Claude.ai with web search enabled).
 Researches the company and role before evaluation. Output is a structured JSON block parsed

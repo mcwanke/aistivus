@@ -64,7 +64,7 @@ describe('ApplyWorkflow', () => {
 
   it('renders evaluation action buttons', () => {
     renderWithProviders(<ApplyWorkflow {...BASE_PROPS} />)
-    expect(screen.getByText('Generate Internal Eval')).toBeInTheDocument()
+    expect(screen.getByText('Run Internal Eval')).toBeInTheDocument()
     expect(screen.getByText('Generate External Eval')).toBeInTheDocument()
     expect(screen.getByText('Import External Eval')).toBeInTheDocument()
   })

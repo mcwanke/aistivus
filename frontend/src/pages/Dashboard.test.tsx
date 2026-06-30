@@ -82,7 +82,7 @@ describe('Dashboard', () => {
     const hrefs = links.map((l) => l.getAttribute('href'))
     expect(hrefs).toContain('/jobs')
     expect(hrefs).toContain('/applications')
-    expect(hrefs).toContain('/evaluate')
+    expect(hrefs).toContain('/createjob')
     expect(hrefs).toContain('/llm-usage')
   })
 
@@ -93,7 +93,7 @@ describe('Dashboard', () => {
 
   it('renders Tools section with correct tile titles', async () => {
     renderWithProviders(<Dashboard />)
-    await waitFor(() => expect(screen.getByText('Evaluate a Job')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Create Job')).toBeInTheDocument())
     expect(screen.getByText('JS Profile')).toBeInTheDocument()
   })
 

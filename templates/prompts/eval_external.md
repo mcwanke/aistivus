@@ -1,6 +1,8 @@
 # eval_external
+# Header info. Do not modify!
 key: eval_external
 label: External Evaluation Prompt
+temperature: 0.0
 # description
 External evaluation prompt for use in a Claude.ai session with jobsearch.md in context.
 Produces a 9-dimension scorecard (3 screenability + 3 company fit + 3 candidate fit)

@@ -542,8 +542,9 @@ def init_db() -> None:
             except sqlite3.OperationalError:
                 pass  # column already exists
 
-        # Phase 2.5 — delete gen_orgsummary from prompts if present
+        # Phase 2.5 — delete retired prompt keys
         conn.execute("DELETE FROM prompts WHERE prompt_key = 'gen_orgsummary'")
+        conn.execute("DELETE FROM prompts WHERE prompt_key IN ('eval_analysis', 'eval_scoring')")
 
         try:
             conn.execute("ALTER TABLE jobs ADD COLUMN website_url TEXT")

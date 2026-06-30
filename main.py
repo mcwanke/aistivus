@@ -585,13 +585,18 @@ async def _update_model_availability(app_state=None) -> None:
 _TEMPLATES_DIR = Path(__file__).parent / "templates" / "prompts"
 
 
-def load_prompt_template(filename: str) -> str | None:
+def load_prompt_template(filename: str) -> dict | None:
     """
-    Read a prompt template file from templates/prompts/ and return the
-    tagged prompt content between [[PROMPT_START]] and [[PROMPT_END]].
+    Read a prompt template file from templates/prompts/ and return a dict with
+    parsed header metadata and tagged prompt content.
 
-    Returns None and logs a warning if the file does not exist or if
-    either boundary marker is missing.
+    Header fields parsed (lines before [[PROMPT_START]]):
+      key:         prompt key (required)
+      label:       human label (required)
+      temperature: float, defaults to 0.0 if absent
+
+    Returns None and logs a warning if the file does not exist, if required
+    header fields are missing, or if either boundary marker is missing.
     """
     path = _TEMPLATES_DIR / filename
     if not path.exists():
@@ -603,7 +608,21 @@ def load_prompt_template(filename: str) -> str | None:
     if start_idx is None or end_idx is None or end_idx <= start_idx:
         log.warning("prompt_template_missing_markers", extra={"file": filename})
         return None
-    return "\n".join(lines[start_idx + 1:end_idx]).strip()
+
+    header_lines = lines[:start_idx]
+    key = next((l.split(":", 1)[1].strip() for l in header_lines if l.startswith("key:")), None)
+    label = next((l.split(":", 1)[1].strip() for l in header_lines if l.startswith("label:")), None)
+    if not key or not label:
+        log.warning("prompt_template_missing_header_fields", extra={"file": filename})
+        return None
+    temperature_str = next((l.split(":", 1)[1].strip() for l in header_lines if l.startswith("temperature:")), "0.0")
+    try:
+        temperature = float(temperature_str)
+    except ValueError:
+        temperature = 0.0
+
+    segments_text = "\n".join(lines[start_idx + 1:end_idx]).strip()
+    return {"key": key, "label": label, "temperature": temperature, "segments_text": segments_text}
 
 
 # ─────────────────────────────────────────────────────────────
@@ -616,35 +635,34 @@ async def lifespan(app: FastAPI):
 
     database.init_db()
 
-    _PROMPT_TEMPLATES = [
-        ("eval_external", "External Evaluation Prompt", "eval_external.md", None, 0.0),
-        ("eval_analysis", "Evaluation — Analysis", "eval_analysis.md", evaluator.EVAL_ANALYSIS_PROMPT_TEMPLATE, 0.3),
-        ("eval_scoring", "Evaluation — Scoring", "eval_scoring.md", evaluator.EVAL_SCORING_PROMPT_TEMPLATE, 0.3),
-        ("gen_resume", "Resume Generation Prompt", "gen_resume.md", RESUME_PROMPT_TEMPLATE, 0.0),
-        ("gen_cover", "Cover Letter Generation Prompt", "gen_cover.md", COVER_PROMPT_TEMPLATE, 0.0),
-        ("gen_research", "Company Research Prompt", "gen_research.md", None, 0.0),
+    _PROMPT_FILES = [
+        "eval_external.md",
+        "eval_internal_1_analysis.md",
+        "eval_internal_2_screenability.md",
+        "eval_internal_3_fit.md",
+        "eval_internal_4_synthesis.md",
+        "gen_resume.md",
+        "gen_cover.md",
+        "gen_research.md",
     ]
-    for _key, _label, _filename, _fallback, _temperature in _PROMPT_TEMPLATES:
-        _tagged = load_prompt_template(_filename)
-        _segments = _tagged if _tagged is not None else _fallback
-        if _segments is None:
-            log.warning("prompt_seed_skipped_no_content", extra={"key": _key})
+    for _filename in _PROMPT_FILES:
+        _meta = load_prompt_template(_filename)
+        if _meta is None:
             continue
         database.seed_prompt_if_missing(
-            prompt_key=_key,
-            label=_label,
-            segments_text=_segments,
-            temperature=_temperature,
+            prompt_key=_meta["key"],
+            label=_meta["label"],
+            segments_text=_meta["segments_text"],
+            temperature=_meta["temperature"],
         )
         # v2 migration: if active row has no [[EDITABLE]] tags, re-seed with tagged text
-        if _tagged is not None:
-            _active = database.get_active_prompt(_key)
-            if _active and "[[EDITABLE]]" not in _active["segments_text"]:
-                database.save_prompt(
-                    prompt_key=_key,
-                    segments_text=_tagged,
-                )
-                log.info("prompt_tagged_migration", extra={"key": _key})
+        _active = database.get_active_prompt(_meta["key"])
+        if _active and "[[EDITABLE]]" not in _active["segments_text"]:
+            database.save_prompt(
+                prompt_key=_meta["key"],
+                segments_text=_meta["segments_text"],
+            )
+            log.info("prompt_tagged_migration", extra={"key": _meta["key"]})
 
     anthropic_key = get_env_key("ANTHROPIC_API_KEY")
     app.state.anthropic_key_present = bool(anthropic_key)
@@ -2871,8 +2889,10 @@ async def reload_prompt_from_file(request: Request, key: str):
     """
     filename_map = {
         "eval_external": "eval_external.md",
-        "eval_analysis": "eval_analysis.md",
-        "eval_scoring": "eval_scoring.md",
+        "eval_internal_1_analysis": "eval_internal_1_analysis.md",
+        "eval_internal_2_screenability": "eval_internal_2_screenability.md",
+        "eval_internal_3_fit": "eval_internal_3_fit.md",
+        "eval_internal_4_synthesis": "eval_internal_4_synthesis.md",
         "gen_resume": "gen_resume.md",
         "gen_cover": "gen_cover.md",
         "gen_research": "gen_research.md",
@@ -2881,12 +2901,13 @@ async def reload_prompt_from_file(request: Request, key: str):
     if filename is None:
         raise HTTPException(status_code=404, detail=f"No source file mapped for prompt key '{key}'.")
 
-    segments = load_prompt_template(filename)
-    if segments is None:
+    _meta = load_prompt_template(filename)
+    if _meta is None:
         raise HTTPException(
             status_code=400,
             detail=f"Could not load '{filename}' — file missing or markers absent.",
         )
+    segments = _meta["segments_text"]
 
     row = database.get_active_prompt(key)
     if row is None:

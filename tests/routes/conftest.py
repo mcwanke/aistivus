@@ -18,6 +18,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import database
+import evaluator
 import logger as logger_module
 
 
@@ -49,6 +50,17 @@ def client(tmp_path, monkeypatch):
 @pytest.fixture
 def seeded_client(client, tmp_path, monkeypatch):
     """client with a test model and a test job pre-inserted."""
+    # evaluator.py still uses eval_analysis/eval_scoring until Step 4 rewrites the chain
+    database.seed_prompt_if_missing(
+        prompt_key="eval_analysis",
+        label="Evaluation — Analysis",
+        segments_text=evaluator.EVAL_ANALYSIS_PROMPT_TEMPLATE,
+    )
+    database.seed_prompt_if_missing(
+        prompt_key="eval_scoring",
+        label="Evaluation — Scoring",
+        segments_text=evaluator.EVAL_SCORING_PROMPT_TEMPLATE,
+    )
     server_id = database.create_server("Local Ollama", "http://localhost:11434", "ollama")
     model_id = database.insert_llm_model(
         "test-model",

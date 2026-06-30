@@ -1,6 +1,8 @@
 # gen_resume
+# Header info. Do not modify!
 key: gen_resume
 label: Resume Generation Prompt
+temperature: 0.0
 # description
 Prompt generated for use in an external LLM session to produce a tailored
 resume .typ file for a specific job application.

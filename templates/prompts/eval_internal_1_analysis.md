@@ -1,15 +1,15 @@
-# eval_analysis
-key: eval_analysis
-label: Evaluation — Analysis
+# eval_internal_1_analysis
+# Header info. Do not modify!
+key: eval_internal_1_analysis
+label: Internal Eval — Step 1: Analysis
+temperature: 0.1
 # description
-Call 1 of the two-call evaluation pipeline. Analyzes the job description to commit
-archetype, deal-breaker status, domain match, and role type match before any scoring
-occurs. Output is injected as {analysis_json} into the scoring prompt (eval_scoring).
+Step 1 of the 4-step internal evaluation chain. Classifies the role — archetype,
+deal-breaker status, domain match, and role type match. No scoring in this step.
+Output is injected as {analysis_json} into steps 2, 3, and 4.
 
-Editable sections: persona, step instructions.
-Read-only sections: job seeker context injection ({jobsearch_context}), JD injection
-({jd_clean}), and JSON output schema (field names are parsed by the app).
----
+Runtime variable injections: {jobsearch_context}, {jd_clean}
+
 [[PROMPT_START]]
 [[EDITABLE]]
 You are an expert career advisor and job fit evaluator.
