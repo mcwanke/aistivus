@@ -125,17 +125,45 @@ export function useGeneratePrompt() {
   })
 }
 
+export interface GenerateResumePromptArgs {
+  applicationId: number
+  passNum: 1 | 2 | 3
+  docId?: number
+  userFeedback?: string
+  correctionList?: string
+}
+
+export interface GenerateResumePromptResult {
+  prompt: string
+  log_id: number
+  pass_num: number
+  line_count: number | null
+}
+
 export function useGenerateResumePrompt() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (applicationId: number): Promise<{ prompt: string; log_id: number }> => {
+    mutationFn: async ({
+      applicationId,
+      passNum,
+      docId,
+      userFeedback,
+      correctionList,
+    }: GenerateResumePromptArgs): Promise<GenerateResumePromptResult> => {
       const res = await fetch(`/api/v1/applications/${applicationId}/generate-resume-prompt`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pass_num: passNum,
+          doc_id: docId ?? null,
+          user_feedback: userFeedback ?? null,
+          correction_list: correctionList ?? null,
+        }),
       })
       if (!res.ok) throw new Error(`generate resume prompt ${res.status}`)
-      return res.json() as Promise<{ prompt: string; log_id: number }>
+      return res.json() as Promise<GenerateResumePromptResult>
     },
-    onSuccess: (_data, applicationId) => {
+    onSuccess: (_data, { applicationId }) => {
       void qc.invalidateQueries({ queryKey: ['application', applicationId] })
     },
   })

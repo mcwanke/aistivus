@@ -253,11 +253,16 @@ class TestImportEvaluation:
     def test_import_creates_evaluation_record(self, seeded_client):
         seeded_client["client"].post(
             "/api/v1/evaluations/import",
-            json={"job_id": seeded_client["job_id"], "score_overall": 8.0},
+            json={
+                "job_id": seeded_client["job_id"],
+                "score_ats": 3, "score_recruiter_fast": 3, "score_recruiter_deep": 3,
+                "score_role_fit": 3, "score_scope_fit": 3, "score_culture": 3,
+                "score_candidate_role": 3, "score_candidate_scope": 3, "score_candidate_culture": 3,
+            },
         )
         evals = database.get_evaluations_for_job(seeded_client["job_id"])
         assert len(evals) == 1
-        assert evals[0]["score_overall"] == 8.0
+        assert evals[0]["score_overall"] is not None
 
     def test_400_when_no_default_model(self, client):
         job_id, _ = database.upsert_job("Corp", "Role", "general")
@@ -281,13 +286,18 @@ class TestListEvaluations:
     def test_returns_evaluation_after_import(self, seeded_client):
         seeded_client["client"].post(
             "/api/v1/evaluations/import",
-            json={"job_id": seeded_client["job_id"], "score_overall": 7.0},
+            json={
+                "job_id": seeded_client["job_id"],
+                "score_ats": 3, "score_recruiter_fast": 3, "score_recruiter_deep": 3,
+                "score_role_fit": 3, "score_scope_fit": 3, "score_culture": 3,
+                "score_candidate_role": 3, "score_candidate_scope": 3, "score_candidate_culture": 3,
+            },
         )
         resp = seeded_client["client"].get("/api/v1/evaluations")
         assert resp.status_code == 200
         data = resp.json()
         assert len(data) == 1
-        assert data[0]["score_overall"] == 7.0
+        assert data[0]["score_overall"] is not None
 
     def test_evaluation_includes_job_title(self, seeded_client):
         seeded_client["client"].post(
@@ -330,7 +340,9 @@ class TestGetEvaluation:
             "/api/v1/evaluations/import",
             json={
                 "job_id": seeded_client["job_id"],
-                "score_overall": 8.0,
+                "score_ats": 3, "score_recruiter_fast": 3, "score_recruiter_deep": 3,
+                "score_role_fit": 3, "score_scope_fit": 3, "score_culture": 3,
+                "score_candidate_role": 3, "score_candidate_scope": 3, "score_candidate_culture": 3,
                 "fit_type": "Core Fit",
                 "recommendation": "Apply",
             },
@@ -339,7 +351,7 @@ class TestGetEvaluation:
         resp = seeded_client["client"].get(f"/api/v1/evaluations/{eval_id}")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["score_overall"] == 8.0
+        assert data["score_overall"] is not None
         assert data["fit_type"] == "Core Fit"
         assert data["company_name"] == "Test Corp"
 

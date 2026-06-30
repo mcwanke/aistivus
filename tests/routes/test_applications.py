@@ -403,13 +403,19 @@ class TestGeneratePrompt:
 # ─────────────────────────────────────────────────────────────
 
 class TestGenerateResumePrompt:
+    _P1_BODY = {"pass_num": 1}
+
     def test_404_for_unknown_application(self, client):
-        resp = client.post("/api/v1/applications/9999/generate-resume-prompt")
+        resp = client.post(
+            "/api/v1/applications/9999/generate-resume-prompt",
+            json=self._P1_BODY,
+        )
         assert resp.status_code == 404
 
     def test_returns_prompt_text(self, seeded_client):
         resp = seeded_client["client"].post(
-            f"/api/v1/applications/{seeded_client['app_id']}/generate-resume-prompt"
+            f"/api/v1/applications/{seeded_client['app_id']}/generate-resume-prompt",
+            json=self._P1_BODY,
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -419,7 +425,8 @@ class TestGenerateResumePrompt:
 
     def test_prompt_contains_job_details(self, seeded_client):
         resp = seeded_client["client"].post(
-            f"/api/v1/applications/{seeded_client['app_id']}/generate-resume-prompt"
+            f"/api/v1/applications/{seeded_client['app_id']}/generate-resume-prompt",
+            json=self._P1_BODY,
         )
         prompt = resp.json()["prompt"]
         assert "Test Corp" in prompt
@@ -427,18 +434,41 @@ class TestGenerateResumePrompt:
 
     def test_prompt_includes_keyword_fallback_without_eval(self, seeded_client):
         resp = seeded_client["client"].post(
-            f"/api/v1/applications/{seeded_client['app_id']}/generate-resume-prompt"
+            f"/api/v1/applications/{seeded_client['app_id']}/generate-resume-prompt",
+            json=self._P1_BODY,
         )
         prompt = resp.json()["prompt"]
         assert "Not provided — will extract from JD" in prompt
 
     def test_prompt_logged_with_prompt_resume_type(self, seeded_client):
         seeded_client["client"].post(
-            f"/api/v1/applications/{seeded_client['app_id']}/generate-resume-prompt"
+            f"/api/v1/applications/{seeded_client['app_id']}/generate-resume-prompt",
+            json=self._P1_BODY,
         )
         logs = database.get_application_logs(seeded_client["app_id"])
         resume_logs = [log for log in logs if dict(log)["type_value"] == "prompt_resume"]
         assert len(resume_logs) == 1
+
+    def test_invalid_pass_num_returns_422(self, seeded_client):
+        resp = seeded_client["client"].post(
+            f"/api/v1/applications/{seeded_client['app_id']}/generate-resume-prompt",
+            json={"pass_num": 99},
+        )
+        assert resp.status_code == 422
+
+    def test_pass2_without_doc_id_returns_422(self, seeded_client):
+        resp = seeded_client["client"].post(
+            f"/api/v1/applications/{seeded_client['app_id']}/generate-resume-prompt",
+            json={"pass_num": 2},
+        )
+        assert resp.status_code == 422
+
+    def test_pass3_without_correction_list_returns_422(self, seeded_client):
+        resp = seeded_client["client"].post(
+            f"/api/v1/applications/{seeded_client['app_id']}/generate-resume-prompt",
+            json={"pass_num": 3, "doc_id": 1},
+        )
+        assert resp.status_code == 422
 
 
 # ─────────────────────────────────────────────────────────────

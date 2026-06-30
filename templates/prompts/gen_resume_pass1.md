@@ -1,7 +1,7 @@
-# gen_resume
+# gen_resume_pass1
 # Header info. Do not modify!
-key: gen_resume
-label: Resume Generation Prompt
+key: gen_resume_pass1
+label: Resume Generation — Pass 1 (Initial Draft)
 temperature: 0.0
 # description
 Prompt generated for use in an external LLM session to produce a tailored
@@ -86,7 +86,7 @@ this role.
   [CONTENT: ...] blocks.
 - **Target output: 2 pages when compiled.** If content runs long,
   compress experience bullets — do not adjust margins or font size.
-- Output the populated .typ file only. Do not attempt to compile, 
+- Output the populated .typ file only. Do not attempt to compile,
   render, or generate a PDF — that step happens outside this prompt.
 
 ### Tailoring priorities
@@ -148,12 +148,12 @@ and ordering instructions, not content.
      honesty framing on contributed-to vs. led is especially important
      for early IC work.
 
-  6. **Page fill rule:** The target is 2 full pages when compiled. If 
-   content is running short, expand in this order: (1) add 1–2 
+6. **Page fill rule:** The target is 2 full pages when compiled. If
+   content is running short, expand in this order: (1) add 1–2
    additional bullets to the most recent role's most relevant sub-
-   section, (2) expand the Plex intro paragraph by 1–2 sentences, (3) 
-   surface personal/independent project work from jobsearch.md if 
-   relevant to the JD. Flag if you are unable to reach 2 pages without 
+   section, (2) expand the Plex intro paragraph by 1–2 sentences, (3)
+   surface personal/independent project work from jobsearch.md if
+   relevant to the JD. Flag if you are unable to reach 2 pages without
    fabrication.
 
 ### Keyword coverage check
@@ -165,17 +165,11 @@ After completing the resume, output a brief keyword coverage note:
 > - Gaps remaining: [JD keywords not addressable without fabrication,
 >   with a one-sentence note on why]
 
-### Flagging rule
-
-If any bullet in the tailored resume could be challenged in an
-interview based on the Never rules in jobsearch.md, flag it inline:
-`// ⚠ FLAG: [reason]`
-
 ---
 
 ## OUTPUT FORMAT
 
-By default, output only the populated .typ file, the keyword coverage note, and any inline flags. Do not output explanatory prose, tailoring rationale, or section-by-section commentary unless explicitly requested.
+Output only the populated .typ file and the keyword coverage note. Do not output explanatory prose, tailoring rationale, or section-by-section commentary unless explicitly requested.
 Deliver the complete .typ file content. Do not include explanatory
 prose before or after — just the file, ready to compile.
 [[/EDITABLE]]

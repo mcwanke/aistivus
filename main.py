@@ -118,6 +118,7 @@ import llm_client
 import profile_routes
 import prompt_generation
 import scrape_routes
+import typst_utils
 from env_utils import get_env_key, load_dotenv
 from limiter import limiter
 from logger import get_logger
@@ -138,180 +139,6 @@ def _load_config() -> dict:
     return {}
 
 
-
-
-# ─────────────────────────────────────────────────────────────
-# Resume generation prompt template
-# ─────────────────────────────────────────────────────────────
-
-RESUME_PROMPT_TEMPLATE = """[[EDITABLE]]
-## CONTEXT FILES
-
-You have been provided the following files. Read both completely before
-doing anything else:
-
-- **jobsearch.md** — candidate profile, career history, tailoring rules
-  (Always/Never), and model behavior rules. Every factual claim in the
-  resume must be sourced from here.
-- **resume_template.typ** — the structural and formatting base. Populate
-  every [CONTENT: ...] block. Do not modify any formatting, font, color,
-  layout, or helper function code — structure is fixed.
-
-Confirm you have read both files before proceeding.
-[[/EDITABLE]]
-
----
-
-[[EDITABLE]]
-## CLARIFICATION GATE
-
-Before generating anything, verify the following. If anything is
-missing or ambiguous, ask a single clarifying question — do not guess
-or assume:
-
-- Is a job description present below? If not, ask for it.
-- Is a company name and role title present? If not, ask.
-- If evaluation output (ATS keywords + keyword gaps) from a prior
-  evaluation is not provided, note that you will extract keywords
-  directly from the JD and flag any gaps you identify.
-- If the role type or seniority level is ambiguous, ask before
-  proceeding — this affects summary framing, which content to
-  emphasize, and which tailoring rules apply.
-
-Do not generate the resume until all required inputs are confirmed.
-[[/EDITABLE]]
-
----
-
-[[READONLY]]
-## JOB DETAILS
-
-Company: {company_name}
-Title: {title}
-Location: {location}
-Pay Band: {pay_band}
-
----
-
-## JOB DESCRIPTION
-
-{jd_text}
-
----
-
-## EVALUATION INPUT (optional — paste if available)
-
-If a prior evaluation was run for this role, paste the ATS keywords
-and keyword gaps here. The resume will confirm coverage against these
-and flag any gaps that cannot be addressed without fabrication.
-
-ATS Keywords: {keywords_text}
-Keyword Gaps: {keyword_gaps_text}
-[[/READONLY]]
-
----
-
-[[EDITABLE]]
-## TASK: GENERATE TAILORED RESUME
-
-Using **resume_template.typ** as the exact structural and formatting
-base, generate a complete, ready-to-compile .typ file tailored to
-this role.
-
-### Rules — non-negotiable
-
-- Use **jobsearch.md as the sole source of truth** for all facts.
-  Never fabricate, inflate, or soften claims beyond what is documented.
-- Apply **all Always and Never rules from the tailoring rules section
-  of jobsearch.md** without exception. If a rule conflicts with a
-  tailoring decision, apply the rule and flag the conflict — do not
-  silently override.
-- Do **not** modify any Typst formatting code — only populate
-  [CONTENT: ...] blocks.
-- **Target output: 2 pages when compiled.** If content runs long,
-  compress experience bullets — do not adjust margins or font size.
-
-### Tailoring priorities
-
-Apply these in order based on the role type inferred from the JD.
-All content must be drawn from jobsearch.md — these are selection
-and ordering instructions, not content.
-
-1. **Summary:** Lead with years of experience and domain breadth.
-   Mirror the JD's language for the role's core responsibility.
-   Close with a belief statement. Apply all style rules from the
-   Never section of jobsearch.md (e.g. sentence construction rules).
-
-2. **Key Impacts:** 6–8 bullets selected and ordered by relevance
-   to this specific JD. Use the candidate's documented achievements
-   from jobsearch.md. Apply the following selection logic:
-
-   - **People development / manager pipeline:** Include when the role
-     involves developing managers or building leadership depth. Drop
-     or compress for IC-heavy or technical roles where this is low signal.
-   - **AI tooling adoption:** Include for most roles. Compress if space
-     is tight. Drop only if the JD has zero AI/tooling signal and a
-     stronger bullet serves better.
-   - **Largest scale / growth metric:** Include for growth, consumer,
-     acquisition, or product-scale roles. Use the candidate's strongest
-     documented scale signal from jobsearch.md.
-   - **Regulated/compliance delivery:** Include for regulated, enterprise,
-     government, or healthcare-adjacent roles.
-   - **Cloud/platform delivery:** Include for platform, SaaS, or
-     cloud-infrastructure roles.
-   - **0-to-1 product launch:** Include for hardware, IoT, or
-     build-from-scratch roles.
-   - **Distributed remote team leadership:** Include when the JD
-     explicitly values distributed or async team management.
-   - **Operational excellence / incident response:** Include when the
-     JD calls out reliability, observability, or engineering process rigor.
-
-3. **Core Competencies:** Two columns as defined in the template.
-   Prioritize competencies that mirror JD language directly.
-   Source from jobsearch.md skills and strengths sections.
-
-4. **Experience — most recent role(s):** Always include. Tailor the
-   intro paragraph and bullets to emphasize what is most relevant to
-   this JD. The template defines the sub-section structure — follow it.
-   Compress or expand sub-sections based on relevance, but preserve
-   the structure defined in the template.
-
-5. **Experience — earlier roles:** Include and frame based on role type
-   using the tailoring guidance in jobsearch.md. Earlier roles should
-   compress as tenure recedes — preserve the most relevant signal and
-   drop lower-signal detail to protect page budget.
-
-   - For roles where early-career IC work is low signal: default to a
-     single sentence with no bullets.
-   - For roles where early-career domain experience is directly relevant
-     (e.g. data platform, embedded systems, enterprise data): expand to
-     1–2 bullets surfacing the specific signal. Source from jobsearch.md.
-   - Apply all Never rules from jobsearch.md to early-career entries —
-     honesty framing on contributed-to vs. led is especially important
-     for early IC work.
-
-### Keyword coverage check
-
-After completing the resume, output a brief keyword coverage note:
-
-> **Keyword Coverage:**
-> - Covered: [keywords confirmed present in the resume]
-> - Gaps remaining: [JD keywords not addressable without fabrication,
->   with a one-sentence note on why]
-
-### Flagging rule
-
-If any bullet in the tailored resume could be challenged in an
-interview based on the Never rules in jobsearch.md, flag it inline:
-`// ⚠ FLAG: [reason]`
-
----
-
-## OUTPUT FORMAT
-
-Deliver the complete .typ file content. Do not include explanatory
-prose before or after — just the file, ready to compile.
-[[/EDITABLE]]"""
 
 
 # ─────────────────────────────────────────────────────────────
@@ -642,7 +469,9 @@ async def lifespan(app: FastAPI):
         "eval_internal_2_screenability.md",
         "eval_internal_3_fit.md",
         "eval_internal_4_synthesis.md",
-        "gen_resume.md",
+        "gen_resume_pass1.md",
+        "gen_resume_pass2.md",
+        "gen_resume_pass3.md",
         "gen_cover.md",
         "gen_research.md",
     ]
@@ -1002,6 +831,13 @@ class EvalWeightsRequest(BaseModel):
     screenability: int
     company_fit: int
     candidate_fit: int
+
+
+class GenerateResumePromptRequest(BaseModel):
+    pass_num: int  # 1, 2, or 3
+    doc_id: int | None = None          # required for pass 2 and 3
+    user_feedback: str | None = None   # optional pass 2 notes
+    correction_list: str | None = None  # required for pass 3
 
 
 # Valid application status values per spec
@@ -2025,26 +1861,27 @@ async def generate_prompt(request: Request, application_id: int):
 
 @app.post("/api/v1/applications/{application_id}/generate-resume-prompt")
 @limiter.limit("10/minute")
-async def generate_resume_prompt(request: Request, application_id: int):
+async def generate_resume_prompt(
+    request: Request,
+    application_id: int,
+    body: GenerateResumePromptRequest,
+):
     """
-    Build a tailored resume generation prompt for this application and log it.
+    Build a tailored resume generation prompt (Pass 1, 2, or 3) and log it.
     Returns the prompt text for use with an external AI.
     """
+    if body.pass_num not in (1, 2, 3):
+        raise HTTPException(status_code=422, detail="pass_num must be 1, 2, or 3.")
+
     app_row = database.get_application(application_id)
     if not app_row:
-        raise HTTPException(
-            status_code=404, detail=f"Application {application_id} not found."
-        )
+        raise HTTPException(status_code=404, detail=f"Application {application_id} not found.")
     app_dict = dict(app_row)
 
     job = database.get_job(app_dict["job_id"])
     if not job:
-        raise HTTPException(
-            status_code=404, detail=f"Job {app_dict['job_id']} not found."
-        )
+        raise HTTPException(status_code=404, detail=f"Job {app_dict['job_id']} not found.")
     job_dict = dict(job)
-
-    eval_row = database.get_latest_evaluation(app_dict["job_id"])
 
     company_name = job_dict.get("company_name") or "N/A"
     title = job_dict.get("title") or "N/A"
@@ -2052,6 +1889,7 @@ async def generate_resume_prompt(request: Request, application_id: int):
     pay_band = job_dict.get("pay_band") or "Not listed"
     jd_text = job_dict.get("description_merged") or ""
 
+    eval_row = database.get_latest_evaluation(app_dict["job_id"])
     if eval_row:
         e = dict(eval_row)
         keywords_text = e.get("keywords") or "Not provided — will extract from JD"
@@ -2060,9 +1898,14 @@ async def generate_resume_prompt(request: Request, application_id: int):
         keywords_text = "Not provided — will extract from JD"
         keyword_gaps_text = "Not provided — will extract from JD"
 
-    prompt_result = prompt_generation.get_prompt(
-        "gen_resume",
-        {
+    _TARGET_LINES = 93
+    _TARGET_LINES_MAX = 102
+    line_count: int | None = None
+
+    if body.pass_num == 1:
+        prompt_key = "gen_resume_pass1"
+        log_type_key = "prompt_resume"
+        variables = {
             "company_name": company_name,
             "title": title,
             "location": location,
@@ -2070,14 +1913,93 @@ async def generate_resume_prompt(request: Request, application_id: int):
             "jd_text": jd_text,
             "keywords_text": keywords_text,
             "keyword_gaps_text": keyword_gaps_text,
-        },
+        }
+
+    elif body.pass_num == 2:
+        if not body.doc_id:
+            raise HTTPException(status_code=422, detail="doc_id is required for Pass 2.")
+        doc = database.get_document_by_id(body.doc_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail=f"Document {body.doc_id} not found.")
+        doc_dict = dict(doc)
+        typ_path = Path(doc_dict["file_path"])
+        if not typ_path.exists():
+            raise HTTPException(status_code=404, detail="Document file not found on disk.")
+        typ_content = typ_path.read_text(encoding="utf-8")
+        line_data = typst_utils.compute_line_count(typ_content)
+        line_count = line_data["total"]
+
+        eval_scores_text = "No evaluation available for this role."
+        if eval_row:
+            e = dict(eval_row)
+            score_parts = []
+            dim_map = [
+                ("score_ats", "ATS"),
+                ("score_recruiter_fast", "Recruiter Fast-Pass"),
+                ("score_recruiter_deep", "Recruiter Deep-Pass"),
+                ("score_candidate_role", "Candidate Fit — Role"),
+                ("score_candidate_scope", "Candidate Fit — Scope"),
+                ("score_candidate_culture", "Candidate Fit — Culture"),
+                ("composite_screenability", "Composite Screenability"),
+                ("composite_company_fit", "Composite Company Fit"),
+                ("composite_candidate_fit", "Composite Candidate Fit"),
+            ]
+            for field, label in dim_map:
+                val = e.get(field)
+                if val is not None:
+                    score_parts.append(f"  {label}: {val}")
+            if score_parts:
+                eval_scores_text = "\n".join(score_parts)
+
+        prompt_key = "gen_resume_pass2"
+        log_type_key = "prompt_resume_p2"
+        variables = {
+            "company_name": company_name,
+            "title": title,
+            "jd_text": jd_text,
+            "keywords_text": keywords_text,
+            "keyword_gaps_text": keyword_gaps_text,
+            "line_count": str(line_count),
+            "target_lines": f"{_TARGET_LINES}–{_TARGET_LINES_MAX}",
+            "eval_scores_text": eval_scores_text,
+            "user_feedback": body.user_feedback or "None provided.",
+            "pass1_typ_text": typ_content,
+        }
+
+    else:  # pass 3
+        if not body.doc_id:
+            raise HTTPException(status_code=422, detail="doc_id is required for Pass 3.")
+        if not body.correction_list or not body.correction_list.strip():
+            raise HTTPException(status_code=422, detail="correction_list is required for Pass 3.")
+        doc = database.get_document_by_id(body.doc_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail=f"Document {body.doc_id} not found.")
+        doc_dict = dict(doc)
+        typ_path = Path(doc_dict["file_path"])
+        if not typ_path.exists():
+            raise HTTPException(status_code=404, detail="Document file not found on disk.")
+        typ_content = typ_path.read_text(encoding="utf-8")
+
+        prompt_key = "gen_resume_pass3"
+        log_type_key = "prompt_resume_p3"
+        variables = {
+            "company_name": company_name,
+            "title": title,
+            "jd_text": jd_text,
+            "pass1_typ_text": typ_content,
+            "correction_list": body.correction_list,
+        }
+
+    prompt_result = prompt_generation.get_prompt(
+        prompt_key,
+        variables,
         job_id=job_dict["id"],
-        source="resume_prompt",
+        source=log_type_key,
     )
     prompt = prompt_result["prompt_text"]
     prompt_usage_id = prompt_result["prompt_usage_id"]
 
-    prompt_type_id = database.get_system_type_id("application_log", "prompt_resume")
+    prompt_type_id = database.get_system_type_id("application_log", log_type_key)
     if prompt_type_id is None:
         raise HTTPException(status_code=500, detail="system_types not seeded correctly.")
 
@@ -2091,6 +2013,8 @@ async def generate_resume_prompt(request: Request, application_id: int):
         "log_id": log_id,
         "prompt": prompt,
         "prompt_usage_id": prompt_usage_id,
+        "pass_num": body.pass_num,
+        "line_count": line_count if body.pass_num == 2 else None,
     })
 
 
@@ -2944,7 +2868,9 @@ async def reload_prompt_from_file(request: Request, key: str):
         "eval_internal_2_screenability": "eval_internal_2_screenability.md",
         "eval_internal_3_fit": "eval_internal_3_fit.md",
         "eval_internal_4_synthesis": "eval_internal_4_synthesis.md",
-        "gen_resume": "gen_resume.md",
+        "gen_resume_pass1": "gen_resume_pass1.md",
+        "gen_resume_pass2": "gen_resume_pass2.md",
+        "gen_resume_pass3": "gen_resume_pass3.md",
         "gen_cover": "gen_cover.md",
         "gen_research": "gen_research.md",
     }

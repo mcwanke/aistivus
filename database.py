@@ -430,6 +430,8 @@ _SYSTEM_TYPES_SEED: list[tuple[str, str]] = [
     ("application_log", "prompt"),
     ("application_log", "prompt_eval"),
     ("application_log", "prompt_resume"),
+    ("application_log", "prompt_resume_p2"),
+    ("application_log", "prompt_resume_p3"),
     ("application_log", "prompt_cover"),
     ("application_log", "lesson_learned"),
     ("application_log", "recruiter_outreach"),
@@ -2193,7 +2195,9 @@ def get_activity_log(job_id: int) -> list[dict]:
             _PROMPT_LABELS = {
                 "prompt_eval":       "EVAL PROMPT",
                 "prompt_orgsummary": "ORG SUMMARY PROMPT",
-                "prompt_resume":     "RESUME PROMPT",
+                "prompt_resume":     "RESUME PROMPT (P1)",
+                "prompt_resume_p2":  "RESUME PROMPT (P2)",
+                "prompt_resume_p3":  "RESUME PROMPT (P3)",
                 "prompt_cover":      "COVER PROMPT",
             }
             for row in log_rows:

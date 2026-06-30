@@ -52,6 +52,8 @@ export const MOCK_MODEL: LlmModel = {
   model_weight: 1,
   estimated_eval_time: 30,
   created_at: '2024-01-01T00:00:00',
+  archived: 0,
+  has_evaluations: 0,
 }
 
 export const MOCK_HEALTH: HealthResponse = {

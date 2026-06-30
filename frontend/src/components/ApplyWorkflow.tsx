@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
-import { useUploadDocument } from '@/hooks/useDocuments'
-import { useGeneratePrompt } from '@/hooks/useApplications'
+import { useUploadDocument, useApplicationDocuments } from '@/hooks/useDocuments'
+import { useGeneratePrompt, useGenerateResumePrompt } from '@/hooks/useApplications'
 import { useGenerateResearchPrompt, useImportResearch, useJobResearch } from '@/hooks/useJobs'
 import { useModels, useRunInternalEval } from '@/hooks/useEvaluate'
 import type { InternalEvalEvent } from '@/hooks/useEvaluate'
@@ -121,12 +121,25 @@ export function ApplyWorkflow({
   const [uploadError, setUploadError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Resume generation state
+  const [resumePromptText, setResumePromptText] = useState<string | null>(null)
+  const [resumeLineCount, setResumeLineCount] = useState<number | null>(null)
+  const [selectedDocId, setSelectedDocId] = useState<number | null>(null)
+  const [p2UserFeedback, setP2UserFeedback] = useState('')
+  const [p3CorrectionList, setP3CorrectionList] = useState('')
+  const [resumePassError, setResumePassError] = useState('')
+
   const generateEvalPrompt = useGeneratePrompt()
   const generateResearchPrompt = useGenerateResearchPrompt(jobId)
   const { data: research } = useJobResearch(jobId)
   const upload = useUploadDocument(applicationId)
   const { data: models } = useModels()
   const { run: runInternalEval } = useRunInternalEval(jobId)
+  const generateResumePrompt = useGenerateResumePrompt()
+  const { data: allDocs = [] } = useApplicationDocuments(applicationId)
+  const resumeDocs = allDocs.filter(
+    (d) => d.type_value === 'resume' && d.extension === '.typ' && d.file_exists
+  )
 
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null)
   const [showInternalEvalModal, setShowInternalEvalModal] = useState(false)
@@ -182,6 +195,23 @@ export function ApplyWorkflow({
       if (fileInputRef.current) fileInputRef.current.value = ''
     } catch (err) {
       setUploadError((err as Error).message)
+    }
+  }
+
+  async function handleGenerateResumePrompt(passNum: 1 | 2 | 3): Promise<void> {
+    setResumePassError('')
+    try {
+      const result = await generateResumePrompt.mutateAsync({
+        applicationId,
+        passNum,
+        docId: passNum > 1 ? (selectedDocId ?? undefined) : undefined,
+        userFeedback: passNum === 2 ? p2UserFeedback || undefined : undefined,
+        correctionList: passNum === 3 ? p3CorrectionList || undefined : undefined,
+      })
+      setResumePromptText(result.prompt)
+      if (result.line_count != null) setResumeLineCount(result.line_count)
+    } catch (err) {
+      setResumePassError((err as Error).message)
     }
   }
 
@@ -356,10 +386,11 @@ export function ApplyWorkflow({
           <div className="flex items-center gap-3">
             <span className="text-xs font-mono text-muted w-12 shrink-0">Pass 1</span>
             <button
-              disabled
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded opacity-40 cursor-not-allowed"
+              onClick={() => void handleGenerateResumePrompt(1)}
+              disabled={generateResumePrompt.isPending}
+              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:border-accent hover:text-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Generate First Pass .typ Prompt
+              {generateResumePrompt.isPending ? 'Generating…' : 'Generate First Pass .typ Prompt'}
             </button>
           </div>
 
@@ -380,10 +411,10 @@ export function ApplyWorkflow({
               {upload.isPending ? 'Uploading…' : 'Upload'}
             </button>
           </form>
-          {uploadError && <p className="text-xs font-mono text-red">{uploadError}</p>}
+          {uploadError && <p className="text-xs font-mono text-red ml-16">{uploadError}</p>}
 
           <p className="text-[10px] font-mono text-muted ml-16">
-            Generate the initial tailored resume draft
+            Generate the initial tailored resume draft, then upload the result here
           </p>
 
           <button
@@ -399,37 +430,51 @@ export function ApplyWorkflow({
           <div className="flex items-center gap-3">
             <span className="text-xs font-mono text-muted w-12 shrink-0">Pass 2</span>
             <button
-              disabled
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded opacity-40 cursor-not-allowed"
+              onClick={() => void handleGenerateResumePrompt(2)}
+              disabled={generateResumePrompt.isPending || !selectedDocId}
+              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:border-accent hover:text-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Generate Recruiter Review Pass Prompt
+              {generateResumePrompt.isPending ? 'Generating…' : 'Generate Feedback Loop Prompt'}
             </button>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-mono text-muted w-12 shrink-0"></span>
-            <button
-              disabled
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded opacity-40 cursor-not-allowed"
-            >
-              Import Review Pass Feedback
-            </button>
-            <button
-              disabled
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded opacity-40 cursor-not-allowed"
-            >
-              Add Feedback
-            </button>
-            <button
-              disabled
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded opacity-40 cursor-not-allowed"
-            >
-              Review Feedback
-            </button>
+          {/* File selector */}
+          <div className="ml-16 space-y-2">
+            {resumeDocs.length === 0 ? (
+              <p className="text-[10px] font-mono text-muted">No .typ resume files uploaded yet — upload one above.</p>
+            ) : (
+              <select
+                value={selectedDocId ?? ''}
+                onChange={(e) => setSelectedDocId(e.target.value ? Number(e.target.value) : null)}
+                className="text-xs font-mono text-text bg-surface2 border border-surface2 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent"
+              >
+                <option value="">Select .typ file…</option>
+                {resumeDocs.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.filename}{d.is_final ? ' ★' : ''} — {d.created_at.slice(0, 10)}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {resumeLineCount != null && (
+              <p className="text-[10px] font-mono text-muted">
+                Last computed line count: <span className="text-text">{resumeLineCount}</span>
+                {' '}(target 93–102)
+              </p>
+            )}
+
+            <textarea
+              value={p2UserFeedback}
+              onChange={(e) => setP2UserFeedback(e.target.value)}
+              placeholder="Optional: notes or feedback to include in the prompt (e.g. 'make the summary shorter', 'cut the Miovision bullet')"
+              rows={3}
+              className="w-full bg-surface2 rounded px-3 py-2 text-xs font-mono text-text placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent resize-y"
+            />
           </div>
 
           <p className="text-[10px] font-mono text-muted ml-16">
-            Evaluate the draft resume and generate a correction list
+            Evaluates the draft against all scoring dimensions and produces a correction list. Run as many times as needed.
           </p>
         </div>
 
@@ -438,17 +483,32 @@ export function ApplyWorkflow({
           <div className="flex items-center gap-3">
             <span className="text-xs font-mono text-muted w-12 shrink-0">Pass 3</span>
             <button
-              disabled
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded opacity-40 cursor-not-allowed"
+              onClick={() => void handleGenerateResumePrompt(3)}
+              disabled={generateResumePrompt.isPending || !selectedDocId || !p3CorrectionList.trim()}
+              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:border-accent hover:text-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Generate Final Pass .typ Prompt
+              {generateResumePrompt.isPending ? 'Generating…' : 'Generate Final Pass .typ Prompt'}
             </button>
           </div>
 
+          <div className="ml-16 space-y-2">
+            <textarea
+              value={p3CorrectionList}
+              onChange={(e) => setP3CorrectionList(e.target.value)}
+              placeholder="Paste the correction list output from Pass 2 here…"
+              rows={5}
+              className="w-full bg-surface2 rounded px-3 py-2 text-xs font-mono text-text placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent resize-y"
+            />
+          </div>
+
           <p className="text-[10px] font-mono text-muted ml-16">
-            Apply corrections and produce the final resume
+            Applies all corrections and produces the clean final .typ file
           </p>
         </div>
+
+        {resumePassError && (
+          <p className="text-xs font-mono text-red mt-2">{resumePassError}</p>
+        )}
       </div>
 
       {/* ── Modals ───────────────────────────────────────────────────────────── */}
@@ -464,6 +524,13 @@ export function ApplyWorkflow({
           prompt={researchPromptText}
           title="Company Research Prompt"
           onClose={() => setResearchPromptText(null)}
+        />
+      )}
+      {resumePromptText !== null && (
+        <PromptModal
+          prompt={resumePromptText}
+          title="Resume Generation Prompt"
+          onClose={() => setResumePromptText(null)}
         />
       )}
       {showResearchImport && (
