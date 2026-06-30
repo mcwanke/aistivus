@@ -7,7 +7,7 @@ import { queryClient } from '@/queryClient'
 import Dashboard from '@/pages/Dashboard'
 import Jobs from '@/pages/Jobs'
 import JobDetailPage from '@/pages/JobDetail'
-import Evaluate from '@/pages/Evaluate'
+import CreateJob from '@/pages/CreateJob'
 import Applications from '@/pages/Applications'
 import Settings from '@/pages/Settings'
 import LLMUsage from '@/pages/LLMUsage'
@@ -21,7 +21,7 @@ const router = createBrowserRouter([
 
   // Standalone pages — AppHeader top-nav, no sidebar
   { path: '/career',     element: <Career /> },
-  { path: '/evaluate',   element: <Evaluate /> },
+  { path: '/createjob',  element: <CreateJob /> },
   { path: '/settings',   element: <Settings /> },
   { path: '/llm-usage',  element: <LLMUsage /> },
   { path: '/profile',    element: <JobSearchProfile /> },

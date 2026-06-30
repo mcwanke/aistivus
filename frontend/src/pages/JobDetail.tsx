@@ -532,6 +532,10 @@ function MyRatingsSection({ jobId, job }: MyRatingsSectionProps): React.JSX.Elem
 
 function EvalRow({ evaluation }: { evaluation: EvalWithMeta }): React.JSX.Element {
   const [open, setOpen] = useState(false)
+  const scoreReasons: Record<string, string> = (() => {
+    if (!evaluation.score_reasons) return {}
+    try { return JSON.parse(evaluation.score_reasons) as Record<string, string> } catch { return {} }
+  })()
 
   return (
     <div className="bg-surface2 rounded mb-0.5 last:mb-0 hover:bg-[#2a2a2a] transition-colors">
@@ -545,9 +549,25 @@ function EvalRow({ evaluation }: { evaluation: EvalWithMeta }): React.JSX.Elemen
           {evaluation.prompt_version != null && ` · v${evaluation.prompt_version}`}
           {evaluation.eval_source === 'local' && evaluation.temperature != null && ` · ${evaluation.temperature}`}
         </span>
-        <span className="text-xs font-mono text-text shrink-0">
-          {evaluation.score_overall != null ? `${fmtScore(evaluation.score_overall)}/10` : '—'}
-        </span>
+        {evaluation.score_ats != null ? (
+          <div className="flex gap-3 shrink-0">
+            {([
+              ['SCREEN',  evaluation.composite_screenability],
+              ['CO FIT',  evaluation.composite_company_fit],
+              ['CA FIT',  evaluation.composite_candidate_fit],
+              ['OVERALL', evaluation.score_overall],
+            ] as [string, number | null][]).map(([label, val]) => (
+              <div key={label} className="flex flex-col items-center">
+                <span className="text-[8px] font-mono text-muted uppercase leading-none">{label}</span>
+                <span className="text-xs font-mono text-accent">{val != null ? `${fmtScore(val)}/10` : '—'}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <span className="text-xs font-mono text-text shrink-0">
+            {evaluation.score_overall != null ? `${fmtScore(evaluation.score_overall)}/10` : '—'}
+          </span>
+        )}
         {evaluation.fit_type && (
           <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded shrink-0 ${
             evaluation.fit_type === 'Core Fit' ? 'bg-green/20 text-green' :
@@ -570,13 +590,14 @@ function EvalRow({ evaluation }: { evaluation: EvalWithMeta }): React.JSX.Elemen
                   <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1">Screenability</p>
                   <div className="flex gap-3">
                     {([
-                      ['ATS',      evaluation.score_ats],
-                      ['Fast',     evaluation.score_recruiter_fast],
-                      ['Deep',     evaluation.score_recruiter_deep],
-                    ] as [string, number | null][]).map(([label, val]) => (
-                      <div key={label} className="flex flex-col items-center">
+                      ['ATS',  evaluation.score_ats,           'score_ats'],
+                      ['Fast', evaluation.score_recruiter_fast,'score_recruiter_fast'],
+                      ['Deep', evaluation.score_recruiter_deep,'score_recruiter_deep'],
+                    ] as [string, number | null, string][]).map(([label, val, key]) => (
+                      <div key={label} className="flex flex-col items-center max-w-[72px]">
                         <span className="text-[9px] font-mono text-muted uppercase">{label}</span>
                         <span className="text-sm font-mono text-text">{val != null ? `${fmtScore(val)}/4` : '—'}</span>
+                        {scoreReasons[key] && <p className="text-[9px] text-muted mt-0.5 text-center leading-tight">{scoreReasons[key]}</p>}
                       </div>
                     ))}
                     {evaluation.composite_screenability != null && (
@@ -591,13 +612,14 @@ function EvalRow({ evaluation }: { evaluation: EvalWithMeta }): React.JSX.Elemen
                   <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1">Company Fit</p>
                   <div className="flex gap-3">
                     {([
-                      ['Role',    evaluation.score_role_fit],
-                      ['Scope',   evaluation.score_scope_fit],
-                      ['Culture', evaluation.score_culture],
-                    ] as [string, number | null][]).map(([label, val]) => (
-                      <div key={label} className="flex flex-col items-center">
+                      ['Role',    evaluation.score_role_fit,  'score_role_fit'],
+                      ['Scope',   evaluation.score_scope_fit, 'score_scope_fit'],
+                      ['Culture', evaluation.score_culture,   'score_culture'],
+                    ] as [string, number | null, string][]).map(([label, val, key]) => (
+                      <div key={label} className="flex flex-col items-center max-w-[72px]">
                         <span className="text-[9px] font-mono text-muted uppercase">{label}</span>
                         <span className="text-sm font-mono text-text">{val != null ? `${fmtScore(val)}/5` : '—'}</span>
+                        {scoreReasons[key] && <p className="text-[9px] text-muted mt-0.5 text-center leading-tight">{scoreReasons[key]}</p>}
                       </div>
                     ))}
                     {evaluation.composite_company_fit != null && (
@@ -612,13 +634,14 @@ function EvalRow({ evaluation }: { evaluation: EvalWithMeta }): React.JSX.Elemen
                   <p className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1">Candidate Fit</p>
                   <div className="flex gap-3">
                     {([
-                      ['Role',    evaluation.score_candidate_role],
-                      ['Scope',   evaluation.score_candidate_scope],
-                      ['Culture', evaluation.score_candidate_culture],
-                    ] as [string, number | null][]).map(([label, val]) => (
-                      <div key={label} className="flex flex-col items-center">
+                      ['Role',    evaluation.score_candidate_role,    'score_candidate_role'],
+                      ['Scope',   evaluation.score_candidate_scope,   'score_candidate_scope'],
+                      ['Culture', evaluation.score_candidate_culture, 'score_candidate_culture'],
+                    ] as [string, number | null, string][]).map(([label, val, key]) => (
+                      <div key={label} className="flex flex-col items-center max-w-[72px]">
                         <span className="text-[9px] font-mono text-muted uppercase">{label}</span>
                         <span className="text-sm font-mono text-text">{val != null ? `${fmtScore(val)}/5` : '—'}</span>
+                        {scoreReasons[key] && <p className="text-[9px] text-muted mt-0.5 text-center leading-tight">{scoreReasons[key]}</p>}
                       </div>
                     ))}
                     {evaluation.composite_candidate_fit != null && (
@@ -675,7 +698,7 @@ function EvalRow({ evaluation }: { evaluation: EvalWithMeta }): React.JSX.Elemen
               )}
             </p>
           )}
-          {evaluation.score_reasons && (
+          {evaluation.score_ats == null && evaluation.score_reasons && (
             <div>
               <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Score Reasons</p>
               <p className="text-xs text-text leading-relaxed">{evaluation.score_reasons}</p>

@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react'
-import { Link } from 'react-router-dom'
 import { useUploadDocument } from '@/hooks/useDocuments'
 import { useGeneratePrompt } from '@/hooks/useApplications'
 import { useGenerateResearchPrompt, useImportResearch } from '@/hooks/useJobs'
@@ -250,12 +249,13 @@ export function ApplyWorkflow({
         {/* Action buttons */}
         <div className="flex flex-col gap-2 mb-3">
           <div className="flex items-center gap-3">
-            <Link
-              to={`/evaluate`}
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors shrink-0"
+            <button
+              disabled
+              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded opacity-40 cursor-not-allowed shrink-0"
+              title="Internal eval coming in a future update"
             >
-              Generate Internal Eval
-            </Link>
+              Run Internal Eval
+            </button>
             <span className="text-xs font-mono text-muted">Run an in-app evaluation using your configured LLM.</span>
           </div>
           <div className="flex items-center gap-3">

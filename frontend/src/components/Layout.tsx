@@ -4,7 +4,7 @@ const NAV_ITEMS = [
   { to: '/',              label: 'Dashboard',    end: true  },
   { to: '/jobs',          label: 'Jobs',         end: false },
   { to: '/applications',  label: 'Applications', end: false },
-  { to: '/evaluate',      label: 'Evaluate',     end: true  },
+  { to: '/createjob',     label: 'Create Job',   end: true  },
   { to: '/profile',       label: 'JS Profile',   end: true  },
   { to: '/llm-usage',     label: 'LLM Usage',    end: true  },
   { to: '/settings',      label: 'Settings',     end: true  },

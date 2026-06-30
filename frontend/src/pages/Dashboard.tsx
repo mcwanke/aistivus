@@ -88,9 +88,9 @@ function ProfileStrengthWidget(): React.JSX.Element {
 const TOOLS_TILES = [
   {
     icon: '⚡',
-    title: 'Evaluate a Job',
-    description: 'Paste a job description and get a structured fit assessment against your background.',
-    to: '/evaluate',
+    title: 'Create Job',
+    description: 'Import a job listing from a URL or paste a description to add it to your job list.',
+    to: '/createjob',
   },
   {
     icon: '📋',
