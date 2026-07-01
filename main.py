@@ -1951,6 +1951,29 @@ async def generate_resume_prompt(
             if score_parts:
                 eval_scores_text = "\n".join(score_parts)
 
+        research_text = "Research data not available — no research has been run for this job."
+        research_row = database.get_job_research_latest(app_dict["job_id"])
+        if research_row:
+            r = dict(research_row)
+            research_field_map = [
+                ("company_overview", "Company Overview"),
+                ("company_stage", "Company Stage"),
+                ("company_size_actual", "Company Size"),
+                ("company_trajectory", "Company Trajectory"),
+                ("company_culture_overview", "Culture Overview"),
+                ("culture_signals", "Culture Signals"),
+                ("role_context", "Role Context"),
+                ("red_flags", "Red Flags"),
+                ("green_flags", "Green Flags"),
+            ]
+            research_parts = []
+            for field, label in research_field_map:
+                val = r.get(field)
+                if val:
+                    research_parts.append(f"  {label}: {val}")
+            if research_parts:
+                research_text = "\n".join(research_parts)
+
         prompt_key = "gen_resume_pass2"
         log_type_key = "prompt_resume_p2"
         variables = {
@@ -1962,6 +1985,7 @@ async def generate_resume_prompt(
             "line_count": str(line_count),
             "target_lines": f"{_TARGET_LINES}–{_TARGET_LINES_MAX}",
             "eval_scores_text": eval_scores_text,
+            "research_text": research_text,
             "user_feedback": body.user_feedback or "None provided.",
             "pass1_typ_text": typ_content,
         }

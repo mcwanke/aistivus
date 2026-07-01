@@ -113,6 +113,19 @@ def compute_line_count(content: str) -> dict:
             i += 1
             continue
 
+        # ── #text[...] → prose paragraph ──
+
+        if line.startswith("#text["):
+            block, i = _collect_block(lines, i)
+            items = _extract_bracket_items(block)
+            for item_text in items:
+                text = item_text.strip()
+                if text:
+                    count = _count_wrapped_lines(text, 100)
+                    prose_lines += count
+                    detail.append({"type": "prose", "chars": len(text), "lines": count})
+            continue
+
         # ── Prose: any remaining non-empty, non-directive line ──
 
         if not line.startswith("#") and line not in (")", "]", "}"):
