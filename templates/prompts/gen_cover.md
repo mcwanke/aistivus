@@ -10,12 +10,14 @@ cover letter .typ file for a specific job application.
 Requires context files: jobsearch.md (candidate facts, tailoring rules),
 jobsearch_cover.md (voice, Always/Never rules, reusable blocks, hook guidance),
 and cover_letter_template.typ (Typst structural base). Runtime variable
-injections: {company_name}, {title}, {website_display}, {jd_text}.
+injections: {company_name}, {title}, {website_display}, {jd_text},
+{research_text}.
 
 Editable sections: context file instructions, hard stop rule, clarification
-gate, company research step, pre-draft checklist step, proposal step,
-generation step rules and architecture, output format, post-delivery check.
-Read-only sections: job details injection, job description injection.
+gate, research review step, pre-draft checklist step, proposal step,
+generation step rules and architecture, output format (includes
+conditional post-delivery note). Read-only sections: job details
+injection, job description injection, research data injection.
 ---
 [[PROMPT_START]]
 [[EDITABLE]]
@@ -48,19 +50,20 @@ Before doing anything else, verify the following. If anything is
 missing, ask a single clarifying question — do not guess or assume:
 
 - Is a job description present below? If not, ask for it.
-- Is a company name, role title, and company website URL present?
-  If the URL is missing, ask for it — company research is required
-  before proposing a hook, and a generic letter is worse than no letter.
+- Is a company name and role title present?
+- Is research data present below? If it says "not available," a generic
+  letter is worse than no letter — ask the user to run Research for this
+  job first, or paste relevant About/Mission/Culture content directly.
 - Is any personal hook seed, scratchpad note, or context about this
   company provided? If not, note that you will propose a hook based
-  on research — the user can accept, override, or request alternatives.
+  on the research below — the user can accept, override, or request
+  alternatives.
 - If jobsearch_cover.md defines any scope framing rules that apply to
   this role type (e.g. a specific intent statement for certain
   seniority levels), flag whether it should be included and ask for
   confirmation.
 
-Do not begin company research or proposal until all required inputs
-are present.
+Do not begin the proposal until all required inputs are present.
 
 [[/EDITABLE]]
 [[READONLY]]
@@ -77,17 +80,19 @@ Hook Seed (optional):
 
 {jd_text}
 
+---
+
+## COMPANY RESEARCH (pre-gathered — do not re-research)
+
+{research_text}
+
 [[/READONLY]]
 [[EDITABLE]]
-## STEP 1 — COMPANY RESEARCH
+## STEP 1 — REVIEW RESEARCH
 
-Fetch and read the company website. Prioritize: About, Mission, Culture,
-Values, and Team pages. Note specific language, themes, and values worth
-mirroring in the letter.
-
-If web browsing is not available in this session, ask the user to paste
-the relevant About/Mission/Culture page content before proceeding.
-Do not skip this step or substitute generic assumptions.
+Review the company research above. Note specific language, themes, and
+values worth mirroring in the letter. This research has already been
+gathered — do not fetch the company website or browse the web.
 
 ## STEP 2 — PRE-DRAFT CHECKLIST
 
@@ -156,8 +161,18 @@ pillar directly.
 ### Flagging rule
 
 If any claim in the letter could be challenged in an interview based
-on the Never rules in jobsearch.md, flag it inline:
-`// ⚠ FLAG: [reason]`
+on the Never rules in jobsearch.md, do not flag it inline in the file —
+the .typ output must contain no comments, callouts, or annotations of
+any kind. Instead, list flagged claims in your chat response after
+delivering the file.
+
+### JD/org grounding rule
+
+At least one sentence outside the hook — in a pillar paragraph or the
+closing — must reference something specific from the JD or the
+research above (a stated responsibility, team structure, or priority).
+A letter that is only specific in the hook and generic everywhere
+after reads as a strong opener bolted onto a form letter.
 
 ### Final check before delivering
 
@@ -167,16 +182,12 @@ without confirming it.
 
 ## OUTPUT FORMAT
 
-Deliver the complete .typ file content. Do not include explanatory
-prose before or after — just the file, ready to compile.
-
-## STEP 5 — POST-DELIVERY CHECK
-
-After delivering the letter, note the following if applicable:
-
-> "Block [X] had a strong variation in this letter worth archiving.
->  Want me to update jobsearch_cover.md?"
-
-The user confirms before any update is written.
+Deliver the complete .typ file content. No comments, callouts, or
+annotations inside the file — it is never read as a document, only
+compiled. No explanatory prose before or after, with one exception:
+if a block in Section 4 of jobsearch_cover.md had a notably strong
+variation in this letter, append one line after the file:
+"Block [X] had a strong variation worth archiving — update
+jobsearch_cover.md?" The user confirms before any update is written.
 [[/EDITABLE]]
 [[PROMPT_END]]
