@@ -2659,6 +2659,7 @@ function ApplicationRight({
         onNavigateToEvals={() => onSelectAction('evaluations')}
         onNavigateToResume={() => onSelectAction('resume')}
         onNavigateToResearch={() => onSelectAction('research')}
+        onNavigateToCover={() => onSelectAction('cover-letter')}
       />
     )
   }

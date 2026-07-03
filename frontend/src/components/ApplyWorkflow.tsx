@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { useUploadDocument, useApplicationDocuments } from '@/hooks/useDocuments'
-import { useGeneratePrompt, useGenerateResumePrompt } from '@/hooks/useApplications'
+import { useGeneratePrompt, useGenerateResumePrompt, useGenerateCoverPrompt } from '@/hooks/useApplications'
 import { useGenerateResearchPrompt, useImportResearch, useJobResearch } from '@/hooks/useJobs'
 import { useModels, useRunInternalEval } from '@/hooks/useEvaluate'
 import type { InternalEvalEvent } from '@/hooks/useEvaluate'
@@ -102,6 +102,7 @@ interface ApplyWorkflowProps {
   onNavigateToEvals: () => void
   onNavigateToResume: () => void
   onNavigateToResearch: () => void
+  onNavigateToCover: () => void
 }
 
 export function ApplyWorkflow({
@@ -113,6 +114,7 @@ export function ApplyWorkflow({
   onNavigateToEvals,
   onNavigateToResume,
   onNavigateToResearch,
+  onNavigateToCover,
 }: ApplyWorkflowProps): React.JSX.Element {
   const [evalPromptText, setEvalPromptText] = useState<string | null>(null)
   const [researchPromptText, setResearchPromptText] = useState<string | null>(null)
@@ -129,6 +131,12 @@ export function ApplyWorkflow({
   const [p3CorrectionList, setP3CorrectionList] = useState('')
   const [resumePassError, setResumePassError] = useState('')
 
+  // Cover letter generation state
+  const [coverPromptText, setCoverPromptText] = useState<string | null>(null)
+  const [coverSelectedFile, setCoverSelectedFile] = useState<File | null>(null)
+  const [coverUploadError, setCoverUploadError] = useState('')
+  const coverFileInputRef = useRef<HTMLInputElement>(null)
+
   const generateEvalPrompt = useGeneratePrompt()
   const generateResearchPrompt = useGenerateResearchPrompt(jobId)
   const { data: research } = useJobResearch(jobId)
@@ -136,6 +144,8 @@ export function ApplyWorkflow({
   const { data: models } = useModels()
   const { run: runInternalEval } = useRunInternalEval(jobId)
   const generateResumePrompt = useGenerateResumePrompt()
+  const generateCoverPrompt = useGenerateCoverPrompt()
+  const coverUpload = useUploadDocument(applicationId)
   const { data: allDocs = [] } = useApplicationDocuments(applicationId)
   const resumeDocs = allDocs.filter(
     (d) => d.type_value === 'resume' && d.extension === '.typ' && d.file_exists
@@ -212,6 +222,24 @@ export function ApplyWorkflow({
       if (result.line_count != null) setResumeLineCount(result.line_count)
     } catch (err) {
       setResumePassError((err as Error).message)
+    }
+  }
+
+  async function handleGenerateCoverPrompt(): Promise<void> {
+    const result = await generateCoverPrompt.mutateAsync(applicationId)
+    setCoverPromptText(result.prompt)
+  }
+
+  async function handleCoverUpload(e: React.SyntheticEvent<HTMLFormElement>): Promise<void> {
+    e.preventDefault()
+    if (!coverSelectedFile) return
+    setCoverUploadError('')
+    try {
+      await coverUpload.mutateAsync({ file: coverSelectedFile, doc_type: 'cover_letter' })
+      setCoverSelectedFile(null)
+      if (coverFileInputRef.current) coverFileInputRef.current.value = ''
+    } catch (err) {
+      setCoverUploadError((err as Error).message)
     }
   }
 
@@ -511,6 +539,57 @@ export function ApplyWorkflow({
         )}
       </div>
 
+      <hr className="border-surface2" />
+
+      {/* ── STEP 4 — COVER LETTER GENERATION ──────────────────────────────────── */}
+      <div>
+        <p className="text-xs font-mono text-muted uppercase tracking-widest mb-1">Step 4 — Cover Letter Generation</p>
+        <p className="text-xs font-mono text-muted mb-4">
+          Generate a tailored cover letter for this application.
+        </p>
+
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => void handleGenerateCoverPrompt()}
+              disabled={generateCoverPrompt.isPending}
+              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:border-accent hover:text-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {generateCoverPrompt.isPending ? 'Generating…' : 'Generate Cover Letter Prompt'}
+            </button>
+          </div>
+          {generateCoverPrompt.isError && (
+            <p className="text-xs font-mono text-red">{generateCoverPrompt.error.message}</p>
+          )}
+
+          <form onSubmit={(e) => void handleCoverUpload(e)} className="flex items-center gap-3 flex-wrap">
+            <span className="text-[10px] font-mono text-muted uppercase tracking-widest w-12 shrink-0">Upload</span>
+            <input
+              ref={coverFileInputRef}
+              type="file"
+              accept=".typ,.pdf"
+              onChange={(e) => setCoverSelectedFile(e.target.files?.[0] ?? null)}
+              className="text-xs font-mono text-muted file:mr-2 file:px-2 file:py-0.5 file:rounded file:border-0 file:bg-surface2 file:text-muted file:text-xs file:font-mono hover:file:text-text file:cursor-pointer"
+            />
+            <button
+              type="submit"
+              disabled={!coverSelectedFile || coverUpload.isPending}
+              className="px-3 py-1.5 text-xs bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+            >
+              {coverUpload.isPending ? 'Uploading…' : 'Upload'}
+            </button>
+          </form>
+          {coverUploadError && <p className="text-xs font-mono text-red">{coverUploadError}</p>}
+
+          <button
+            onClick={onNavigateToCover}
+            className="text-xs font-mono text-accent hover:underline block"
+          >
+            Review Cover Letters →
+          </button>
+        </div>
+      </div>
+
       {/* ── Modals ───────────────────────────────────────────────────────────── */}
       {evalPromptText !== null && (
         <PromptModal
@@ -531,6 +610,13 @@ export function ApplyWorkflow({
           prompt={resumePromptText}
           title="Resume Generation Prompt"
           onClose={() => setResumePromptText(null)}
+        />
+      )}
+      {coverPromptText !== null && (
+        <PromptModal
+          prompt={coverPromptText}
+          title="Cover Letter Generation Prompt"
+          onClose={() => setCoverPromptText(null)}
         />
       )}
       {showResearchImport && (

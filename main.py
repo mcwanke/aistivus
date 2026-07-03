@@ -1898,9 +1898,54 @@ async def generate_resume_prompt(
         keywords_text = "Not provided — will extract from JD"
         keyword_gaps_text = "Not provided — will extract from JD"
 
-    _TARGET_LINES = 93
-    _TARGET_LINES_MAX = 102
+    _TARGET_LINES = 82
+    _TARGET_LINES_MAX = 90
     line_count: int | None = None
+
+    eval_scores_text = "No evaluation available for this role."
+    if eval_row:
+        e = dict(eval_row)
+        score_parts = []
+        dim_map = [
+            ("score_ats", "ATS"),
+            ("score_recruiter_fast", "Recruiter Fast-Pass"),
+            ("score_recruiter_deep", "Recruiter Deep-Pass"),
+            ("score_candidate_role", "Candidate Fit — Role"),
+            ("score_candidate_scope", "Candidate Fit — Scope"),
+            ("score_candidate_culture", "Candidate Fit — Culture"),
+            ("composite_screenability", "Composite Screenability"),
+            ("composite_company_fit", "Composite Company Fit"),
+            ("composite_candidate_fit", "Composite Candidate Fit"),
+        ]
+        for field, label in dim_map:
+            val = e.get(field)
+            if val is not None:
+                score_parts.append(f"  {label}: {val}")
+        if score_parts:
+            eval_scores_text = "\n".join(score_parts)
+
+    research_text = "Research data not available — no research has been run for this job."
+    research_row = database.get_job_research_latest(app_dict["job_id"])
+    if research_row:
+        r = dict(research_row)
+        research_field_map = [
+            ("company_overview", "Company Overview"),
+            ("company_stage", "Company Stage"),
+            ("company_size_actual", "Company Size"),
+            ("company_trajectory", "Company Trajectory"),
+            ("company_culture_overview", "Culture Overview"),
+            ("culture_signals", "Culture Signals"),
+            ("role_context", "Role Context"),
+            ("red_flags", "Red Flags"),
+            ("green_flags", "Green Flags"),
+        ]
+        research_parts = []
+        for field, label in research_field_map:
+            val = r.get(field)
+            if val:
+                research_parts.append(f"  {label}: {val}")
+        if research_parts:
+            research_text = "\n".join(research_parts)
 
     if body.pass_num == 1:
         prompt_key = "gen_resume_pass1"
@@ -1913,6 +1958,8 @@ async def generate_resume_prompt(
             "jd_text": jd_text,
             "keywords_text": keywords_text,
             "keyword_gaps_text": keyword_gaps_text,
+            "eval_scores_text": eval_scores_text,
+            "research_text": research_text,
         }
 
     elif body.pass_num == 2:
@@ -1928,51 +1975,6 @@ async def generate_resume_prompt(
         typ_content = typ_path.read_text(encoding="utf-8")
         line_data = typst_utils.compute_line_count(typ_content)
         line_count = line_data["total"]
-
-        eval_scores_text = "No evaluation available for this role."
-        if eval_row:
-            e = dict(eval_row)
-            score_parts = []
-            dim_map = [
-                ("score_ats", "ATS"),
-                ("score_recruiter_fast", "Recruiter Fast-Pass"),
-                ("score_recruiter_deep", "Recruiter Deep-Pass"),
-                ("score_candidate_role", "Candidate Fit — Role"),
-                ("score_candidate_scope", "Candidate Fit — Scope"),
-                ("score_candidate_culture", "Candidate Fit — Culture"),
-                ("composite_screenability", "Composite Screenability"),
-                ("composite_company_fit", "Composite Company Fit"),
-                ("composite_candidate_fit", "Composite Candidate Fit"),
-            ]
-            for field, label in dim_map:
-                val = e.get(field)
-                if val is not None:
-                    score_parts.append(f"  {label}: {val}")
-            if score_parts:
-                eval_scores_text = "\n".join(score_parts)
-
-        research_text = "Research data not available — no research has been run for this job."
-        research_row = database.get_job_research_latest(app_dict["job_id"])
-        if research_row:
-            r = dict(research_row)
-            research_field_map = [
-                ("company_overview", "Company Overview"),
-                ("company_stage", "Company Stage"),
-                ("company_size_actual", "Company Size"),
-                ("company_trajectory", "Company Trajectory"),
-                ("company_culture_overview", "Culture Overview"),
-                ("culture_signals", "Culture Signals"),
-                ("role_context", "Role Context"),
-                ("red_flags", "Red Flags"),
-                ("green_flags", "Green Flags"),
-            ]
-            research_parts = []
-            for field, label in research_field_map:
-                val = r.get(field)
-                if val:
-                    research_parts.append(f"  {label}: {val}")
-            if research_parts:
-                research_text = "\n".join(research_parts)
 
         prompt_key = "gen_resume_pass2"
         log_type_key = "prompt_resume_p2"
@@ -2003,6 +2005,8 @@ async def generate_resume_prompt(
         if not typ_path.exists():
             raise HTTPException(status_code=404, detail="Document file not found on disk.")
         typ_content = typ_path.read_text(encoding="utf-8")
+        line_data = typst_utils.compute_line_count(typ_content)
+        line_count = line_data["total"]
 
         prompt_key = "gen_resume_pass3"
         log_type_key = "prompt_resume_p3"
@@ -2012,6 +2016,8 @@ async def generate_resume_prompt(
             "jd_text": jd_text,
             "pass1_typ_text": typ_content,
             "correction_list": body.correction_list,
+            "line_count": str(line_count),
+            "target_lines": f"{_TARGET_LINES}–{_TARGET_LINES_MAX}",
         }
 
     prompt_result = prompt_generation.get_prompt(

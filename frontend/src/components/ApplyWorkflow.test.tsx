@@ -16,6 +16,7 @@ const BASE_PROPS = {
   onNavigateToEvals: vi.fn(),
   onNavigateToResume: vi.fn(),
   onNavigateToResearch: vi.fn(),
+  onNavigateToCover: vi.fn(),
 }
 
 const MOCK_EVAL: EvalWithMeta = {
