@@ -6,6 +6,7 @@ import { useModels, useRunInternalEval } from '@/hooks/useEvaluate'
 import type { InternalEvalEvent } from '@/hooks/useEvaluate'
 import { InternalEvalModal } from '@/components/InternalEvalModal'
 import { ResearchWorkflowModal } from '@/components/ResearchWorkflowModal'
+import { ExternalEvalWorkflowModal } from '@/components/ExternalEvalWorkflowModal'
 import { fmtScore } from '@/utils/formatting'
 import type { EvalWithMeta } from '@/types/api'
 
@@ -78,6 +79,7 @@ export function ApplyWorkflow({
   const [evalPromptText, setEvalPromptText] = useState<string | null>(null)
   const [researchPromptText, setResearchPromptText] = useState<string | null>(null)
   const [showResearchWorkflow, setShowResearchWorkflow] = useState(false)
+  const [showExternalEvalWorkflow, setShowExternalEvalWorkflow] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -310,25 +312,12 @@ export function ApplyWorkflow({
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => void handleGenerateEvalPrompt()}
-              disabled={generateEvalPrompt.isPending}
-              className="px-3 py-1.5 text-xs font-mono text-text/70 border-2 border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50 shrink-0"
-            >
-              {generateEvalPrompt.isPending ? 'Generating…' : 'Generate External Eval'}
-            </button>
-            <span className="text-xs font-mono text-muted">Build the external evaluation prompt for use in Claude.ai.</span>
-          </div>
-          {generateEvalPrompt.isError && (
-            <p className="text-xs font-mono text-red ml-0">{generateEvalPrompt.error.message}</p>
-          )}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onImportEval}
+              onClick={() => setShowExternalEvalWorkflow(true)}
               className="px-3 py-1.5 text-xs font-mono text-text/70 border-2 border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors shrink-0"
             >
-              Import External Eval
+              Open External Eval Workflow
             </button>
-            <span className="text-xs font-mono text-muted">Paste the JSON output from the external eval prompt.</span>
+            <span className="text-xs font-mono text-muted">Generate prompt & import results.</span>
           </div>
         </div>
 
@@ -563,6 +552,12 @@ export function ApplyWorkflow({
         <ResearchWorkflowModal
           jobId={jobId}
           onClose={() => setShowResearchWorkflow(false)}
+        />
+      )}
+      {showExternalEvalWorkflow && (
+        <ExternalEvalWorkflowModal
+          applicationId={applicationId}
+          onClose={() => setShowExternalEvalWorkflow(false)}
         />
       )}
       {showInternalEvalModal && (
