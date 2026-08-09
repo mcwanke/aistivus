@@ -20,13 +20,12 @@ describe('Jobs page', () => {
 
   it('renders job list after data loads', async () => {
     renderWithProviders(<Jobs />)
-    await waitFor(() => expect(screen.getByText('Acme Corp')).toBeInTheDocument())
-    expect(screen.getByText('Senior Engineer')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText(/Acme Corp.*Senior Engineer/i)).toBeInTheDocument())
   })
 
   it('shows score values for evaluated jobs', async () => {
     renderWithProviders(<Jobs />)
-    await waitFor(() => expect(screen.getByText('Acme Corp')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/Acme Corp.*Senior Engineer/i)).toBeInTheDocument())
     // Score columns rendered as formatted numbers
     expect(screen.getByText('7.8')).toBeInTheDocument()
   })
@@ -45,12 +44,15 @@ describe('Jobs page', () => {
 
   it('shows remote type pill for remote jobs', async () => {
     renderWithProviders(<Jobs />)
-    await waitFor(() => expect(screen.getByText('Remote')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/Acme Corp.*Senior Engineer/i)).toBeInTheDocument())
+    // Remote should appear in the location/remote section
+    const remoteElements = screen.getAllByText('Remote')
+    expect(remoteElements.length).toBeGreaterThan(0)
   })
 
   it('does not render a right-panel split-pane', async () => {
     renderWithProviders(<Jobs />)
-    await waitFor(() => expect(screen.getByText('Acme Corp')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/Acme Corp.*Senior Engineer/i)).toBeInTheDocument())
     // No embedded job detail panel — verify split-pane is gone by checking
     // that "Job Description" section header (only in JobDetail right column) is absent
     expect(screen.queryByText('Job Description')).not.toBeInTheDocument()
@@ -60,8 +62,11 @@ describe('Jobs page', () => {
     const user = userEvent.setup()
     mockNavigate.mockClear()
     renderWithProviders(<Jobs />)
-    await waitFor(() => expect(screen.getByText('Acme Corp')).toBeInTheDocument())
-    await user.click(screen.getByText('Acme Corp'))
+    await waitFor(() => expect(screen.getByText(/Acme Corp.*Senior Engineer/i)).toBeInTheDocument())
+    const jobRow = screen.getByText(/Acme Corp.*Senior Engineer/i).closest('button')
+    if (jobRow) {
+      await user.click(jobRow)
+    }
     expect(mockNavigate).toHaveBeenCalledWith('/jobs/1')
   })
 })

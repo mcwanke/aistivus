@@ -1043,6 +1043,8 @@ async def list_jobs(request: Request):
     for j in jobs:
         row = dict(j)
         row['eval_count'] = eval_counts.get(row['id'], 0)
+        row['staleness_days_overall'] = database.get_job_last_interaction_days(row['id'])
+        row['staleness_days_status'] = database.get_job_status_age_days(row['id'])
         result.append(row)
     return JSONResponse(result)
 
@@ -1515,9 +1517,8 @@ async def update_application(
     }
 
     # Auto-set apply_date when marking as applied, if not already set
-    if body.applied == 1 and "apply_date" not in field_updates:
-        if not dict(app_row).get("apply_date"):
-            field_updates["apply_date"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if body.applied == 1 and "apply_date" not in field_updates and not dict(app_row).get("apply_date"):
+        field_updates["apply_date"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     if field_updates:
         database.update_application(application_id, **field_updates)

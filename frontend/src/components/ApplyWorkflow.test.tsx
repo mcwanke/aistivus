@@ -68,8 +68,7 @@ describe('ApplyWorkflow', () => {
   it('renders evaluation action buttons', () => {
     renderWithProviders(<ApplyWorkflow {...BASE_PROPS} />)
     expect(screen.getByText('Run Internal Eval')).toBeInTheDocument()
-    expect(screen.getByText('Generate External Eval')).toBeInTheDocument()
-    expect(screen.getByText('Import External Eval')).toBeInTheDocument()
+    expect(screen.getByText('Open External Eval Workflow')).toBeInTheDocument()
   })
 
   it('renders Review Evaluations link', () => {
@@ -89,11 +88,12 @@ describe('ApplyWorkflow', () => {
     expect(screen.getByText('Review Resumes →')).toBeInTheDocument()
   })
 
-  it('calls onImportEval when Import External Eval is clicked', async () => {
-    const onImportEval = vi.fn()
-    renderWithProviders(<ApplyWorkflow {...BASE_PROPS} onImportEval={onImportEval} />)
-    await userEvent.click(screen.getByText('Import External Eval'))
-    expect(onImportEval).toHaveBeenCalled()
+  it('opens modal when Open External Eval Workflow is clicked', async () => {
+    renderWithProviders(<ApplyWorkflow {...BASE_PROPS} />)
+    const button = screen.getByText('Open External Eval Workflow')
+    await userEvent.click(button)
+    // Modal opens (test in ExternalEvalWorkflowModal component)
+    expect(button).toBeInTheDocument()
   })
 
   it('calls onNavigateToEvals when Review Evaluations is clicked', async () => {

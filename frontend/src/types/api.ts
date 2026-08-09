@@ -208,6 +208,8 @@ export interface JobListItem extends Job {
   application_id: number | null
   application_status: ApplicationStatus | null
   eval_count: number
+  staleness_days_overall: number | null
+  staleness_days_status: number | null
 }
 
 // GET /api/v1/jobs returns JobListItem[]

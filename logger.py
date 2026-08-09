@@ -158,13 +158,12 @@ def cleanup_old_logs(retention_days: int | None = None) -> int:
         if not f.is_file():
             continue
         # Match rotated files: app.log.1, app.log.2, etc.
-        if f.name.startswith(stem) and f.name != log_file.name:
-            if f.stat().st_mtime < cutoff:
-                try:
-                    f.unlink()
-                    deleted += 1
-                except OSError:
-                    pass
+        if f.name.startswith(stem) and f.name != log_file.name and f.stat().st_mtime < cutoff:
+            try:
+                f.unlink()
+                deleted += 1
+            except OSError:
+                pass
 
     return deleted
 

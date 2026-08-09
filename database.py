@@ -1163,6 +1163,116 @@ def get_eval_counts() -> dict[int, int]:
     return {row[0]: row[1] for row in rows}
 
 
+def get_job_last_interaction_days(job_id: int) -> int | None:
+    """
+    Calculate days since last interaction across all job-related timestamps.
+    Returns: days since max(job_postings.date_posted, job_postings.date_scraped,
+             applications.apply_date, evaluations.evaluated_at, application_logs.log_timestamp,
+             job_company_log.log_timestamp), or None if no timestamps available.
+    Falls back to jobs.created_at if all other timestamps are null.
+    """
+    with get_connection() as conn:
+        result = conn.execute(
+            """SELECT
+               MAX(COALESCE(
+                   (SELECT MAX(CAST(COALESCE(jp.date_posted, jp.date_scraped) AS TEXT))
+                    FROM job_postings jp WHERE jp.job_id = ?),
+                   (SELECT MAX(ap.apply_date) FROM applications ap WHERE ap.job_id = ?),
+                   (SELECT MAX(e.evaluated_at) FROM evaluations e WHERE e.job_id = ?),
+                   (SELECT MAX(al.log_timestamp)
+                    FROM application_logs al
+                    JOIN applications a ON a.id = al.application_id
+                    WHERE a.job_id = ?),
+                   (SELECT MAX(jl.log_timestamp) FROM job_company_log jl WHERE jl.job_id = ?),
+                   j.created_at
+               )) AS latest_timestamp
+               FROM jobs j
+               WHERE j.id = ?""",
+            (job_id, job_id, job_id, job_id, job_id, job_id)
+        ).fetchone()
+
+        latest_ts = result["latest_timestamp"] if result else None
+        if not latest_ts:
+            return None
+
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        latest_dt = datetime.fromisoformat(latest_ts)
+        delta = now - latest_dt
+        return delta.days
+
+
+def get_job_status_age_days(job_id: int) -> int | None:
+    """
+    Calculate days since the current application_status was last changed.
+    Returns: days since the most recent application_logs entry with type 'status_change',
+             or days since application.created_at if no status change logs exist,
+             or None if no application found.
+    """
+    with get_connection() as conn:
+        # Get the most recent application (including "not-started")
+        app = conn.execute(
+            """SELECT id, application_status
+               FROM applications a
+               WHERE job_id = ?
+               ORDER BY id DESC
+               LIMIT 1""",
+            (job_id,)
+        ).fetchone()
+
+        if not app:
+            # No application at all, use job's created_at
+            job_row = conn.execute(
+                "SELECT created_at FROM jobs WHERE id = ?",
+                (job_id,)
+            ).fetchone()
+            if not job_row:
+                return None
+            timestamp = job_row["created_at"]
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            job_dt = datetime.fromisoformat(timestamp)
+            delta = now - job_dt
+            return delta.days
+
+        app_id = app["id"]
+
+        # Look for most recent status_change log entry
+        status_log = conn.execute(
+            """SELECT log_timestamp
+               FROM application_logs al
+               JOIN system_types st ON st.id = al.type_id
+               WHERE al.application_id = ? AND st.type_value = 'status_change'
+               ORDER BY al.log_timestamp DESC
+               LIMIT 1""",
+            (app_id,)
+        ).fetchone()
+
+        if status_log:
+            timestamp = status_log["log_timestamp"]
+        else:
+            # Fallback: use the earliest log entry for this application (app creation time)
+            first_log = conn.execute(
+                "SELECT log_timestamp FROM application_logs WHERE application_id = ? ORDER BY log_timestamp ASC LIMIT 1",
+                (app_id,)
+            ).fetchone()
+            if first_log:
+                timestamp = first_log["log_timestamp"]
+            else:
+                # Last resort: use job's created_at
+                job_row = conn.execute(
+                    "SELECT created_at FROM jobs WHERE id = ?",
+                    (job_id,)
+                ).fetchone()
+                timestamp = job_row["created_at"] if job_row else None
+
+            if not timestamp:
+                return None
+
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        status_dt = datetime.fromisoformat(timestamp)
+        delta = now - status_dt
+        return delta.days
+
+
 def activate_job(job_id: int) -> None:
     """Set is_active = 1 for a job. Caller verifies job exists before calling."""
     with get_connection() as conn:
