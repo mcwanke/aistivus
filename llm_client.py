@@ -15,7 +15,8 @@ Rules (from CLAUDE.md):
 
 import json
 import time
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import httpx
 

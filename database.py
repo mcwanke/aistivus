@@ -22,10 +22,10 @@ import json
 import re
 import shutil
 import sqlite3
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Generator
 
 import yaml
 
@@ -2660,7 +2660,7 @@ def rebuild_jobsearch_from_sections(
         if not part.startswith("## "):
             rebuilt.append(part)
             continue
-        header_line, _, old_body = part.partition("\n")
+        header_line, _, _old_body = part.partition("\n")
         section_id = _header_to_section_id(header_line)
         if section_id and section_id in sections:
             new_body = sections[section_id]

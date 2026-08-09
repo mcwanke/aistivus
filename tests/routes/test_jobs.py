@@ -568,6 +568,7 @@ class TestEvaluateAutoActivate:
     def test_evaluated_job_is_active(self, seeded_client, jobsearch_file, monkeypatch):
         import json
         from unittest.mock import AsyncMock
+
         import llm_client
 
         analysis = json.dumps({

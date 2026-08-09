@@ -7,6 +7,7 @@ never touch the real database or config.yaml.
 """
 
 import pytest
+
 import database
 
 
@@ -15,7 +16,7 @@ def tmp_db(tmp_path, monkeypatch):
     """Fresh initialized database for each test. Returns the Path to the db file."""
     test_db = tmp_path / "test.db"
     monkeypatch.setattr(database, "_get_db_path", lambda: test_db)
-    monkeypatch.setattr(database, "_load_config", lambda: {})
+    monkeypatch.setattr(database, "_load_config", dict)
     database.init_db()
     return test_db
 

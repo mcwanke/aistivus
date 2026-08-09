@@ -12,7 +12,6 @@ from unittest.mock import AsyncMock, patch
 
 import database
 
-
 RICH_HTML = """
 <html><head><title>Senior Engineer at Acme</title></head><body>
 <script type="application/ld+json">

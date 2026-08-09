@@ -2643,7 +2643,7 @@ function ApplicationRight({
 
   // ── RESEARCH view ───────────────────────────────────────────────────────────
   if (activeAction === 'research') {
-    return <ResearchSubpage jobId={jobId} />
+    return <ResearchSubpage jobId={jobId} onNavigateToApplyWorkflow={() => onSelectAction('apply-workflow')} />
   }
 
   // ── APPLY WORKFLOW view ─────────────────────────────────────────────────────

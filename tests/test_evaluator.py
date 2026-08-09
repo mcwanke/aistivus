@@ -9,12 +9,12 @@ Async functions are exercised with asyncio.run() — no pytest-asyncio needed.
 
 import asyncio
 import json
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
 
 import database
 import evaluator
-
 
 # ─────────────────────────────────────────────────────────────
 # Helpers

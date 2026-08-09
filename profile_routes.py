@@ -22,13 +22,14 @@ Routes:
 
 import re
 import time
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import AsyncGenerator
 
 import yaml
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
+
 import database
 import llm_client
 from limiter import limiter
@@ -256,8 +257,8 @@ def _build_system_prompt(
 ) -> str:
     section_name = _SECTION_NAMES.get(section_id, section_id)
     lines: list[str] = [
-        f"You are an expert career coach helping the user build the '{section_name}' "
-        "section of their job search profile.",
+        (f"You are an expert career coach helping the user build the '{section_name}' "
+        "section of their job search profile."),
         "",
     ]
 
@@ -293,8 +294,8 @@ def _build_system_prompt(
 
     lines += [
         "",
-        "Keep responses conversational and focused. "
-        "In Socratic mode, ask one question at a time.",
+        ("Keep responses conversational and focused. "
+        "In Socratic mode, ask one question at a time."),
     ]
     return "\n".join(lines)
 
@@ -684,7 +685,7 @@ def _format_logs_for_prompt(logs: list) -> str:
 
 @router.post("/profile/synthesize-insights")
 @limiter.limit("5/minute")
-async def synthesize_insights(request: Request, body: OneShotRequest = OneShotRequest()) -> JSONResponse:
+async def synthesize_insights(request: Request, body: OneShotRequest = OneShotRequest()) -> JSONResponse:  # noqa: B008
     """
     One-shot: read application logs and current insights section, synthesize with LLM.
     Returns a proposed update to the insights_lessons section.
@@ -740,7 +741,7 @@ async def synthesize_insights(request: Request, body: OneShotRequest = OneShotRe
 
 @router.post("/profile/coherence-check")
 @limiter.limit("5/minute")
-async def coherence_check(request: Request, body: OneShotRequest = OneShotRequest()) -> JSONResponse:
+async def coherence_check(request: Request, body: OneShotRequest = OneShotRequest()) -> JSONResponse:  # noqa: B008
     """
     One-shot: check cross-section consistency in jobsearch.md.
     Scoped strictly to contradictions and misalignments between sections —
@@ -794,7 +795,7 @@ async def coherence_check(request: Request, body: OneShotRequest = OneShotReques
 
 @router.post("/profile/quality-audit")
 @limiter.limit("5/minute")
-async def quality_audit(request: Request, body: OneShotRequest = OneShotRequest()) -> JSONResponse:
+async def quality_audit(request: Request, body: OneShotRequest = OneShotRequest()) -> JSONResponse:  # noqa: B008
     """
     One-shot: per-section completeness and strength audit of jobsearch.md.
     Flags empty sections, stubs, weak Career History entries, and time gaps.
@@ -853,7 +854,7 @@ async def quality_audit(request: Request, body: OneShotRequest = OneShotRequest(
 
 @router.post("/profile/generate-tailoring-rules")
 @limiter.limit("5/minute")
-async def generate_tailoring_rules(request: Request, body: OneShotRequest = OneShotRequest()) -> JSONResponse:
+async def generate_tailoring_rules(request: Request, body: OneShotRequest = OneShotRequest()) -> JSONResponse:  # noqa: B008
     """
     One-shot: read sections 1–5 and generate tailoring rules with LLM.
     Returns proposed content for the tailoring_rules section.

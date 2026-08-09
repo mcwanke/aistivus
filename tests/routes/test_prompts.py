@@ -14,7 +14,6 @@ from unittest.mock import AsyncMock, patch
 
 import database
 
-
 _SEGMENTS_TEXT = "[[READONLY]]You are an evaluator.[[/READONLY]][[EDITABLE]] Score the candidate.[[/EDITABLE]]"
 _SEGMENTS_TEXT_V2 = "[[READONLY]]You are an expert.[[/READONLY]][[EDITABLE]] Rate the candidate.[[/EDITABLE]]"
 

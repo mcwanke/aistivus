@@ -22,8 +22,8 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-import database
 
+import database
 
 # ─────────────────────────────────────────────────────────────
 # Fixtures

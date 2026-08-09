@@ -27,7 +27,7 @@ def client(tmp_path, monkeypatch):
     """TestClient with a fresh test DB and mocked startup validation."""
     # Redirect DB to a temp file
     monkeypatch.setattr(database, "_get_db_path", lambda: tmp_path / "test.db")
-    monkeypatch.setattr(database, "_load_config", lambda: {})
+    monkeypatch.setattr(database, "_load_config", dict)
 
     # Suppress log file creation — tests run without a logs/ dir
     monkeypatch.setattr(logger_module, "_configure_root_logger", lambda: None)
@@ -37,7 +37,7 @@ def client(tmp_path, monkeypatch):
     async def _noop_update(app_state=None):
         pass
     monkeypatch.setattr(main_module, "_update_model_availability", _noop_update)
-    monkeypatch.setattr(main_module, "_load_config", lambda: {})
+    monkeypatch.setattr(main_module, "_load_config", dict)
 
     import limiter as limiter_module
     monkeypatch.setattr(limiter_module.limiter, "enabled", False)

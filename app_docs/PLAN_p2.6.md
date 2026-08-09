@@ -1,0 +1,24 @@
+
+
+For 2.6 I want to do the following:
+
+- have a discussion around the deferred 2.5 two repo approach so that I can have a private repo with all of my notes and claude context so that I can develop on multiple computers easier. As part of this discussion, make sure that this effort is worth it, it might not be. Basically should I just skip this or is it actually a good idea to do this?
+
+- next, I really want to explore a few other areas for this app. The first area is around starting frmo a company standpoint. Can I start collecting a list of companies with relevant links and then have the app parse the job/career pages for these companies while also doing the company research for these companies? Ideally I would like to run this in the background, or have it run maybe daily. Then all I would need to do while searching is to add new companies to the list. The daily search would check the open roles and see if there is anything new that I might be interested it. Then it could generate the company research as part of that daily run. To do this, I would start looking to lean on the crawl4ai stack that I have running on the server in a docker stack. It would use this for pulling down the webpages as needed. Here are the open questions I have:
+  - can the local app and local llms successfully run the company research that I have been doing in claude via the "Generate Research Prompt"?
+  - what internet permissions would I need to grant in order for this to run successfully?
+  - If I wanted to pivot a bit to a Company-forward approach, I wouldn't change the jobs page, nor would I change the job details page or the current workflow. My goal would be to add a new Companies page in front of these and start collecting Company information. I think we may need to identify a few vectors for a "company evaluation" so that we can score company reserach runs to see if the company is worth moving forward with
+  - can we do a cron-like nightly run for new companies or checking every x number of days for existing companies to see if new roles are available at those companies?
+
+- the next thing to explore is adding in a new metric for the Jobs page, really a new metric that is used for sorting of jobs alongside the other values. The good news is that this shouldn't require any database changes. What I want is a "staleness indicator" that is basically the number of days since the job was touched/updated/changed. I want to see this in the Jobs page list and would also like to see it somewhere on the job details page so that it can help me make decisions for roles currently ni the system.
+  - I would also like to explore adding a button that could leverage the crawl4ai container app to check to see if a job is still available
+
+- I would like to streamline a few processes. Basically there is just a bit of friction in some of the current application workflow that would be nice to remove. Here are some smaller wins:
+  - For a workflow step like STEP 1 - RESEARCH instead of having two buttons, one for a prompt for Generate Research Prompt -> prompt -> copy -> close and then Import Research Prompt -> prompt -> paste -> submit, can we combine this into one prompt? The top half would be the copy function then the lower half would be the paste/submit function. Minor changes, but an improved workflow
+  - I would do the same change for the General External Eval / Import External Eval flow
+  - also for the Generate External Eval flow, it bugs me that the model dropdown includes local models. I think we should set a default external model that is selected by default here so that I don't have to go change it every single time. That is an annoying piece of friction
+  - for the STEP 3 - RESUME GENERATION I would like to add a fourth step which is a re-evaluation of the finalized resume and cover against the original JD along with some scoring (ATS, recruiter fast, recruiter deep) as a final close-the-loop review
+  - another friction element in the resume generation workflow is that the Pass 2 output is just text and it is a pain to copy out of claude. Can we convert this into a json inside a copyable block?
+
+- Let's go back to the resume generation prompts. I think I took us in the wrong direction trying to lock down the counting and length items. It is causing some runs through the workflow to veer wildly off track. I think I would like to go back to a simpler prompt here and just have it generate what it thinks is close to 2 pages on the first pass, then I pass in my human evaluation of the length as text for the second pass.
+  - let's also take a look at the pass 1 prompt text while we are at it. I feel like pass 2 is doing some heavy lifting with the structure and action words and we might be able to pull some of this into the pass 1 prompt to make the flow a bit better here

@@ -14,10 +14,10 @@ Routes covered:
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch
+
 import httpx
 
 import database
-
 
 # ─────────────────────────────────────────────────────────────
 # GET /api/v1/settings/llm-servers

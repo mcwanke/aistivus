@@ -138,7 +138,7 @@ _MAX_PDF_BYTES = 20 * 1024 * 1024   # 20 MB
 async def upload_document(
     request: Request,
     application_id: int,
-    file: UploadFile = File(...),
+    file: UploadFile = File(...),  # noqa: B008
     doc_type: str = Form(...),
 ):
     """Upload a .typ or .pdf document and associate it with an application."""
@@ -613,6 +613,7 @@ async def compile_document(request: Request, application_id: int, doc_id: int):
             capture_output=True,
             text=True,
             timeout=30,
+            check=False,
         )
     except subprocess.TimeoutExpired:
         raise HTTPException(

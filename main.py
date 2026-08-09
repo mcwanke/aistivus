@@ -94,11 +94,11 @@ import os
 import re
 import subprocess
 import time
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import AsyncGenerator
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 import yaml
@@ -115,6 +115,7 @@ import document_routes
 import evaluate
 import evaluator
 import llm_client
+import poc_routes
 import profile_routes
 import prompt_generation
 import scrape_routes
@@ -313,6 +314,7 @@ async def lifespan(app: FastAPI):
             [typst_binary, "--version"],
             capture_output=True,
             timeout=5,
+            check=False,
         )
         typst_available = typst_result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -377,6 +379,7 @@ app.add_middleware(
 app.include_router(profile_routes.router, prefix="/api/v1")
 app.include_router(document_routes.router, prefix="/api/v1")
 app.include_router(scrape_routes.router, prefix="/api/v1")
+app.include_router(poc_routes.router)
 
 _frontend_assets = Path("frontend/dist/assets")
 if _frontend_assets.exists():
@@ -1268,7 +1271,7 @@ async def export_job(request: Request, job_id: int):
     description = job.get("description_merged") or posting.get("description_raw") or ""
 
     pay_band_val = job.get("pay_band") or ""
-    timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
     filename = f"{job_id}-export-{timestamp}.md"
 
     _, done_dir, _ = evaluate._get_inbox_paths()
@@ -2540,7 +2543,7 @@ async def test_server_connection(request: Request, body: TestConnectionRequest):
 async def detect_server_type(request: Request, body: DetectServerRequest):
     """Probe a URL in parallel to auto-detect Ollama vs OpenAI-compatible protocol."""
     url = body.url.rstrip('/')
-    if not (url.startswith('http://') or url.startswith('https://')):
+    if not (url.startswith(('http://', 'https://'))):
         raise HTTPException(status_code=422, detail="URL must start with http:// or https://")
 
     async def probe(endpoint: str) -> tuple[bool, bool]:

@@ -1,0 +1,254 @@
+import React, { useState, useEffect } from "react";
+import { JobListing, QueryCompanyResponse, ExtractJobResponse, POCState } from "@/types/poc";
+
+export default function CompanyPOCPage() {
+  const [state, setState] = useState<POCState>({
+    company_name: "",
+    company_url: "",
+    careers_page_url: "",
+    job_url: "",
+    research_prompt: "",
+  });
+
+  const [queryJobs, setQueryJobs] = useState<JobListing[]>([]);
+  const [extractedJob, setExtractedJob] = useState<any>(null);
+  const [loadingQuery, setLoadingQuery] = useState(false);
+  const [loadingExtract, setLoadingExtract] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadState();
+  }, []);
+
+  const loadState = async () => {
+    try {
+      const response = await fetch("/api/v1/poc/state");
+      const data = await response.json();
+      if (data && Object.keys(data).length > 0) {
+        setState(data);
+      }
+    } catch (err) {
+      console.error("Failed to load state:", err);
+    }
+  };
+
+  const saveState = async () => {
+    try {
+      const response = await fetch("/api/v1/poc/state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(state),
+      });
+      const data = await response.json();
+      if (data.success) {
+        showToast("State saved");
+      }
+    } catch (err) {
+      showToast(`Save failed: ${err}`);
+    }
+  };
+
+  const showToast = (msg: string) => {
+    setError(msg);
+    setTimeout(() => setError(null), 5000);
+  };
+
+  const queryCompany = async () => {
+    setLoadingQuery(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/v1/poc/query-company", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          company_name: state.company_name,
+          company_url: state.company_url,
+          careers_page_url: state.careers_page_url,
+        }),
+      });
+      const data: QueryCompanyResponse = await response.json();
+      if (data.success) {
+        setQueryJobs(data.jobs);
+      } else {
+        showToast(data.error || "Failed to query company");
+      }
+    } catch (err) {
+      showToast(`Query failed: ${err}`);
+    } finally {
+      setLoadingQuery(false);
+    }
+  };
+
+  const extractJob = async () => {
+    setLoadingExtract(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/v1/poc/extract-job", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ job_url: state.job_url }),
+      });
+      const data: ExtractJobResponse = await response.json();
+      if (data.success) {
+        setExtractedJob(data.job);
+      } else {
+        showToast(data.error || "Failed to extract job");
+      }
+    } catch (err) {
+      showToast(`Extract failed: ${err}`);
+    } finally {
+      setLoadingExtract(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-gray-100 p-8">
+      <div className="max-w-4xl mx-auto space-y-8">
+        {/* Header */}
+        <div>
+          <h1 className="text-4xl font-bold mb-2">Company Query & Job Extraction POC</h1>
+          <p className="text-gray-400">Test job listing extraction from career pages</p>
+        </div>
+
+        {/* Save/Load buttons */}
+        <div className="flex gap-4">
+          <button
+            onClick={saveState}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-white font-medium"
+          >
+            Save State
+          </button>
+          <button
+            onClick={loadState}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-white font-medium"
+          >
+            Load State
+          </button>
+        </div>
+
+        {/* Error toast */}
+        {error && (
+          <div className="bg-red-900 border border-red-600 p-4 rounded text-red-100">
+            {error}
+          </div>
+        )}
+
+        {/* Section 1: Company Query */}
+        <div className="bg-gray-800 rounded-lg p-6 space-y-4">
+          <h2 className="text-2xl font-bold">Section 1: Query Open Roles</h2>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Company Name</label>
+              <input
+                type="text"
+                value={state.company_name}
+                onChange={(e) => setState({ ...state, company_name: e.target.value })}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                placeholder="e.g., Vetcove"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Company URL</label>
+              <input
+                type="text"
+                value={state.company_url}
+                onChange={(e) => setState({ ...state, company_url: e.target.value })}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                placeholder="e.g., https://vetcove.com"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Careers Page URL</label>
+              <input
+                type="text"
+                value={state.careers_page_url}
+                onChange={(e) => setState({ ...state, careers_page_url: e.target.value })}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                placeholder="e.g., https://vetcove.com/careers"
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={queryCompany}
+            disabled={loadingQuery || !state.careers_page_url}
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 rounded text-white font-medium"
+          >
+            {loadingQuery ? "Querying..." : "Query Open Roles"}
+          </button>
+
+          {/* Query results */}
+          {queryJobs.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold mb-3">Found {queryJobs.length} jobs:</h3>
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {queryJobs.map((job, idx) => (
+                  <div key={idx} className="bg-gray-700 p-3 rounded border border-gray-600">
+                    <div className="font-medium text-white">{job.title}</div>
+                    <div className="text-sm text-gray-400 truncate">{job.url}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Section 2: Job Extraction */}
+        <div className="bg-gray-800 rounded-lg p-6 space-y-4">
+          <h2 className="text-2xl font-bold">Section 2: Extract Job Data</h2>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Job URL</label>
+            <input
+              type="text"
+              value={state.job_url}
+              onChange={(e) => setState({ ...state, job_url: e.target.value })}
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+              placeholder="e.g., https://jobs.ashbyhq.com/..."
+            />
+          </div>
+
+          <button
+            onClick={extractJob}
+            disabled={loadingExtract || !state.job_url}
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 rounded text-white font-medium"
+          >
+            {loadingExtract ? "Extracting..." : "Extract Job Data"}
+          </button>
+
+          {/* Extraction results */}
+          {extractedJob && (
+            <div className="mt-6 space-y-3">
+              <div className="bg-gray-700 p-3 rounded border border-gray-600">
+                <div className="text-sm text-gray-400">Title</div>
+                <div className="font-medium text-white">{extractedJob.title || "N/A"}</div>
+              </div>
+
+              <div className="bg-gray-700 p-3 rounded border border-gray-600">
+                <div className="text-sm text-gray-400">Description</div>
+                <div className="text-white text-sm">
+                  {extractedJob.description ? extractedJob.description.substring(0, 300) + "..." : "N/A"}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-700 p-3 rounded border border-gray-600">
+                  <div className="text-sm text-gray-400">Salary Range</div>
+                  <div className="font-medium text-white">{extractedJob.salary_range || "N/A"}</div>
+                </div>
+
+                <div className="bg-gray-700 p-3 rounded border border-gray-600">
+                  <div className="text-sm text-gray-400">Remote Status</div>
+                  <div className="font-medium text-white capitalize">{extractedJob.remote_status || "N/A"}</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

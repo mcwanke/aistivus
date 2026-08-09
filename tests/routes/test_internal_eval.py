@@ -14,7 +14,6 @@ from unittest.mock import AsyncMock, patch
 
 import database
 
-
 # ─── Shared LLM mock responses ────────────────────────────────────────────────
 
 _ANALYSIS = {

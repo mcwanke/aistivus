@@ -115,9 +115,9 @@ describe('ApplyWorkflow', () => {
     expect(screen.getByText(/Step 1.*Research/i)).toBeInTheDocument()
   })
 
-  it('renders Generate Research Prompt button in Step 1', () => {
+  it('renders Open Research Workflow button in Step 1', () => {
     renderWithProviders(<ApplyWorkflow {...BASE_PROPS} />)
-    expect(screen.getByText('Generate Research Prompt')).toBeInTheDocument()
+    expect(screen.getByText('Open Research Workflow')).toBeInTheDocument()
   })
 
   it('renders View Research link in Step 1', () => {

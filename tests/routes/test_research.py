@@ -9,6 +9,7 @@ Routes covered:
 """
 
 import json
+
 import database
 
 VALID_RESEARCH_JSON = json.dumps({

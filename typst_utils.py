@@ -44,9 +44,7 @@ def compute_line_count(content: str) -> dict:
         # ── Preamble / template directives (skip, consuming multi-line blocks) ──
 
         if (
-            line.startswith("#let ")
-            or line.startswith("#set ")
-            or line.startswith("#show ")
+            line.startswith(("#let ", "#set ", "#show "))
         ):
             i = _skip_block(lines, i)
             continue
@@ -61,15 +59,13 @@ def compute_line_count(content: str) -> dict:
             continue
 
         if (
-            line.startswith("#job(")
-            or line.startswith("#subjob[")
-            or line.startswith("#align(")
+            line.startswith(("#job(", "#subjob[", "#align("))
         ):
             i = _skip_block(lines, i)
             continue
 
         # Spacing helpers — single line, no block
-        if line.startswith("#v(") or line.startswith("#h("):
+        if line.startswith(("#v(", "#h(")):
             i += 1
             continue
 

@@ -13,6 +13,7 @@ import Settings from '@/pages/Settings'
 import LLMUsage from '@/pages/LLMUsage'
 import JobSearchProfile from '@/pages/JobSearchProfile'
 import Career from '@/pages/Career'
+import CompanyPOCPage from '@/pages/CompanyPOCPage'
 import '@/index.css'
 
 const router = createBrowserRouter([
@@ -25,6 +26,7 @@ const router = createBrowserRouter([
   { path: '/settings',   element: <Settings /> },
   { path: '/llm-usage',  element: <LLMUsage /> },
   { path: '/profile',    element: <JobSearchProfile /> },
+  { path: '/poc-company', element: <CompanyPOCPage /> },
   { path: '/jobs',       element: <Jobs /> },
   { path: '/jobs/:jobId', element: <JobDetailPage /> },
   { path: '/applications',                      element: <Applications /> },

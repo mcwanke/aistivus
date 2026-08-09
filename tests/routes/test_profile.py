@@ -20,7 +20,6 @@ import database
 import llm_client
 import profile_routes
 
-
 # ─────────────────────────────────────────────────────────────
 # Sample content — enough to exercise parse + completion checks
 # ─────────────────────────────────────────────────────────────

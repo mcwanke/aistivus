@@ -29,24 +29,17 @@ const MOCK_RESEARCH: JobResearch = {
 }
 
 describe('ResearchSubpage — empty state', () => {
-  it('renders "Generate Research Prompt" button', async () => {
-    renderWithProviders(<ResearchSubpage jobId={1} />)
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: /Generate Research Prompt/i })).toBeInTheDocument()
-    )
-  })
-
-  it('renders "Import Research Results" button', async () => {
-    renderWithProviders(<ResearchSubpage jobId={1} />)
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: /Import Research Results/i })).toBeInTheDocument()
-    )
-  })
-
   it('shows empty state message when no research data', async () => {
     renderWithProviders(<ResearchSubpage jobId={1} />)
     await waitFor(() =>
       expect(screen.getByText(/No research data yet/i)).toBeInTheDocument()
+    )
+  })
+
+  it('renders back link to Apply Workflow', async () => {
+    renderWithProviders(<ResearchSubpage jobId={1} onNavigateToApplyWorkflow={() => {}} />)
+    await waitFor(() =>
+      expect(screen.getByText(/Back to Research Workflow/i)).toBeInTheDocument()
     )
   })
 })
@@ -87,18 +80,16 @@ describe('ResearchSubpage — with research data', () => {
   })
 })
 
-describe('ResearchSubpage — import modal', () => {
-  it('import modal opens on button click', async () => {
-    const user = userEvent.setup()
+describe('ResearchSubpage — with research data + Copy button', () => {
+  it('renders Copy Research JSON button when research data exists', async () => {
+    server.use(
+      http.get('/api/v1/jobs/:id/research', () =>
+        HttpResponse.json({ research: MOCK_RESEARCH }),
+      ),
+    )
     renderWithProviders(<ResearchSubpage jobId={1} />)
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /Import Research Results/i })).toBeInTheDocument()
-    )
-    await user.click(screen.getByRole('button', { name: /Import Research Results/i }))
-    // 'Parse & Import' is unique to the modal; button text appears in both button and modal header
-    await waitFor(() =>
-      expect(screen.getByText('Parse & Import')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Copy Research JSON/i })).toBeInTheDocument()
     )
   })
-
 })

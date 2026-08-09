@@ -7,8 +7,8 @@ Each test uses a fresh in-file SQLite database; no network calls are made.
 """
 
 import pytest
-import database
 
+import database
 
 # ─────────────────────────────────────────────────────────────
 # init_db / schema
@@ -837,8 +837,8 @@ class TestJobsearchVersions:
     def test_get_versions_metadata_only(self, tmp_db):
         database.save_jobsearch_version("content", note="test note")
         versions = database.get_jobsearch_versions()
-        assert "content" not in versions[0].keys()
-        assert "note" in versions[0].keys()
+        assert "content" not in versions[0]
+        assert "note" in versions[0]
 
     def test_get_version_content_not_found(self, tmp_db):
         assert database.get_jobsearch_version_by_id(99999) is None
@@ -1128,7 +1128,7 @@ class TestPromptTemperature:
         )
         row = database.get_active_prompt("temp_field_test")
         assert row is not None
-        assert "temperature" in dict(row).keys()
+        assert "temperature" in dict(row)
         assert row["temperature"] == 0.6
 
     def test_save_prompt_updates_temperature(self, tmp_db):
@@ -1218,9 +1218,8 @@ class TestGetSetEvalWeights:
         assert weights["candidate_fit"] == pytest.approx(0.25)
 
     def test_sum_not_1_raises(self, tmp_db):
-        with database.get_connection() as conn:
-            with pytest.raises(ValueError):
-                database.set_eval_weights(conn, 0.50, 0.30, 0.30)
+        with database.get_connection() as conn, pytest.raises(ValueError):
+            database.set_eval_weights(conn, 0.50, 0.30, 0.30)
 
 
 class TestMigrateLegacyEvaluations:

@@ -373,10 +373,7 @@ def _validate_parsed_response(parsed: dict) -> bool:
                 parsed[field] = None
 
     fit_type = str(parsed.get("fit_type", ""))
-    if "<" in fit_type and ">" in fit_type:
-        return False
-
-    return True
+    return not ("<" in fit_type and ">" in fit_type)
 
 
 def _parse_analysis_response(raw: str) -> dict | None:

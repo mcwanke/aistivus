@@ -1,10 +1,11 @@
 import { useState, useRef, useCallback } from 'react'
 import { useUploadDocument, useApplicationDocuments } from '@/hooks/useDocuments'
 import { useGeneratePrompt, useGenerateResumePrompt, useGenerateCoverPrompt } from '@/hooks/useApplications'
-import { useGenerateResearchPrompt, useImportResearch, useJobResearch } from '@/hooks/useJobs'
+import { useJobResearch } from '@/hooks/useJobs'
 import { useModels, useRunInternalEval } from '@/hooks/useEvaluate'
 import type { InternalEvalEvent } from '@/hooks/useEvaluate'
 import { InternalEvalModal } from '@/components/InternalEvalModal'
+import { ResearchWorkflowModal } from '@/components/ResearchWorkflowModal'
 import { fmtScore } from '@/utils/formatting'
 import type { EvalWithMeta } from '@/types/api'
 
@@ -48,48 +49,6 @@ function PromptModal({ prompt, title, onClose }: { prompt: string; title: string
   )
 }
 
-// ─── Research import modal ────────────────────────────────────────────────────
-
-function ResearchImportModal({ jobId, onClose }: { jobId: number; onClose: () => void }): React.JSX.Element {
-  const [text, setText] = useState('')
-  const importMutation = useImportResearch(jobId)
-
-  async function handleImport(): Promise<void> {
-    await importMutation.mutateAsync(text.trim())
-    onClose()
-  }
-
-  return (
-    <div className="fixed inset-0 bg-bg/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-surface rounded p-6 w-full max-w-2xl flex flex-col gap-4 max-h-[80vh]">
-        <h2 className="font-serif text-accent text-lg">Import Research Results</h2>
-        <p className="text-xs font-mono text-muted">Paste the JSON output from the research prompt below.</p>
-        <textarea
-          className="flex-1 min-h-[300px] bg-surface2 rounded px-3 py-2 text-xs font-mono text-text focus:outline-none focus:ring-1 focus:ring-accent resize-y"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder='{ "research_summary": "...", "research_confidence": "high", ... }'
-        />
-        {importMutation.isError && (
-          <p className="text-red text-xs font-mono">{importMutation.error.message}</p>
-        )}
-        <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-1.5 text-sm text-muted hover:text-text transition-colors">
-            Cancel
-          </button>
-          <button
-            onClick={() => void handleImport()}
-            disabled={!text.trim() || importMutation.isPending}
-            className="px-4 py-1.5 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
-          >
-            {importMutation.isPending ? 'Importing…' : 'Parse & Import'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ─── ApplyWorkflow ────────────────────────────────────────────────────────────
 
 interface ApplyWorkflowProps {
@@ -118,7 +77,7 @@ export function ApplyWorkflow({
 }: ApplyWorkflowProps): React.JSX.Element {
   const [evalPromptText, setEvalPromptText] = useState<string | null>(null)
   const [researchPromptText, setResearchPromptText] = useState<string | null>(null)
-  const [showResearchImport, setShowResearchImport] = useState(false)
+  const [showResearchWorkflow, setShowResearchWorkflow] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -138,7 +97,6 @@ export function ApplyWorkflow({
   const coverFileInputRef = useRef<HTMLInputElement>(null)
 
   const generateEvalPrompt = useGeneratePrompt()
-  const generateResearchPrompt = useGenerateResearchPrompt(jobId)
   const { data: research } = useJobResearch(jobId)
   const upload = useUploadDocument(applicationId)
   const { data: models } = useModels()
@@ -188,11 +146,6 @@ export function ApplyWorkflow({
   async function handleGenerateEvalPrompt(): Promise<void> {
     const result = await generateEvalPrompt.mutateAsync(applicationId)
     setEvalPromptText(result.prompt)
-  }
-
-  async function handleGenerateResearchPrompt(): Promise<void> {
-    const result = await generateResearchPrompt.mutateAsync()
-    setResearchPromptText(result.prompt)
   }
 
   async function handleUpload(e: React.SyntheticEvent<HTMLFormElement>): Promise<void> {
@@ -261,22 +214,12 @@ export function ApplyWorkflow({
         <div className="flex flex-col gap-2 mb-3">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => void handleGenerateResearchPrompt()}
-              disabled={generateResearchPrompt.isPending}
-              className="px-3 py-1.5 text-xs font-mono text-text/70 border-2 border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50 shrink-0"
-            >
-              {generateResearchPrompt.isPending ? 'Generating…' : 'Generate Research Prompt'}
-            </button>
-            <span className="text-xs font-mono text-muted">Build the external research prompt for this job.</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setShowResearchImport(true)}
+              onClick={() => setShowResearchWorkflow(true)}
               className="px-3 py-1.5 text-xs font-mono text-text/70 border-2 border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors shrink-0"
             >
-              Import Research Results
+              Open Research Workflow
             </button>
-            <span className="text-xs font-mono text-muted">Paste the JSON output from the research prompt.</span>
+            <span className="text-xs font-mono text-muted">Generate prompt & import results.</span>
           </div>
           <button
             onClick={onNavigateToResearch}
@@ -285,9 +228,6 @@ export function ApplyWorkflow({
             Review Research →
           </button>
         </div>
-        {generateResearchPrompt.isError && (
-          <p className="text-xs font-mono text-red mb-2">{generateResearchPrompt.error.message}</p>
-        )}
       </div>
 
       <hr className="border-surface2" />
@@ -619,10 +559,10 @@ export function ApplyWorkflow({
           onClose={() => setCoverPromptText(null)}
         />
       )}
-      {showResearchImport && (
-        <ResearchImportModal
+      {showResearchWorkflow && (
+        <ResearchWorkflowModal
           jobId={jobId}
-          onClose={() => setShowResearchImport(false)}
+          onClose={() => setShowResearchWorkflow(false)}
         />
       )}
       {showInternalEvalModal && (

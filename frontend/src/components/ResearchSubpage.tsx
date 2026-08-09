@@ -1,94 +1,6 @@
 import { useState } from 'react'
-import { useJobResearch, useImportResearch, useGenerateResearchPrompt } from '@/hooks/useJobs'
+import { useJobResearch } from '@/hooks/useJobs'
 import type { JobResearch } from '@/types/api'
-
-// ─── Prompt modal ─────────────────────────────────────────────────────────────
-
-function PromptModal({ prompt, onClose }: { prompt: string; onClose: () => void }): React.JSX.Element {
-  const [copied, setCopied] = useState(false)
-
-  function handleCopy(): void {
-    void navigator.clipboard.writeText(prompt).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
-  }
-
-  return (
-    <div className="fixed inset-0 bg-bg/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-surface rounded p-6 w-full max-w-2xl flex flex-col gap-4 max-h-[80vh]">
-        <div className="flex items-center justify-between">
-          <h2 className="font-serif text-accent text-lg">Company Research Prompt</h2>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleCopy}
-              className="text-xs px-3 py-1.5 bg-accent text-bg rounded hover:bg-accent/90 transition-colors font-mono"
-            >
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
-            <button onClick={onClose} className="text-xs px-3 py-1.5 text-muted hover:text-text transition-colors">
-              Close
-            </button>
-          </div>
-        </div>
-        <pre className="flex-1 overflow-y-auto text-xs font-mono text-text bg-surface2 rounded p-4 whitespace-pre-wrap break-words leading-relaxed">
-          {prompt}
-        </pre>
-      </div>
-    </div>
-  )
-}
-
-// ─── Import modal ─────────────────────────────────────────────────────────────
-
-function ImportModal({
-  jobId,
-  onClose,
-  onSuccess,
-}: {
-  jobId: number
-  onClose: () => void
-  onSuccess: () => void
-}): React.JSX.Element {
-  const [text, setText] = useState('')
-  const importMutation = useImportResearch(jobId)
-
-  async function handleImport(): Promise<void> {
-    await importMutation.mutateAsync(text.trim())
-    onSuccess()
-    onClose()
-  }
-
-  return (
-    <div className="fixed inset-0 bg-bg/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-surface rounded p-6 w-full max-w-2xl flex flex-col gap-4 max-h-[80vh]">
-        <h2 className="font-serif text-accent text-lg">Import Research Results</h2>
-        <p className="text-xs font-mono text-muted">Paste the JSON output from the research prompt below.</p>
-        <textarea
-          className="flex-1 min-h-[300px] bg-surface2 rounded px-3 py-2 text-xs font-mono text-text focus:outline-none focus:ring-1 focus:ring-accent resize-y"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder='{ "research_summary": "...", "research_confidence": "high", ... }'
-        />
-        {importMutation.isError && (
-          <p className="text-red text-xs font-mono">{importMutation.error.message}</p>
-        )}
-        <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-1.5 text-sm text-muted hover:text-text transition-colors">
-            Cancel
-          </button>
-          <button
-            onClick={() => void handleImport()}
-            disabled={!text.trim() || importMutation.isPending}
-            className="px-4 py-1.5 text-sm bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
-          >
-            {importMutation.isPending ? 'Importing…' : 'Parse & Import'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ─── Confidence badge ─────────────────────────────────────────────────────────
 
@@ -241,17 +153,18 @@ function ResearchDisplay({ research }: { research: JobResearch }): React.JSX.Ele
 
 interface ResearchSubpageProps {
   jobId: number
+  onNavigateToApplyWorkflow?: () => void
 }
 
-export function ResearchSubpage({ jobId }: ResearchSubpageProps): React.JSX.Element {
-  const [showImport, setShowImport] = useState(false)
-  const [promptText, setPromptText] = useState<string | null>(null)
-  const { data: research, isLoading, isError, refetch } = useJobResearch(jobId)
-  const generatePrompt = useGenerateResearchPrompt(jobId)
+export function ResearchSubpage({ jobId, onNavigateToApplyWorkflow }: ResearchSubpageProps): React.JSX.Element {
+  const [copiedJson, setCopiedJson] = useState(false)
+  const { data: research, isLoading, isError } = useJobResearch(jobId)
 
-  async function handleGenerate(): Promise<void> {
-    const result = await generatePrompt.mutateAsync()
-    setPromptText(result.prompt)
+  async function handleCopyResearchJson(): Promise<void> {
+    if (!research?.raw_json) return
+    await navigator.clipboard.writeText(research.raw_json)
+    setCopiedJson(true)
+    setTimeout(() => setCopiedJson(false), 2000)
   }
 
   if (isLoading) {
@@ -264,24 +177,24 @@ export function ResearchSubpage({ jobId }: ResearchSubpageProps): React.JSX.Elem
   return (
     <div className="space-y-5">
       {/* Action bar */}
-      <div className="flex gap-2 flex-wrap">
-        <button
-          onClick={() => void handleGenerate()}
-          disabled={generatePrompt.isPending}
-          className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50"
-        >
-          {generatePrompt.isPending ? 'Generating…' : 'Generate Research Prompt'}
-        </button>
-        <button
-          onClick={() => setShowImport(true)}
-          className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
-        >
-          Import Research Results
-        </button>
+      <div className="flex gap-2 flex-wrap items-center">
+        {onNavigateToApplyWorkflow && (
+          <button
+            onClick={onNavigateToApplyWorkflow}
+            className="text-xs font-mono text-accent hover:underline"
+          >
+            ← Back to Research Workflow
+          </button>
+        )}
+        {research?.raw_json && (
+          <button
+            onClick={() => void handleCopyResearchJson()}
+            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
+          >
+            {copiedJson ? 'Copied!' : 'Copy Research JSON'}
+          </button>
+        )}
       </div>
-      {generatePrompt.isError && (
-        <p className="text-xs font-mono text-red">{generatePrompt.error.message}</p>
-      )}
 
       <hr className="border-surface2" />
 
@@ -289,19 +202,8 @@ export function ResearchSubpage({ jobId }: ResearchSubpageProps): React.JSX.Elem
         <ResearchDisplay research={research} />
       ) : (
         <p className="text-xs font-mono text-muted italic">
-          No research data yet. Generate a research prompt above and paste the results back in.
+          No research data yet. Use the Research Workflow in Apply Workflow to generate and import research.
         </p>
-      )}
-
-      {showImport && (
-        <ImportModal
-          jobId={jobId}
-          onClose={() => setShowImport(false)}
-          onSuccess={() => void refetch()}
-        />
-      )}
-      {promptText !== null && (
-        <PromptModal prompt={promptText} onClose={() => setPromptText(null)} />
       )}
     </div>
   )
