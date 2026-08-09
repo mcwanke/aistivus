@@ -168,15 +168,15 @@ def test_complete_stream_ollama_yields_stream_error_on_exception():
 # ─────────────────────────────────────────────────────────────
 
 def test_complete_stream_anthropic_yields_tokens():
-    with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}):
-        with patch("anthropic.AsyncAnthropic", _FakeAsyncAnthropic):
-            tokens = run_stream(llm_client.complete_stream(
-                prompt="Say hello",
-                system="You are helpful",
-                model="claude-haiku-4-5-20251001",
-                provider="anthropic",
-                base_url="",
-            ))
+    with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+         patch("anthropic.AsyncAnthropic", _FakeAsyncAnthropic):
+        tokens = run_stream(llm_client.complete_stream(
+            prompt="Say hello",
+            system="You are helpful",
+            model="claude-haiku-4-5-20251001",
+            provider="anthropic",
+            base_url="",
+        ))
     assert tokens == _ANTHROPIC_TOKENS
 
 
@@ -489,15 +489,15 @@ def test_complete_passes_temperature_to_anthropic():
         def __init__(self, **kwargs):
             self.messages = mock_messages
 
-    with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
-        with patch("anthropic.AsyncAnthropic", new=FakeAsyncAnthropic):
-            asyncio.run(llm_client.complete(
-                prompt="hi",
-                system="sys",
-                model="claude-sonnet-4-6",
-                provider="anthropic",
-                base_url="",
-                temperature=0.3,
-            ))
+    with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}), \
+         patch("anthropic.AsyncAnthropic", new=FakeAsyncAnthropic):
+        asyncio.run(llm_client.complete(
+            prompt="hi",
+            system="sys",
+            model="claude-sonnet-4-6",
+            provider="anthropic",
+            base_url="",
+            temperature=0.3,
+        ))
 
     assert captured_kwargs.get("temperature") == 0.3

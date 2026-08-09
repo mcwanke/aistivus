@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useGeneratePrompt } from '@/hooks/useApplications'
 import { useModels, useImportEvaluationMutation } from '@/hooks/useEvaluate'
+import { useSettings } from '@/hooks/useSettings'
 
 interface ExternalEvalWorkflowModalProps {
   applicationId: number
@@ -17,12 +18,13 @@ export function ExternalEvalWorkflowModal({ applicationId, onClose }: ExternalEv
   const generateMutation = useGeneratePrompt()
   const importMutation = useImportEvaluationMutation()
   const { data: allModels = [] } = useModels()
+  const { data: settings } = useSettings()
 
-  // Filter to external models only (provider !== 'ollama')
-  const externalModels = allModels.filter(m => m.provider !== 'ollama')
+  // Filter to external models only (server_type !== 'ollama')
+  const externalModels = allModels.filter(m => m.server_type !== 'ollama')
 
-  // Auto-select first external model if not set
-  const resolvedModelId = selectedModelId ?? externalModels[0]?.id ?? null
+  // Use default external model if set, otherwise auto-select first external model
+  const resolvedModelId = selectedModelId ?? settings?.external_default_model_id ?? externalModels[0]?.id ?? null
 
   // Auto-generate external eval prompt on mount
   useEffect(() => {
@@ -133,7 +135,7 @@ export function ExternalEvalWorkflowModal({ applicationId, onClose }: ExternalEv
               >
                 {externalModels.map(m => (
                   <option key={m.id} value={m.id}>
-                    {m.model} [{m.provider}]
+                    {m.model} [{m.server_name}]
                   </option>
                 ))}
               </select>

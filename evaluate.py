@@ -163,7 +163,7 @@ async def process_file(
     # Parse frontmatter and JD text
     try:
         frontmatter, jd_text = parse_inbox_file(file_path)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         error = f"Failed to read or parse file: {e}"
         print(f"  ✗ {error}")
         if not dry_run:
@@ -212,7 +212,7 @@ async def process_file(
             pay_band=pay_band,
             apply_url=apply_url,
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         error = f"Evaluation raised an exception: {type(e).__name__}: {e}"
         print(f"  ✗ {error}")
         shutil.move(str(file_path), str(failed_dir / filename))

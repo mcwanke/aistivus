@@ -571,6 +571,13 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass  # column already exists
 
+        try:
+            conn.execute(
+                "ALTER TABLE llm_models ADD COLUMN external_default INTEGER NOT NULL DEFAULT 0"
+            )
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
         for type_name, type_value in _SYSTEM_TYPES_SEED:
             existing = conn.execute(
                 "SELECT id FROM system_types WHERE type_name = ? AND type_value = ?",
@@ -911,6 +918,31 @@ def set_llm_model_default(model_id: int) -> None:
         conn.execute(
             "UPDATE llm_models SET default_flag = 1 WHERE id = ?", (model_id,)
         )
+
+
+def set_external_default_model(model_id: int) -> None:
+    """
+    Set a model as the default for external evaluations. Clears external_default on all other records.
+    Raises ValueError if the model does not exist or is not an external model.
+    """
+    with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT id FROM llm_models WHERE id = ?", (model_id,)
+        ).fetchone()
+        if not existing:
+            raise ValueError(f"LLM model id={model_id} not found")
+        conn.execute("UPDATE llm_models SET external_default = 0")
+        conn.execute(
+            "UPDATE llm_models SET external_default = 1 WHERE id = ?", (model_id,)
+        )
+
+
+def get_external_default_model() -> sqlite3.Row | None:
+    """Return the model with external_default = 1, or None if not set."""
+    with get_connection() as conn:
+        return conn.execute(
+            f"{_LLM_MODEL_JOIN} WHERE lm.external_default = 1 LIMIT 1"
+        ).fetchone()
 
 
 def set_llm_model_available(model_id: int, available: int) -> None:

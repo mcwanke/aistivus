@@ -9,6 +9,7 @@ import {
   useUpdateModel,
   useDeleteModel,
   useArchiveModel,
+  useSetExternalDefaultModel,
   useCheckAvailability,
   useSystemTypes,
   useAddSystemType,
@@ -1167,6 +1168,57 @@ function ModelsSection(): React.JSX.Element {
   )
 }
 
+// ─── External Default Model ──────────────────────────────────────────────────────
+
+function ExternalDefaultModelSection(): React.JSX.Element {
+  const { data: models = [] } = useLlmModels()
+  const { data: settings } = useSettings()
+  const setExternalDefault = useSetExternalDefaultModel()
+
+  const externalModels = models.filter(m => m.server_type !== 'ollama')
+  const selectedModelId = settings?.external_default_model_id ?? null
+
+  if (externalModels.length === 0) {
+    return (
+      <section className="mb-10">
+        <SectionHeader title="Default External Model for Evaluations" />
+        <p className="text-sm text-muted">No external models configured.</p>
+      </section>
+    )
+  }
+
+  return (
+    <section className="mb-10">
+      <SectionHeader title="Default External Model for Evaluations" />
+      <p className="text-xs text-muted mb-4">
+        Selecting a default external model will pre-populate it in the External Eval workflow.
+      </p>
+      <div className="space-y-2">
+        {externalModels.map((m) => (
+          <label key={m.id} className="flex items-center gap-3 p-3 rounded bg-surface2/50 hover:bg-surface2 cursor-pointer transition-colors">
+            <input
+              type="radio"
+              name="external-default"
+              value={m.id}
+              checked={selectedModelId === m.id}
+              onChange={() => void setExternalDefault.mutateAsync(m.id)}
+              disabled={setExternalDefault.isPending}
+              className="cursor-pointer"
+            />
+            <span className="text-sm font-mono flex-1">
+              {m.model}
+              <span className="ml-2 text-xs text-muted">({m.server_name})</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      {setExternalDefault.isError && (
+        <p className="text-xs font-mono text-red mt-2">{(setExternalDefault.error as Error).message}</p>
+      )}
+    </section>
+  )
+}
+
 // ─── System types ─────────────────────────────────────────────────────────────
 
 function SystemTypesSection(): React.JSX.Element {
@@ -1945,7 +1997,13 @@ export default function Settings(): React.JSX.Element {
         {activeTab === 'app-settings' && <AppSettingsSection />}
         {activeTab === 'system-types' && <SystemTypesSection />}
         {activeTab === 'servers' && <ServersSection />}
-        {activeTab === 'models' && <ModelsSection />}
+        {activeTab === 'models' && (
+          <>
+            <ModelsSection />
+            <hr className="border-surface2 my-8" />
+            <ExternalDefaultModelSection />
+          </>
+        )}
         {activeTab === 'my-data' && (
           <>
             <JobsearchSection />

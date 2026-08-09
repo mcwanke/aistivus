@@ -106,6 +106,8 @@ export const MOCK_JOB: JobListItem = {
   application_id: 1,
   application_status: 'draft',
   eval_count: 2,
+  staleness_days_overall: 8,
+  staleness_days_status: 8,
 }
 
 export const MOCK_JOB_DETAIL: JobDetailResponse = {

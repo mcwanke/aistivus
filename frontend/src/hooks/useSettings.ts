@@ -104,6 +104,27 @@ export function useSetDefaultModel() {
   })
 }
 
+export function useSetExternalDefaultModel() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (modelId: number) => {
+      const res = await fetch('/api/v1/settings/external-default-model', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model_id: modelId }),
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw new Error(err.detail ?? `set external default model ${res.status}`)
+      }
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['settings'] })
+      void qc.invalidateQueries({ queryKey: ['models'] })
+    },
+  })
+}
+
 export function useDeleteModel() {
   const qc = useQueryClient()
   return useMutation({

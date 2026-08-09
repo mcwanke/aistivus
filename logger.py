@@ -71,8 +71,8 @@ def _load_logging_config() -> dict:
             with open(config_path) as f:
                 cfg = yaml.safe_load(f) or {}
                 return cfg.get("logging", {})
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Warning: failed to load logging config: {e}")
     return {}
 
 

@@ -50,6 +50,7 @@ API routes:
   DELETE /api/v1/system-types/{id}
   GET  /api/v1/settings
   PATCH /api/v1/settings
+  POST /api/v1/settings/external-default-model
   GET  /api/v1/settings/app
   PATCH /api/v1/settings/app/{key}
   GET  /api/v1/settings/jobsearch
@@ -192,7 +193,7 @@ async def _update_model_availability(app_state=None) -> None:
             database.set_llm_model_available(model_id, 1 if is_available else 0)
             if is_available:
                 available_count += 1
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             log.warning(
                 "model_availability_check_failed",
                 extra={"model": model_name, "error": str(exc)},
@@ -255,6 +256,20 @@ def load_prompt_template(filename: str) -> dict | None:
     return {"key": key, "label": label, "temperature": temperature, "segments_text": segments_text}
 
 
+def _check_typst_version(typst_binary: str) -> bool:
+    """Check if typst binary is available by running --version. Returns True if available."""
+    try:
+        result = subprocess.run(
+            [typst_binary, "--version"],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
 # ─────────────────────────────────────────────────────────────
 # Lifespan
 # ─────────────────────────────────────────────────────────────
@@ -309,17 +324,7 @@ async def lifespan(app: FastAPI):
 
     application_docs_dir.mkdir(parents=True, exist_ok=True)
 
-    try:
-        typst_result = subprocess.run(
-            [typst_binary, "--version"],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
-        typst_available = typst_result.returncode == 0
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        typst_available = False
-
+    typst_available = await asyncio.to_thread(_check_typst_version, typst_binary)
     app.state.typst_available = typst_available
     app.state.typst_binary = typst_binary
     app.state.application_docs_dir = application_docs_dir
@@ -596,6 +601,10 @@ class UpdateModelRequest(BaseModel):
     default_flag: bool | None = None
 
 
+class ExternalDefaultModelRequest(BaseModel):
+    model_id: int
+
+
 class CreateSystemTypeRequest(BaseModel):
     type_name: str
     type_value: str
@@ -681,7 +690,7 @@ async def _lesson_sse_generator(
             accumulated.append(token)
             safe_token = token.replace("\n", "\ndata: ")
             yield f"data: {safe_token}\n\n"
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         log.warning("lesson_chat_stream_error", extra={"error": str(exc)})
         had_error = True
 
@@ -700,7 +709,7 @@ async def _lesson_sse_generator(
             success=0 if had_error else 1,
             job_id=job_id,
         )
-    except Exception as log_exc:
+    except Exception as log_exc:  # noqa: BLE001
         log.warning("lesson_chat_log_error", extra={"error": str(log_exc)})
 
 
@@ -729,8 +738,8 @@ async def health_check(request: Request):
     db_version = "unknown"
     try:
         db_version = database.get_schema_version()
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001
+        log.warning("startup_schema_version_check_failed", extra={"error": str(e)})
 
     return JSONResponse({
         "status": "ok" if any_available else "degraded",
@@ -819,7 +828,7 @@ async def evaluate_endpoint(request: Request, body: EvaluateRequest):
                     body.company_name,
                 )
                 app_folder.mkdir(parents=True, exist_ok=True)
-        except Exception as _folder_exc:
+        except Exception as _folder_exc:  # noqa: BLE001
             log.warning("application_folder_create_failed", extra={"error": str(_folder_exc)})
 
     return EvaluateResponse(**result)
@@ -2063,7 +2072,7 @@ async def lesson_chat(
             parsed_out = _json.loads(raw)
             log_entry = parsed_out.get("log_entry", raw)
             insights_addition = parsed_out.get("insights_addition", raw)
-        except Exception:
+        except Exception:  # noqa: BLE001
             log_entry = raw
             insights_addition = raw
 
@@ -2227,10 +2236,12 @@ async def delete_system_type(request: Request, type_id: int):
 async def get_settings(request: Request):
     """Return runtime settings. API key values are never echoed — boolean presence only."""
     config = _load_config()
+    external_default = database.get_external_default_model()
     return JSONResponse({
         "app_version": "2.4.0",
         "schema_version": database.get_schema_version(),
         "anthropic_api_key_configured": bool(os.environ.get("ANTHROPIC_API_KEY")),
+        "external_default_model_id": external_default["id"] if external_default else None,
         "server": config.get("server", {}),
         "logging": {k: v for k, v in config.get("logging", {}).items()},
         "database": {
@@ -2249,6 +2260,18 @@ async def update_settings(request: Request, body: UpdateSettingsRequest):
     """
     log.info("settings_patch_called", extra={"keys": list(body.settings.keys())})
     return JSONResponse({"success": True})
+
+
+@app.post("/api/v1/settings/external-default-model")
+@limiter.limit("10/minute")
+async def set_external_default_model(request: Request, body: ExternalDefaultModelRequest):
+    """Set the default external model for evaluations."""
+    try:
+        database.set_external_default_model(body.model_id)
+        log.info("external_default_model_set", extra={"model_id": body.model_id})
+        return JSONResponse({"success": True})
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @app.get("/api/v1/settings/jobsearch")
@@ -2452,9 +2475,8 @@ async def update_server(request: Request, server_id: int, body: UpdateServerRequ
     if not row:
         raise HTTPException(status_code=404, detail=f"Server {server_id} not found.")
     server = dict(row)
-    if server["server_type"] != "anthropic" and body.endpoint:
-        if not (body.endpoint.startswith("http://") or body.endpoint.startswith("https://")):
-            raise HTTPException(status_code=422, detail="endpoint must start with http:// or https://")
+    if server["server_type"] != "anthropic" and body.endpoint and not (body.endpoint.startswith("http://") or body.endpoint.startswith("https://")):
+        raise HTTPException(status_code=422, detail="endpoint must start with http:// or https://")
     database.update_server(server_id, server_name=body.server_name, endpoint=body.endpoint)
     updated = dict(database.get_server_by_id(server_id))
     updated["model_count"] = database.get_model_count_for_server(server_id)
@@ -2499,7 +2521,7 @@ async def test_server_connection(request: Request, body: TestConnectionRequest):
             return JSONResponse({"success": False, "error": f"Ollama returned HTTP {resp.status_code}."})
         except httpx.ConnectError:
             return JSONResponse({"success": False, "error": f"Could not reach Ollama at {body.endpoint}."})
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             return JSONResponse({"success": False, "error": f"Connection error: {exc}"})
 
     if body.server_type == "openai-compat":
@@ -2515,7 +2537,7 @@ async def test_server_connection(request: Request, body: TestConnectionRequest):
             return JSONResponse({"success": False, "error": f"Server returned HTTP {resp.status_code}."})
         except httpx.ConnectError:
             return JSONResponse({"success": False, "error": f"Could not reach server at {body.endpoint}."})
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             return JSONResponse({"success": False, "error": f"Connection error: {exc}"})
 
     if body.server_type == "anthropic":
@@ -2533,7 +2555,7 @@ async def test_server_connection(request: Request, body: TestConnectionRequest):
             return JSONResponse({"success": True})
         except anthropic_sdk.AuthenticationError:
             return JSONResponse({"success": False, "error": "API key is invalid. Check the value in your .env file."})
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             return JSONResponse({"success": False, "error": f"Anthropic API error: {exc}"})
 
     raise HTTPException(status_code=422, detail=f"server_type must be one of: {', '.join(_VALID_SERVER_TYPES)}")
@@ -2553,7 +2575,7 @@ async def detect_server_type(request: Request, body: DetectServerRequest):
             async with httpx.AsyncClient(timeout=3.0) as client:
                 resp = await client.get(endpoint)
             return True, resp.status_code == 200
-        except Exception:
+        except Exception:  # noqa: BLE001
             return False, False
 
     (ollama_reached, ollama_ok), (oai_reached, oai_ok) = await asyncio.gather(
@@ -2590,7 +2612,7 @@ async def get_available_models(request: Request, server_id: int):
             return JSONResponse({"models": sorted(model_names)})
         except HTTPException:
             raise
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=503, detail=f"Could not reach server: {exc}")
     # ollama
     try:
@@ -2602,7 +2624,7 @@ async def get_available_models(request: Request, server_id: int):
         return JSONResponse({"models": sorted(model_names)})
     except HTTPException:
         raise
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=503, detail=f"Could not reach Ollama: {exc}")
 
 
@@ -2708,8 +2730,8 @@ async def preview_prompt(request: Request, key: str):
             ctx = _json.loads(preview_context)
             for k, v in ctx.items():
                 assembled = assembled.replace(f"{{{k}}}", str(v))
-        except Exception:
-            pass
+        except Exception as e:  # noqa: BLE001
+            log.warning("prompt_preview_substitution_failed", extra={"error": str(e)})
     return JSONResponse({"preview_text": assembled})
 
 

@@ -197,7 +197,7 @@ async def _stream_ollama(
                     yield content
                 if chunk.get("done"):
                     return
-    except Exception:
+    except Exception:  # noqa: BLE001
         yield "[STREAM_ERROR]"
 
 
@@ -226,7 +226,7 @@ async def _stream_anthropic(
             async for text in stream.text_stream:
                 if text:
                     yield text
-    except Exception:
+    except Exception:  # noqa: BLE001
         yield "[STREAM_ERROR]"
 
 
@@ -307,7 +307,7 @@ async def _call_openai_compat(
             error=f"HTTP error {e.response.status_code}: {e.response.text}",
             latency_ms=latency_ms,
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         latency_ms = int((time.monotonic() - start) * 1000)
         return _error_response(
             provider=PROVIDER_OPENAI_COMPAT,
@@ -354,7 +354,7 @@ async def _stream_openai_compat(
                         yield content
                 except (json.JSONDecodeError, KeyError, IndexError):
                     continue
-    except Exception:
+    except Exception:  # noqa: BLE001
         yield "[STREAM_ERROR]"
 
 
@@ -385,7 +385,7 @@ async def check_openai_compat_health(base_url: str) -> dict[str, Any]:
             "models": [],
             "error": "Cannot connect to server. Check the URL and ensure the server is running.",
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return {
             "reachable": False,
             "models": [],
@@ -479,7 +479,7 @@ async def _call_ollama(
             error=f"Ollama HTTP error {e.response.status_code}: {e.response.text}",
             latency_ms=latency_ms,
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         latency_ms = int((time.monotonic() - start) * 1000)
         return _error_response(
             provider=PROVIDER_OLLAMA,
@@ -568,7 +568,7 @@ async def _call_anthropic(
             error=f"Anthropic API error: {e}",
             latency_ms=latency_ms,
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         latency_ms = int((time.monotonic() - start) * 1000)
         return _error_response(
             provider=PROVIDER_ANTHROPIC,
@@ -617,7 +617,7 @@ async def check_ollama_health(base_url: str = "http://localhost:11434") -> dict[
                 "Is it running? Try: brew services start ollama"
             ),
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return {
             "reachable": False,
             "models": [],

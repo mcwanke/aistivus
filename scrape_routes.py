@@ -45,7 +45,7 @@ def _log_scrape_debug(url: str, result: dict) -> None:
         }
         with open(_SCRAPE_DEBUG_LOG, "a") as f:
             f.write(json.dumps(entry) + "\n")
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         log.warning("scrape_debug write failed: %s", exc)
 
 

@@ -372,6 +372,7 @@ export interface SettingsResponse {
   app_version: string
   schema_version: string
   anthropic_api_key_configured: boolean
+  external_default_model_id?: number
   server: Record<string, unknown>
   logging: Record<string, unknown>
   database: Record<string, unknown>

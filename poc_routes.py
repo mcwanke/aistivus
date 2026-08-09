@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 from pathlib import Path
@@ -179,7 +180,7 @@ Career page content:
     except json.JSONDecodeError as e:
         print(f"[LLM] JSON parse error: {e}")
         return []
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"[LLM] Extraction failed: {e}")
         import traceback
         traceback.print_exc()
@@ -256,7 +257,7 @@ Job posting content:
             print("[JD-Hybrid] Refinement complete")
             return validated
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"[JD-Hybrid] Extraction failed, falling back to structured: {e}")
         return extract_job_data(raw_markdown)
 
@@ -325,7 +326,7 @@ Job posting content:
     except json.JSONDecodeError as e:
         print(f"[JD-LLM] JSON parse error: {e}")
         return {}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"[JD-LLM] Extraction failed: {e}")
         import traceback
         traceback.print_exc()
@@ -448,7 +449,7 @@ async def query_company(req: QueryCompanyRequest) -> QueryCompanyResponse:
             extraction_method=None,
             strategy=req.strategy,
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return QueryCompanyResponse(
             success=False,
             jobs=[],
@@ -534,7 +535,7 @@ async def extract_job(req: ExtractJobRequest) -> ExtractJobResponse:
             confidence="low",
             strategy=req.strategy,
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return ExtractJobResponse(
             success=False,
             job={},
@@ -549,18 +550,24 @@ async def extract_job(req: ExtractJobRequest) -> ExtractJobResponse:
 async def get_poc_state() -> dict:
     """Load POC form state from app_data/poc_state.json."""
     if POC_STATE_PATH.exists():
-        with open(POC_STATE_PATH) as f:
-            return json.load(f)
+        return await asyncio.to_thread(_load_poc_state)
     return {}
+
+
+def _load_poc_state() -> dict:
+    with open(POC_STATE_PATH) as f:
+        return json.load(f)
 
 
 @router.post("/state")
 async def save_poc_state(state: POCStateRequest) -> dict:
     """Save POC form state to app_data/poc_state.json."""
     POC_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(_save_poc_state, state)
+    return {"success": True}
 
+
+def _save_poc_state(state: POCStateRequest) -> None:
     state_dict = state.model_dump()
     with open(POC_STATE_PATH, "w") as f:
         json.dump(state_dict, f, indent=2)
-
-    return {"success": True}

@@ -5,6 +5,7 @@ Document management routes for AIstivus — Phase 1.6.
 All routes registered under /api/v1/ prefix via app.include_router in main.py.
 """
 
+import asyncio
 import os
 import re
 import shutil
@@ -100,6 +101,17 @@ def _validate_within_generated(file_path: str, application_docs_dir: Path) -> Pa
     if not str(resolved).startswith(str(application_docs_dir.resolve())):
         raise HTTPException(status_code=403, detail="Access denied.")
     return resolved
+
+
+def _run_typst_compile(cmd: list[str], timeout: int = 30) -> subprocess.CompletedProcess:
+    """Run typst compile command synchronously. Called via asyncio.to_thread()."""
+    return subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+    )
 
 
 # ─────────────────────────────────────────────────────────────
@@ -608,13 +620,7 @@ async def compile_document(request: Request, application_id: int, doc_id: int):
         cmd = [typst_binary, "compile", str(source_path), str(pdf_path)]
         if typst_fonts_dir and typst_fonts_dir.is_dir():
             cmd += ["--font-path", str(typst_fonts_dir)]
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
+        result = await asyncio.to_thread(_run_typst_compile, cmd)
     except subprocess.TimeoutExpired:
         raise HTTPException(
             status_code=504, detail="Compilation timed out after 30 seconds."

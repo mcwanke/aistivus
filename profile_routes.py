@@ -336,7 +336,7 @@ async def _sse_generator(
             accumulated.append(token)
             safe_token = token.replace("\n", "\ndata: ")
             yield f"data: {safe_token}\n\n"
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         log.warning("profile_chat_stream_error", extra={"error": str(exc)})
         had_error = True
 
@@ -354,7 +354,7 @@ async def _sse_generator(
             latency_ms=latency_ms,
             success=0 if had_error else 1,
         )
-    except Exception as log_exc:
+    except Exception as log_exc:  # noqa: BLE001
         log.warning("profile_chat_log_error", extra={"error": str(log_exc)})
 
 

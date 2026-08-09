@@ -965,7 +965,7 @@ async def run_internal_eval(job_id: int, llm_model_id: int | None):
         if analysis_json is None:
             yield _sse({"event": "error", "step": 1, "message": "Could not parse analysis response as JSON."})
             return
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         yield _sse({"event": "error", "step": 1, "message": str(exc)})
         return
     yield _sse({"event": "step_complete", "step": 1})
@@ -1007,7 +1007,7 @@ async def run_internal_eval(job_id: int, llm_model_id: int | None):
         if screenability_json is None:
             yield _sse({"event": "error", "step": 2, "message": "Could not parse screenability response as JSON."})
             return
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         yield _sse({"event": "error", "step": 2, "message": str(exc)})
         return
     yield _sse({"event": "step_complete", "step": 2})
@@ -1052,7 +1052,7 @@ async def run_internal_eval(job_id: int, llm_model_id: int | None):
         if fit_json is not None:
             fit_json_str = json.dumps(fit_json)
         # step 3 parse failure is non-fatal — write eval with fit scores NULL
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         yield _sse({"event": "error", "step": 3, "message": str(exc)})
         return
     yield _sse({"event": "step_complete", "step": 3})
@@ -1093,8 +1093,8 @@ async def run_internal_eval(job_id: int, llm_model_id: int | None):
         )
         if r4.get("success"):
             synthesis_json = _parse_evaluation_response(raw4)
-    except Exception:
-        pass  # step 4 failure → write what we have, emit done
+    except Exception as e:
+        log.warning("step_4_synthesis_parse_failed", extra={"error": str(e)})
     yield _sse({"event": "step_complete", "step": 4})
 
     # ── Assemble + write evaluation ───────────────────────────

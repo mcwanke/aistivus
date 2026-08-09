@@ -15,6 +15,8 @@ Routes covered:
   POST   /api/v1/applications/{id}/lesson-chat
 """
 
+from typing import ClassVar
+
 import database
 import llm_client
 
@@ -402,7 +404,7 @@ class TestGeneratePrompt:
 # ─────────────────────────────────────────────────────────────
 
 class TestGenerateResumePrompt:
-    _P1_BODY = {"pass_num": 1}
+    _P1_BODY: ClassVar[dict] = {"pass_num": 1}
 
     def test_404_for_unknown_application(self, client):
         resp = client.post(
