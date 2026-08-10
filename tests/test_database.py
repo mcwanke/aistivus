@@ -65,13 +65,13 @@ class TestInitDb:
         assert values == {"resume", "cover_letter"}
 
     def test_records_schema_version(self, tmp_db):
-        assert database.get_schema_version() == "2.5"
+        assert database.get_schema_version() == "2.6"
 
     def test_idempotent(self, tmp_db):
         database.init_db()
         database.init_db()
         assert len(database.get_all_system_types()) == 32
-        assert database.get_schema_version() == "2.5"
+        assert database.get_schema_version() == "2.6"
 
     def test_no_auto_seed_without_config(self, tmp_db):
         models = database.get_all_llm_models()
@@ -878,11 +878,11 @@ class TestUtilities:
         assert broken[0]["path"] == "/nonexistent/path/resume.pdf"
 
     def test_get_schema_version(self, tmp_db):
-        assert database.get_schema_version() == "2.5"
+        assert database.get_schema_version() == "2.6"
 
     def test_export_db_returns_dict(self, tmp_db):
         result = database.export_db()
-        assert result["schema_version"] == "2.5"
+        assert result["schema_version"] == "2.6"
         assert "tables" in result
         assert "system_types" in result["tables"]
         assert len(result["tables"]["system_types"]) == 32
