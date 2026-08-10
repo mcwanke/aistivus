@@ -1767,7 +1767,7 @@ async def generate_resume_prompt(
 
         # Compute next resume counter (001, 002, etc.)
         all_docs = database.get_application_documents(application_id)
-        typ_resumes = [d for d in all_docs if d.get("type_value") == "resume" and d.get("filename", "").endswith(".typ")]
+        typ_resumes = [d for d in all_docs if (d_dict := dict(d)).get("type_value") == "resume" and d_dict.get("filename", "").endswith(".typ")]
         next_counter = len(typ_resumes) + 1
         resume_counter = f"{next_counter:03d}"
 
