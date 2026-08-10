@@ -69,7 +69,7 @@ export function ApplyWorkflow({
   applicationId,
   evaluations,
   aggScoreOverall,
-  typstAvailable,
+  _typstAvailable,
   onNavigateToEvals,
   onNavigateToResume,
   onNavigateToResearch,
@@ -85,7 +85,7 @@ export function ApplyWorkflow({
 
   // Resume generation state
   const [resumePromptText, setResumePromptText] = useState<string | null>(null)
-  const [resumeLineCount, setResumeLineCount] = useState<number | null>(null)
+  const [_resumeLineCount, _setResumeLineCount] = useState<number | null>(null)
   const [selectedDocId, setSelectedDocId] = useState<number | null>(null)
   const [dropdownDocId, setDropdownDocId] = useState<number | null>(null)
   const [p2UserFeedback, setP2UserFeedback] = useState('')
@@ -255,7 +255,7 @@ export function ApplyWorkflow({
         correctionList: passNum === 3 ? p3CorrectionList || undefined : undefined,
       })
       setResumePromptText(result.prompt)
-      if (result.line_count != null) setResumeLineCount(result.line_count)
+      if (result.line_count != null) _setResumeLineCount(result.line_count)
     } catch (err) {
       setResumePassError((err as Error).message)
     }

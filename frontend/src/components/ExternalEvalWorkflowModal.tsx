@@ -75,7 +75,7 @@ export function ExternalEvalWorkflowModal({ jobId, onClose }: ExternalEvalWorkfl
         job_id: jobId,
         llm_model_id: resolvedModelId,
         ...parsed,
-      })
+      } as ImportPayload)
       onClose()
     } catch (err) {
       setImportError((err as Error).message)
