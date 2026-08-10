@@ -32,6 +32,9 @@ import yaml
 import database
 import llm_client
 import prompt_generation
+from logger import get_logger
+
+log = get_logger(__name__)
 
 # ─────────────────────────────────────────────────────────────
 # Configuration
@@ -1093,7 +1096,7 @@ async def run_internal_eval(job_id: int, llm_model_id: int | None):
         )
         if r4.get("success"):
             synthesis_json = _parse_evaluation_response(raw4)
-    except Exception as e:
+    except (json.JSONDecodeError, KeyError, AttributeError, ValueError, TypeError) as e:
         log.warning("step_4_synthesis_parse_failed", extra={"error": str(e)})
     yield _sse({"event": "step_complete", "step": 4})
 

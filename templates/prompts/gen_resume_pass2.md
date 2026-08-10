@@ -1,35 +1,42 @@
 # gen_resume_pass2
 # Header info. Do not modify!
 key: gen_resume_pass2
-label: Resume Generation — Pass 2 (Feedback Loop)
+label: Resume Generation — Pass 2 (Evaluation + Feedback Loop)
 temperature: 0.0
 # description
 Prompt generated for use in an external LLM session to evaluate a tailored
-resume draft against eight evaluation lenses (ATS, recruiter fast-pass,
-recruiter deep-pass, candidate fit x3, seniority signal, voice & agency,
-page length) and produce a structured, directly-executable correction list.
+resume draft through 10 structured lenses (ATS Keywords, Recruiter Fast/Deep,
+HM Fast/Deep, Candidate Fit, Seniority Signal, Voice & Agency, Tailoring,
+Gap/Risk Flags), produce a holistic success assessment (1-10), per-lens scores
+(1-5), and a structured JSON correction list for Pass 3.
 
 Requires context files: jobsearch.md and resume_template.typ already in session.
 Runtime variable injections: {company_name}, {title}, {jd_text},
-{keywords_text}, {keyword_gaps_text}, {line_count}, {target_lines},
-{eval_scores_text}, {research_text}, {user_feedback}, {pass1_typ_text}.
+{keywords_text}, {keyword_gaps_text}, {eval_scores_text}, {research_text},
+{user_feedback}, {pass1_typ_text}.
 
 {research_text} is sourced from the job_research table (latest record for the
 job) — falls back to a "not available" message if no research has been run.
 
 Run this pass as many times as needed before proceeding to Pass 3.
-Editable sections: task steps, evaluation lens definitions, correction list rules.
-Read-only sections: job details, evaluation scores, research data, line count
-data, user feedback, draft resume, output format.
+This pass is repeatable — user feedback can drive iterative refinement.
+Editable sections: holistic assessment, lens definitions, JSON correction rules.
+Read-only sections: job details, evaluation scores, research data, draft resume, output format.
 ---
 [[PROMPT_START]]
 [[EDITABLE]]
 ## CONTEXT
 
 Your project files (jobsearch.md, resume_template.typ) are already in context.
-You are evaluating a tailored resume draft for this role and producing a
-structured correction list. Do not generate a new resume in this pass — only
-evaluate and list corrections.
+You are evaluating a tailored resume draft for this role. Do not generate a new
+resume — only evaluate and produce corrections.
+
+This pass produces five outputs for the user:
+1. A holistic "Chance of Success" (1-10) assessment with brief reasoning
+2. Ten individual lens scores (1-5 each) with 1-line explanations
+3. An aggregate score (derived from the 10 lenses) with brief reasoning
+4. A final recommendation (Submit / Rework / Stop)
+5. A structured JSON corrections list for Pass 3 to consume
 
 Work through the steps below in order. Do not skip steps.
 
@@ -62,20 +69,10 @@ Keyword gaps (not currently in resume): {keyword_gaps_text}
 
 ## COMPANY RESEARCH (from prior research pass, if available)
 
-Use this as the benchmark for the Candidate Fit — Culture lens below. Do not
-re-research the company — this data is already gathered and stored.
+Use this as the benchmark for the Candidate Fit and Tailoring lenses below.
+Do not re-research the company — this data is already gathered.
 
 {research_text}
-
----
-
-## RESUME LINE COUNT
-
-Estimated body line count of the current draft: {line_count}
-Target body line count: {target_lines}
-
-A count above target means the resume is running long and bullets need
-compression. A count below target means the resume needs expansion.
 
 ---
 
@@ -91,265 +88,311 @@ compression. A count below target means the resume needs expansion.
 
 [[/READONLY]]
 [[EDITABLE]]
-## STEP 1 — JD SIGNAL EXTRACTION
+## STEP 1 — HOLISTIC "CHANCE OF SUCCESS" (1-10)
 
-Before running any evaluation lens, extract the specific, differentiating
-language from the job description. This is not keyword extraction — it is
-phrase and framing extraction.
+Before running detailed lens evaluation, assess the resume holistically. Ignore
+lens-by-lens scoring for now — this is a high-level gut check.
 
-Begin by reviewing the keyword gaps above. Note which gaps are still
-unaddressed in the .typ file. Carry these forward — do not re-derive what has
-already been identified.
+Question: "If I were a hiring manager at this company, what's my realistic
+chance this person makes it to a phone screen after I read this resume?"
+
+Consider:
+- Overall tailoring fit (not just technical fit)
+- Does the narrative feel cohesive?
+- Are there any obvious red flags or concerns?
+- Does this person seem like they've done this job before?
+
+Assign a 1-10 score and provide 1-3 line reasoning. This is your intuition
+check before lens details.
+
+---
+
+## STEP 2 — JD SIGNAL EXTRACTION
+
+Extract the specific, differentiating language from the job description. This is
+not keyword extraction — it is phrase and framing extraction.
 
 Identify:
 - **Specific outcomes named**: concrete deliverables, metrics, or challenges
-  the JD describes by name. These are phrases written deliberately to
-  describe what success looks like — not generic role expectations.
-- **Specific ownership areas**: distinct responsibilities described as
-  separate things. If the JD names more than one distinct surface, platform,
-  or team function, list them separately.
-- **Strategic framing**: language that signals how the company thinks about
-  the role's purpose. Positioning signals that resonate strongly if mirrored
-  and are invisible to a generic evaluation.
-- **Named tools, practices, or terminology**: specifics beyond generic stack
-  items — proprietary system names, specific workflow terms, named
-  methodologies, named product surfaces.
+  the JD describes by name.
+- **Specific ownership areas**: distinct responsibilities described separately.
+- **Strategic framing**: language that signals how the company thinks about the
+  role's purpose.
+- **Named tools, practices, or terminology**: specifics beyond generic stack items.
 
-For each extracted signal, check whether the resume has a counterpart and
-mark it: yes / partial / absent. This step is the foundation for Steps 2–8.
+For each signal, check if the resume has a counterpart: yes / partial / absent.
 
-## STEP 2 — ATS SIGNAL
+---
 
-Role: You are an ATS system. Will this resume pass automated keyword
-scanning and reach human review?
+## STEP 3 — ATS KEYWORDS (1-5)
+
+Role: You are an ATS system evaluating this resume.
 
 Evaluate:
-- Are the keywords from the list above present? Where are the gaps?
-- Are keywords in the right density and locations (summary, key impacts,
-  experience) or buried in only one section?
-- Are any keyword gaps from above still unaddressed?
-- Do not suggest fabricating claims — only surface keywords that can be
-  added honestly based on jobsearch.md.
+- Are the identified keywords present in the resume? Where are the gaps?
+- Are keywords in the right locations (summary, key impacts, experience) or
+  concentrated in only one section?
+- Are any keyword gaps still unaddressed?
+- Density: do keywords appear natural or over-stuffed?
 
-Output: verdict (pass / fail / uncertain), missing keywords with suggested
-placement for each.
+Score 1-5 and provide 1-line reasoning.
 
-## STEP 3 — RECRUITER FAST-PASS (6-second scan)
+---
 
-Role: You are an overworked recruiter scanning for ~6-8 seconds. Will this
-resume pass your smell test?
+## STEP 4 — RECRUITER FAST-PASS (1-5)
+
+Role: You are an overworked recruiter scanning for ~6-8 seconds.
 
 Evaluate:
-- Is the most recent title and company immediately visible and relevant?
-- Does the summary land immediately — can you tell in one sentence what this
-  person does?
+- Is the most recent title and company immediately visible?
+- Does the summary land immediately?
 - Are the Key Impacts bullets front-loaded with the strongest signal?
-- Is the visual hierarchy clean — does the eye land on the right things first?
+- Is visual hierarchy clean?
 
-Output: verdict (pass / fail), specific fail reasons if applicable.
+Score 1-5 and provide 1-line reasoning.
 
-## STEP 4 — RECRUITER DEEP-PASS (full read)
+---
 
-Role: You are a recruiter reading carefully after the fast-pass. Is the
-narrative coherent and credible?
+## STEP 5 — RECRUITER DEEP-PASS (1-5)
+
+Role: You are a recruiter reading carefully after the fast-pass.
 
 Evaluate:
-- Does the experience section tell a consistent story aligned with the JD?
-- Are there any claims that would raise questions or require clarification?
-- Are the Never rules from jobsearch.md applied consistently throughout?
+- Does the experience section tell a coherent story aligned with the JD?
+- Are there claims that would raise questions or require clarification?
+- Is the narrative credible without gaps or contradictions?
 
-Output: verdict (pass / fail), notes.
+Score 1-5 and provide 1-line reasoning.
 
-## STEP 5 — CANDIDATE FIT (role, scope, culture)
+---
 
-Evaluate three sub-dimensions:
+## STEP 6 — HIRING MANAGER FAST (Technical Fit) (1-5)
+
+Role: You are a hiring manager doing a quick technical fit check.
+
+Evaluate:
+- Can this person do this job? Is the technical depth visible?
+- Are the most relevant skills/experiences prominently placed?
+- Are there critical technical gaps between JD requirements and resume signals?
+
+Score 1-5 and provide 1-line reasoning.
+
+---
+
+## STEP 7 — HIRING MANAGER DEEP (Culture/Credibility) (1-5)
+
+Role: You are a hiring manager reading carefully to assess culture fit and
+whether you'd want to work with this person.
+
+Evaluate:
+- Does this person's framing and voice align with company values (per research)?
+- Are there any credibility concerns or red flags?
+- Would you be confident calling this person?
+
+Score 1-5 and provide 1-line reasoning.
+
+---
+
+## STEP 8 — CANDIDATE FIT (Role/Scope/Culture) (1-5)
+
+Evaluate three dimensions together:
 
 **Role fit** — does the resume demonstrate the candidate can do this specific
-job? Are the most relevant skills/experiences prominently placed? Are there
-gaps between JD requirements and what the resume surfaces?
+job? Are relevant skills/experiences prominently placed?
 
-**Scope fit** — does the resume demonstrate the candidate operated at the
-right scope? Is team size, budget, or org complexity clearly visible? Does
-the framing match what this role requires?
+**Scope fit** — does the resume demonstrate the candidate operated at the right
+scope? Is team size, budget, or org complexity clearly visible?
 
-**Culture fit** — using the COMPANY RESEARCH block above as the benchmark
-(not a fresh research pass), does the candidate's voice and framing match
-what the company signals in their culture and values? Any red flags?
+**Culture fit** — using COMPANY RESEARCH as benchmark, does the candidate's
+voice/framing match what the company signals?
 
-Output: one verdict (pass / fail / uncertain) per sub-dimension, with gaps
-listed separately for role, scope, and culture.
+Score 1-5 (overall across the three dimensions) and provide 1-line reasoning.
 
-## STEP 6 — SENIORITY SIGNAL
+---
 
-Evaluate whether the resume reads unambiguously at the level this role
-requires.
+## STEP 9 — SENIORITY SIGNAL (1-5)
 
-- Does the scope of impact (team size, org influence, business outcomes)
-  come through clearly as leadership-level, or could this be mistaken for a
-  strong individual contributor resume?
-- Is leadership scope visible and prominent, or buried in prose/dependent
-  clauses where a quick scan would miss it?
+Evaluate: Does the resume appropriately signal the seniority level this *specific
+role* requires?
 
-Output: verdict (clear / ambiguous / reads-as-IC), notes.
+- Does the scope of impact (team size, org influence, business outcomes) come
+  through clearly at the right level for this role?
+- Is leadership scope visible and prominent, or buried?
 
-## STEP 7 — VOICE & AGENCY
+Score 1-5 and provide 1-line reasoning.
 
-Recruiters and hiring managers respond poorly to theoretical or passive
-framing. Evaluate whether the resume uses active, concrete language
-throughout.
+---
+
+## STEP 10 — VOICE & AGENCY (1-5)
+
+Evaluate: Does the resume use active, concrete language throughout?
 
 Look for and flag:
-- Theoretical voice: "experienced in", "skilled at", "able to", "knowledge
-  of", "familiar with" — these describe potential, not proof
-- Passive framing: "was responsible for", "helped with", "assisted",
-  "supported", "involved in", "contributed to" — these obscure agency
-- Weak openings: bullets opening with a verb any manager could claim
-  ("Managed", "Led", "Worked on") with no outcome or scale in the first clause
-- Missing outcome: activity described with no result, metric, scale signal,
-  or named artifact
-- Buried outcome: a result exists but appears in a trailing clause rather
-  than leading the bullet
+- Theoretical voice: "experienced in", "skilled at", "able to" (describes potential, not proof)
+- Passive framing: "was responsible for", "helped", "assisted", "contributed to" (obscures agency)
+- Weak openings: bullets opening with generic verbs ("Managed", "Led") with no outcome in the first clause
+- Missing outcome: activity with no result/metric/artifact
 
-Output: verdict (clean / has-issues), flagged bullets by opening words with
-issue type noted.
+Score 1-5 and provide 1-line reasoning.
 
-## STEP 8 — PAGE LENGTH
+---
 
-Is the resume at, above, or below the target line count (see RESUME LINE
-COUNT above)?
+## STEP 11 — TAILORING (1-5)
 
-- If above target: list specific bullets to compress or cut, in priority order.
-- If below target: list specific sections to expand, in priority order.
-- Do not suggest changing margins, font size, or template formatting.
-- If user feedback above states a specific gap estimate, treat it as
-  directionally correct and reconcile against the computed line count rather
-  than overriding it — do not assume the user is wrong.
+Evaluate: Does this resume specifically address this job's unique ask, or does
+it feel generic?
 
-**Line estimation math:** the line counter wraps bullet text at 97 characters
-per line and prose text at 100 characters per line (each wrapped line = 1
-body line; competency grid items are ceil(item_count / 2) for the whole
-grid). Use this to roughly estimate the line delta of each REMOVE/ADD pair
-(e.g., a 210-character bullet replaced with a 260-character bullet adds
-roughly 1 line).
+- Does it mirror JD language and priorities specific to this company/role?
+- Are the tailored choices visible, or could this resume work for any similar role?
+- Does it reference company-specific context (culture, product, values)?
 
-**Required net LINECHANGE target:** before writing any correction items,
-calculate the delta needed to bring the resume to the lower bound of the
-target range (e.g., if current is 79 and target is 93–102, required net
-LINECHANGE = +14). State this as "Required net LINECHANGE: <value>" before
-Step 9. Every expansion or cut decision in Step 9 must be made with this
-target in mind from the start — not checked retroactively.
+Score 1-5 and provide 1-line reasoning.
 
-## STEP 9 — CORRECTION LIST SYNTHESIS
+---
 
-Synthesize Steps 2–8 into a single, flat, directly-executable correction
-list. A downstream prompt will apply this list with no further judgment —
-every item must be an instruction, not an observation.
+## STEP 12 — GAP/RISK FLAG CHECK (1-5)
 
-**Grounding check (required before adding any new content):**
-Before writing any item that adds content not already present in the .typ
-file, verify supporting evidence exists in jobsearch.md. Classify as:
+Evaluate: Are there employment gaps, role transitions, title changes, or other
+elements that might trigger questions in an interview?
+
+- Are there unexplained gaps (tenure, location, role type)?
+- Do role transitions read as natural or concerning?
+- Are any claims or framing choices likely to raise red flags?
+
+Score 1-5 (where 5 = no concerns, 1 = significant red flags) and provide
+1-line reasoning.
+
+---
+
+## STEP 13 — AGGREGATE CALCULATION
+
+Calculate the average of the 10 lens scores (Steps 3-12). This is the aggregate.
+Express as X/5.
+
+Provide 1-3 line reasoning explaining which lenses drive the aggregate (e.g.,
+"Strong across most lenses; Seniority Signal drags it down").
+
+---
+
+## STEP 14 — FINAL RECOMMENDATION
+
+Based on the holistic 1-10 assessment, the 10 individual lens scores, and
+aggregate, assign a final recommendation:
+
+- **✅ Submit** — Resume is ready. Launch it.
+- **⚠️ Rework** — Strong base, but specific fixes will improve odds. Iterate Pass 2/3.
+- **🚩 Stop** — Major issues. Consider pausing this application or fundamental resume revision.
+
+Output only the emoji + recommendation type. No explanation (the reasoning is already in the sections above).
+
+---
+
+## STEP 15 — JSON CORRECTIONS
+
+Synthesize the 10 lens evaluations into a structured JSON correction list. This
+will be consumed by Pass 3 — every item must be directly executable.
+
+**If user feedback provided:** Treat it as a priority guide. If they gave
+specific feedback on bullets, length, structure, etc., weight your corrections
+to address those concerns first.
+
+**Grounding check:** Before adding any correction that introduces content not
+already in the .typ file, verify supporting evidence exists in jobsearch.md.
+Classify as:
 - **Addressable** — evidence exists; write the correction
-- **Adjacent** — partial evidence exists; the ADD text must stay within what
-  the evidence actually supports
-- **True gap** — no evidence exists; do not write a correction for it, list
-  it under a final "Not addressed — no supporting evidence" note instead
+- **Adjacent** — partial evidence exists; ADD text must stay within what jobsearch.md supports
+- **True gap** — no evidence exists; do not write this correction
 
-Do not generate conditional instructions ("if Kevin did X, add Y"). If you
-cannot confirm something from jobsearch.md, do not generate the item.
+**No conditional instructions:** Do not generate "if X, add Y". If you cannot
+confirm something from jobsearch.md, do not generate the item.
 
-Every item whose ADD value introduces content not already present verbatim
-in the .typ file (i.e. ADD is not NONE and is not a reordering/trim of
-existing text) must name the specific jobsearch.md fact, section, or line
-that supports it in the REASON — not just the JD gap it closes. A REASON
-that only explains why the addition is needed without citing where it comes
-from is incomplete and must not be included.
+**Location-based deduplication:** If two lenses target the same location, merge
+into one correction item. Never emit conflicting corrections for the same location.
 
-**Location-based deduplication:**
-Before finalizing, group every flagged item from Steps 2–8 by location (same
-bullet, same sentence, same field). If two or more lenses target the same
-location, merge them into a single correction item — never emit separate,
-conflicting items for the same location.
+**Conflict resolution order:** When lenses conflict, resolve in this order:
+user feedback > grounding/fabrication safety > Recruiter Fast-Pass > all others.
+Add a one-line resolution note to that item.
 
-**Keyword repetition cap:**
-After drafting all items, scan the full set of ADD values for repeated
-insertion of the same keyword or phrase (e.g. "product-led growth",
-"self-serve", "instrumentation") across multiple locations. The ATS lens
-will often justify inserting the same gap-keyword in several places —
-that is expected at the per-lens stage, but the synthesized list must not
-carry more than 2 insertions of any single keyword/phrase across the whole
-correction list. If more than 2 locations would otherwise insert the same
-term, keep it only in the 2 highest-impact locations (prioritize: summary,
-then Key Impacts, then one experience bullet) and drop the rest — revert
-those locations' ADD value to not include the term, or drop the item
-entirely if the term was its only purpose.
-
-Before output, build the KEYWORD FREQUENCY CHECK list required in the output
-format below by literally counting occurrences of each distinct ATS/JD
-keyword across all final ADD values. If any count exceeds 2, the correction
-list above is not finished — go back and remove the excess occurrences first.
-The check list you output must show counts of 2 or fewer for every keyword.
-
-**Conflict resolution order:**
-When merged items conflict (one lens wants to add/keep something another
-wants to cut), resolve in this order: user feedback > grounding/fabrication
-safety > Recruiter Fast-Pass > all other lenses. When a higher-precedence
-lens overrides a lower one, add a one-line resolution note to that item
-explaining the override. Do not leave a conflict unresolved or emit both
-versions.
-
-**No no-op items:**
-If a lens confirms something is already correct, or a conflict resolves in
-favor of keeping the current text unchanged, do not generate a correction
-item for it. REMOVE and ADD must never be identical. A confirmation is not a
-correction — leave it out of the list entirely.
-
-**LINECHANGE verification:**
-Before finalizing, confirm the sum of all LINECHANGE values lands within 3
-lines of the required net target from Step 8. If it falls short and the
-12-item cap is not yet reached, add expansion items targeting the
-lowest-signal sections with prose-only paragraphs and no bullets (typically
-earlier-career roles). If the cap is already exhausted, note the remaining
-gap in LINE CHANGE TOTAL.
+**No no-op items:** Do not generate corrections for things that are already
+correct. REMOVE and ADD must never be identical.
 
 **Rules for every item:**
-- Must be directly executable with no further judgment — write instructions,
-  not observations or suggestions.
-- No hedging language ("consider", "could", "or", "may want to") — pick one
-  action.
-- Maximum 12 correction items. If more are warranted, merge or drop the
-  lowest-impact ones — do not split into priority/optional tiers.
+- Must be directly executable with no further judgment
+- No hedging ("consider", "could", "may want to") — pick one action
+- Maximum 12 correction items. If more are warranted, merge or drop the lowest-impact ones.
+
+**JSON structure per item:**
+```json
+{
+  "location": "<section/bullet/field identifier>",
+  "remove": "<exact current text, or null if pure addition>",
+  "add": "<exact replacement or insertion text, or null if pure removal>",
+  "reason": "<one line — why, which lens(es)>"
+}
+```
 
 [[/EDITABLE]]
 [[READONLY]]
 ## OUTPUT FORMAT
 
-Output the correction list only. No prose summary before or after. No
-markdown code fences.
+Output in this exact order, with no prose before or after. Wrap everything below in triple backticks (```):
 
-Use this exact format per item:
+---
 
-**CORRECTION LIST**
+## CHANCE OF SUCCESS: X/10
+<1-3 line explanation of the gut-check assessment>
 
-[LOCATION: <section/bullet/field identifier>]
-REMOVE: <exact current text, or NONE if this is a pure addition>
-ADD: <exact replacement or insertion text, or NONE if this is a pure removal>
-LINECHANGE: <signed integer estimate, e.g. +1, -1, 0 — see Step 8 line math>
-REASON: <one line max — why, and which lens(es) drove this>
+## LENS SCORES:
+- ATS Keywords: X/5 — <1-line explanation>
+- Recruiter Fast-Pass: X/5 — <1-line explanation>
+- Recruiter Deep-Pass: X/5 — <1-line explanation>
+- HM Fast (technical fit): X/5 — <1-line explanation>
+- HM Deep (culture): X/5 — <1-line explanation>
+- Candidate Fit: X/5 — <1-line explanation>
+- Seniority Signal: X/5 — <1-line explanation>
+- Voice & Agency: X/5 — <1-line explanation>
+- Tailoring: X/5 — <1-line explanation>
+- Gap/Risk Flags: X/5 — <1-line explanation>
 
-[LOCATION: <next item>]
-...
+## AGGREGATE (from lenses): X.X/5
+<1-3 line explanation of what drives the aggregate>
 
-**NOT ADDRESSED**
-- <signal or keyword, and why no correction was written — no supporting
-  evidence in jobsearch.md>
+## RECOMMENDATION: [emoji] [Status]
 
-**KEYWORD FREQUENCY CHECK**
-- <keyword/phrase>: <count> (must be 2 or fewer)
-...
+---
 
-**LINE CHANGE TOTAL**
-- Sum of all LINECHANGE values: <signed integer>
-- Resulting estimate: <current line_count> + <sum> = <new total>
+[EVALUATION_JSON_START]
+{
+  "holistic_assessment": <integer 1-10>,
+  "score_ats": <integer 1-5>,
+  "score_recruiter_fast": <integer 1-5>,
+  "score_recruiter_deep": <integer 1-5>,
+  "score_hiringmanager_fast": <integer 1-5>,
+  "score_hiringmanager_deep": <integer 1-5>,
+  "score_candidate_fit": <integer 1-5>,
+  "score_seniority_signal": <integer 1-5>,
+  "score_voice_agency": <integer 1-5>,
+  "score_tailoring": <integer 1-5>,
+  "score_gap_flags": <integer 1-5>,
+  "lenses_aggregate": <float e.g. 3.2>,
+  "recommendation": "<recommendation status, e.g., Submit / Rework / Stop>"
+}
+[EVALUATION_JSON_END]
+
+---
+
+## CORRECTIONS
+
+[CORRECTIONS_JSON_START]
+[
+  {
+    "location": "<section/bullet/field>",
+    "remove": "<exact current text or null>",
+    "add": "<exact replacement or null>",
+    "reason": "<one line>"
+  }
+]
+[CORRECTIONS_JSON_END]
 
 [[/READONLY]]
 [[PROMPT_END]]

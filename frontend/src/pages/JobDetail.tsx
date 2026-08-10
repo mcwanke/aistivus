@@ -2433,7 +2433,6 @@ interface ApplicationRightProps {
   activeAction: AppAction
   typstAvailable: boolean
   onDataChanged: () => void
-  onImportEval: () => void
   onSelectAction: (a: AppAction) => void
 }
 
@@ -2448,7 +2447,6 @@ function ApplicationRight({
   activeAction,
   typstAvailable,
   onDataChanged,
-  onImportEval,
   onSelectAction,
 }: ApplicationRightProps): React.JSX.Element {
   const patch = usePatchApplication()
@@ -2655,7 +2653,6 @@ function ApplicationRight({
         evaluations={evaluations}
         aggScoreOverall={job.agg_score_overall}
         typstAvailable={typstAvailable}
-        onImportEval={onImportEval}
         onNavigateToEvals={() => onSelectAction('evaluations')}
         onNavigateToResume={() => onSelectAction('resume')}
         onNavigateToResearch={() => onSelectAction('research')}
@@ -2882,7 +2879,7 @@ export default function JobDetailPage(): React.JSX.Element {
   // Import modal state
   const [importOpen, setImportOpen] = useState(false)
   const [importError, setImportError] = useState('')
-  const importMutation = useImportEvaluationMutation()
+  const importMutation = useImportEvaluationMutation(jobId)
   // Post-import feedback flow
   const [importFeedbackInviteOpen, setImportFeedbackInviteOpen] = useState(false)
   const [importFeedbackModalOpen, setImportFeedbackModalOpen] = useState(false)
@@ -3086,7 +3083,6 @@ export default function JobDetailPage(): React.JSX.Element {
                   onDataChanged={() => {
                     void qc.invalidateQueries({ queryKey: ['activity-log', jobId] })
                   }}
-                  onImportEval={() => setImportOpen(true)}
                   onSelectAction={setActiveAppAction}
                 />
               ) : (

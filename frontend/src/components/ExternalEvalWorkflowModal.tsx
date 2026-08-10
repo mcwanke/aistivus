@@ -4,19 +4,20 @@ import { useModels, useImportEvaluationMutation } from '@/hooks/useEvaluate'
 import { useSettings } from '@/hooks/useSettings'
 
 interface ExternalEvalWorkflowModalProps {
-  applicationId: number
+  jobId: number
   onClose: () => void
 }
 
-export function ExternalEvalWorkflowModal({ applicationId, onClose }: ExternalEvalWorkflowModalProps): React.JSX.Element {
+export function ExternalEvalWorkflowModal({ jobId, onClose }: ExternalEvalWorkflowModalProps): React.JSX.Element {
   const [generatedPrompt, setGeneratedPrompt] = useState<string | null>(null)
   const [copiedGen, setCopiedGen] = useState(false)
   const [importText, setImportText] = useState('')
   const [copiedImp, setCopiedImp] = useState(false)
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null)
+  const [importError, setImportError] = useState('')
 
   const generateMutation = useGeneratePrompt()
-  const importMutation = useImportEvaluationMutation()
+  const importMutation = useImportEvaluationMutation(jobId)
   const { data: allModels = [] } = useModels()
   const { data: settings } = useSettings()
 
@@ -29,7 +30,7 @@ export function ExternalEvalWorkflowModal({ applicationId, onClose }: ExternalEv
   // Auto-generate external eval prompt on mount
   useEffect(() => {
     if (!generatedPrompt && !generateMutation.isPending) {
-      void generateMutation.mutateAsync(applicationId).then(result => {
+      void generateMutation.mutateAsync(jobId).then(result => {
         setGeneratedPrompt(result.prompt)
       })
     }
@@ -52,6 +53,8 @@ export function ExternalEvalWorkflowModal({ applicationId, onClose }: ExternalEv
     const trimmed = importText.trim()
     if (!trimmed) return
 
+    setImportError('')
+
     // Parse JSON, handling optional EVALUATION_JSON_START/END sentinels
     const start = trimmed.indexOf('EVALUATION_JSON_START')
     const end = trimmed.indexOf('EVALUATION_JSON_END')
@@ -63,16 +66,20 @@ export function ExternalEvalWorkflowModal({ applicationId, onClose }: ExternalEv
     try {
       parsed = JSON.parse(jsonStr) as Record<string, unknown>
     } catch (e) {
-      // Error will be displayed via importMutation.isError
-      throw new Error(`JSON parse error: ${(e as Error).message}`)
+      setImportError(`JSON parse error: ${(e as Error).message}`)
+      return
     }
 
-    await importMutation.mutateAsync({
-      application_id: applicationId,
-      parsed_eval: parsed,
-      model_id: resolvedModelId,
-    })
-    onClose()
+    try {
+      await importMutation.mutateAsync({
+        job_id: jobId,
+        llm_model_id: resolvedModelId,
+        ...parsed,
+      })
+      onClose()
+    } catch (err) {
+      setImportError((err as Error).message)
+    }
   }
 
   return (
@@ -149,7 +156,10 @@ export function ExternalEvalWorkflowModal({ applicationId, onClose }: ExternalEv
             placeholder='Paste JSON output from Claude here: { "score_overall": 7.5, ... }'
           />
 
-          {importMutation.isError && (
+          {importError && (
+            <p className="text-xs font-mono text-red">{importError}</p>
+          )}
+          {importMutation.isError && !importError && (
             <p className="text-xs font-mono text-red">{importMutation.error.message}</p>
           )}
 

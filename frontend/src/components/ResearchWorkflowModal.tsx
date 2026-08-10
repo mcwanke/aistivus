@@ -34,11 +34,6 @@ export function ResearchWorkflowModal({ jobId, onClose }: ResearchWorkflowModalP
     }
   }, [])
 
-  async function handleGenerate(): Promise<void> {
-    const result = await generateMutation.mutateAsync()
-    setGeneratedPrompt(result.prompt)
-  }
-
   async function handleCopyGenerated(): Promise<void> {
     if (!generatedPrompt) return
     await navigator.clipboard.writeText(generatedPrompt)

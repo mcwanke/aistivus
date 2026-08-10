@@ -7,20 +7,18 @@ temperature: 0.0
 Prompt generated for use in an external LLM session to produce a tailored
 resume .typ file for a specific job application.
 
-Uses a structured internal planning phase (per-section content planning →
-line count estimation → adjustment) before generation to reliably hit the
-92–103 body-line target. Evaluation scores and company research are used
-during planning to set priorities before writing begins.
+Uses a lightweight planning approach (content planning by section, outcome-driven
+bullets, keyword placement strategy) targeting approximately 2 pages. No rigid
+constraints — the goal is a strong draft that Pass 2 can refine.
 
 Requires context files: jobsearch.md (candidate facts, tailoring rules) and
 resume_template.typ (Typst structural base). Runtime variable injections:
 {company_name}, {title}, {location}, {pay_band}, {jd_text}, {keywords_text},
 {keyword_gaps_text}, {eval_scores_text}, {research_text}.
 
-Editable sections: context instructions, clarification gate, keyword gap
-classification, task overview, tailoring rules, planning steps, output format.
-Read-only sections: job details injection, job description injection,
-evaluation input injection, evaluation scores injection, research injection.
+Editable sections: context instructions, clarification gate, tailoring rules,
+planning guidance, output format notes.
+Read-only sections: job details, job description, evaluation input, research, Typst rules.
 ---
 [[PROMPT_START]]
 [[EDITABLE]]
@@ -39,10 +37,9 @@ clarifying question — do not guess:
 - Is a job description present below? If not, ask for it.
 - Is a company name and role title present? If not, ask.
 - What is the target role type? Classify as: EM/Senior EM, Director/VP, or
-  other. If the JD title is non-standard, proceed with your best classification
-  and flag it in the output notes.
-- If evaluation output (ATS keywords + keyword gaps) is not provided, note it
-  and extract keywords directly from the JD during planning.
+  other. If the JD title is non-standard, proceed with your best classification.
+- If evaluation output (ATS keywords) is not provided, note it and extract
+  keywords directly from the JD during planning.
 
 Do not begin planning until all required inputs are confirmed.
 
@@ -72,8 +69,8 @@ Keyword Gaps: {keyword_gaps_text}
 
 ## EVALUATION SCORES (from prior AI evaluation of this role)
 
-Use these scores to set planning priorities in Step 1. A low score in a
-dimension means that dimension needs more deliberate attention in the draft.
+Use these scores to weight your content decisions. A low score in a dimension
+means that dimension needs deliberate attention in the draft.
 
 {eval_scores_text}
 
@@ -81,221 +78,185 @@ dimension means that dimension needs more deliberate attention in the draft.
 
 ## COMPANY RESEARCH
 
-Use this to align summary framing, culture signals, and role context with
-how the company describes itself. Do not re-research — this data is already
-gathered.
+Use this to align summary framing, culture signals, and role context with how
+the company describes itself. Do not re-research — this data is already gathered.
 
 {research_text}
 
 [[/READONLY]]
 [[EDITABLE]]
-## KEYWORD GAP CLASSIFICATION
-
-Before planning, classify each keyword gap from EVALUATION INPUT:
-
-- **(a) Addressable** — evidence exists in jobsearch.md. Plan to include.
-- **(b) Adjacent** — partial evidence exists. Note the bridge. Plan to frame
-  accordingly.
-- **(c) True gap** — no evidence in jobsearch.md. Do not include anywhere in
-  the resume.
-
-Carry this classification into Step 1. Never incorporate (c) gaps.
-
----
-
-## TASK OVERVIEW
-
-You are generating a tailored resume for a specific job application. Every
-planning decision and every word written must serve three goals:
-
-1. **Pass ATS screening** — the right keywords appear in the right density
-   and locations so automated systems route this resume to human review.
-2. **Signal a strong candidate to a recruiter** — within the first few seconds
-   of scanning, the resume communicates that this person is qualified for this
-   specific role.
-3. **Demonstrate credible fit to a hiring manager** — the candidate's actual
-   scope, achievements, and experience map visibly to what this JD requires.
-
-The EVALUATION SCORES above tell you where the baseline assessment is weak —
-use this to weight your planning decisions before writing begins. A low ATS
-score means keyword placement must be aggressive from the start. A low scope
-fit score means scope signals must be surfaced prominently. A low culture fit
-score means the summary and framing must draw on COMPANY RESEARCH to mirror
-the company's stated values.
-
-All content must be grounded in jobsearch.md — not because it is a rule, but
-because a resume that fabricates or overstates will fail in the interview
-regardless of how well it screens.
-
----
-
 ## TAILORING RULES
 
-Read and internalize before planning. These govern every decision in Steps 1–2.
+Read and internalize before planning. These govern every decision.
 
 ### Header tagline
 
-- Target role is EM or Senior EM: use "Senior Engineering Manager"
-- Target role is Director, VP, or equivalent: use the Director framing from
-  jobsearch.md
-- Target role title doesn't map to either: use the JD title directly
+Refer to the header tagline guidance in jobsearch.md. Apply it to this role.
+If no explicit guidance exists, use the JD title directly.
 
 ### Summary
 
-Apply all Always and Never rules from jobsearch.md Section 7. Lead with years
-of experience and domain breadth. Mirror the JD's language for the role's core
-responsibility. Draw on COMPANY RESEARCH to align framing with how the company
-describes itself and the role's purpose. Close with a belief statement.
+Apply the summary guidance from jobsearch.md. Lead with years of experience and
+domain breadth. Mirror the JD's language for the role's core responsibility.
+Draw on COMPANY RESEARCH to align framing with the company's stated values.
 
-Hard limit: ≤ 4 sentences. Plan for ≤ 4 body lines. A recruiter's fast-pass
-scan is ~6 seconds — a 5-sentence summary in monospace font is not readable
-in that window. If you cannot say it in 4 sentences, cut the weakest one.
+Hard limit: ≤ 4 sentences. A recruiter's fast-pass scan is ~6 seconds. If you
+cannot say it in 4 sentences, cut the weakest one.
 
-### Key Impacts (6–8 bullets)
+### Key Impacts
 
-Select and order by relevance to this JD from achievements in jobsearch.md.
-Prioritize bullets where the signal directly mirrors a JD responsibility or
-required qualification. Apply this selection logic:
+Select achievements from jobsearch.md ordered by relevance to this JD.
+**Every bullet must lead with a concrete outcome, scale signal, or named artifact
+— not a verb phrase.** Structure: outcome first → action that produced it → method/tool
+last (or omit).
 
-- **People development / manager pipeline:** Include when the role involves
-  developing managers or building leadership depth. Drop for IC-heavy or
-  technical roles where this is low signal.
-- **AI tooling adoption:** Include for most roles. Compress if space is tight.
-  Drop only if the JD has zero AI/tooling signal and a stronger bullet serves
-  better.
-- **Largest scale / growth metric:** Include for growth, consumer, acquisition,
-  or product-scale roles. Use the candidate's strongest documented scale signal.
-- **Regulated/compliance delivery:** Include for regulated, enterprise,
-  government, or healthcare-adjacent roles.
-- **Cloud/platform delivery:** Include for platform, SaaS, or
-  cloud-infrastructure roles.
-- **0-to-1 product launch:** Include for hardware, IoT, or
-  build-from-scratch roles.
-- **Distributed remote team leadership:** Include when the JD explicitly values
-  distributed or async team management.
-- **Operational excellence / incident response:** Include when the JD calls out
-  reliability, observability, or engineering process rigor.
+Prioritize bullets where the signal directly mirrors a JD responsibility. Refer
+to jobsearch.md achievement categories for guidance on which to prioritize.
 
 ### Core Competencies
 
-Two columns as defined in the template. Prioritize competencies that mirror JD
-language directly. Source from jobsearch.md skills section.
+Source from the competencies section in jobsearch.md. Prioritize competencies
+that mirror JD language directly.
 
-### Experience — most recent role(s)
+### Experience
 
-Always include. Tailor intro paragraph and bullets to emphasize what is most
-relevant to this JD. Compress or expand sub-sections based on their relevance —
-what this specific JD asks for determines how much space each sub-section gets.
+Tailor experience sections to emphasize what is most relevant to this JD. Use
+the experience sub-section structure defined in jobsearch.md as your template.
+Compress or expand sub-sections based on their relevance to this role.
 
-Use exactly the three Plex sub-sections defined in jobsearch.md under "Plex
-sub-section structure" — including the correct flex label for the third
-sub-section based on the JD signals described there. Do not invent, rename,
-or add sub-sections.
+For earlier roles, frame based on relevance to this JD. Compress as tenure recedes.
+Apply all guidance from jobsearch.md on honesty and framing.
 
-### Experience — earlier roles
+### Bullet construction rule — CRITICAL
 
-Frame based on relevance. Compress as tenure recedes. For roles where
-early-career IC work is low signal for this JD: single sentence, no bullets.
-For roles where early-career domain experience is directly relevant: 1–2 bullets
-surfacing the specific signal. Apply all Never rules from jobsearch.md —
-honesty framing on contributed-to vs. led is especially important for early roles.
+**Every bullet must lead with outcome, scale signal, or named artifact.** Not a verb.
 
-### Bullet construction rule
+Examples of STRONG openings:
+- "Built a customer acquisition pipeline that added $2M ARR"
+- "Led the migration of 300K users to a new platform"
+- "Reduced incident response time from 4 hours to 45 minutes"
+- "Architected the observability platform used by 50+ teams"
 
-Every bullet must lead with a concrete outcome, scale signal, or named artifact —
-not a verb phrase. Structure: outcome or scale first → action that produced it →
-method or tool last (or omit). No numbers buried in dependent clauses. If the
-first 4–5 words could appear on any resume for any company, rewrite it.
+Examples of WEAK openings (do not use):
+- "Managed a team of engineers" (no outcome in opening)
+- "Worked on product strategy" (no scale or artifact)
+- "Responsible for infrastructure" (passive, no result)
+- "Experienced in cloud architecture" (theoretical, not proof)
+
+Do not start a bullet with: Managed, Led, Worked on, Responsible for,
+Experienced in, Helped, Assisted, Supported, Involved in, Contributed to.
+
+If the first 4-5 words could appear on any resume for any company, rewrite it.
 
 ---
 
-## STEP 1 — SECTION PLANNING
+## STEP 1 — SECTION PLANNING (LIGHTWEIGHT)
 
-*Internal planning only — do not output this step.*
-
-With the tailoring rules, task overview, evaluation scores, and company research
-fully in context, work through each section of the resume template in order.
-For each section, decide its content and structure for this specific role.
-Use the evaluation scores to weight your decisions — weak dimensions need
-more deliberate coverage, not just the default treatment.
+With the tailoring rules and evaluation scores in context, work through each
+section of the resume template in order. For each section, decide its content
+and structure for this specific role.
 
 **For each prose block** (summary, role intro paragraphs):
-- How many sentences does this block need for this role?
 - What is the core claim of each sentence?
-- Is each sentence grounded in jobsearch.md? If not, remove it from the plan.
-- Target ≤ 100 characters per sentence to stay at 1 line. Sentences over 100
-  characters will wrap and cost an extra line.
+- Is each sentence grounded in jobsearch.md? If not, remove it.
+- Does it mirror or directly address something in the JD or COMPANY RESEARCH?
 
 **For each bullet section** (key impacts, experience sub-sections):
 - How many bullets does this section need for this role?
-- For each planned bullet, confirm two things before committing to it:
-  1. **Leading outcome:** What concrete outcome, scale signal, or named artifact
-     opens this bullet? If you cannot identify one, do not plan this bullet.
-  2. **Source:** What section, role, or achievement in jobsearch.md supports
-     this claim? If no source exists, do not plan this bullet.
-- Target ≤ 97 characters per bullet to stay at 1 line. Bullets over 97
-  characters will wrap and cost an extra line.
+- For each planned bullet:
+  1. **Leading outcome:** What concrete outcome, scale signal, or named artifact opens this bullet?
+  2. **Source:** What section, role, or achievement in jobsearch.md supports this?
+  3. **JD alignment:** Does this bullet address a specific JD requirement or desired signal?
+  
+- If you cannot identify a leading outcome and source, do not plan this bullet.
+
+**Evaluation scores:** Use weak dimensions to weight your emphasis. A low scope
+fit score means scope signals need to be surfaced prominently.
 
 ---
 
-## STEP 2 — LINE COUNT ESTIMATION AND ADJUSTMENT
+## STEP 2 — VOICE & AGENCY REVIEW
 
-*Internal planning only — do not output this step.*
+Before generation, scan your planned bullets and prose for weak patterns:
 
-Using your section plan from Step 1, estimate each section's body content line
-contribution. Body content lines are prose sentences and bullets only — exclude
-section headers, the resume header block, blank separator lines, and template
-structure lines.
+- **Theoretical voice:** "experienced in", "skilled at", "able to", "knowledge of"
+- **Passive framing:** "was responsible for", "helped with", "assisted", "supported", "involved in"
+- **Weak openings:** Verbs with no outcome in the first clause
+- **Missing outcome:** Activity described with no result/metric/artifact
 
-**Estimation rules:**
-- Prose sentence ≤ 100 chars = 1 line. Prose sentence > 100 chars = 2 lines.
-- Bullet ≤ 97 chars = 1 line. Bullet > 97 chars = 2 lines.
-- Competency grid: ceil(item_count / 2) lines for the whole grid.
-
-Sum the per-section estimates. **Target total: 82–90 lines.**
-
-If outside the target range, adjust specific sections — not the overall
-bullet:prose ratio. The ratio is determined by what this role needs.
-
-- **Over 90:** Compress oldest roles first. Do not cut from the most recent
-  role unless no other option exists; note why if you do.
-- **Under 82:** Expand the most relevant sub-section of the most recent role —
-  add bullets sourced from jobsearch.md or extend an intro paragraph. Do not
-  fabricate. If you cannot reach 82 without fabrication, note it.
-
-Revise your section plan until the estimate lands in 82–90. This is the plan
-Step 3 executes.
+Rewrite any flagged bullets to lead with outcome, not verb.
 
 ---
 
-## STEP 3 — GENERATE
+## STEP 3 — SENIORITY SIGNAL REVIEW
 
-*Output begins here — output the .typ file only, per the output format below.*
+Before generation, ensure scope is visible and prominent:
+
+- Are team size, budget, org complexity, or named outcomes visible early in each relevant bullet?
+- Is leadership scope buried in dependent clauses, or front-and-center?
+
+Rewrite any bullets where scope is buried or unclear.
+
+---
+
+## STEP 4 — ATS KEYWORD PLACEMENT STRATEGY
+
+Before generation, plan where to place priority ATS keywords:
+
+1. **Summary** — Incorporate 2-3 highest-priority keywords naturally into the opening sentences.
+2. **Key Impacts** — Front-load relevant keywords into the first 2-3 bullets.
+3. **Experience intro** — Reference key keywords in the intro paragraph for the most recent role.
+4. **Spread, not concentrate** — Keywords should appear across multiple sections, not all in one.
+
+Do not over-stuff. Keywords should read naturally, not as a checklist.
+
+---
+
+## STEP 5 — GENERATE
 
 Using resume_template.typ as the exact structural base, generate the complete
-.typ file following your adjusted plan from Steps 1 and 2.
+.typ file following your plan from Steps 1-4.
 
-Before outputting, verify all experience entries appear in reverse chronological
-order — most recent role first. Correct any that are out of order.
+### Output checklist before finishing:
+- ✅ All experience entries in reverse chronological order
+- ✅ No Typst syntax errors (all special characters escaped)
+- ✅ No fabricated claims — everything grounded in jobsearch.md
+- ✅ No modified template structure (section order, layout, spacing unchanged)
 
-If a planned element doesn't work as written during generation (a bullet loses
-its leading outcome, a sentence runs long), adjust locally and note the change
-after the file.
+### Typst escape character rule — MANDATORY
+
+Typst treats #, $, and @ as special syntax. In all content you write:
+- All # signs → \# (e.g. C\#)
+- All $ signs → \$ (e.g. \$2M+)
+- @ signs in content → \@ (the template header already escapes email)
+
+### Coherence check
+
+Before outputting, verify the experience narrative is chronologically consistent
+and supports the tailored claim. A recruiter should see a clear story, not
+contradictions.
+
+If a planned element doesn't work during generation (a bullet loses its outcome,
+a sentence runs long), adjust locally. Do not force it to fit.
+
+### Target page length
+
+Target approximately 2 pages of content. Do not count lines or obsess over exact
+length — the goal is a strong draft. If the natural flow lands at 1.8 pages or
+2.3 pages, that is fine. Pass 2 will provide feedback if refinement is needed.
 
 [[/EDITABLE]]
 [[READONLY]]
 ## OUTPUT FORMAT
 
 Output the raw .typ file content only. Nothing before it. The first line must be:
-`// PASS1_resume_{company_name}_{title}.typ`
+`// {resume_counter}_{company_name}.typ`
 
-Permitted plain text additions after the .typ file (never inside it as Typst
-comments):
-- A note for each planned bullet dropped during planning and which section it
-  was planned for
-- A note for each (c) true gap keyword excluded
-- A note if you deviated from your Step 2 plan during generation and why
-- A single sentence if 82–90 lines could not be reached without fabrication
+No reasoning, notes, or explanation — output only the .typ file.
+
+If you deviated from your plan during generation for a good reason (a bullet
+lost its outcome despite effort, a sentence naturally ran long), you may add a
+single note after the .typ file explaining the deviation. Otherwise, no notes.
 
 [[/READONLY]]
 [[PROMPT_END]]

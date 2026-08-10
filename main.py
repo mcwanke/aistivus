@@ -1764,6 +1764,13 @@ async def generate_resume_prompt(
     if body.pass_num == 1:
         prompt_key = "gen_resume_pass1"
         log_type_key = "prompt_resume"
+
+        # Compute next resume counter (001, 002, etc.)
+        all_docs = database.get_application_documents(application_id)
+        typ_resumes = [d for d in all_docs if d.get("type_value") == "resume" and d.get("filename", "").endswith(".typ")]
+        next_counter = len(typ_resumes) + 1
+        resume_counter = f"{next_counter:03d}"
+
         variables = {
             "company_name": company_name,
             "title": title,
@@ -1774,6 +1781,7 @@ async def generate_resume_prompt(
             "keyword_gaps_text": keyword_gaps_text,
             "eval_scores_text": eval_scores_text,
             "research_text": research_text,
+            "resume_counter": resume_counter,
         }
 
     elif body.pass_num == 2:
@@ -1822,6 +1830,21 @@ async def generate_resume_prompt(
         line_data = typst_utils.compute_line_count(typ_content)
         line_count = line_data["total"]
 
+        # Extract counter from selected file, or compute next counter
+        resume_counter = None
+        filename = doc_dict.get("filename", "")
+        if "_" in filename:
+            counter_part = filename.split("_")[0]
+            if counter_part.isdigit() and len(counter_part) == 3:
+                resume_counter = counter_part
+
+        if not resume_counter:
+            # Fallback: compute next counter
+            all_docs = database.get_application_documents(application_id)
+            typ_resumes = [d for d in all_docs if d.get("type_value") == "resume" and d.get("filename", "").endswith(".typ")]
+            next_counter = len(typ_resumes) + 1
+            resume_counter = f"{next_counter:03d}"
+
         prompt_key = "gen_resume_pass3"
         log_type_key = "prompt_resume_p3"
         variables = {
@@ -1829,9 +1852,10 @@ async def generate_resume_prompt(
             "title": title,
             "jd_text": jd_text,
             "pass1_typ_text": typ_content,
-            "correction_list": body.correction_list,
+            "correction_json": body.correction_list,
             "line_count": str(line_count),
             "target_lines": f"{_TARGET_LINES}–{_TARGET_LINES_MAX}",
+            "resume_counter": resume_counter,
         }
 
     prompt_result = prompt_generation.get_prompt(
@@ -1948,6 +1972,98 @@ async def generate_cover_prompt(request: Request, application_id: int):
         "prompt": prompt,
         "prompt_usage_id": prompt_usage_id,
     })
+
+
+@app.post("/api/v1/resume-evaluations")
+async def save_resume_evaluation(request: Request):
+    """Save a resume evaluation (from Pass 2 output) for a document."""
+    body = await request.json()
+
+    doc_id = body.get("document_id")
+    if not doc_id:
+        raise HTTPException(status_code=422, detail="document_id is required.")
+
+    doc = database.get_document_by_id(doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found.")
+
+    evaluation_json = body.get("evaluation_json")
+    if not evaluation_json:
+        raise HTTPException(status_code=422, detail="evaluation_json is required.")
+
+    # Extract individual scores from the evaluation JSON
+    try:
+        import json as json_module
+        eval_data = json_module.loads(evaluation_json) if isinstance(evaluation_json, str) else evaluation_json
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=422, detail="Invalid JSON in evaluation_json.")
+
+    eval_id = database.add_resume_evaluation(
+        document_id=doc_id,
+        holistic_assessment=eval_data.get("holistic_assessment"),
+        score_ats=eval_data.get("score_ats"),
+        score_recruiter_fast=eval_data.get("score_recruiter_fast"),
+        score_recruiter_deep=eval_data.get("score_recruiter_deep"),
+        score_hiringmanager_fast=eval_data.get("score_hiringmanager_fast"),
+        score_hiringmanager_deep=eval_data.get("score_hiringmanager_deep"),
+        score_candidate_fit=eval_data.get("score_candidate_fit"),
+        score_seniority_signal=eval_data.get("score_seniority_signal"),
+        score_voice_agency=eval_data.get("score_voice_agency"),
+        score_tailoring=eval_data.get("score_tailoring"),
+        score_gap_flags=eval_data.get("score_gap_flags"),
+        lenses_aggregate=eval_data.get("lenses_aggregate"),
+        recommendation=eval_data.get("recommendation"),
+        evaluation_json=evaluation_json if isinstance(evaluation_json, str) else json_module.dumps(evaluation_json),
+    )
+
+    return JSONResponse({
+        "success": True,
+        "evaluation_id": eval_id,
+    })
+
+
+@app.get("/api/v1/documents/{doc_id}/latest-evaluation")
+async def get_latest_evaluation(doc_id: int):
+    """Fetch the latest evaluation for a document."""
+    doc = database.get_document_by_id(doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found.")
+
+    eval_row = database.get_latest_resume_evaluation(doc_id)
+    if not eval_row:
+        raise HTTPException(status_code=404, detail="No evaluation found for this document.")
+
+    return JSONResponse(dict(eval_row))
+
+
+@app.post("/api/v1/applications/{application_id}/step4-selected-resume")
+async def set_step4_selected_resume(application_id: int, request: Request):
+    """Set the selected resume document for STEP 4 workflow."""
+    app = database.get_application(application_id)
+    if not app:
+        raise HTTPException(status_code=404, detail=f"Application {application_id} not found.")
+
+    body = await request.json()
+    doc_id = body.get("doc_id")
+
+    if doc_id is not None:
+        doc = database.get_document_by_id(doc_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail=f"Document {doc_id} not found.")
+
+    database.set_step4_selected_resume(application_id, doc_id)
+    return JSONResponse({"success": True, "doc_id": doc_id})
+
+
+@app.get("/api/v1/applications/{application_id}/step4-selected-resume")
+async def get_step4_selected_resume(application_id: int):
+    """Get the selected resume document ID for STEP 4 workflow."""
+    app = database.get_application(application_id)
+    if not app:
+        raise HTTPException(status_code=404, detail=f"Application {application_id} not found.")
+
+    doc_id = database.get_step4_selected_resume(application_id)
+    return JSONResponse({"doc_id": doc_id})
 
 
 @app.post("/api/v1/applications/{application_id}/lesson-chat")

@@ -207,14 +207,15 @@ CREATE TABLE IF NOT EXISTS llm_call_log (
 );
 
 CREATE TABLE IF NOT EXISTS applications (
-    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-    job_id             INTEGER NOT NULL REFERENCES jobs(id),
-    apply_date         TEXT,
-    end_date           TEXT,
-    requested_salary   TEXT,
-    application_status TEXT NOT NULL DEFAULT 'not-started',
-    applied            INTEGER NOT NULL DEFAULT 0,
-    project_id         INTEGER
+    id                            INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id                        INTEGER NOT NULL REFERENCES jobs(id),
+    apply_date                    TEXT,
+    end_date                      TEXT,
+    requested_salary              TEXT,
+    application_status            TEXT NOT NULL DEFAULT 'not-started',
+    applied                       INTEGER NOT NULL DEFAULT 0,
+    project_id                    INTEGER,
+    step4_selected_resume_doc_id  INTEGER REFERENCES application_documents(id)
 );
 
 CREATE TABLE IF NOT EXISTS application_logs (
@@ -233,6 +234,26 @@ CREATE TABLE IF NOT EXISTS application_documents (
     type_id        INTEGER NOT NULL REFERENCES system_types(id),
     file_path      TEXT NOT NULL,
     created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS resume_evaluations (
+    id                        INTEGER PRIMARY KEY AUTOINCREMENT,
+    document_id               INTEGER NOT NULL REFERENCES application_documents(id),
+    holistic_assessment       INTEGER,
+    score_ats                 INTEGER,
+    score_recruiter_fast      INTEGER,
+    score_recruiter_deep      INTEGER,
+    score_hiringmanager_fast  INTEGER,
+    score_hiringmanager_deep  INTEGER,
+    score_candidate_fit       INTEGER,
+    score_seniority_signal    INTEGER,
+    score_voice_agency        INTEGER,
+    score_tailoring           INTEGER,
+    score_gap_flags           INTEGER,
+    lenses_aggregate          REAL,
+    recommendation            TEXT,
+    evaluation_json           TEXT NOT NULL,
+    created_at                TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS application_questions (
@@ -481,6 +502,13 @@ def init_db() -> None:
         try:
             conn.execute(
                 "ALTER TABLE llm_call_log ADD COLUMN prompt_usage_id INTEGER"
+            )
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+        try:
+            conn.execute(
+                "ALTER TABLE applications ADD COLUMN step4_selected_resume_doc_id INTEGER REFERENCES application_documents(id)"
             )
         except sqlite3.OperationalError:
             pass  # column already exists
@@ -1836,6 +1864,25 @@ def update_application(application_id: int, **kwargs) -> bool:
         return True
 
 
+def set_step4_selected_resume(application_id: int, doc_id: int | None) -> None:
+    """Set the selected resume document for STEP 4 workflow."""
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE applications SET step4_selected_resume_doc_id = ? WHERE id = ?",
+            (doc_id, application_id)
+        )
+
+
+def get_step4_selected_resume(application_id: int) -> int | None:
+    """Get the selected resume document ID for STEP 4 workflow."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT step4_selected_resume_doc_id FROM applications WHERE id = ?",
+            (application_id,)
+        ).fetchone()
+        return row[0] if row and row[0] else None
+
+
 # ─────────────────────────────────────────────────────────────
 # Application Logs
 # ─────────────────────────────────────────────────────────────
@@ -1995,6 +2042,71 @@ def rename_application_document(doc_id: int, new_file_path: str) -> None:
             "UPDATE application_documents SET file_path = ? WHERE id = ?",
             (new_file_path, doc_id)
         )
+
+
+# ─────────────────────────────────────────────────────────────
+# Resume Evaluations
+# ─────────────────────────────────────────────────────────────
+
+def add_resume_evaluation(
+    document_id: int,
+    holistic_assessment: int | None,
+    score_ats: int | None,
+    score_recruiter_fast: int | None,
+    score_recruiter_deep: int | None,
+    score_hiringmanager_fast: int | None,
+    score_hiringmanager_deep: int | None,
+    score_candidate_fit: int | None,
+    score_seniority_signal: int | None,
+    score_voice_agency: int | None,
+    score_tailoring: int | None,
+    score_gap_flags: int | None,
+    lenses_aggregate: float | None,
+    recommendation: str | None,
+    evaluation_json: str,
+) -> int:
+    """Insert a resume evaluation record. Returns the ID."""
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """INSERT INTO resume_evaluations (
+                document_id, holistic_assessment, score_ats, score_recruiter_fast,
+                score_recruiter_deep, score_hiringmanager_fast, score_hiringmanager_deep,
+                score_candidate_fit, score_seniority_signal, score_voice_agency,
+                score_tailoring, score_gap_flags, lenses_aggregate, recommendation,
+                evaluation_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                document_id, holistic_assessment, score_ats, score_recruiter_fast,
+                score_recruiter_deep, score_hiringmanager_fast, score_hiringmanager_deep,
+                score_candidate_fit, score_seniority_signal, score_voice_agency,
+                score_tailoring, score_gap_flags, lenses_aggregate, recommendation,
+                evaluation_json
+            )
+        )
+        return cursor.lastrowid
+
+
+def get_latest_resume_evaluation(document_id: int) -> sqlite3.Row | None:
+    """Return the most recent evaluation for a document."""
+    with get_connection() as conn:
+        return conn.execute(
+            """SELECT * FROM resume_evaluations
+               WHERE document_id = ?
+               ORDER BY created_at DESC
+               LIMIT 1""",
+            (document_id,)
+        ).fetchone()
+
+
+def get_resume_evaluations(document_id: int) -> list[sqlite3.Row]:
+    """Return all evaluations for a document, newest first."""
+    with get_connection() as conn:
+        return conn.execute(
+            """SELECT * FROM resume_evaluations
+               WHERE document_id = ?
+               ORDER BY created_at DESC""",
+            (document_id,)
+        ).fetchall()
 
 
 # ─────────────────────────────────────────────────────────────

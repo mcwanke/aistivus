@@ -71,6 +71,12 @@ export function ResumeSubpage({ applicationId, typstAvailable }: ResumeSubpagePr
       </div>
 
       <div>
+        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Evaluation Abbreviations</p>
+        <p className="text-[9px] font-mono text-muted/60 mb-3">
+          RF = Recruiter Fast | RD = Recruiter Deep | HMF = HM Fast | HMD = HM Deep | CF = Candidate Fit |
+          SS = Seniority Signal | VA = Voice & Agency | TL = Tailoring | GR = Gap/Risk Flags
+        </p>
+
         <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Documents</p>
         {docsLoading ? (
           <p className="text-sm text-muted">Loading…</p>

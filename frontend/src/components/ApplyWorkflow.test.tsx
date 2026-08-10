@@ -12,7 +12,6 @@ const BASE_PROPS = {
   applicationId: 1,
   evaluations: [] as EvalWithMeta[],
   typstAvailable: true,
-  onImportEval: vi.fn(),
   onNavigateToEvals: vi.fn(),
   onNavigateToResume: vi.fn(),
   onNavigateToResearch: vi.fn(),
@@ -76,11 +75,13 @@ describe('ApplyWorkflow', () => {
     expect(screen.getByText('Review Evaluations →')).toBeInTheDocument()
   })
 
-  it('renders Pass 1, 2, and 3 resume generation rows', () => {
+  it('renders resume generation workflow sections', () => {
     renderWithProviders(<ApplyWorkflow {...BASE_PROPS} />)
-    expect(screen.getByText('Pass 1')).toBeInTheDocument()
-    expect(screen.getByText('Pass 2')).toBeInTheDocument()
-    expect(screen.getByText('Pass 3')).toBeInTheDocument()
+    expect(screen.getByText('Step 3 — Resume Initial Generation')).toBeInTheDocument()
+    expect(screen.getByText('Step 4 — Resume Tailoring')).toBeInTheDocument()
+    expect(screen.getByText('Generate First Pass .typ Prompt')).toBeInTheDocument()
+    expect(screen.getByText('Generate Evaluation & Feedback Prompt')).toBeInTheDocument()
+    expect(screen.getByText('Generate Enhanced Resume .typ Prompt')).toBeInTheDocument()
   })
 
   it('renders Review Resumes link', () => {

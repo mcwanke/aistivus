@@ -76,15 +76,19 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 ---
 
-## Current Phase: PHASE 2.5 — Pass 2 In Progress
+## Current Phase: PHASE 2.6 QOL Pass 1 (Complete) / Pass 2 In Scope
 
-Pass 1 (UI Restructure + Stub): All steps complete.
-Pass 2 (Scoring Redesign + Research + External Eval): Steps 1–7 complete; Steps 8–10 next.
-- Steps 1–5: DB migration (schema v2.5), scoring helpers, gen_orgsummary retired, gen_research + eval_external promoted
-- Step 6: website_url on jobs table; research endpoints; ResearchSubpage; website_url in Job Detail + edit modal
-- Step 7: Apply Workflow STEP 1/2/3 redesign; composite score types wired; CI mock fix
-- Steps 8–10: App Settings weights UI, evaluator.py updates, tests
-Test baseline after Step 7: 678 backend / 298 frontend (2026-06-29).
+**Pass 1 (Complete — 2026-08-09):** Workflow streamlining + code quality
+- Step 1: ✅ Research Workflow Modal (combined generate/import)
+- Step 2: ✅ External Eval Workflow Modal (combined generate/import)
+- Step 3: ✅ Default external model for evaluations (Settings UI + modal preselection)
+- Step 5 Part 1: ✅ Staleness indicator on Jobs list (2 metrics, color coding, sort options)
+- Code quality: ✅ All Ruff issues fixed (21→0 issues)
+Test baseline after Pass 1: 712 backend / 319 frontend (2026-08-09).
+
+**Pass 2 (Deferred — to scope):** Resume improvements + crawl4ai integration
+- Step 4: Pass 2 Resume output as copyable JSON (+ prompt review)
+- Step 5 Part 2: "Check if Still Posted" button (crawl4ai integration)
 
 ---
 

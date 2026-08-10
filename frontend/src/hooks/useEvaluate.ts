@@ -97,11 +97,12 @@ async function postImportEvaluation(
   return res.json() as Promise<{ success: boolean; evaluation_id: number }>
 }
 
-export function useImportEvaluationMutation() {
+export function useImportEvaluationMutation(jobId: number) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: postImportEvaluation,
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['job', jobId] })
       void qc.invalidateQueries({ queryKey: ['jobs'] })
     },
   })

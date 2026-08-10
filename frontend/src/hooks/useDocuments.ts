@@ -209,3 +209,36 @@ export function useCopyTemplate(applicationId: number) {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['documents', applicationId] }),
   })
 }
+
+export interface ResumeEvaluation {
+  id: number
+  document_id: number
+  holistic_assessment: number | null
+  score_ats: number | null
+  score_recruiter_fast: number | null
+  score_recruiter_deep: number | null
+  score_hiringmanager_fast: number | null
+  score_hiringmanager_deep: number | null
+  score_candidate_fit: number | null
+  score_seniority_signal: number | null
+  score_voice_agency: number | null
+  score_tailoring: number | null
+  score_gap_flags: number | null
+  lenses_aggregate: number | null
+  recommendation: string | null
+  created_at: string
+}
+
+async function fetchLatestResumeEvaluation(docId: number): Promise<ResumeEvaluation | null> {
+  const res = await fetch(`/api/v1/documents/${docId}/latest-evaluation`)
+  if (!res.ok) return null
+  return res.json() as Promise<ResumeEvaluation>
+}
+
+export function useLatestResumeEvaluation(docId: number | null) {
+  return useQuery({
+    queryKey: ['resume-evaluation', docId],
+    queryFn: () => fetchLatestResumeEvaluation(docId!),
+    enabled: !!docId,
+  })
+}

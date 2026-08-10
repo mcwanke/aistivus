@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useUploadDocument, useApplicationDocuments } from '@/hooks/useDocuments'
-import { useGeneratePrompt, useGenerateResumePrompt, useGenerateCoverPrompt } from '@/hooks/useApplications'
+import { useGenerateResumePrompt, useGenerateCoverPrompt } from '@/hooks/useApplications'
 import { useJobResearch } from '@/hooks/useJobs'
 import { useModels, useRunInternalEval } from '@/hooks/useEvaluate'
 import type { InternalEvalEvent } from '@/hooks/useEvaluate'
@@ -58,7 +58,6 @@ interface ApplyWorkflowProps {
   evaluations: EvalWithMeta[]
   aggScoreOverall: number | null
   typstAvailable: boolean
-  onImportEval: () => void
   onNavigateToEvals: () => void
   onNavigateToResume: () => void
   onNavigateToResearch: () => void
@@ -70,7 +69,7 @@ export function ApplyWorkflow({
   applicationId,
   evaluations,
   aggScoreOverall,
-  onImportEval,
+  typstAvailable,
   onNavigateToEvals,
   onNavigateToResume,
   onNavigateToResearch,
@@ -88,9 +87,15 @@ export function ApplyWorkflow({
   const [resumePromptText, setResumePromptText] = useState<string | null>(null)
   const [resumeLineCount, setResumeLineCount] = useState<number | null>(null)
   const [selectedDocId, setSelectedDocId] = useState<number | null>(null)
+  const [dropdownDocId, setDropdownDocId] = useState<number | null>(null)
   const [p2UserFeedback, setP2UserFeedback] = useState('')
   const [p3CorrectionList, setP3CorrectionList] = useState('')
+  const [p3JsonError, setP3JsonError] = useState('')
   const [resumePassError, setResumePassError] = useState('')
+  const [replaceOnUploadStep4, setReplaceOnUploadStep4] = useState(true)
+  const [step4UploadError, setStep4UploadError] = useState('')
+  const [step4SelectedFile, setStep4SelectedFile] = useState<File | null>(null)
+  const step4FileInputRef = useRef<HTMLInputElement>(null)
 
   // Cover letter generation state
   const [coverPromptText, setCoverPromptText] = useState<string | null>(null)
@@ -98,9 +103,9 @@ export function ApplyWorkflow({
   const [coverUploadError, setCoverUploadError] = useState('')
   const coverFileInputRef = useRef<HTMLInputElement>(null)
 
-  const generateEvalPrompt = useGeneratePrompt()
   const { data: research } = useJobResearch(jobId)
   const upload = useUploadDocument(applicationId)
+  const step4Upload = useUploadDocument(applicationId)
   const { data: models } = useModels()
   const { run: runInternalEval } = useRunInternalEval(jobId)
   const generateResumePrompt = useGenerateResumePrompt()
@@ -114,6 +119,28 @@ export function ApplyWorkflow({
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null)
   const [showInternalEvalModal, setShowInternalEvalModal] = useState(false)
   const internalEvalHandlerRef = useRef<((evt: InternalEvalEvent) => void) | null>(null)
+
+  // Load selectedDocId from backend on mount
+  useEffect(() => {
+    void fetch(`/api/v1/applications/${applicationId}/step4-selected-resume`)
+      .then(res => res.json() as Promise<{ doc_id: number | null }>)
+      .then(data => setSelectedDocId(data.doc_id))
+      .catch(() => {
+        // Silently fail if fetch doesn't work
+      })
+  }, [applicationId])
+
+  // Save selectedDocId to backend whenever it changes (but not on initial null)
+  useEffect(() => {
+    if (selectedDocId === null) return
+    void fetch(`/api/v1/applications/${applicationId}/step4-selected-resume`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ doc_id: selectedDocId }),
+    }).catch(() => {
+      // Silently fail if save doesn't work
+    })
+  }, [selectedDocId, applicationId])
 
   // Default selectedModelId to the default model once models load
   const defaultModelId = models?.find(m => m.default_flag === 1)?.id ?? models?.[0]?.id ?? null
@@ -145,11 +172,6 @@ export function ApplyWorkflow({
     ? newSchemaEvals.reduce((s, e) => s + (e.composite_candidate_fit ?? 0), 0) / newSchemaEvals.length
     : null
 
-  async function handleGenerateEvalPrompt(): Promise<void> {
-    const result = await generateEvalPrompt.mutateAsync(applicationId)
-    setEvalPromptText(result.prompt)
-  }
-
   async function handleUpload(e: React.SyntheticEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault()
     if (!selectedFile) return
@@ -160,6 +182,85 @@ export function ApplyWorkflow({
       if (fileInputRef.current) fileInputRef.current.value = ''
     } catch (err) {
       setUploadError((err as Error).message)
+    }
+  }
+
+  async function handleStep4Upload(e: React.SyntheticEvent<HTMLFormElement>): Promise<void> {
+    e.preventDefault()
+    if (!step4SelectedFile) return
+    setStep4UploadError('')
+    try {
+      const result = await step4Upload.mutateAsync({ file: step4SelectedFile, doc_type: 'resume' })
+      setStep4SelectedFile(null)
+      if (step4FileInputRef.current) step4FileInputRef.current.value = ''
+      if (replaceOnUploadStep4 && 'id' in result) {
+        setSelectedDocId((result as { id: number }).id)
+      }
+    } catch (err) {
+      setStep4UploadError((err as Error).message)
+    }
+  }
+
+  function handleSelectResume(): void {
+    if (dropdownDocId !== null) {
+      setSelectedDocId(dropdownDocId)
+    }
+  }
+
+  function handleP3CorrectionListChange(value: string): void {
+    setP3CorrectionList(value)
+    setP3JsonError('')
+
+    if (!value.trim()) {
+      return
+    }
+
+    // Try to extract and parse both evaluation and corrections JSONs
+    const evalStart = value.indexOf('[EVALUATION_JSON_START]')
+    const evalEnd = value.indexOf('[EVALUATION_JSON_END]')
+    const corrStart = value.indexOf('[CORRECTIONS_JSON_START]')
+    const corrEnd = value.indexOf('[CORRECTIONS_JSON_END]')
+
+    // Extract evaluation JSON if present
+    if (evalStart !== -1 && evalEnd !== -1) {
+      const evalJsonStr = value.slice(evalStart + '[EVALUATION_JSON_START]'.length, evalEnd).trim()
+      try {
+        const evalData = JSON.parse(evalJsonStr)
+        // Auto-save evaluation if we have a selected document
+        if (selectedDocId) {
+          void fetch('/api/v1/resume-evaluations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              document_id: selectedDocId,
+              evaluation_json: evalJsonStr,
+            }),
+          }).catch(() => {
+            // Silently fail if evaluation save doesn't work
+          })
+        }
+      } catch {
+        // Silently ignore if evaluation JSON is malformed
+      }
+    }
+
+    // Extract corrections JSON if present
+    if (corrStart !== -1 && corrEnd !== -1) {
+      const corrJsonStr = value.slice(corrStart + '[CORRECTIONS_JSON_START]'.length, corrEnd).trim()
+      try {
+        JSON.parse(corrJsonStr)
+        // Update the corrections list to just the JSON (without the markers)
+        setP3CorrectionList(corrJsonStr)
+      } catch (err) {
+        setP3JsonError(`Corrections JSON parse error: ${(err as Error).message}`)
+      }
+    } else {
+      // No markers found, try to parse the entire input as corrections JSON
+      try {
+        JSON.parse(value)
+      } catch (err) {
+        setP3JsonError(`Invalid JSON: ${(err as Error).message}`)
+      }
     }
   }
 
@@ -331,28 +432,37 @@ export function ApplyWorkflow({
 
       <hr className="border-surface2" />
 
-      {/* ── STEP 3 — RESUME GENERATION ────────────────────────────────────────── */}
+      {/* ── STEP 3 — RESUME INITIAL GENERATION ────────────────────────────────── */}
       <div>
-        <p className="text-xs font-mono text-muted uppercase tracking-widest mb-1">Step 3 — Resume Generation</p>
+        <p className="text-xs font-mono text-muted uppercase tracking-widest mb-1">Step 3 — Resume Initial Generation</p>
         <p className="text-xs font-mono text-muted mb-4">
           Generate tailored application materials after you've decided to pursue this role.
         </p>
 
-        {/* Pass 1 */}
-        <div className="space-y-2 mb-5">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-mono text-muted w-12 shrink-0">Pass 1</span>
+        <div className="grid grid-cols-2 gap-6 mb-4">
+          {/* Column 1 */}
+          <div className="space-y-3">
             <button
               onClick={() => void handleGenerateResumePrompt(1)}
               disabled={generateResumePrompt.isPending}
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:border-accent hover:text-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:border-accent hover:text-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {generateResumePrompt.isPending ? 'Generating…' : 'Generate First Pass .typ Prompt'}
             </button>
+            <p className="text-[10px] font-mono text-muted">
+              Generate the initial tailored resume draft, then upload the result here
+            </p>
+            <button
+              onClick={onNavigateToResume}
+              className="text-xs font-mono text-accent hover:underline block"
+            >
+              Review Resumes →
+            </button>
           </div>
 
-          <form onSubmit={(e) => void handleUpload(e)} className="flex items-center gap-3 flex-wrap ml-16">
-            <span className="text-[10px] font-mono text-muted uppercase tracking-widest w-12 shrink-0">Upload</span>
+          {/* Column 2 */}
+          <form onSubmit={(e) => void handleUpload(e)} className="space-y-2">
+            <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Upload</p>
             <input
               ref={fileInputRef}
               type="file"
@@ -363,116 +473,146 @@ export function ApplyWorkflow({
             <button
               type="submit"
               disabled={!selectedFile || upload.isPending}
-              className="px-3 py-1.5 text-xs bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+              className="w-full px-3 py-1.5 text-xs bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
             >
               {upload.isPending ? 'Uploading…' : 'Upload'}
             </button>
+            {uploadError && <p className="text-xs font-mono text-red">{uploadError}</p>}
           </form>
-          {uploadError && <p className="text-xs font-mono text-red ml-16">{uploadError}</p>}
-
-          <p className="text-[10px] font-mono text-muted ml-16">
-            Generate the initial tailored resume draft, then upload the result here
-          </p>
-
-          <button
-            onClick={onNavigateToResume}
-            className="text-xs font-mono text-accent hover:underline ml-16 block"
-          >
-            Review Resumes →
-          </button>
         </div>
+      </div>
 
-        {/* Pass 2 */}
-        <div className="space-y-2 mb-5">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-mono text-muted w-12 shrink-0">Pass 2</span>
+      <hr className="border-surface2" />
+
+      {/* ── STEP 4 — RESUME TAILORING ────────────────────────────────────────── */}
+      <div>
+        <p className="text-xs font-mono text-muted uppercase tracking-widest mb-1">Step 4 — Resume Tailoring</p>
+        <p className="text-xs font-mono text-muted mb-4">
+          Iterate on resume materials for optimal job application success.
+        </p>
+
+        <div className="grid grid-cols-3 gap-4 mb-4">
+          {/* Column 1 — Current Resume Selection */}
+          <div className="space-y-3">
+            <div>
+              <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Current Resume</p>
+              {selectedDocId ? (
+                <p className="text-xs font-mono text-text bg-surface2 rounded px-2 py-1.5">
+                  {resumeDocs.find(d => d.id === selectedDocId)?.filename || 'Unknown'}
+                </p>
+              ) : (
+                <p className="text-xs font-mono text-muted italic">No resume selected</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              {resumeDocs.length === 0 ? (
+                <p className="text-[10px] font-mono text-muted">No .typ files yet — upload one above.</p>
+              ) : (
+                <>
+                  <select
+                    value={dropdownDocId ?? ''}
+                    onChange={(e) => setDropdownDocId(e.target.value ? Number(e.target.value) : null)}
+                    className="w-full text-xs font-mono text-text bg-surface2 border border-surface2 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent"
+                  >
+                    <option value="">Select .typ file…</option>
+                    {resumeDocs.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.filename}{d.is_final ? ' ★' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={handleSelectResume}
+                    disabled={dropdownDocId === null}
+                    className="w-full px-2 py-1 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent disabled:opacity-50 transition-colors"
+                  >
+                    Select
+                  </button>
+                </>
+              )}
+            </div>
+
+            <form onSubmit={(e) => void handleStep4Upload(e)} className="space-y-2 pt-2 border-t border-surface2">
+              <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Upload & Replace</p>
+              <input
+                ref={step4FileInputRef}
+                type="file"
+                accept=".typ"
+                onChange={(e) => setStep4SelectedFile(e.target.files?.[0] ?? null)}
+                className="text-xs font-mono text-muted file:mr-2 file:px-2 file:py-0.5 file:rounded file:border-0 file:bg-surface2 file:text-muted file:text-xs file:font-mono hover:file:text-text file:cursor-pointer"
+              />
+              <label className="flex items-center gap-2 text-[10px] font-mono text-muted hover:text-text">
+                <input
+                  type="checkbox"
+                  checked={replaceOnUploadStep4}
+                  onChange={(e) => setReplaceOnUploadStep4(e.target.checked)}
+                  className="w-3 h-3 rounded cursor-pointer"
+                />
+                Replace current selected .typ resume with upload
+              </label>
+              <button
+                type="submit"
+                disabled={!step4SelectedFile || step4Upload.isPending}
+                className="w-full px-2 py-1 text-xs bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+              >
+                {step4Upload.isPending ? 'Uploading…' : 'Upload'}
+              </button>
+              {step4UploadError && <p className="text-xs font-mono text-red">{step4UploadError}</p>}
+            </form>
+          </div>
+
+          {/* Column 2 — Evaluation & Feedback */}
+          <div className="space-y-3">
             <button
               onClick={() => void handleGenerateResumePrompt(2)}
               disabled={generateResumePrompt.isPending || !selectedDocId}
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:border-accent hover:text-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:border-accent hover:text-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {generateResumePrompt.isPending ? 'Generating…' : 'Generate Feedback Loop Prompt'}
+              {generateResumePrompt.isPending ? 'Generating…' : 'Generate Evaluation & Feedback Prompt'}
             </button>
-          </div>
-
-          {/* File selector */}
-          <div className="ml-16 space-y-2">
-            {resumeDocs.length === 0 ? (
-              <p className="text-[10px] font-mono text-muted">No .typ resume files uploaded yet — upload one above.</p>
-            ) : (
-              <select
-                value={selectedDocId ?? ''}
-                onChange={(e) => setSelectedDocId(e.target.value ? Number(e.target.value) : null)}
-                className="text-xs font-mono text-text bg-surface2 border border-surface2 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent"
-              >
-                <option value="">Select .typ file…</option>
-                {resumeDocs.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.filename}{d.is_final ? ' ★' : ''} — {d.created_at.slice(0, 10)}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            {resumeLineCount != null && (
-              <p className="text-[10px] font-mono text-muted">
-                Last computed line count: <span className="text-text">{resumeLineCount}</span>
-                {' '}(target 93–102)
-              </p>
-            )}
 
             <textarea
               value={p2UserFeedback}
               onChange={(e) => setP2UserFeedback(e.target.value)}
               placeholder="Optional: notes or feedback to include in the prompt (e.g. 'make the summary shorter', 'cut the Miovision bullet')"
-              rows={3}
+              rows={4}
               className="w-full bg-surface2 rounded px-3 py-2 text-xs font-mono text-text placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent resize-y"
             />
+
+            {resumePassError && (
+              <p className="text-xs font-mono text-red">{resumePassError}</p>
+            )}
           </div>
 
-          <p className="text-[10px] font-mono text-muted ml-16">
-            Evaluates the draft against all scoring dimensions and produces a correction list. Run as many times as needed.
-          </p>
-        </div>
-
-        {/* Pass 3 */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-mono text-muted w-12 shrink-0">Pass 3</span>
+          {/* Column 3 — Enhanced Resume */}
+          <div className="space-y-3">
             <button
               onClick={() => void handleGenerateResumePrompt(3)}
-              disabled={generateResumePrompt.isPending || !selectedDocId || !p3CorrectionList.trim()}
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:border-accent hover:text-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={generateResumePrompt.isPending || !selectedDocId || !p3CorrectionList.trim() || p3JsonError !== ''}
+              className="w-full px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:border-accent hover:text-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {generateResumePrompt.isPending ? 'Generating…' : 'Generate Final Pass .typ Prompt'}
+              {generateResumePrompt.isPending ? 'Generating…' : 'Generate Enhanced Resume .typ Prompt'}
             </button>
-          </div>
 
-          <div className="ml-16 space-y-2">
             <textarea
               value={p3CorrectionList}
-              onChange={(e) => setP3CorrectionList(e.target.value)}
-              placeholder="Paste the correction list output from Pass 2 here…"
-              rows={5}
+              onChange={(e) => handleP3CorrectionListChange(e.target.value)}
+              placeholder="Paste the JSON corrections from Pass 2 here…"
+              rows={4}
               className="w-full bg-surface2 rounded px-3 py-2 text-xs font-mono text-text placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent resize-y"
             />
+
+            {p3JsonError && <p className="text-xs font-mono text-red">{p3JsonError}</p>}
           </div>
-
-          <p className="text-[10px] font-mono text-muted ml-16">
-            Applies all corrections and produces the clean final .typ file
-          </p>
         </div>
-
-        {resumePassError && (
-          <p className="text-xs font-mono text-red mt-2">{resumePassError}</p>
-        )}
       </div>
 
       <hr className="border-surface2" />
 
-      {/* ── STEP 4 — COVER LETTER GENERATION ──────────────────────────────────── */}
+      {/* ── STEP 5 — COVER LETTER GENERATION ──────────────────────────────────── */}
       <div>
-        <p className="text-xs font-mono text-muted uppercase tracking-widest mb-1">Step 4 — Cover Letter Generation</p>
+        <p className="text-xs font-mono text-muted uppercase tracking-widest mb-1">Step 5 — Cover Letter Generation</p>
         <p className="text-xs font-mono text-muted mb-4">
           Generate a tailored cover letter for this application.
         </p>
@@ -556,7 +696,7 @@ export function ApplyWorkflow({
       )}
       {showExternalEvalWorkflow && (
         <ExternalEvalWorkflowModal
-          applicationId={applicationId}
+          jobId={jobId}
           onClose={() => setShowExternalEvalWorkflow(false)}
         />
       )}
