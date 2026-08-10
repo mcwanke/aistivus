@@ -6,7 +6,6 @@ import {
   useSaveDocumentContent,
   useRenameDocument,
   useDocumentContent,
-  useLatestResumeEvaluation,
 } from '@/hooks/useDocuments'
 import type { ApplicationDocument } from '@/types/documents'
 
@@ -55,7 +54,6 @@ export function DocRow({ doc, applicationId, typstAvailable }: DocRowProps): Rea
     applicationId,
     editing ? doc.id : null
   )
-  const { data: latestEval } = useLatestResumeEvaluation(isTyp ? doc.id : null)
 
   useEffect(() => {
     if (contentData?.content != null && editing && !contentInitRef.current) {
@@ -159,25 +157,6 @@ export function DocRow({ doc, applicationId, typstAvailable }: DocRowProps): Rea
             <span className="text-[10px] font-mono text-muted shrink-0">{fmtDate(doc.created_at)}</span>
             <span className="text-[10px] font-mono text-muted/50 truncate">{doc.file_path}</span>
           </div>
-
-          {/* Evaluation info for .typ files */}
-          {isTyp && latestEval && (
-            <div className="text-[9px] font-mono text-muted/70 mt-1 truncate">
-              Chance: {latestEval.holistic_assessment} •
-              ATS {latestEval.score_ats} •
-              RF {latestEval.score_recruiter_fast} •
-              RD {latestEval.score_recruiter_deep} •
-              HMF {latestEval.score_hiringmanager_fast} •
-              HMD {latestEval.score_hiringmanager_deep} •
-              CF {latestEval.score_candidate_fit} •
-              SS {latestEval.score_seniority_signal} •
-              VA {latestEval.score_voice_agency} •
-              TL {latestEval.score_tailoring} •
-              GR {latestEval.score_gap_flags} •
-              Avg {latestEval.lenses_aggregate?.toFixed(1)} •
-              {latestEval.recommendation}
-            </div>
-          )}
         </div>
 
         {/* Buttons — normal state */}

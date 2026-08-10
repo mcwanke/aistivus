@@ -177,9 +177,12 @@ export function ApplyWorkflow({
     if (!selectedFile) return
     setUploadError('')
     try {
-      await upload.mutateAsync({ file: selectedFile, doc_type: 'resume' })
+      const result = await upload.mutateAsync({ file: selectedFile, doc_type: 'resume' })
       setSelectedFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
+      if ('id' in result) {
+        setSelectedDocId((result as { id: number }).id)
+      }
     } catch (err) {
       setUploadError((err as Error).message)
     }
@@ -215,52 +218,29 @@ export function ApplyWorkflow({
       return
     }
 
-    // Try to extract and parse both evaluation and corrections JSONs
-    const evalStart = value.indexOf('[EVALUATION_JSON_START]')
-    const evalEnd = value.indexOf('[EVALUATION_JSON_END]')
-    const corrStart = value.indexOf('[CORRECTIONS_JSON_START]')
-    const corrEnd = value.indexOf('[CORRECTIONS_JSON_END]')
+    try {
+      const data = JSON.parse(value)
 
-    // Extract evaluation JSON if present
-    if (evalStart !== -1 && evalEnd !== -1) {
-      const evalJsonStr = value.slice(evalStart + '[EVALUATION_JSON_START]'.length, evalEnd).trim()
-      try {
-        const evalData = JSON.parse(evalJsonStr)
-        // Auto-save evaluation if we have a selected document
-        if (selectedDocId) {
-          void fetch('/api/v1/resume-evaluations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              document_id: selectedDocId,
-              evaluation_json: evalJsonStr,
-            }),
-          }).catch(() => {
-            // Silently fail if evaluation save doesn't work
-          })
-        }
-      } catch {
-        // Silently ignore if evaluation JSON is malformed
+      // Extract evaluations and auto-save if present
+      if (data.evaluations && selectedDocId) {
+        void fetch('/api/v1/resume-evaluations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            document_id: selectedDocId,
+            evaluation_json: JSON.stringify(data.evaluations),
+          }),
+        }).catch(() => {
+          // Silently fail if evaluation save doesn't work
+        })
       }
-    }
 
-    // Extract corrections JSON if present
-    if (corrStart !== -1 && corrEnd !== -1) {
-      const corrJsonStr = value.slice(corrStart + '[CORRECTIONS_JSON_START]'.length, corrEnd).trim()
-      try {
-        JSON.parse(corrJsonStr)
-        // Update the corrections list to just the JSON (without the markers)
-        setP3CorrectionList(corrJsonStr)
-      } catch (err) {
-        setP3JsonError(`Corrections JSON parse error: ${(err as Error).message}`)
+      // Extract corrections and update state
+      if (data.corrections && Array.isArray(data.corrections)) {
+        setP3CorrectionList(JSON.stringify(data.corrections))
       }
-    } else {
-      // No markers found, try to parse the entire input as corrections JSON
-      try {
-        JSON.parse(value)
-      } catch (err) {
-        setP3JsonError(`Invalid JSON: ${(err as Error).message}`)
-      }
+    } catch (err) {
+      setP3JsonError(`Invalid JSON: ${(err as Error).message}`)
     }
   }
 
@@ -495,7 +475,7 @@ export function ApplyWorkflow({
           {/* Column 1 — Current Resume Selection */}
           <div className="space-y-3">
             <div>
-              <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Current Resume</p>
+              <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Current Target Resume</p>
               {selectedDocId ? (
                 <p className="text-xs font-mono text-text bg-surface2 rounded px-2 py-1.5">
                   {resumeDocs.find(d => d.id === selectedDocId)?.filename || 'Unknown'}
@@ -505,7 +485,10 @@ export function ApplyWorkflow({
               )}
             </div>
 
+            <div className="border-t border-surface2"></div>
+
             <div className="space-y-2">
+              <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Select a Different Target Resume</p>
               {resumeDocs.length === 0 ? (
                 <p className="text-[10px] font-mono text-muted">No .typ files yet — upload one above.</p>
               ) : (

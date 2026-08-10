@@ -38,6 +38,28 @@ This pass produces five outputs for the user:
 4. A final recommendation (Submit / Rework / Stop)
 5. A structured JSON corrections list for Pass 3 to consume
 
+**On iterative loops:** Evaluate this resume independently. Do not let previous
+scores bias your current assessment — generate your holistic, lens, and aggregate
+scores fresh. After you have your new scores, you will see the evaluation trajectory
+(recent iterations). Use that for context only:
+
+- If your new scores are similar to previous ones, the resume is likely stable at
+  that level.
+- If your new scores are higher, progress is being made.
+- **Plateau detection:** If the aggregate score has oscillated within a 0.2-point band
+  for 2+ iterations, and one or more lens scores (bottleneck dimensions) remain stuck
+  at 3-4 and haven't improved, the resume has likely reached its ceiling. Recommend
+  SUBMIT instead of REWORK — further iterations will see diminishing or negative returns.
+- When recommending REWORK: only do so if you believe the suggested corrections can
+  materially improve the scores and move bottleneck lenses upward. Avoid rework for
+  polish or marginal gains.
+- When recommending SUBMIT: corrections are optional refinements, not must-dos.
+  Focus on high-impact changes only; skip low-impact suggestions.
+
+**On formatting patterns:** Bracket labels like `[Label] description` create scan
+friction and slow recruiter eye-tracking. This pattern typically affects Recruiter
+Fast/Deep lens scores. If you see it, flag removal as a high-priority refinement.
+
 Work through the steps below in order. Do not skip steps.
 
 [[/EDITABLE]]
@@ -79,6 +101,14 @@ Do not re-research the company — this data is already gathered.
 ## USER FEEDBACK (if provided)
 
 {user_feedback}
+
+---
+
+## EVALUATION LOOP CONTEXT
+
+Iteration: {loop_number}
+
+{evaluation_trajectory}
 
 ---
 
@@ -335,7 +365,9 @@ correct. REMOVE and ADD must never be identical.
 [[READONLY]]
 ## OUTPUT FORMAT
 
-Output in this exact order, with no prose before or after. Wrap everything below in triple backticks (```):
+Output in this exact order:
+
+1. **Markdown Assessment** (no backticks):
 
 ---
 
@@ -359,40 +391,41 @@ Output in this exact order, with no prose before or after. Wrap everything below
 
 ## RECOMMENDATION: [emoji] [Status]
 
+Why: <1-2 sentences explaining why this recommendation and not the alternatives>
+
+Target (if Rework): <1-2 sentences on what needs to improve to unlock the next score tier>
+
 ---
 
-[EVALUATION_JSON_START]
+2. **Single JSON Block** (wrap the entire object in triple backticks):
+
+```json
 {
-  "holistic_assessment": <integer 1-10>,
-  "score_ats": <integer 1-5>,
-  "score_recruiter_fast": <integer 1-5>,
-  "score_recruiter_deep": <integer 1-5>,
-  "score_hiringmanager_fast": <integer 1-5>,
-  "score_hiringmanager_deep": <integer 1-5>,
-  "score_candidate_fit": <integer 1-5>,
-  "score_seniority_signal": <integer 1-5>,
-  "score_voice_agency": <integer 1-5>,
-  "score_tailoring": <integer 1-5>,
-  "score_gap_flags": <integer 1-5>,
-  "lenses_aggregate": <float e.g. 3.2>,
-  "recommendation": "<recommendation status, e.g., Submit / Rework / Stop>"
+  "evaluations": {
+    "holistic_assessment": <integer 1-10>,
+    "score_ats": <integer 1-5>,
+    "score_recruiter_fast": <integer 1-5>,
+    "score_recruiter_deep": <integer 1-5>,
+    "score_hiringmanager_fast": <integer 1-5>,
+    "score_hiringmanager_deep": <integer 1-5>,
+    "score_candidate_fit": <integer 1-5>,
+    "score_seniority_signal": <integer 1-5>,
+    "score_voice_agency": <integer 1-5>,
+    "score_tailoring": <integer 1-5>,
+    "score_gap_flags": <integer 1-5>,
+    "lenses_aggregate": <float e.g. 3.2>,
+    "recommendation": "<recommendation status, e.g., Submit / Rework / Stop>"
+  },
+  "corrections": [
+    {
+      "location": "<section/bullet/field>",
+      "remove": "<exact current text or null>",
+      "add": "<exact replacement or null>",
+      "reason": "<one line>"
+    }
+  ]
 }
-[EVALUATION_JSON_END]
-
----
-
-## CORRECTIONS
-
-[CORRECTIONS_JSON_START]
-[
-  {
-    "location": "<section/bullet/field>",
-    "remove": "<exact current text or null>",
-    "add": "<exact replacement or null>",
-    "reason": "<one line>"
-  }
-]
-[CORRECTIONS_JSON_END]
+```
 
 [[/READONLY]]
 [[PROMPT_END]]

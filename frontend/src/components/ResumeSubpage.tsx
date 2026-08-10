@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { useApplicationDocuments, useUploadDocument } from '@/hooks/useDocuments'
+import { useApplicationDocuments, useUploadDocument, useLatestResumeEvaluation } from '@/hooks/useDocuments'
 import { DocRow } from '@/components/DocRow'
 
 interface ResumeSubpageProps {
@@ -71,12 +71,11 @@ export function ResumeSubpage({ applicationId, typstAvailable }: ResumeSubpagePr
       </div>
 
       <div>
-        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Evaluation Abbreviations</p>
-        <p className="text-[9px] font-mono text-muted/60 mb-3">
-          RF = Recruiter Fast | RD = Recruiter Deep | HMF = HM Fast | HMD = HM Deep | CF = Candidate Fit |
-          SS = Seniority Signal | VA = Voice & Agency | TL = Tailoring | GR = Gap/Risk Flags
-        </p>
+        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Evaluation Scores</p>
+        <EvaluationScoresTable documents={resumeDocs} />
+      </div>
 
+      <div>
         <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Documents</p>
         {docsLoading ? (
           <p className="text-sm text-muted">Loading…</p>
@@ -96,5 +95,102 @@ export function ResumeSubpage({ applicationId, typstAvailable }: ResumeSubpagePr
         )}
       </div>
     </div>
+  )
+}
+
+interface EvaluationScoresTableProps {
+  documents: Array<{ id: number; filename: string }>
+}
+
+function EvaluationScoresTable({ documents }: EvaluationScoresTableProps): React.JSX.Element {
+  const typDocs = documents.filter((d) => d.filename.endsWith('.typ'))
+
+  if (typDocs.length === 0) {
+    return <p className="text-sm text-muted italic">No .typ documents yet.</p>
+  }
+
+  return (
+    <div className="overflow-x-auto border border-surface2 rounded">
+      <table className="w-full text-xs font-mono">
+        <thead className="bg-surface2 border-b border-surface2">
+          <tr>
+            <th className="text-left px-3 py-2 text-muted">Document</th>
+            <th className="text-center px-2 py-2 text-muted">Holistic</th>
+            <th className="text-center px-2 py-2 text-muted">ATS</th>
+            <th className="text-center px-2 py-2 text-muted">Rec Fast</th>
+            <th className="text-center px-2 py-2 text-muted">Rec Deep</th>
+            <th className="text-center px-2 py-2 text-muted">HM Fast</th>
+            <th className="text-center px-2 py-2 text-muted">HM Deep</th>
+            <th className="text-center px-2 py-2 text-muted">Fit</th>
+            <th className="text-center px-2 py-2 text-muted">Seniority</th>
+            <th className="text-center px-2 py-2 text-muted">Voice</th>
+            <th className="text-center px-2 py-2 text-muted">Tailor</th>
+            <th className="text-center px-2 py-2 text-muted">Gaps</th>
+            <th className="text-center px-2 py-2 text-muted">Agg</th>
+            <th className="text-left px-3 py-2 text-muted">Rec</th>
+            <th className="text-left px-3 py-2 text-muted">Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {typDocs.map((doc) => (
+            <EvaluationScoresRow key={doc.id} docId={doc.id} filename={doc.filename} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+interface EvaluationScoresRowProps {
+  docId: number
+  filename: string
+}
+
+function EvaluationScoresRow({ docId, filename }: EvaluationScoresRowProps): React.JSX.Element {
+  const { data: evaluation } = useLatestResumeEvaluation(docId)
+
+  if (!evaluation) {
+    return (
+      <tr className="border-b border-surface2/50 hover:bg-surface2/30">
+        <td className="px-3 py-2 text-text truncate">{filename}</td>
+        <td colSpan={13} className="px-3 py-2 text-muted italic text-center">
+          No evaluation
+        </td>
+      </tr>
+    )
+  }
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffMins < 1) return '<1m'
+    if (diffMins < 60) return `${diffMins}m`
+    if (diffHours < 24) return `${diffHours}h`
+    return `${diffDays}d`
+  }
+
+  return (
+    <tr className="border-b border-surface2/50 hover:bg-surface2/30">
+      <td className="px-3 py-2 text-text truncate max-w-xs">{filename}</td>
+      <td className="px-2 py-2 text-center text-text">{evaluation.holistic_assessment}</td>
+      <td className="px-2 py-2 text-center text-text">{evaluation.score_ats}</td>
+      <td className="px-2 py-2 text-center text-text">{evaluation.score_recruiter_fast}</td>
+      <td className="px-2 py-2 text-center text-text">{evaluation.score_recruiter_deep}</td>
+      <td className="px-2 py-2 text-center text-text">{evaluation.score_hiringmanager_fast}</td>
+      <td className="px-2 py-2 text-center text-text">{evaluation.score_hiringmanager_deep}</td>
+      <td className="px-2 py-2 text-center text-text">{evaluation.score_candidate_fit}</td>
+      <td className="px-2 py-2 text-center text-text">{evaluation.score_seniority_signal}</td>
+      <td className="px-2 py-2 text-center text-text">{evaluation.score_voice_agency}</td>
+      <td className="px-2 py-2 text-center text-text">{evaluation.score_tailoring}</td>
+      <td className="px-2 py-2 text-center text-text">{evaluation.score_gap_flags}</td>
+      <td className="px-2 py-2 text-center text-text">{evaluation.lenses_aggregate?.toFixed(1)}</td>
+      <td className="px-3 py-2 text-left text-text">{evaluation.recommendation}</td>
+      <td className="px-3 py-2 text-left text-muted/70">{formatDate(evaluation.created_at)}</td>
+    </tr>
   )
 }

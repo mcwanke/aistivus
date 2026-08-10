@@ -1798,6 +1798,57 @@ async def generate_resume_prompt(
         line_data = typst_utils.compute_line_count(typ_content)
         line_count = line_data["total"]
 
+        # Get evaluation loop count and trajectory based on .typ file count for this application
+        all_docs = database.get_application_documents(application_id)
+        typ_resumes = [d for d in all_docs if (d_dict := dict(d)).get("type_value") == "resume" and d_dict.get("file_path", "").endswith(".typ")]
+        typ_resumes_sorted = sorted(typ_resumes, key=lambda d: dict(d).get("created_at", ""))
+        loop_number = len(typ_resumes)
+
+        # Find position of current document in the sorted list
+        current_doc_idx = None
+        for idx, doc in enumerate(typ_resumes_sorted):
+            if dict(doc).get("id") == body.doc_id:
+                current_doc_idx = idx
+                break
+
+        # Get evaluation trajectory from previous 2-3 documents
+        evaluation_trajectory = "This is the first evaluation pass."
+        if current_doc_idx is not None and current_doc_idx > 0:
+            # Get up to 3 previous documents
+            start_idx = max(0, current_doc_idx - 3)
+            prev_docs = typ_resumes_sorted[start_idx:current_doc_idx]
+
+            if prev_docs:
+                trajectory_lines = []
+                for doc in prev_docs:
+                    doc_dict = dict(doc)
+                    doc_id = doc_dict.get("id")
+                    # Extract filename from file_path (e.g., "app_data/.../001_render.typ" → "001_render.typ")
+                    file_path = doc_dict.get("file_path", "")
+                    doc_filename = file_path.split("/")[-1] if file_path else f"doc_{doc_id}"
+                    # Get the most recent evaluation for this document
+                    doc_evals = database.get_resume_evaluations(doc_id)
+                    if doc_evals:
+                        eval_dict = dict(doc_evals[-1])
+                        trajectory_lines.append(
+                            f"--- {doc_filename} ---\n"
+                            f"Holistic: {eval_dict.get('holistic_assessment')}, "
+                            f"ATS: {eval_dict.get('score_ats')}, "
+                            f"Rec Fast: {eval_dict.get('score_recruiter_fast')}, "
+                            f"Rec Deep: {eval_dict.get('score_recruiter_deep')}, "
+                            f"HM Fast: {eval_dict.get('score_hiringmanager_fast')}, "
+                            f"HM Deep: {eval_dict.get('score_hiringmanager_deep')}, "
+                            f"Fit: {eval_dict.get('score_candidate_fit')}, "
+                            f"Seniority: {eval_dict.get('score_seniority_signal')}, "
+                            f"Voice: {eval_dict.get('score_voice_agency')}, "
+                            f"Tailor: {eval_dict.get('score_tailoring')}, "
+                            f"Gaps: {eval_dict.get('score_gap_flags')}, "
+                            f"Agg: {eval_dict.get('lenses_aggregate')}\n"
+                            f"Recommendation: {eval_dict.get('recommendation')}"
+                        )
+                if trajectory_lines:
+                    evaluation_trajectory = "\n\n".join(trajectory_lines)
+
         prompt_key = "gen_resume_pass2"
         log_type_key = "prompt_resume_p2"
         variables = {
@@ -1812,6 +1863,8 @@ async def generate_resume_prompt(
             "research_text": research_text,
             "user_feedback": body.user_feedback or "None provided.",
             "pass1_typ_text": typ_content,
+            "loop_number": str(loop_number),
+            "evaluation_trajectory": evaluation_trajectory,
         }
 
     else:  # pass 3
@@ -1830,20 +1883,11 @@ async def generate_resume_prompt(
         line_data = typst_utils.compute_line_count(typ_content)
         line_count = line_data["total"]
 
-        # Extract counter from selected file, or compute next counter
-        resume_counter = None
-        filename = doc_dict.get("filename", "")
-        if "_" in filename:
-            counter_part = filename.split("_")[0]
-            if counter_part.isdigit() and len(counter_part) == 3:
-                resume_counter = counter_part
-
-        if not resume_counter:
-            # Fallback: compute next counter
-            all_docs = database.get_application_documents(application_id)
-            typ_resumes = [d for d in all_docs if d.get("type_value") == "resume" and d.get("filename", "").endswith(".typ")]
-            next_counter = len(typ_resumes) + 1
-            resume_counter = f"{next_counter:03d}"
+        # Compute next counter based on existing .typ resumes
+        all_docs = database.get_application_documents(application_id)
+        typ_resumes = [d for d in all_docs if (d_dict := dict(d)).get("type_value") == "resume" and d_dict.get("file_path", "").endswith(".typ")]
+        next_counter = len(typ_resumes) + 1
+        resume_counter = f"{next_counter:03d}"
 
         prompt_key = "gen_resume_pass3"
         log_type_key = "prompt_resume_p3"
