@@ -436,7 +436,7 @@ CREATE INDEX IF NOT EXISTS idx_llm_models_server_id    ON llm_models(server_id);
 CREATE INDEX IF NOT EXISTS idx_job_research_job_id     ON job_research(job_id);
 """
 
-CURRENT_SCHEMA_VERSION = "2.5"
+CURRENT_SCHEMA_VERSION = "2.6"
 
 _APP_SETTINGS_SEED: list[tuple[str, str]] = [
     ("allow_audit_timestamp_edit", "0"),
@@ -634,7 +634,7 @@ def init_db() -> None:
         if not existing_version:
             conn.execute(
                 "INSERT INTO schema_versions (version, description) VALUES (?, ?)",
-                (CURRENT_SCHEMA_VERSION, "Schema v2.5 — evaluations 9-dim columns; job_research table; eval weight app_settings seeds; gen_orgsummary retired")
+                (CURRENT_SCHEMA_VERSION, "Schema v2.6 — external_default flag on llm_models; pass2_json on application_documents; evaluation workflow QOL")
             )
 
     seed_llm_models_from_config()

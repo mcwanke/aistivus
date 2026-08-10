@@ -76,19 +76,22 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 ---
 
-## Current Phase: PHASE 2.6 QOL Pass 1 (Complete) / Pass 2 In Scope
+## Current Phase: PHASE 2.6 (Complete) — QOL Pass 1 & 2
 
 **Pass 1 (Complete — 2026-08-09):** Workflow streamlining + code quality
 - Step 1: ✅ Research Workflow Modal (combined generate/import)
 - Step 2: ✅ External Eval Workflow Modal (combined generate/import)
 - Step 3: ✅ Default external model for evaluations (Settings UI + modal preselection)
-- Step 5 Part 1: ✅ Staleness indicator on Jobs list (2 metrics, color coding, sort options)
+- Step 4: ✅ Pass 2 Resume output as copyable JSON (+ prompt review)
+- Step 5: ✅ Staleness indicator + Job status checks (2 metrics, color coding, sort options)
 - Code quality: ✅ All Ruff issues fixed (21→0 issues)
 Test baseline after Pass 1: 712 backend / 319 frontend (2026-08-09).
 
-**Pass 2 (Deferred — to scope):** Resume improvements + crawl4ai integration
-- Step 4: Pass 2 Resume output as copyable JSON (+ prompt review)
-- Step 5 Part 2: "Check if Still Posted" button (crawl4ai integration)
+**Pass 2 (Complete — 2026-08-10):** Evaluation workflow QOL + plateau detection
+- Evaluation workflow streamlining and plateau detection improvements
+- All tests passing: 712 backend / 319 frontend
+
+**Deferred to Phase 2.7:** Company-first approach, crawl4ai background jobs, two-repo git submodule approach (requires separate planning doc)
 
 ---
 

@@ -69,7 +69,7 @@ export function ApplyWorkflow({
   applicationId,
   evaluations,
   aggScoreOverall,
-  _typstAvailable,
+  typstAvailable: _typstAvailable,
   onNavigateToEvals,
   onNavigateToResume,
   onNavigateToResearch,

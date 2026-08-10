@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useGeneratePrompt } from '@/hooks/useApplications'
-import { useModels, useImportEvaluationMutation } from '@/hooks/useEvaluate'
+import { useModels, useImportEvaluationMutation, type ImportPayload } from '@/hooks/useEvaluate'
 import { useSettings } from '@/hooks/useSettings'
 
 interface ExternalEvalWorkflowModalProps {
