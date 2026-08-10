@@ -358,7 +358,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AIstivus",
     description="AI Job Search Helper for the Rest of Us",
-    version="2.4.0",
+    version="2.6.0",
     lifespan=lifespan,
     docs_url=None,
     redoc_url=None,
@@ -747,7 +747,7 @@ async def health_check(request: Request):
         "models": models_out,
         "anthropic_configured": bool(os.environ.get("ANTHROPIC_API_KEY")),
         "typst_available": getattr(request.app.state, "typst_available", False),
-        "version": "2.4.0",
+        "version": "2.6.0",
     })
 
 
@@ -2398,7 +2398,7 @@ async def get_settings(request: Request):
     config = _load_config()
     external_default = database.get_external_default_model()
     return JSONResponse({
-        "app_version": "2.4.0",
+        "app_version": "2.6.0",
         "schema_version": database.get_schema_version(),
         "anthropic_api_key_configured": bool(os.environ.get("ANTHROPIC_API_KEY")),
         "external_default_model_id": external_default["id"] if external_default else None,
