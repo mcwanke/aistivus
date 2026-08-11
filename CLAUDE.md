@@ -76,22 +76,30 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 ---
 
-## Current Phase: PHASE 2.6 (Complete) — QOL Pass 1 & 2
+## Current Phase: PHASE 2.7 (In Progress) — Company Workflows & Crawl4ai Integration
 
-**Pass 1 (Complete — 2026-08-09):** Workflow streamlining + code quality
-- Step 1: ✅ Research Workflow Modal (combined generate/import)
-- Step 2: ✅ External Eval Workflow Modal (combined generate/import)
-- Step 3: ✅ Default external model for evaluations (Settings UI + modal preselection)
-- Step 4: ✅ Pass 2 Resume output as copyable JSON (+ prompt review)
-- Step 5: ✅ Staleness indicator + Job status checks (2 metrics, color coding, sort options)
-- Code quality: ✅ All Ruff issues fixed (21→0 issues)
-Test baseline after Pass 1: 712 backend / 319 frontend (2026-08-09).
+**Overview:** Introduce company-forward job discovery. Users add target companies ("orgs"), system automatically crawls career pages on schedule, extracts roles, filters for matches, scores locally. Matched roles surface as "interesting" for evaluation and optional promotion to Jobs workflow.
 
-**Pass 2 (Complete — 2026-08-10):** Evaluation workflow QOL + plateau detection
-- Evaluation workflow streamlining and plateau detection improvements
-- All tests passing: 712 backend / 319 frontend
+**Key Principle:** Orgs/roles are *separate namespace* from Jobs/Companies. New roles flow one-way into Jobs (via Promote); existing job data never back-migrates to org model.
 
-**Deferred to Phase 2.7:** Company-first approach, crawl4ai background jobs, two-repo git submodule approach (requires separate planning doc)
+**Implementation Plan:** See `app_docs/WORKORDER_p2.7.md` for full detail.
+
+### Phases:
+1. ✅ **DESIGN COMPLETE (2026-08-11)** — Planning discussion + WORKORDER finalized
+2. 🔄 **Phase 1: DB Schema** (not started) — orgs, org_crawls, org_roles tables; polymorphic job_research
+3. 🔄 **Phase 2: POC Extraction Hardening** (parallel with Phase 1) — Test crawl4ai on real jobs; measure timing; lock extraction strategy (LLM-first)
+4. 🔄 **Phase 3–6: Backend Infrastructure** — Crawl routes + core logic, APScheduler setup, matching prompt, local scoring prompt
+5. 🔄 **Phase 7–13: Frontend** — Navigation, CreateOrg, OrgsList, OrgDetails, RoleDetails, CrawlRuns, TypeScript types/hooks
+6. 🔄 **Phase 14–15: Integration** — Company research UI (stub: copy-paste prompt flow), promote flow (org_role → job + evaluations)
+7. 🔄 **Phase 16: Testing** — Manual end-to-end testing
+
+**Test baseline going in:** 712 backend / 319 frontend (from Phase 2.6)
+
+**Deferred to Phase 2.8+:** 
+- Fully automated company research (Claude API integration)
+- Fully automated external evaluation 
+- Postgres migration (discussion-only for now)
+- Advanced matching strategies (content-based, LLM-powered)
 
 ---
 
