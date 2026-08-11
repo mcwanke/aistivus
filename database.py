@@ -426,6 +426,59 @@ CREATE TABLE IF NOT EXISTS job_research (
     imported_at              TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- ─────────────────────────────────────────
+-- Company workflows — PHASE 2.7
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS orgs (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                  TEXT NOT NULL,
+    url                   TEXT NOT NULL,
+    career_page_url       TEXT NOT NULL,
+    crawl_frequency       INTEGER NOT NULL DEFAULT 3,
+    crawl_offset_minutes  INTEGER NOT NULL,
+    last_crawl_at         TEXT,
+    next_crawl_at         TEXT,
+    created_at            TEXT NOT NULL DEFAULT (datetime('now')),
+    modified_at           TEXT NOT NULL DEFAULT (datetime('now')),
+    project_id            INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS org_crawls (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id          INTEGER NOT NULL REFERENCES orgs(id),
+    status          TEXT NOT NULL,
+    started_at      TEXT NOT NULL,
+    completed_at    TEXT,
+    roles_found     INTEGER,
+    roles_added     INTEGER,
+    roles_closed    INTEGER,
+    error_msg       TEXT,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS org_roles (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id               INTEGER NOT NULL REFERENCES orgs(id),
+    title                TEXT NOT NULL,
+    description          TEXT,
+    salary_range         TEXT,
+    remote_type          TEXT,
+    first_seen_date      TEXT,
+    last_seen_date       TEXT,
+    scrape_date          TEXT NOT NULL,
+    keywords             TEXT,
+    local_score_overall  REAL,
+    local_score_fit      REAL,
+    local_score_scope    REAL,
+    local_score_culture  REAL,
+    local_score_comp     REAL,
+    is_interesting       BOOLEAN DEFAULT 0,
+    job_id               INTEGER REFERENCES jobs(id),
+    created_at           TEXT NOT NULL DEFAULT (datetime('now')),
+    modified_at          TEXT NOT NULL DEFAULT (datetime('now')),
+    project_id           INTEGER
+);
+
 CREATE INDEX IF NOT EXISTS idx_jobs_company_name       ON jobs(company_name);
 CREATE INDEX IF NOT EXISTS idx_evaluations_job_id      ON evaluations(job_id);
 CREATE INDEX IF NOT EXISTS idx_applications_job_id     ON applications(job_id);
@@ -434,9 +487,13 @@ CREATE INDEX IF NOT EXISTS idx_app_logs_app_id         ON application_logs(appli
 CREATE INDEX IF NOT EXISTS idx_job_company_log_job_id  ON job_company_log(job_id);
 CREATE INDEX IF NOT EXISTS idx_llm_models_server_id    ON llm_models(server_id);
 CREATE INDEX IF NOT EXISTS idx_job_research_job_id     ON job_research(job_id);
+CREATE INDEX IF NOT EXISTS idx_org_crawls_org_id       ON org_crawls(org_id);
+CREATE INDEX IF NOT EXISTS idx_org_roles_org_id        ON org_roles(org_id);
+CREATE INDEX IF NOT EXISTS idx_org_roles_is_interesting ON org_roles(is_interesting);
+CREATE INDEX IF NOT EXISTS idx_org_roles_job_id        ON org_roles(job_id);
 """
 
-CURRENT_SCHEMA_VERSION = "2.6"
+CURRENT_SCHEMA_VERSION = "2.7"
 
 _APP_SETTINGS_SEED: list[tuple[str, str]] = [
     ("allow_audit_timestamp_edit", "0"),
@@ -606,6 +663,22 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass  # column already exists
 
+        # Phase 2.7 — org workflows
+        try:
+            conn.execute("ALTER TABLE job_research ADD COLUMN org_id INTEGER REFERENCES orgs(id)")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+        try:
+            conn.execute("ALTER TABLE jobs ADD COLUMN org_id INTEGER REFERENCES orgs(id)")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+        try:
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_job_research_org_id ON job_research(org_id)")
+        except sqlite3.OperationalError:
+            pass  # index already exists
+
         for type_name, type_value in _SYSTEM_TYPES_SEED:
             existing = conn.execute(
                 "SELECT id FROM system_types WHERE type_name = ? AND type_value = ?",
@@ -634,7 +707,7 @@ def init_db() -> None:
         if not existing_version:
             conn.execute(
                 "INSERT INTO schema_versions (version, description) VALUES (?, ?)",
-                (CURRENT_SCHEMA_VERSION, "Schema v2.6 — external_default flag on llm_models; pass2_json on application_documents; evaluation workflow QOL")
+                (CURRENT_SCHEMA_VERSION, "Schema v2.7 — Phase 2.7: orgs, org_crawls, org_roles tables; polymorphic job_research (org_id); jobs.org_id FK")
             )
 
     seed_llm_models_from_config()
