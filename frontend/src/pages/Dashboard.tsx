@@ -93,10 +93,17 @@ const TOOLS_TILES = [
     to: '/createjob',
   },
   {
+    icon: '🏢',
+    title: 'Create Organization',
+    description: 'Add a target company and set up automatic crawls of their career page for new roles.',
+    to: '/createorg',
+  },
+  {
     icon: '📋',
     title: 'JS Profile',
     description: 'Build and refine your Job Search Profile — the context behind every evaluation.',
     to: '/profile',
+    hidden: true,
   },
 ]
 
@@ -127,25 +134,47 @@ export default function Dashboard(): React.JSX.Element {
     <div className="min-h-screen bg-bg overflow-y-auto">
       <AppHeader />
 
-      {/* Hero — two-column: featured Jobs tile (left) + hero text (right) */}
-      <div className="px-12 pt-16 pb-12 flex gap-10 items-start max-w-5xl">
-        {/* Featured Jobs tile */}
-        <div className="w-72 flex-shrink-0">
-          <Link
-            to="/jobs"
-            className="bg-surface border border-surface2 rounded-xl p-8 flex flex-col gap-3 hover:border-accent/30 hover:bg-surface2 hover:-translate-y-0.5 transition-all duration-200 h-full"
-          >
-            <span className="text-3xl leading-none">💼</span>
-            <span className="font-serif text-2xl text-text tracking-tight leading-tight">
-              Find Me My Ideal Job
-            </span>
-            <span className="text-[0.78rem] text-muted leading-snug">
-              View all jobs and opportunities. Compare evaluations and re-evaluate top candidates.
-            </span>
-            <span className="mt-auto pt-3 border-t border-surface2 font-mono text-[0.62rem] uppercase tracking-wider text-green">
-              ● Active
-            </span>
-          </Link>
+      {/* Hero — three-column: featured tiles (left) + hero text (right) */}
+      <div className="px-12 pt-16 pb-12 flex gap-6 items-start">
+        {/* Featured tiles — Jobs and Orgs side by side */}
+        <div className="flex gap-6 flex-shrink-0">
+          {/* Featured Jobs tile */}
+          <div className="w-72">
+            <Link
+              to="/jobs"
+              className="bg-surface border border-surface2 rounded-xl p-8 flex flex-col gap-3 hover:border-accent/30 hover:bg-surface2 hover:-translate-y-0.5 transition-all duration-200 h-full"
+            >
+              <span className="text-3xl leading-none">💼</span>
+              <span className="font-serif text-2xl text-text tracking-tight leading-tight">
+                Find Me My Ideal Job
+              </span>
+              <span className="text-[0.78rem] text-muted leading-snug">
+                View all jobs and opportunities. Compare evaluations and re-evaluate top candidates.
+              </span>
+              <span className="mt-auto pt-3 border-t border-surface2 font-mono text-[0.62rem] uppercase tracking-wider text-green">
+                ● Active
+              </span>
+            </Link>
+          </div>
+
+          {/* Featured Orgs tile */}
+          <div className="w-72">
+            <Link
+              to="/orgs"
+              className="bg-surface border border-surface2 rounded-xl p-8 flex flex-col gap-3 hover:border-accent/30 hover:bg-surface2 hover:-translate-y-0.5 transition-all duration-200 h-full"
+            >
+              <span className="text-3xl leading-none">🏢</span>
+              <span className="font-serif text-2xl text-text tracking-tight leading-tight">
+                Find Me My Ideal Org
+              </span>
+              <span className="text-[0.78rem] text-muted leading-snug">
+                Track target companies, monitor career pages, and discover roles before they're posted.
+              </span>
+              <span className="mt-auto pt-3 border-t border-surface2 font-mono text-[0.62rem] uppercase tracking-wider text-green">
+                ● Active
+              </span>
+            </Link>
+          </div>
         </div>
 
         {/* Hero text */}
@@ -209,7 +238,7 @@ export default function Dashboard(): React.JSX.Element {
             <Link
               key={tile.to}
               to={tile.to}
-              className="bg-surface border border-surface2 rounded-xl p-6 flex flex-col gap-2.5 hover:border-accent/30 hover:bg-surface2 hover:-translate-y-0.5 transition-all duration-200"
+              className={`bg-surface border border-surface2 rounded-xl p-6 flex flex-col gap-2.5 hover:border-accent/30 hover:bg-surface2 hover:-translate-y-0.5 transition-all duration-200 ${tile.hidden ? 'hidden' : ''}`}
             >
               <span className="text-2xl leading-none">{tile.icon}</span>
               <span className="font-serif text-xl text-text tracking-tight">{tile.title}</span>

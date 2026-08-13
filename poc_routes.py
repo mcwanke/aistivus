@@ -1,16 +1,24 @@
 import asyncio
 import json
+import math
 import re
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+import database
 
 router = APIRouter(prefix="/api/v1/poc", tags=["poc"])
 
 CRAWL4AI_BASE_URL = "http://192.168.100.14:11235"
 POC_STATE_PATH = Path("app_data/poc_state.json")
+POC_COMPANIES_PATH = Path("app_docs/POC_companies.json")
+POC_CAREER_OUTPUT_PATH = Path("app_docs/POC_career_output.json")
+POC_JOBS_OUTPUT_PATH = Path("app_docs/POC_jobs_output.json")
 
 
 class QueryCompanyRequest(BaseModel):
@@ -20,17 +28,60 @@ class QueryCompanyRequest(BaseModel):
     strategy: str = "domain"  # "domain", "heuristic", or "llm"
 
 
+class CrawlMetadata(BaseModel):
+    markdown_length: int = 0
+    js_rendering_used: bool = False
+    anti_bot_detected: bool = False
+    retry_count: int = 0
+
+
+class CrawlResponse(BaseModel):
+    model_config = ConfigDict(exclude_none=False)
+
+    success: bool
+    markdown: str
+    error: str | None
+    crawl_latency_ms: float
+    metadata: CrawlMetadata = CrawlMetadata()
+
+
+class ExtractionDebug(BaseModel):
+    model_config = ConfigDict(exclude_none=False)
+
+    domain_count: int | None = None
+    heuristic_count: int | None = None
+    llm_count: int | None = None
+    llm_raw_response: str | None = None
+    llm_prompt: str | None = None
+    markdown_length: int | None = None
+
+
 class QueryCompanyResponse(BaseModel):
+    model_config = ConfigDict(exclude_none=False)
+
     success: bool
     jobs: list[dict]
     error: str | None
     extraction_method: str | None
     strategy: str
+    crawl_latency_ms: float = 0  # Time to crawl page
+    process_latency_ms: float = 0  # Time to extract/process
+    llm_model: str | None = None  # Model used (if LLM-based)
+    data_source: str = "fresh_crawl"  # "fresh_crawl" or "cached"
+    crawl_metadata: CrawlMetadata = CrawlMetadata()  # Not shown in UI, for analysis
+    extraction_debug: ExtractionDebug = ExtractionDebug()  # Not shown in UI, for analysis
+    markdown: str | None = None  # Raw markdown for debugging (only on request)
 
 
 class ExtractJobRequest(BaseModel):
     job_url: str
     strategy: str = "structured"  # "structured", "llm", or "hybrid"
+
+
+class QueryCompanyWithMarkdownRequest(BaseModel):
+    company_name: str
+    markdown: str  # Pre-crawled markdown
+    strategy: str = "domain"
 
 
 class ExtractJobResponse(BaseModel):
@@ -40,6 +91,7 @@ class ExtractJobResponse(BaseModel):
     extraction_method: str | None
     confidence: str
     strategy: str
+    latency_ms: float
 
 
 class CompanyEntry(BaseModel):
@@ -54,14 +106,39 @@ class POCStateRequest(BaseModel):
     research_prompt: str = ""
 
 
-async def crawl_page(url: str) -> dict:
+async def crawl_page(url: str) -> str:
     """Crawl a URL and return markdown content."""
+    payload = {
+        "urls": [url],
+        "browser_config": {
+            "type": "BrowserConfig",
+            "params": {"headless": True}
+        },
+        "crawler_config": {
+            "type": "CrawlerRunConfig",
+            "params": {
+                "cache_mode": "bypass",
+                "delay_before_return_html": 3.0,
+                "page_timeout": 30000
+            }
+        }
+    }
     async with httpx.AsyncClient(timeout=60) as client:
-        # Use /md endpoint which returns markdown directly
-        payload = {"url": url}
-        response = await client.post(f"{CRAWL4AI_BASE_URL}/md", json=payload)
+        response = await client.post(f"{CRAWL4AI_BASE_URL}/crawl", json=payload)
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+        print(f"DEBUG crawl response keys: {list(data.keys())}")
+
+        results = data.get("results", [])
+        if not results or not results[0].get("success"):
+            error = results[0].get("error_message") if results else "no results"
+            raise Exception(f"Crawl failed: {error}")
+
+        result = results[0]
+        markdown = result.get("markdown", {})
+        if isinstance(markdown, dict):
+            return markdown.get("raw_markdown", "")
+        return markdown or ""
 
 
 def parse_job_listings_domain_filter(markdown: str) -> list[dict]:
@@ -106,7 +183,247 @@ def parse_job_listings_heuristic(markdown: str) -> list[dict]:
     return jobs
 
 
-async def parse_job_listings_llm(markdown: str) -> list[dict]:
+async def extract_job_listings_three_step(markdown: str) -> tuple[list[dict], dict]:
+    """
+    Three-step extraction: Domain → Heuristic → Merge → LLM validation.
+    Returns: (validated_jobs, debug_info)
+    """
+    try:
+        # Step 1: Domain extraction (high precision)
+        domain_jobs = parse_job_listings_domain_filter(markdown)
+        print(f"[3-Step] Step 1 - Domain extraction: {len(domain_jobs)} jobs")
+
+        # Step 2: Heuristic extraction, dedup against domain
+        heuristic_jobs = parse_job_listings_heuristic(markdown)
+        domain_urls = {job["url"] for job in domain_jobs}
+        heuristic_new = [
+            job for job in heuristic_jobs if job["url"] not in domain_urls
+        ]
+        print(f"[3-Step] Step 2 - Heuristic extraction: {len(heuristic_jobs)} total, {len(heuristic_new)} new")
+
+        # Step 3: Merge domain + heuristic (skip consolidated LLM validation - too expensive)
+        merged = domain_jobs + heuristic_new
+        print(f"[3-Step] Step 3 - Merged list: {len(merged)} jobs from 2 sources")
+
+        return merged, {
+            "domain_count": len(domain_jobs),
+            "heuristic_count": len(heuristic_new),
+            "merged_count": len(merged),
+            "validated_count": len(merged)
+        }
+
+    except Exception as e:  # noqa: BLE001
+        print(f"[3-Step] Extraction failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return [], {}
+
+
+async def validate_consolidated_jobs(markdown: str, candidates: list[dict]) -> list[dict]:
+    """Validate consolidated job list from all three extraction methods."""
+    try:
+        candidates_json = json.dumps(candidates, indent=2)
+
+        prompt = f"""You are an expert at parsing job career pages. You have a consolidated list of job candidates extracted from three methods (domain filtering, keyword heuristics, and LLM extraction).
+
+Review each candidate and determine:
+1. Is it actually a job posting? (yes/no)
+2. If yes, provide the clean job title (improve formatting if needed)
+3. Keep the original URL
+
+Candidates to validate:
+{candidates_json}
+
+Review the full career page content below to make your determinations.
+
+Return ONLY valid JSON array with validated jobs. Remove non-jobs entirely.
+
+[{{"title": "Clean Job Title", "url": "https://..."}}, ...]
+
+Or empty array if none are valid jobs: []
+
+Career page:
+{markdown}"""
+
+        print("[Cascade-Validate] Validating consolidated list with LLM...")
+
+        async with httpx.AsyncClient(timeout=300) as client:
+            payload = {
+                "model": "qwen2.5:3b",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are a JSON-only parser. Review job candidates and return ONLY valid JSON array. No text before or after.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                "stream": False,
+            }
+            response = await client.post("http://localhost:11434/api/chat", json=payload)
+            print(f"[Cascade-Validate] Response status: {response.status_code}")
+
+            if response.status_code != 200:
+                print(f"[Cascade-Validate] Ollama error: {response.text}")
+                return candidates  # Fallback to consolidated list
+
+            result = response.json()
+            content = result.get("message", {}).get("content", "").strip()
+            print(f"[Cascade-Validate] Raw response ({len(content)} chars): {content[:200]}")
+
+            if not content:
+                print("[Cascade-Validate] Empty response, returning consolidated list")
+                return candidates
+
+            # Handle markdown code blocks
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0].strip()
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0].strip()
+
+            # Try to extract JSON if there's extra text
+            if not content.startswith("["):
+                start_idx = content.find("[")
+                end_idx = content.rfind("]")
+                if start_idx >= 0 and end_idx > start_idx:
+                    content = content[start_idx : end_idx + 1]
+                    print(f"[Cascade-Validate] Extracted JSON from response")
+
+            jobs = json.loads(content)
+
+            if isinstance(jobs, list):
+                validated = []
+                for job in jobs:
+                    if isinstance(job, dict) and "title" in job and "url" in job:
+                        title = str(job["title"]).strip()
+                        url = str(job["url"]).strip()
+                        if title and url:
+                            validated.append({"title": title, "url": url})
+                print(f"[Cascade-Validate] Validated {len(validated)} jobs")
+                return validated
+
+            print(f"[Cascade-Validate] Response was not a list: {type(jobs)}")
+            return candidates
+
+    except json.JSONDecodeError as e:
+        print(f"[Cascade-Validate] JSON parse error: {e}")
+        print(f"[Cascade-Validate] Returning consolidated list as fallback")
+        return candidates
+    except Exception as e:  # noqa: BLE001
+        print(f"[Cascade-Validate] Validation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return candidates
+
+
+async def parse_job_listings_validate(
+    markdown: str, domain_jobs: list[dict], heuristic_jobs: list[dict]
+) -> list[dict]:
+    """Validate and reconcile job listings using LLM with full page context."""
+    try:
+        domain_list = json.dumps(domain_jobs, indent=2)
+        heuristic_list = json.dumps(heuristic_jobs, indent=2)
+
+        prompt = f"""You are an expert at parsing job career pages. You have two extraction attempts.
+
+Domain extraction: {len(domain_jobs)} jobs
+Heuristic extraction: {len(heuristic_jobs)} jobs
+
+Domain jobs:
+{domain_list}
+
+Heuristic jobs:
+{heuristic_list}
+
+Review the career page content below. Determine which jobs are real and provide the authoritative list.
+
+Return ONLY valid JSON. No other text. No markdown blocks. Just the JSON array.
+
+[{{"title": "job title", "url": "https://..."}}, {{"title": "another job", "url": "https://..."}}]
+
+Or empty array if no jobs: []
+
+Career page:
+{markdown}"""
+
+        print("[LLM-Validate] Reconciling extraction results with LLM...")
+        print("[LLM-Validate] Waiting 5s before calling Ollama...")
+        await asyncio.sleep(5)
+
+        async with httpx.AsyncClient(timeout=300) as client:
+            payload = {
+                "model": "qwen2.5:3b",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are a JSON-only parser. Return ONLY valid JSON array. No text before or after.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                "stream": False,
+            }
+            response = await client.post("http://localhost:11434/api/chat", json=payload)
+            print(f"[LLM-Validate] Response status: {response.status_code}")
+
+            if response.status_code != 200:
+                print(f"[LLM-Validate] Ollama error: {response.text}")
+                return heuristic_jobs
+
+            result = response.json()
+            content = result.get("message", {}).get("content", "").strip()
+            print(f"[LLM-Validate] Raw response ({len(content)} chars): {content[:200]}")
+
+            if not content:
+                print("[LLM-Validate] Empty response, falling back to heuristic")
+                return heuristic_jobs
+
+            # Handle markdown code blocks
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0].strip()
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0].strip()
+
+            # Try to extract JSON if there's extra text
+            if not content.startswith("["):
+                # Look for first [ and last ]
+                start_idx = content.find("[")
+                end_idx = content.rfind("]")
+                if start_idx >= 0 and end_idx > start_idx:
+                    content = content[start_idx : end_idx + 1]
+                    print(f"[LLM-Validate] Extracted JSON from response")
+
+            jobs = json.loads(content)
+
+            # Handle model wrapping in {"data": [...]}
+            if isinstance(jobs, dict) and "data" in jobs:
+                jobs = jobs["data"]
+                print(f"[LLM-Validate] Unwrapped data field")
+
+            if isinstance(jobs, list):
+                validated = []
+                for job in jobs:
+                    if isinstance(job, dict) and "title" in job and "url" in job:
+                        title = str(job["title"]).strip()
+                        url = str(job["url"]).strip()
+                        if title and url:
+                            validated.append({"title": title, "url": url})
+                print(f"[LLM-Validate] Validated {len(validated)} jobs from reconciliation")
+                return validated
+
+            print(f"[LLM-Validate] Response was not a list: {type(jobs)}")
+            return heuristic_jobs
+
+    except json.JSONDecodeError as e:
+        print(f"[LLM-Validate] JSON parse error: {e}")
+        print(f"[LLM-Validate] Falling back to heuristic ({len(heuristic_jobs)} jobs)")
+        return heuristic_jobs
+    except Exception as e:  # noqa: BLE001
+        print(f"[LLM-Validate] Validation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return heuristic_jobs
+
+
+async def parse_job_listings_llm(markdown: str, extraction_debug: ExtractionDebug | None = None) -> list[dict]:
     """Strategy 3: Extract job listings using LLM (direct Ollama call)."""
     try:
         system_prompt = "You are an expert at parsing job career pages. Extract job listings accurately. Return ONLY valid JSON, no other text."
@@ -127,12 +444,17 @@ If no jobs found, return: []
 Career page content:
 {markdown}"""
 
+        # Capture debug info
+        if extraction_debug:
+            extraction_debug.llm_prompt = user_prompt
+            extraction_debug.markdown_length = len(markdown)
+
         print("[LLM] Calling Ollama directly at http://localhost:11434")
         print(f"[LLM] User prompt length: {len(user_prompt)} chars")
 
         async with httpx.AsyncClient(timeout=300) as client:
             payload = {
-                "model": "qwen2.5:7b",
+                "model": "qwen2.5:3b",
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
@@ -149,6 +471,11 @@ Career page content:
 
             result = response.json()
             content = result.get("message", {}).get("content", "").strip()
+
+            # Capture raw response for debugging
+            if extraction_debug:
+                extraction_debug.llm_raw_response = content
+
             print(f"[LLM] Response content length: {len(content)}, first 200 chars: {content[:200]}")
 
             # Handle markdown code blocks if present
@@ -160,7 +487,13 @@ Career page content:
             print(f"[LLM] After code block stripping: {len(content)} chars")
 
             jobs = json.loads(content)
-            print(f"[LLM] Parsed JSON successfully, got {len(jobs)} items")
+
+            # Handle model wrapping in {"data": [...]}
+            if isinstance(jobs, dict) and "data" in jobs:
+                jobs = jobs["data"]
+                print(f"[LLM] Unwrapped data field, got {len(jobs)} items")
+            else:
+                print(f"[LLM] Parsed JSON successfully, got {len(jobs)} items")
 
             # Validate structure
             if isinstance(jobs, list):
@@ -220,7 +553,7 @@ Job posting content:
 
         async with httpx.AsyncClient(timeout=120) as client:
             payload = {
-                "model": "qwen2.5:7b",
+                "model": "qwen2.5:3b",
                 "messages": [
                     {
                         "role": "system",
@@ -246,6 +579,11 @@ Job posting content:
                 content = content.split("```")[1].split("```")[0].strip()
 
             refined = json.loads(content)
+
+            # Handle model wrapping in {"data": {...}}
+            if isinstance(refined, dict) and "data" in refined and isinstance(refined["data"], dict):
+                refined = refined["data"]
+                print("[JD-Hybrid] Unwrapped data field")
 
             # Validate structure, keep any valid fields from LLM
             validated = {
@@ -282,7 +620,7 @@ Job posting content:
 
         async with httpx.AsyncClient(timeout=120) as client:
             payload = {
-                "model": "qwen2.5:7b",
+                "model": "qwen2.5:3b",
                 "messages": [
                     {
                         "role": "system",
@@ -309,6 +647,11 @@ Job posting content:
                 content = content.split("```")[1].split("```")[0].strip()
 
             job_data = json.loads(content)
+
+            # Handle model wrapping in {"data": {...}}
+            if isinstance(job_data, dict) and "data" in job_data and isinstance(job_data["data"], dict):
+                job_data = job_data["data"]
+                print("[JD-LLM] Unwrapped data field")
 
             # Validate structure
             if isinstance(job_data, dict):
@@ -397,86 +740,284 @@ def extract_job_data(raw_markdown: str) -> dict:
     }
 
 
-@router.post("/query-company", response_model=QueryCompanyResponse)
-async def query_company(req: QueryCompanyRequest) -> QueryCompanyResponse:
-    """Query a company's career page and extract job listings using selected strategy."""
+@router.post("/crawl-page", response_model=CrawlResponse)
+async def crawl_page_endpoint(req: QueryCompanyRequest) -> CrawlResponse:
+    """Crawl a career page and return raw markdown (no extraction)."""
+    start_time = time.time()
     try:
-        result = await crawl_page(req.careers_page_url)
+        markdown = await crawl_page(req.careers_page_url)
+        crawl_latency_ms = (time.time() - start_time) * 1000
 
-        if not result.get("success"):
-            return QueryCompanyResponse(
-                success=False,
-                jobs=[],
-                error="Failed to crawl page",
-                extraction_method=None,
-                strategy=req.strategy,
-            )
+        # Capture metadata
+        metadata = CrawlMetadata(
+            markdown_length=len(markdown),
+            js_rendering_used=True,  # We configured JS rendering
+        )
 
-        markdown = result.get("markdown", "")
+        return CrawlResponse(
+            success=True,
+            markdown=markdown,
+            error=None,
+            crawl_latency_ms=crawl_latency_ms,
+            metadata=metadata,
+        )
+    except Exception as e:  # noqa: BLE001
+        crawl_latency_ms = (time.time() - start_time) * 1000
+        error_str = str(e)
+        anti_bot = "anti-bot" in error_str.lower() or "blocked" in error_str.lower()
 
-        # Run only the selected strategy
+        return CrawlResponse(
+            success=False,
+            markdown="",
+            error=f"Crawl failed: {error_str}",
+            crawl_latency_ms=crawl_latency_ms,
+            metadata=CrawlMetadata(anti_bot_detected=anti_bot),
+        )
+
+
+@router.post("/query-company-cached")
+async def query_company_cached(req: QueryCompanyWithMarkdownRequest) -> dict:
+    """Extract jobs from pre-crawled markdown (no crawl, just extraction)."""
+    start_time = time.time()
+    llm_model = "qwen2.5:3b"  # Model used for LLM-based strategies
+
+    try:
+        markdown = req.markdown
+        strategy = req.strategy
+
+        # Run extraction strategy and capture debug data
+        extraction_debug = ExtractionDebug()
+
+        if strategy == "domain":
+            jobs = parse_job_listings_domain_filter(markdown)
+            extraction_method = "domain_filter"
+            model_used = None
+            extraction_debug.domain_count = len(jobs)
+        elif strategy == "heuristic":
+            jobs = parse_job_listings_heuristic(markdown)
+            extraction_method = "heuristic"
+            model_used = None
+            extraction_debug.heuristic_count = len(jobs)
+        elif strategy == "llm":
+            jobs = await parse_job_listings_llm(markdown, extraction_debug)
+            extraction_method = "llm"
+            model_used = llm_model
+            extraction_debug.llm_count = len(jobs)
+        elif strategy == "cascade":
+            jobs = (await extract_job_listings_three_step(markdown))[0]
+            extraction_method = "cascade"
+            model_used = llm_model
+            extraction_debug.llm_count = len(jobs)
+        elif strategy == "validate":
+            domain_jobs = parse_job_listings_domain_filter(markdown)
+            heuristic_jobs = parse_job_listings_heuristic(markdown)
+            jobs = await parse_job_listings_validate(markdown, domain_jobs, heuristic_jobs)
+            extraction_method = "validate"
+            model_used = llm_model
+            # Capture what each strategy found for comparison
+            extraction_debug.domain_count = len(domain_jobs)
+            extraction_debug.heuristic_count = len(heuristic_jobs)
+            extraction_debug.llm_count = len(jobs)
+        else:
+            process_latency_ms = (time.time() - start_time) * 1000
+            return {
+                "success": False,
+                "jobs": [],
+                "error": f"Unknown strategy: {strategy}",
+                "extraction_method": None,
+                "strategy": strategy,
+                "crawl_latency_ms": 0,
+                "process_latency_ms": process_latency_ms,
+                "llm_model": None,
+                "data_source": "cached",
+                "crawl_metadata": {"markdown_length": 0, "js_rendering_used": False, "anti_bot_detected": False, "retry_count": 0},
+                "extraction_debug": {"domain_count": None, "heuristic_count": None, "llm_count": None, "llm_raw_response": None, "llm_prompt": None, "markdown_length": None},
+                "markdown": markdown,
+            }
+
+        process_latency_ms = math.ceil((time.time() - start_time) * 1000)
+        return {
+            "success": True,
+            "jobs": jobs,
+            "error": None,
+            "extraction_method": extraction_method,
+            "strategy": strategy,
+            "crawl_latency_ms": 0,
+            "process_latency_ms": process_latency_ms,
+            "llm_model": model_used,
+            "data_source": "cached",
+            "crawl_metadata": {"markdown_length": 0, "js_rendering_used": False, "anti_bot_detected": False, "retry_count": 0},
+            "extraction_debug": {
+                "domain_count": extraction_debug.domain_count,
+                "heuristic_count": extraction_debug.heuristic_count,
+                "llm_count": extraction_debug.llm_count,
+                "llm_raw_response": extraction_debug.llm_raw_response,
+                "llm_prompt": extraction_debug.llm_prompt,
+                "markdown_length": extraction_debug.markdown_length,
+            },
+            "markdown": markdown,
+        }
+
+    except Exception as e:  # noqa: BLE001
+        process_latency_ms = math.ceil((time.time() - start_time) * 1000)
+        return {
+            "success": False,
+            "jobs": [],
+            "error": f"Error: {e!s}",
+            "extraction_method": None,
+            "strategy": req.strategy,
+            "crawl_latency_ms": 0,
+            "process_latency_ms": process_latency_ms,
+            "llm_model": None,
+            "data_source": "cached",
+            "crawl_metadata": {"markdown_length": 0, "js_rendering_used": False, "anti_bot_detected": False, "retry_count": 0},
+            "extraction_debug": {"domain_count": None, "heuristic_count": None, "llm_count": None, "llm_raw_response": None, "llm_prompt": None, "markdown_length": None},
+            "markdown": req.markdown,
+        }
+
+
+@router.post("/query-company")
+async def query_company(req: QueryCompanyRequest) -> dict:
+    """Query a company's career page and extract job listings using selected strategy."""
+    llm_model = "qwen2.5:3b"
+    start_time = time.time()
+
+    try:
+        # Crawl the page
+        crawl_start = time.time()
+        markdown = await crawl_page(req.careers_page_url)
+        crawl_latency_ms = (time.time() - crawl_start) * 1000
+
+        # Capture crawl metadata
+        crawl_metadata = CrawlMetadata(
+            markdown_length=len(markdown),
+            js_rendering_used=True,
+        )
+
+        # Process/extract from markdown
+        process_start = time.time()
+        extraction_debug = ExtractionDebug()
+
         if req.strategy == "domain":
             jobs = parse_job_listings_domain_filter(markdown)
             extraction_method = "domain_filter"
+            model_used = None
+            extraction_debug.domain_count = len(jobs)
         elif req.strategy == "heuristic":
             jobs = parse_job_listings_heuristic(markdown)
             extraction_method = "heuristic"
+            model_used = None
+            extraction_debug.heuristic_count = len(jobs)
         elif req.strategy == "llm":
-            jobs = await parse_job_listings_llm(markdown)
+            jobs = await parse_job_listings_llm(markdown, extraction_debug)
             extraction_method = "llm"
+            model_used = llm_model
+            extraction_debug.llm_count = len(jobs)
+        elif req.strategy == "cascade":
+            jobs = (await extract_job_listings_three_step(markdown))[0]
+            extraction_method = "cascade"
+            model_used = llm_model
+            extraction_debug.llm_count = len(jobs)
+        elif req.strategy == "validate":
+            # Hybrid: domain + heuristic + LLM validation
+            domain_jobs = parse_job_listings_domain_filter(markdown)
+            heuristic_jobs = parse_job_listings_heuristic(markdown)
+            jobs = await parse_job_listings_validate(markdown, domain_jobs, heuristic_jobs)
+            extraction_method = "validate"
+            model_used = llm_model
+            extraction_debug.domain_count = len(domain_jobs)
+            extraction_debug.heuristic_count = len(heuristic_jobs)
+            extraction_debug.llm_count = len(jobs)
         else:
-            return QueryCompanyResponse(
-                success=False,
-                jobs=[],
-                error=f"Unknown strategy: {req.strategy}",
-                extraction_method=None,
-                strategy=req.strategy,
-            )
+            return {
+                "success": False,
+                "jobs": [],
+                "error": f"Unknown strategy: {req.strategy}",
+                "extraction_method": None,
+                "strategy": req.strategy,
+                "crawl_latency_ms": crawl_latency_ms,
+                "process_latency_ms": 0,
+                "llm_model": None,
+                "data_source": "fresh_crawl",
+                "crawl_metadata": {"markdown_length": 0, "js_rendering_used": False, "anti_bot_detected": False, "retry_count": 0},
+                "extraction_debug": {"domain_count": None, "heuristic_count": None, "llm_count": None, "llm_raw_response": None, "llm_prompt": None, "markdown_length": None},
+                "markdown": None,
+            }
 
-        return QueryCompanyResponse(
-            success=True,
-            jobs=jobs,
-            error=None,
-            extraction_method=extraction_method,
-            strategy=req.strategy,
-        )
+        process_latency_ms = (time.time() - process_start) * 1000
+        return {
+            "success": True,
+            "jobs": jobs,
+            "error": None,
+            "extraction_method": extraction_method,
+            "strategy": req.strategy,
+            "crawl_latency_ms": crawl_latency_ms,
+            "process_latency_ms": process_latency_ms,
+            "llm_model": model_used,
+            "data_source": "fresh_crawl",
+            "crawl_metadata": {
+                "markdown_length": crawl_metadata.markdown_length,
+                "js_rendering_used": crawl_metadata.js_rendering_used,
+                "anti_bot_detected": crawl_metadata.anti_bot_detected,
+                "retry_count": crawl_metadata.retry_count,
+            },
+            "extraction_debug": {
+                "domain_count": extraction_debug.domain_count,
+                "heuristic_count": extraction_debug.heuristic_count,
+                "llm_count": extraction_debug.llm_count,
+                "llm_raw_response": extraction_debug.llm_raw_response,
+                "llm_prompt": extraction_debug.llm_prompt,
+                "markdown_length": extraction_debug.markdown_length,
+            },
+            "markdown": markdown,
+        }
 
     except httpx.TimeoutException:
-        return QueryCompanyResponse(
-            success=False,
-            jobs=[],
-            error="Crawl timeout after 60s",
-            extraction_method=None,
-            strategy=req.strategy,
-        )
+        crawl_latency_ms = (time.time() - start_time) * 1000
+        return {
+            "success": False,
+            "jobs": [],
+            "error": "Crawl timeout after 60s",
+            "extraction_method": None,
+            "strategy": req.strategy,
+            "crawl_latency_ms": crawl_latency_ms,
+            "process_latency_ms": 0,
+            "llm_model": None,
+            "data_source": "fresh_crawl",
+            "crawl_metadata": {"markdown_length": 0, "js_rendering_used": False, "anti_bot_detected": False, "retry_count": 0},
+            "extraction_debug": {"domain_count": None, "heuristic_count": None, "llm_count": None, "llm_raw_response": None, "llm_prompt": None, "markdown_length": None},
+            "markdown": None,
+        }
     except Exception as e:  # noqa: BLE001
-        return QueryCompanyResponse(
-            success=False,
-            jobs=[],
-            error=f"Error: {e!s}",
-            extraction_method=None,
-            strategy=req.strategy,
-        )
+        crawl_latency_ms = (time.time() - start_time) * 1000
+        error_str = str(e)
+        anti_bot = "anti-bot" in error_str.lower() or "blocked" in error_str.lower()
+
+        return {
+            "success": False,
+            "jobs": [],
+            "error": f"Error: {error_str}",
+            "extraction_method": None,
+            "strategy": req.strategy,
+            "crawl_latency_ms": crawl_latency_ms,
+            "process_latency_ms": 0,
+            "llm_model": None,
+            "data_source": "fresh_crawl",
+            "crawl_metadata": {"markdown_length": 0, "js_rendering_used": False, "anti_bot_detected": anti_bot, "retry_count": 0},
+            "extraction_debug": {"domain_count": None, "heuristic_count": None, "llm_count": None, "llm_raw_response": None, "llm_prompt": None, "markdown_length": None},
+            "markdown": None,
+        }
 
 
 @router.post("/extract-job", response_model=ExtractJobResponse)
 async def extract_job(req: ExtractJobRequest) -> ExtractJobResponse:
     """Extract structured data from a job posting using selected strategy."""
+    start_time = time.time()
     try:
-        result = await crawl_page(req.job_url)
+        markdown = await crawl_page(req.job_url)
 
-        if not result.get("success"):
-            return ExtractJobResponse(
-                success=False,
-                job={},
-                error="Failed to crawl job posting",
-                extraction_method=None,
-                confidence="low",
-                strategy=req.strategy,
-            )
-
-        markdown = result.get("markdown", "")
         if not markdown:
+            latency_ms = (time.time() - start_time) * 1000
             return ExtractJobResponse(
                 success=False,
                 job={},
@@ -484,6 +1025,7 @@ async def extract_job(req: ExtractJobRequest) -> ExtractJobResponse:
                 extraction_method=None,
                 confidence="low",
                 strategy=req.strategy,
+                latency_ms=latency_ms,
             )
 
         # Run selected strategy
@@ -497,6 +1039,7 @@ async def extract_job(req: ExtractJobRequest) -> ExtractJobResponse:
             job_data = await extract_job_data_hybrid(markdown)
             extraction_method = "hybrid"
         else:
+            latency_ms = (time.time() - start_time) * 1000
             return ExtractJobResponse(
                 success=False,
                 job={},
@@ -504,6 +1047,7 @@ async def extract_job(req: ExtractJobRequest) -> ExtractJobResponse:
                 extraction_method=None,
                 confidence="low",
                 strategy=req.strategy,
+                latency_ms=latency_ms,
             )
 
         # Determine confidence based on completeness
@@ -517,6 +1061,7 @@ async def extract_job(req: ExtractJobRequest) -> ExtractJobResponse:
         else:
             confidence = "low"
 
+        latency_ms = (time.time() - start_time) * 1000
         return ExtractJobResponse(
             success=True,
             job=job_data,
@@ -524,9 +1069,11 @@ async def extract_job(req: ExtractJobRequest) -> ExtractJobResponse:
             extraction_method=extraction_method,
             confidence=confidence,
             strategy=req.strategy,
+            latency_ms=latency_ms,
         )
 
     except httpx.TimeoutException:
+        latency_ms = (time.time() - start_time) * 1000
         return ExtractJobResponse(
             success=False,
             job={},
@@ -534,8 +1081,10 @@ async def extract_job(req: ExtractJobRequest) -> ExtractJobResponse:
             extraction_method=None,
             confidence="low",
             strategy=req.strategy,
+            latency_ms=latency_ms,
         )
     except Exception as e:  # noqa: BLE001
+        latency_ms = (time.time() - start_time) * 1000
         return ExtractJobResponse(
             success=False,
             job={},
@@ -543,7 +1092,587 @@ async def extract_job(req: ExtractJobRequest) -> ExtractJobResponse:
             extraction_method=None,
             confidence="low",
             strategy=req.strategy,
+            latency_ms=latency_ms,
         )
+
+
+async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | None = None) -> dict:
+    """
+    Core algorithm following explicit flow:
+    1. Crawl career page
+    2. Extract candidates (domain → heuristic → merge/dedupe) → scraped_urls
+    3. Load existing company_role_urls from DB
+    4. Detect missing: company_role_urls - scraped_urls → mark inactive
+    5. De-dupe: scraped_urls - company_role_urls → possible_new_urls
+    6. Validate each in possible_new_urls (2-pass LLM: is_job → extract_metadata)
+    7. Result: new_validated_urls → insert to DB
+    8. Update missing_count using scraped_urls (not validated list)
+
+    Returns:
+        {
+            "success": bool,
+            "new_roles_validated": int,
+            "existing_roles_matched": int,
+            "roles_marked_inactive": int,
+            "validated_roles": [{role data}],
+            "debug_log": ["step 1", "step 2", ...]
+        }
+    """
+    debug_log = []
+    start_time = time.time()
+    crawl_id = None
+
+    try:
+        # Step 1: Fetch org and create crawl record
+        org = database.get_org(org_id)
+        if not org:
+            return {"success": False, "error": "Org not found", "debug_log": []}
+
+        debug_log.append(f"[1] Loaded org: {org['name']}")
+
+        crawl_id = database.insert_org_crawl(
+            org_id=org_id,
+            status="running",
+            started_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        )
+        debug_log.append(f"[1.5] Created org_crawls record: crawl_id={crawl_id}")
+
+        # Step 2: Crawl career page (with timing)
+        debug_log.append(f"[2] Crawling career page: {org['career_page_url']}")
+        career_crawl_start = time.time()
+        career_markdown = await crawl_page(org["career_page_url"])
+        career_crawl_latency_ms = int((time.time() - career_crawl_start) * 1000)
+        debug_log.append(f"[3] Career page crawled, {len(career_markdown)} chars in {career_crawl_latency_ms}ms")
+        database.update_org_crawl_markdown(crawl_id, career_markdown[:100000])
+
+        # Log crawl4ai career page fetch
+        database.insert_org_crawl_log(
+            org_crawl_id=crawl_id,
+            action_type="crawl4ai_career",
+            url=org["career_page_url"],
+            markdown=career_markdown[:100000],
+            latency_ms=career_crawl_latency_ms,
+            method="full",
+            status_code=200,  # Assume success if we got markdown
+        )
+
+        # Step 3: Extract candidates (domain → heuristic → merge/dedupe) → scraped_urls
+        # Extract using 3-step approach (with logging and timing)
+        debug_log.append(f"[4] Running 3-step extraction (domain → heuristic → merge/dedupe)")
+
+        # Step 1: Domain extraction (with timing)
+        domain_start = time.time()
+        domain_jobs = parse_job_listings_domain_filter(career_markdown)
+        domain_latency_ms = int((time.time() - domain_start) * 1000)
+        database.insert_org_crawl_log(
+            org_crawl_id=crawl_id,
+            action_type="domain_extract",
+            output_data=json.dumps({"count": len(domain_jobs)}),
+            latency_ms=domain_latency_ms,
+        )
+        debug_log.append(f"[4.a] Domain extraction: {len(domain_jobs)} jobs in {domain_latency_ms}ms")
+
+        # Step 2: Heuristic extraction (with timing)
+        heuristic_start = time.time()
+        heuristic_jobs = parse_job_listings_heuristic(career_markdown)
+        heuristic_latency_ms = int((time.time() - heuristic_start) * 1000)
+        database.insert_org_crawl_log(
+            org_crawl_id=crawl_id,
+            action_type="heuristic_extract",
+            output_data=json.dumps({"count": len(heuristic_jobs)}),
+            latency_ms=heuristic_latency_ms,
+        )
+        debug_log.append(f"[4.b] Heuristic extraction: {len(heuristic_jobs)} jobs in {heuristic_latency_ms}ms")
+
+        # Step 3: Merge and dedupe all three sources (domain + heuristic + LLM validation)
+        candidates = (await extract_job_listings_three_step(career_markdown))[0]
+        # Dedup by URL (in case three_step_extraction returned duplicates)
+        seen_urls = set()
+        deduped_candidates = []
+        for job in candidates:
+            url = job.get("url")
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                deduped_candidates.append(job)
+        candidates = deduped_candidates
+        scraped_urls = seen_urls
+        debug_log.append(f"[5] Extracted {len(scraped_urls)} unique URLs from career page")
+
+        # Step 4: Load existing company_role_urls from DB
+        company_role_urls_map = database.get_existing_role_urls(org_id)
+        company_role_urls = set(company_role_urls_map.keys())
+        debug_log.append(f"[6] Loaded {len(company_role_urls)} existing roles from DB")
+
+        # Step 5: Detect missing roles (company_role_urls - scraped_urls)
+        # These will be marked inactive in update_org_role_missing_count
+        missing_urls = company_role_urls - scraped_urls
+        debug_log.append(f"[7] Detected {len(missing_urls)} roles no longer on career page (will mark inactive)")
+
+        # Step 6: De-dupe (scraped_urls - company_role_urls) → possible_new_urls
+        possible_new_urls = scraped_urls - company_role_urls
+        new_candidates = [job for job in candidates if job["url"] in possible_new_urls]
+        debug_log.append(f"[8] De-duped: {len(new_candidates)} possible new roles to validate")
+
+        # Collect metrics for org_crawls
+        domain_roles_count = len(domain_jobs)
+        heuristic_roles_count = len(heuristic_jobs)
+        dedupe_roles_count = len(scraped_urls)
+        current_org_roles_count = len(company_role_urls)
+        missing_roles_count = len(missing_urls)
+        matched_roles_count = len(scraped_urls & company_role_urls)
+        unvalidated_roles_count = len(new_candidates)
+
+        # Step 7: Validate each in possible_new_urls (2-pass LLM approach)
+        new_validated_urls = []
+        validation_errors = []
+
+        # Process all candidates (limit_unvalidated can still be used for testing if set)
+        candidates_to_validate = new_candidates[:limit_unvalidated] if limit_unvalidated else new_candidates
+        skipped_count = len(new_candidates) - len(candidates_to_validate)
+        if skipped_count > 0:
+            debug_log.append(f"[8.a] Processing first {limit_unvalidated} of {len(new_candidates)} (skipping {skipped_count})")
+
+        for idx, candidate in enumerate(candidates_to_validate, 1):
+            job_title = candidate.get("title", "")
+            job_url = candidate.get("url", "")
+
+            debug_log.append(f"[9.{idx}] Validating: {job_title[:50]}...")
+
+            crawl4ai_latency_ms = None
+            validation_info = {}
+            extraction_info = {}
+
+            try:
+                # Crawl the job page (with timing)
+                crawl_start = time.time()
+                job_markdown = await crawl_page(job_url)
+                crawl4ai_latency_ms = int((time.time() - crawl_start) * 1000)
+                debug_log.append(f"[9.{idx}.a] Crawled job page ({len(job_markdown)} chars in {crawl4ai_latency_ms}ms)")
+
+                # Log crawl4ai job page fetch
+                database.insert_org_crawl_log(
+                    org_crawl_id=crawl_id,
+                    action_type="crawl4ai_job",
+                    url=job_url,
+                    markdown=job_markdown[:100000],
+                    latency_ms=crawl4ai_latency_ms,
+                    method="full",
+                    status_code=200,  # Assume success if we got markdown
+                )
+
+                # LLM Pass 1: Is this a real job posting?
+                is_job, validation_info = await validate_is_job_posting(job_markdown, job_title)
+
+                # Log LLM validation attempt
+                database.insert_org_crawl_log(
+                    org_crawl_id=crawl_id,
+                    action_type="llm_validate",
+                    url=job_url,
+                    output_data=json.dumps({"is_job": is_job}),
+                    llm_model="qwen2.5:3b",
+                    prompt=validation_info.get("prompt", ""),
+                    response=validation_info.get("response", "")[:1000],
+                    latency_ms=validation_info.get("latency_ms"),
+                    status_code=200,  # LLM succeeded (we got a response)
+                )
+
+                if not is_job:
+                    debug_log.append(f"[9.{idx}.b] LLM Pass 1: NOT a job posting → rejected ({validation_info.get('latency_ms')}ms)")
+                    continue
+
+                debug_log.append(f"[9.{idx}.b] LLM Pass 1: Confirmed as job posting ({validation_info.get('latency_ms')}ms)")
+
+                # LLM Pass 2: Extract metadata
+                extracted, extraction_info = await extract_job_metadata(job_markdown, job_title)
+                debug_log.append(f"[9.{idx}.c] LLM Pass 2: Extracted title={extracted.get('title', 'N/A')}, salary={extracted.get('salary_range', 'N/A')} ({extraction_info.get('latency_ms')}ms)")
+
+                # Log LLM extraction
+                database.insert_org_crawl_log(
+                    org_crawl_id=crawl_id,
+                    action_type="llm_extract",
+                    url=job_url,
+                    output_data=json.dumps({
+                        "title": extracted.get("title"),
+                        "salary_range": extracted.get("salary_range"),
+                        "remote_type": extracted.get("remote_type"),
+                    }),
+                    llm_model="qwen2.5:3b",
+                    prompt=extraction_info.get("prompt", ""),
+                    response=extraction_info.get("response", "")[:1000],
+                    latency_ms=extraction_info.get("latency_ms"),
+                    status_code=200,  # LLM succeeded
+                )
+
+                # Insert to DB
+                role_id = database.insert_org_role(
+                    org_id,
+                    title=extracted.get("title", job_title),
+                    role_url=job_url,
+                    description=extracted.get("description"),
+                    salary_range=extracted.get("salary_range"),
+                    remote_type=extracted.get("remote_type", "unknown"),
+                    is_interesting=None,
+                    is_active=1,
+                    missing_count=0,
+                )
+                debug_log.append(f"[9.{idx}.d] Inserted to DB: role_id={role_id}")
+
+                new_validated_urls.append(job_url)
+
+            except Exception as e:  # noqa: BLE001
+                error_msg = str(e)
+                validation_errors.append(f"{job_title}: {error_msg}")
+                debug_log.append(f"[9.{idx}] ERROR: {error_msg}")
+                # Log the error
+                try:
+                    database.insert_org_crawl_log(
+                        org_crawl_id=crawl_id,
+                        action_type="llm_validate",
+                        url=job_url,
+                        error_msg=error_msg[:200],
+                    )
+                except Exception:  # noqa: BLE001
+                    pass  # If logging fails, don't block the algorithm
+
+        # Step 8: Update missing_count for ALL roles using scraped_urls (not validated list)
+        debug_log.append(f"[10] Updating missing_count for all roles (using scraped_urls: {len(scraped_urls)})")
+        database.update_org_role_missing_count(org_id, scraped_urls)
+        debug_log.append(f"[10.a] Roles marked inactive if missing 2+ crawls")
+
+        # Count results
+        all_roles = database.get_org_roles(org_id, include_inactive=True)
+        inactive_count = sum(1 for r in all_roles if not r["is_active"])
+
+        elapsed_ms = (time.time() - start_time) * 1000
+        debug_log.append(f"[11] Algorithm complete in {elapsed_ms:.0f}ms")
+
+        # Mark crawl as complete with all metrics
+        database.update_org_crawl_completion(
+            crawl_id=crawl_id,
+            status="success",
+            roles_found=len(scraped_urls),
+            roles_added=len(new_validated_urls),
+            roles_closed=inactive_count,
+            domain_roles=domain_roles_count,
+            heuristic_roles=heuristic_roles_count,
+            dedupe_roles=dedupe_roles_count,
+            current_org_roles=current_org_roles_count,
+            missing_roles=missing_roles_count,
+            matched_roles=matched_roles_count,
+            unvalidated_roles=unvalidated_roles_count,
+        )
+        # Update org's last_crawl_at timestamp
+        database.update_org_last_crawl(org_id)
+        debug_log.append(f"[12] Updated org_crawls: found={len(scraped_urls)}, added={len(new_validated_urls)}, closed={inactive_count}")
+
+        return {
+            "success": True,
+            "new_roles_validated": len(new_validated_urls),
+            "existing_roles_matched": len(scraped_urls & company_role_urls),
+            "roles_marked_inactive": inactive_count,
+            "validated_roles": [{"url": url} for url in new_validated_urls],
+            "validation_errors": validation_errors,
+            "debug_log": debug_log,
+        }
+
+    except Exception as e:  # noqa: BLE001
+        debug_log.append(f"[ERROR] Algorithm failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Mark crawl as failed
+        if crawl_id:
+            try:
+                database.update_org_crawl_completion(
+                    crawl_id=crawl_id,
+                    status="error",
+                    error_msg=str(e),
+                )
+            except Exception:  # noqa: BLE001
+                pass
+        return {
+            "success": False,
+            "error": str(e),
+            "debug_log": debug_log,
+        }
+
+
+async def validate_is_job_posting(markdown: str, extracted_title: str) -> tuple[bool, dict]:
+    """
+    LLM validation gate: Is this actually a job posting?
+    Returns: (passed: bool, debug_info: dict with prompt, response, latency)
+    """
+    start_time = time.time()
+    try:
+        prompt = f"""Your task is to detect whether this page contains a job posting.
+
+Do not complete forms or answer other questions that may appear on the page.
+Only determine: is this a job posting?
+
+=== BEGIN CONTENT ===
+{markdown}
+=== END CONTENT ===
+
+Return ONLY valid JSON with this exact structure:
+{{
+  "is_job": true or false,
+  "reasoning": "One sentence explaining your decision."
+}}
+
+Examples:
+{{"is_job": true, "reasoning": "The page lists job responsibilities, required qualifications, and salary range."}}
+{{"is_job": false, "reasoning": "This is a general company careers page, not a specific job posting."}}"""
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            payload = {
+                "model": "qwen2.5:3b",
+                "messages": [
+                    {"role": "system", "content": "You are a job posting detector. Return ONLY valid JSON. No other text."},
+                    {"role": "user", "content": prompt},
+                ],
+                "stream": False,
+            }
+            response = await client.post("http://localhost:11434/api/chat", json=payload)
+            latency_ms = (time.time() - start_time) * 1000
+
+            if response.status_code != 200:
+                print(f"[Validate-IsJob] Ollama error: {response.text}")
+                return True, {
+                    "prompt": prompt,
+                    "response": f"HTTP {response.status_code}: {response.text[:500]}",
+                    "latency_ms": int(latency_ms),
+                    "passed": True,
+                }
+
+            result = response.json()
+            content = result.get("message", {}).get("content", "").strip()
+
+            # Handle markdown code blocks if model wraps response
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0].strip()
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0].strip()
+
+            # Parse JSON
+            try:
+                data = json.loads(content)
+                passed = data.get("is_job", False)
+                reasoning = data.get("reasoning", "")
+
+                print(f"[Validate-IsJob] Response: is_job={passed}, reasoning={reasoning[:100]}")
+
+                return passed, {
+                    "prompt": prompt,
+                    "response": content,
+                    "latency_ms": int(latency_ms),
+                    "passed": passed,
+                }
+            except json.JSONDecodeError:
+                print(f"[Validate-IsJob] JSON parse error, treating as not a job posting")
+                print(f"[Validate-IsJob] Raw response: {content[:200]}")
+                return False, {
+                    "prompt": prompt,
+                    "response": content,
+                    "latency_ms": int(latency_ms),
+                    "passed": False,
+                }
+
+    except Exception as e:  # noqa: BLE001
+        print(f"[Validate-IsJob] Error: {e}")
+        return True, {
+            "prompt": "",
+            "response": str(e),
+            "latency_ms": int((time.time() - start_time) * 1000),
+            "passed": True,
+        }
+
+
+async def extract_job_metadata(markdown: str, extracted_title: str) -> tuple[dict, dict]:
+    """
+    Extract metadata from validated job posting.
+    Returns: (metadata: dict, debug_info: dict with prompt, response, latency)
+    """
+    start_time = time.time()
+    try:
+        prompt = f"""Extract job posting metadata. Return ONLY valid JSON.
+
+Extracted title: {extracted_title}
+
+Job posting:
+{markdown[:3000]}
+
+Return exactly this JSON structure:
+{{
+  "title": "Job Title",
+  "description": "First 500 chars of description",
+  "salary_range": "e.g., $120k-$150k or null",
+  "remote_type": "remote" | "hybrid" | "on-site" | "unknown"
+}}"""
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            payload = {
+                "model": "qwen2.5:3b",
+                "messages": [
+                    {"role": "system", "content": "Extract metadata. Return ONLY valid JSON."},
+                    {"role": "user", "content": prompt},
+                ],
+                "stream": False,
+            }
+            response = await client.post("http://localhost:11434/api/chat", json=payload)
+            latency_ms = (time.time() - start_time) * 1000
+
+            if response.status_code != 200:
+                print(f"[Extract-Metadata] Ollama error")
+                return (
+                    {"title": extracted_title, "remote_type": "unknown"},
+                    {
+                        "prompt": prompt,
+                        "response": f"HTTP {response.status_code}",
+                        "latency_ms": int(latency_ms),
+                    }
+                )
+
+            result = response.json()
+            content = result.get("message", {}).get("content", "").strip()
+
+            # Parse JSON
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0].strip()
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0].strip()
+
+            data = json.loads(content)
+            return (
+                {
+                    "title": data.get("title", extracted_title),
+                    "description": data.get("description"),
+                    "salary_range": data.get("salary_range"),
+                    "remote_type": data.get("remote_type", "unknown"),
+                },
+                {
+                    "prompt": prompt,
+                    "response": content[:1000],  # Store first 1000 chars
+                    "latency_ms": int(latency_ms),
+                }
+            )
+
+    except Exception as e:  # noqa: BLE001
+        print(f"[Extract-Metadata] Error: {e}")
+        return (
+            {"title": extracted_title, "remote_type": "unknown"},
+            {
+                "prompt": "",
+                "response": str(e),
+                "latency_ms": int((time.time() - start_time) * 1000),
+            }
+        )
+
+
+class ValidateRolesRequest(BaseModel):
+    org_id: int
+    limit_unvalidated: int | None = None
+
+
+@router.post("/validate-roles")
+async def validate_roles(req: ValidateRolesRequest) -> dict:
+    """Trigger the validation algorithm for an org. limit_unvalidated defaults to 3 for testing."""
+    return await validate_new_roles_algorithm(req.org_id, limit_unvalidated=req.limit_unvalidated)
+
+
+@router.post("/crawl-all-orgs")
+async def crawl_all_orgs() -> dict:
+    """Trigger validation algorithm for all orgs concurrently. Returns immediately."""
+    try:
+        orgs = database.get_all_orgs()
+
+        if not orgs:
+            return {
+                "success": True,
+                "total_orgs": 0,
+                "crawls_started": 0,
+                "errors": 0,
+                "message": "No orgs found"
+            }
+
+        print(f"[Crawl-All] Starting crawls for {len(orgs)} orgs...")
+
+        # Fire off all validation algorithms in parallel
+        tasks = [validate_new_roles_algorithm(org["id"]) for org in orgs]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Count successes and errors
+        successful = sum(1 for r in results if not isinstance(r, Exception) and r.get("success"))
+        failed = sum(1 for r in results if isinstance(r, Exception) or not r.get("success"))
+
+        print(f"[Crawl-All] Crawls fired: {successful} success, {failed} errors")
+
+        return {
+            "success": True,
+            "total_orgs": len(orgs),
+            "crawls_started": successful,
+            "errors": failed,
+            "org_ids": [org["id"] for org in orgs],
+            "message": f"Started {successful} crawls, {failed} errors"
+        }
+
+    except Exception as e:  # noqa: BLE001
+        print(f"[Crawl-All] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": str(e),
+            "total_orgs": 0,
+            "crawls_started": 0,
+            "errors": 1
+        }
+
+
+@router.get("/org-crawls")
+async def list_org_crawls() -> list[dict]:
+    """List all org_crawls with id, created_at, org_id."""
+    with database.get_connection() as conn:
+        rows = conn.execute(
+            """SELECT id, org_id, created_at FROM org_crawls ORDER BY created_at DESC"""
+        ).fetchall()
+        return [{"id": row["id"], "org_id": row["org_id"], "created_at": row["created_at"]} for row in rows]
+
+
+@router.post("/org-crawls/{crawl_id}/export")
+async def export_org_crawl(crawl_id: int) -> dict:
+    """Export org_crawl and its logs to app_docs/{id}_{MMSS}_output.json."""
+    with database.get_connection() as conn:
+        # Fetch the crawl record
+        crawl = conn.execute(
+            "SELECT * FROM org_crawls WHERE id = ?", (crawl_id,)
+        ).fetchone()
+        if not crawl:
+            return {"success": False, "error": "Crawl not found"}
+
+        # Fetch all logs for this crawl
+        logs = conn.execute(
+            "SELECT * FROM org_crawl_logs WHERE org_crawl_id = ? ORDER BY created_at ASC",
+            (crawl_id,)
+        ).fetchall()
+
+    # Extract MM:SS from timestamp (format: YYYY-MM-DD HH:MM:SS)
+    timestamp = crawl["created_at"]
+    dt = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
+    mmss = f"{dt.month:02d}{dt.second:02d}"
+
+    # Build output structure
+    output = {
+        "org_crawl": dict(crawl),
+        "crawl_logs": [dict(log) for log in logs]
+    }
+
+    # Write to app_docs/{id}_{MMSS}_output.json
+    output_path = Path("app_docs") / f"{crawl_id}_{mmss}_output.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(output_path, "w") as f:
+        json.dump(output, f, indent=2)
+
+    return {"success": True, "filename": str(output_path)}
 
 
 @router.get("/state")
@@ -571,3 +1700,146 @@ def _save_poc_state(state: POCStateRequest) -> None:
     state_dict = state.model_dump()
     with open(POC_STATE_PATH, "w") as f:
         json.dump(state_dict, f, indent=2)
+
+
+@router.get("/persistent-data")
+async def get_persistent_data() -> dict:
+    """Load persistent test data (companies + career/job test results)."""
+    return await asyncio.to_thread(_load_persistent_data)
+
+
+def _load_persistent_data() -> dict:
+    companies = []
+    career_results = []
+    jobs_results = []
+
+    if POC_COMPANIES_PATH.exists():
+        with open(POC_COMPANIES_PATH) as f:
+            data = json.load(f)
+            companies = data.get("companies", [])
+
+    if POC_CAREER_OUTPUT_PATH.exists():
+        with open(POC_CAREER_OUTPUT_PATH) as f:
+            data = json.load(f)
+            career_results = data.get("testResults", [])
+
+    if POC_JOBS_OUTPUT_PATH.exists():
+        with open(POC_JOBS_OUTPUT_PATH) as f:
+            data = json.load(f)
+            jobs_results = data.get("testResults", [])
+
+    return {
+        "companies": companies,
+        "testResults": career_results,
+        "jobsResults": jobs_results,
+    }
+
+
+@router.post("/persistent-data")
+async def save_persistent_data(data: dict) -> dict:
+    """Save persistent test data to separate POC_*.json files (auto-called by frontend)."""
+    POC_COMPANIES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(_save_persistent_data, data)
+    return {"success": True}
+
+
+def _deduplicate_and_merge_roles(companies: list[dict], career_results: list[dict]) -> list[dict]:
+    """Merge job results into company roles array, deduping by URL."""
+    # Build a map of company_name -> company for quick lookup
+    company_map = {c["company_name"]: c for c in companies}
+
+    # Process each career test result
+    for result in career_results:
+        company_name = result.get("companyName")
+        if not company_name:
+            continue
+
+        if company_name not in company_map:
+            print(f"[DEDUP] Company '{company_name}' not in map. Available: {list(company_map.keys())}")
+            continue
+
+        company = company_map[company_name]
+        if "roles" not in company:
+            company["roles"] = []
+
+        # Get jobs from this result if present
+        jobs = result.get("jobs", [])
+        if not jobs:
+            continue
+
+        # Get existing URLs in roles for dedup
+        existing_urls = {role.get("role_url") for role in company["roles"]}
+
+        # Add new jobs that don't already exist
+        for job in jobs:
+            job_url = job.get("url")
+            job_title = job.get("title")
+
+            if job_url and job_url not in existing_urls:
+                company["roles"].append({
+                    "role_title": job_title or "",
+                    "role_url": job_url
+                })
+                existing_urls.add(job_url)
+
+    return list(company_map.values())
+
+
+def _save_persistent_data(data: dict) -> None:
+    # Load existing companies to preserve manual_job_count, notes, etc.
+    existing_data = _load_persistent_data()
+    existing_companies = existing_data.get("companies", [])
+
+    # Get incoming companies and merge with existing
+    incoming_companies = data.get("companies", [])
+    company_map = {c["company_name"]: c for c in existing_companies}
+
+    # Update map with incoming data (preserves existing fields like manual_job_count)
+    for incoming in incoming_companies:
+        name = incoming.get("company_name")
+        if name in company_map:
+            company_map[name].update(incoming)
+        else:
+            company_map[name] = incoming
+
+    companies = list(company_map.values())
+    career_results = data.get("testResults", data.get("careerResults", []))
+
+    # Ensure all test results preserve markdown and debug info
+    for result in career_results:
+        # Keep markdown if it exists
+        if "markdown" not in result and "markdown" in data:
+            result["markdown"] = data.get("markdown")
+        # Keep extraction_debug with all fields
+        if "extraction_debug" in result:
+            debug = result["extraction_debug"]
+            if isinstance(debug, dict):
+                # Preserve all debug fields as-is
+                pass
+
+    # Deduplicate and merge jobs into roles
+    companies = _deduplicate_and_merge_roles(companies, career_results)
+
+    # Ensure all required fields exist in each company
+    for company in companies:
+        if "manual_job_count" not in company:
+            company["manual_job_count"] = None
+        if "notes" not in company:
+            company["notes"] = ""
+        if "roles" not in company:
+            company["roles"] = []
+
+    # Save companies (now with updated roles)
+    companies_data = {"companies": companies}
+    with open(POC_COMPANIES_PATH, "w") as f:
+        json.dump(companies_data, f, indent=2)
+
+    # Save career test results
+    career_data = {"testResults": career_results}
+    with open(POC_CAREER_OUTPUT_PATH, "w") as f:
+        json.dump(career_data, f, indent=2)
+
+    # Save job test results
+    jobs_data = {"testResults": data.get("jobsResults", [])}
+    with open(POC_JOBS_OUTPUT_PATH, "w") as f:
+        json.dump(jobs_data, f, indent=2)

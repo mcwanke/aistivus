@@ -1,0 +1,182 @@
+{
+  "exportDate": "2026-08-11T16:37:10.858Z",
+  "summary": {
+    "totalCompanies": 7,
+    "totalTestRuns": 12
+  },
+  "companies": [
+    {
+      "company_name": "Vetcove",
+      "company_url": "https://vetcove.com",
+      "careers_page_url": "https://vetcove.com/careers",
+      "manual_job_count": 25
+    },
+    {
+      "company_name": "Mozilla",
+      "company_url": "https://www.mozilla.org/",
+      "careers_page_url": "https://www.mozilla.org/en-US/careers/listings/",
+      "manual_job_count": 28
+    },
+    {
+      "company_name": "Teamworks",
+      "company_url": "https://teamworks.com/",
+      "careers_page_url": "https://jobs.ashbyhq.com/teamworks"
+    },
+    {
+      "company_name": "Calendly",
+      "company_url": "https://calendly.com/",
+      "careers_page_url": "https://careers-assets.calendly.com/jobs"
+    },
+    {
+      "company_name": "Hudl",
+      "company_url": "https://www.hudl.com/",
+      "careers_page_url": "https://www.hudl.com/jobs/search"
+    },
+    {
+      "company_name": "Bitwarden",
+      "company_url": "https://bitwarden.com/",
+      "careers_page_url": "https://bitwarden.com/careers/#open-positions",
+      "manual_job_count": 22
+    },
+    {
+      "company_name": "1Password",
+      "company_url": "https://1password.com/",
+      "careers_page_url": "https://jobs.ashbyhq.com/1password",
+      "manual_job_count": 58
+    }
+  ],
+  "testResults": [
+    {
+      "id": "test-1786466225627-0.064399733883307",
+      "timestamp": "12:37:05 PM",
+      "companyName": "Mozilla",
+      "careersPageUrl": "https://www.mozilla.org/en-US/careers/listings/",
+      "manualJobCount": 28,
+      "careerPageLatencyMs": 60063.353300094604,
+      "careerPageMethod": "validate",
+      "careerPageJobsFound": 20,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786466165056-0.9870619326057435",
+      "timestamp": "12:36:05 PM",
+      "companyName": "Mozilla",
+      "careersPageUrl": "https://www.mozilla.org/en-US/careers/listings/",
+      "manualJobCount": 28,
+      "careerPageLatencyMs": 61038.84673118591,
+      "careerPageMethod": "llm",
+      "careerPageJobsFound": 24,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786466103511-0.6257822160035157",
+      "timestamp": "12:35:03 PM",
+      "companyName": "Mozilla",
+      "careersPageUrl": "https://www.mozilla.org/en-US/careers/listings/",
+      "manualJobCount": 28,
+      "careerPageLatencyMs": 1409.9681377410889,
+      "careerPageMethod": "heuristic",
+      "careerPageJobsFound": 29,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786466101591-0.48704494830194134",
+      "timestamp": "12:35:01 PM",
+      "companyName": "Mozilla",
+      "careersPageUrl": "https://www.mozilla.org/en-US/careers/listings/",
+      "manualJobCount": 28,
+      "careerPageLatencyMs": 1639.5275592803955,
+      "careerPageMethod": "domain_filter",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786465938003-0.01665411517071813",
+      "timestamp": "12:32:18 PM",
+      "companyName": "Bitwarden",
+      "careersPageUrl": "https://bitwarden.com/careers/#open-positions",
+      "manualJobCount": 22,
+      "careerPageLatencyMs": 72491.99223518372,
+      "careerPageMethod": "validate",
+      "careerPageJobsFound": 22,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786465865006-0.8630111928793456",
+      "timestamp": "12:31:05 PM",
+      "companyName": "Bitwarden",
+      "careersPageUrl": "https://bitwarden.com/careers/#open-positions",
+      "manualJobCount": 22,
+      "careerPageLatencyMs": 53651.179790496826,
+      "careerPageMethod": "llm",
+      "careerPageJobsFound": 19,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786465810849-0.0707926800196973",
+      "timestamp": "12:30:10 PM",
+      "companyName": "Bitwarden",
+      "careersPageUrl": "https://bitwarden.com/careers/#open-positions",
+      "manualJobCount": 22,
+      "careerPageLatencyMs": 2702.404499053955,
+      "careerPageMethod": "heuristic",
+      "careerPageJobsFound": 22,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786465807641-0.7861770717936569",
+      "timestamp": "12:30:07 PM",
+      "companyName": "Bitwarden",
+      "careersPageUrl": "https://bitwarden.com/careers/#open-positions",
+      "manualJobCount": 22,
+      "careerPageLatencyMs": 2503.969430923462,
+      "careerPageMethod": "domain_filter",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786465700152-0.6926054897325474",
+      "timestamp": "12:28:20 PM",
+      "companyName": "Vetcove",
+      "careersPageUrl": "https://vetcove.com/careers",
+      "manualJobCount": 25,
+      "careerPageLatencyMs": 28123.920679092407,
+      "careerPageMethod": "validate",
+      "careerPageJobsFound": 20,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786465671520-0.5854367995925417",
+      "timestamp": "12:27:51 PM",
+      "companyName": "Vetcove",
+      "careersPageUrl": "https://vetcove.com/careers",
+      "manualJobCount": 25,
+      "careerPageLatencyMs": 103159.57117080688,
+      "careerPageMethod": "llm",
+      "careerPageJobsFound": 25,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786465567855-0.5949909253741628",
+      "timestamp": "12:26:07 PM",
+      "companyName": "Vetcove",
+      "careersPageUrl": "https://vetcove.com/careers",
+      "manualJobCount": 25,
+      "careerPageLatencyMs": 1512.397289276123,
+      "careerPageMethod": "heuristic",
+      "careerPageJobsFound": 20,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786465565837-0.0004572815786242357",
+      "timestamp": "12:26:05 PM",
+      "companyName": "Vetcove",
+      "careersPageUrl": "https://vetcove.com/careers",
+      "manualJobCount": 25,
+      "careerPageLatencyMs": 1567.5780773162842,
+      "careerPageMethod": "domain_filter",
+      "careerPageJobsFound": 25,
+      "careerPageSuccess": true
+    }
+  ]
+}

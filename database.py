@@ -30,6 +30,29 @@ from pathlib import Path
 import yaml
 
 # ─────────────────────────────────────────────────────────────
+# Token Counting (Conservative Estimate for LLM Context Tracking)
+# ─────────────────────────────────────────────────────────────
+
+def count_tokens(text: str) -> int:
+    """
+    Count tokens in text using Qwen tokenizer if available, else conservative estimate.
+    Conservative: if wrong, rounds UP to ensure we detect limit-hitting scenarios.
+
+    Qwen2.5 tokenizer: ~1 token per 3.5 chars (averages to ~1.3 tokens per word)
+    Conservative estimate: chars / 3.5 (rounds up on division)
+    """
+    if not text:
+        return 0
+
+    try:
+        from transformers import AutoTokenizer  # noqa: F401
+        tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-3B", trust_remote_code=True)
+        return len(tokenizer.encode(text))
+    except (ImportError, Exception):
+        import math
+        return math.ceil(len(text) / 3.5)
+
+# ─────────────────────────────────────────────────────────────
 # Configuration
 # ─────────────────────────────────────────────────────────────
 
@@ -444,21 +467,40 @@ CREATE TABLE IF NOT EXISTS orgs (
 );
 
 CREATE TABLE IF NOT EXISTS org_crawls (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    org_id          INTEGER NOT NULL REFERENCES orgs(id),
-    status          TEXT NOT NULL,
-    started_at      TEXT NOT NULL,
-    completed_at    TEXT,
-    roles_found     INTEGER,
-    roles_added     INTEGER,
-    roles_closed    INTEGER,
-    error_msg       TEXT,
-    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id                INTEGER NOT NULL REFERENCES orgs(id),
+    status                TEXT NOT NULL,
+    started_at            TEXT NOT NULL,
+    completed_at          TEXT,
+
+    -- Extraction metrics
+    domain_roles          INTEGER,  -- count from domain extraction
+    heuristic_roles       INTEGER,  -- count from heuristic extraction
+    dedupe_roles          INTEGER,  -- count after merge/dedup of domain + heuristic + llm
+
+    -- Matching metrics
+    current_org_roles     INTEGER,  -- existing roles in DB at start of crawl
+    missing_roles         INTEGER,  -- roles in DB but not in dedupe list
+    matched_roles         INTEGER,  -- roles in both DB and dedupe list
+
+    -- Validation metrics
+    unvalidated_roles     INTEGER,  -- roles attempted in validation gate
+    roles_found           INTEGER,  -- same as dedupe_roles (total found on career page)
+    roles_added           INTEGER,  -- roles that passed validation and were inserted
+
+    -- Cleanup metrics
+    roles_closed          INTEGER,  -- roles marked inactive (missing 2+ crawls)
+
+    -- Other
+    error_msg             TEXT,
+    career_page_markdown  TEXT,
+    created_at            TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS org_roles (
     id                   INTEGER PRIMARY KEY AUTOINCREMENT,
     org_id               INTEGER NOT NULL REFERENCES orgs(id),
+    role_url             TEXT,
     title                TEXT NOT NULL,
     description          TEXT,
     salary_range         TEXT,
@@ -474,6 +516,8 @@ CREATE TABLE IF NOT EXISTS org_roles (
     local_score_comp     REAL,
     is_interesting       BOOLEAN DEFAULT 0,
     job_id               INTEGER REFERENCES jobs(id),
+    missing_count        INTEGER DEFAULT 0,
+    is_active            BOOLEAN DEFAULT 1,
     created_at           TEXT NOT NULL DEFAULT (datetime('now')),
     modified_at          TEXT NOT NULL DEFAULT (datetime('now')),
     project_id           INTEGER
@@ -489,8 +533,43 @@ CREATE INDEX IF NOT EXISTS idx_llm_models_server_id    ON llm_models(server_id);
 CREATE INDEX IF NOT EXISTS idx_job_research_job_id     ON job_research(job_id);
 CREATE INDEX IF NOT EXISTS idx_org_crawls_org_id       ON org_crawls(org_id);
 CREATE INDEX IF NOT EXISTS idx_org_roles_org_id        ON org_roles(org_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_org_roles_url    ON org_roles(org_id, role_url);
 CREATE INDEX IF NOT EXISTS idx_org_roles_is_interesting ON org_roles(is_interesting);
 CREATE INDEX IF NOT EXISTS idx_org_roles_job_id        ON org_roles(job_id);
+
+CREATE TABLE IF NOT EXISTS org_crawl_logs (
+    id                          INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_crawl_id                INTEGER NOT NULL REFERENCES org_crawls(id),
+    action_type                 TEXT NOT NULL,  -- 'domain_extract', 'heuristic_extract', 'llm_validate', 'llm_extract', 'crawl4ai_career', 'crawl4ai_job'
+    url                         TEXT,  -- URL being acted upon (career page URL or job URL)
+
+    -- Extraction results/output
+    output_data                 TEXT,  -- JSON with results/output from action
+
+    -- Markdown content (raw page/extraction data)
+    markdown                    TEXT,  -- raw markdown (up to 100KB)
+
+    -- LLM/HTTP response info
+    llm_model                   TEXT,  -- model name (qwen2.5:3b, etc) for LLM actions
+    prompt                      TEXT,  -- LLM prompt sent
+    response                    TEXT,  -- LLM raw response OR HTTP response body
+    status_code                 INTEGER,  -- HTTP status (for crawl4ai/Ollama calls: 200, 404, 500, etc.)
+
+    -- Token counting (LLM actions only)
+    tokens_prompt               INTEGER,  -- token count of prompt sent to LLM (conservative estimate)
+    tokens_response             INTEGER,  -- token count of response from LLM (conservative estimate)
+
+    -- Execution info
+    latency_ms                  INTEGER,
+    method                      TEXT,  -- for crawl4ai: 'quick', 'full', etc.
+    error_msg                   TEXT,  -- if action failed
+
+    created_at                  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_org_crawl_logs_crawl_id ON org_crawl_logs(org_crawl_id);
+CREATE INDEX IF NOT EXISTS idx_org_crawl_logs_action  ON org_crawl_logs(action_type);
+CREATE INDEX IF NOT EXISTS idx_org_crawl_logs_url     ON org_crawl_logs(url);
 """
 
 CURRENT_SCHEMA_VERSION = "2.7"
@@ -678,6 +757,23 @@ def init_db() -> None:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_job_research_org_id ON job_research(org_id)")
         except sqlite3.OperationalError:
             pass  # index already exists
+
+        # Phase 2.7 — org_crawls career page markdown
+        try:
+            conn.execute("ALTER TABLE org_crawls ADD COLUMN career_page_markdown TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+        # Phase 2.7 — org_crawl_logs token tracking (for LLM context window investigation)
+        try:
+            conn.execute("ALTER TABLE org_crawl_logs ADD COLUMN tokens_prompt INTEGER")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+        try:
+            conn.execute("ALTER TABLE org_crawl_logs ADD COLUMN tokens_response INTEGER")
+        except sqlite3.OperationalError:
+            pass  # column already exists
 
         for type_name, type_value in _SYSTEM_TYPES_SEED:
             existing = conn.execute(
@@ -3194,7 +3290,6 @@ def recalc_eval_scores(conn: sqlite3.Connection) -> int:
 # ─────────────────────────────────────────────────────────────
 
 def insert_job_research(
-    job_id: int,
     raw_json: str,
     research_summary: str | None = None,
     company_overview: str | None = None,
@@ -3210,17 +3305,19 @@ def insert_job_research(
     green_flags: str | None = None,
     research_confidence: str | None = None,
     research_notes: str | None = None,
+    job_id: int | None = None,
+    org_id: int | None = None,
 ) -> int:
-    """Insert a job_research record and return the new id."""
+    """Insert a research record (polymorphic: job_id OR org_id). Returns the new id."""
     with get_connection() as conn:
         conn.execute(
             """INSERT INTO job_research
-               (job_id, raw_json, research_summary, company_overview, company_stage,
+               (job_id, org_id, raw_json, research_summary, company_overview, company_stage,
                 company_size_actual, company_trajectory, company_culture_overview,
                 culture_signals, comp_signals, role_context, interview_process,
                 red_flags, green_flags, research_confidence, research_notes)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (job_id, raw_json, research_summary, company_overview, company_stage,
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (job_id, org_id, raw_json, research_summary, company_overview, company_stage,
              company_size_actual, company_trajectory, company_culture_overview,
              culture_signals, comp_signals, role_context, interview_process,
              red_flags, green_flags, research_confidence, research_notes),
@@ -3228,17 +3325,303 @@ def insert_job_research(
         return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
 
-def get_job_research_latest(job_id: int) -> dict | None:
-    """Return the most recent job_research record for a job, or None."""
+def get_job_research_latest(job_id: int | None = None, org_id: int | None = None) -> dict | None:
+    """Return the most recent research record for a job or org. Pass either job_id or org_id."""
+    if job_id is None and org_id is None:
+        return None
     with get_connection() as conn:
-        row = conn.execute(
-            """SELECT * FROM job_research
-               WHERE job_id = ?
-               ORDER BY imported_at DESC, id DESC
-               LIMIT 1""",
-            (job_id,),
-        ).fetchone()
+        if job_id is not None:
+            row = conn.execute(
+                """SELECT * FROM job_research
+                   WHERE job_id = ?
+                   ORDER BY imported_at DESC, id DESC
+                   LIMIT 1""",
+                (job_id,),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                """SELECT * FROM job_research
+                   WHERE org_id = ?
+                   ORDER BY imported_at DESC, id DESC
+                   LIMIT 1""",
+                (org_id,),
+            ).fetchone()
         return dict(row) if row else None
+
+
+# ─────────────────────────────────────────────────────────────
+# Orgs (Phase 2.7)
+# ─────────────────────────────────────────────────────────────
+
+def get_all_orgs() -> list[sqlite3.Row]:
+    """Return all orgs, sorted by id."""
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT * FROM orgs ORDER BY id"
+        ).fetchall()
+
+
+def get_org(org_id: int) -> sqlite3.Row | None:
+    """Return a single org by id, or None."""
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT * FROM orgs WHERE id = ?",
+            (org_id,)
+        ).fetchone()
+
+
+# ─────────────────────────────────────────────────────────────
+# Org Crawls (Phase 2.7)
+# ─────────────────────────────────────────────────────────────
+
+def insert_org_crawl(org_id: int, status: str, started_at: str) -> int:
+    """Create a new org_crawl record. Returns the crawl_id."""
+    with get_connection() as conn:
+        conn.execute(
+            """INSERT INTO org_crawls (org_id, status, started_at)
+               VALUES (?, ?, ?)""",
+            (org_id, status, started_at)
+        )
+        return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def update_org_crawl_markdown(crawl_id: int, markdown: str) -> None:
+    """Store career page markdown in an org_crawl record."""
+    with get_connection() as conn:
+        conn.execute(
+            """UPDATE org_crawls SET career_page_markdown = ?
+               WHERE id = ?""",
+            (markdown, crawl_id)
+        )
+
+
+def update_org_crawl_completion(
+    crawl_id: int,
+    status: str,
+    roles_found: int = 0,
+    roles_added: int = 0,
+    roles_closed: int = 0,
+    error_msg: str | None = None,
+    **kwargs
+) -> None:
+    """Mark an org_crawl as complete with results."""
+    completed_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    with get_connection() as conn:
+        conn.execute(
+            """UPDATE org_crawls
+               SET status = ?, completed_at = ?, roles_found = ?, roles_added = ?, roles_closed = ?, error_msg = ?,
+                   domain_roles = ?, heuristic_roles = ?, dedupe_roles = ?,
+                   current_org_roles = ?, missing_roles = ?, matched_roles = ?,
+                   unvalidated_roles = ?
+               WHERE id = ?""",
+            (
+                status, completed_at, roles_found, roles_added, roles_closed, error_msg,
+                kwargs.get("domain_roles"), kwargs.get("heuristic_roles"), kwargs.get("dedupe_roles"),
+                kwargs.get("current_org_roles"), kwargs.get("missing_roles"), kwargs.get("matched_roles"),
+                kwargs.get("unvalidated_roles"),
+                crawl_id
+            )
+        )
+
+
+def update_org_last_crawl(org_id: int) -> None:
+    """Update org's last_crawl_at timestamp."""
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    with get_connection() as conn:
+        conn.execute(
+            """UPDATE orgs SET last_crawl_at = ? WHERE id = ?""",
+            (now, org_id)
+        )
+
+
+def insert_org_crawl_log(
+    org_crawl_id: int,
+    action_type: str,
+    url: str | None = None,
+    **kwargs
+) -> int:
+    """
+    Insert a log entry for a crawl action (one row per action).
+    action_type: 'domain_extract', 'heuristic_extract', 'llm_validate', 'llm_extract', 'crawl4ai_career', 'crawl4ai_job'
+    Returns log_id.
+
+    For LLM actions: automatically calculates token counts from prompt/response if not provided.
+    """
+    prompt = kwargs.get("prompt")
+    response = kwargs.get("response")
+
+    tokens_prompt = kwargs.get("tokens_prompt")
+    tokens_response = kwargs.get("tokens_response")
+
+    if action_type.startswith("llm_"):
+        if tokens_prompt is None and prompt:
+            tokens_prompt = count_tokens(prompt)
+        if tokens_response is None and response:
+            tokens_response = count_tokens(response)
+
+    with get_connection() as conn:
+        conn.execute(
+            """INSERT INTO org_crawl_logs
+               (org_crawl_id, action_type, url, output_data, markdown,
+                llm_model, prompt, response, status_code, latency_ms, method, error_msg,
+                tokens_prompt, tokens_response)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                org_crawl_id, action_type, url,
+                kwargs.get("output_data"), kwargs.get("markdown"),
+                kwargs.get("llm_model"), prompt, response,
+                kwargs.get("status_code"), kwargs.get("latency_ms"),
+                kwargs.get("method"), kwargs.get("error_msg"),
+                tokens_prompt, tokens_response
+            )
+        )
+        return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def get_org_crawl_logs(org_crawl_id: int) -> list[sqlite3.Row]:
+    """Get all logs for a crawl."""
+    with get_connection() as conn:
+        return conn.execute(
+            """SELECT * FROM org_crawl_logs WHERE org_crawl_id = ?
+               ORDER BY created_at ASC""",
+            (org_crawl_id,)
+        ).fetchall()
+
+
+def get_org_crawls(org_id: int) -> list[sqlite3.Row]:
+    """Get all crawls for an org, ordered by most recent first."""
+    with get_connection() as conn:
+        return conn.execute(
+            """SELECT * FROM org_crawls WHERE org_id = ?
+               ORDER BY created_at DESC""",
+            (org_id,)
+        ).fetchall()
+
+
+# ─────────────────────────────────────────────────────────────
+# Org Roles (Phase 2.7)
+# ─────────────────────────────────────────────────────────────
+
+def get_org_roles(org_id: int, include_inactive: bool = False) -> list[sqlite3.Row]:
+    """Return org_roles for an org. By default only active roles (is_active=1)."""
+    where = "" if include_inactive else "AND is_active = 1"
+    with get_connection() as conn:
+        return conn.execute(
+            f"""SELECT * FROM org_roles WHERE org_id = ? {where}
+               ORDER BY local_score_overall DESC NULLS LAST, created_at DESC""",
+            (org_id,)
+        ).fetchall()
+
+
+def get_org_role(org_id: int, role_id: int) -> sqlite3.Row | None:
+    """Return a single org_role by id, or None."""
+    with get_connection() as conn:
+        return conn.execute(
+            """SELECT * FROM org_roles WHERE id = ? AND org_id = ?""",
+            (role_id, org_id)
+        ).fetchone()
+
+
+def get_existing_role_urls(org_id: int) -> dict[str, int]:
+    """Return mapping of role_url → role_id for all active roles in an org."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT id, role_url FROM org_roles
+               WHERE org_id = ? AND is_active = 1 AND role_url IS NOT NULL""",
+            (org_id,)
+        ).fetchall()
+        return {row["role_url"]: row["id"] for row in rows}
+
+
+def insert_org_role(
+    org_id: int,
+    title: str,
+    role_url: str | None = None,
+    **kwargs
+) -> int:
+    """
+    Insert an org_role record. Only call after LLM validation passes.
+    Returns the new role id.
+    """
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    allowed = [
+        "description", "salary_range", "remote_type",
+        "first_seen_date", "last_seen_date", "scrape_date",
+        "keywords", "local_score_overall", "local_score_fit",
+        "local_score_scope", "local_score_culture", "local_score_comp",
+        "is_interesting", "job_id", "is_active", "missing_count"
+    ]
+
+    insert_params = {"org_id": org_id, "title": title, "role_url": role_url}
+    for k in allowed:
+        insert_params[k] = kwargs.get(k)
+
+    insert_params["scrape_date"] = insert_params.get("scrape_date") or now
+    insert_params["first_seen_date"] = insert_params.get("first_seen_date") or now
+    insert_params["last_seen_date"] = insert_params.get("last_seen_date") or now
+
+    with get_connection() as conn:
+        conn.execute(
+            """INSERT INTO org_roles
+               (org_id, title, role_url, description, salary_range, remote_type,
+                first_seen_date, last_seen_date, scrape_date, keywords,
+                local_score_overall, local_score_fit, local_score_scope,
+                local_score_culture, local_score_comp, is_interesting, job_id,
+                is_active, missing_count)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                       ?, ?)""",
+            (
+                insert_params["org_id"], insert_params["title"], insert_params["role_url"],
+                insert_params["description"], insert_params["salary_range"], insert_params["remote_type"],
+                insert_params["first_seen_date"], insert_params["last_seen_date"], insert_params["scrape_date"],
+                insert_params["keywords"],
+                insert_params["local_score_overall"], insert_params["local_score_fit"],
+                insert_params["local_score_scope"], insert_params["local_score_culture"],
+                insert_params["local_score_comp"], insert_params["is_interesting"], insert_params["job_id"],
+                insert_params.get("is_active", 1), insert_params.get("missing_count", 0)
+            )
+        )
+        return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def update_org_role_missing_count(org_id: int, found_urls: set[str]) -> None:
+    """
+    Update missing_count for all active roles in org:
+    - For roles with URL in found_urls: reset missing_count to 0
+    - For roles without URL in found_urls: increment missing_count
+    Then mark inactive any role with missing_count >= 2
+    """
+    with get_connection() as conn:
+        # Get all active roles
+        all_roles = conn.execute(
+            """SELECT id, role_url FROM org_roles
+               WHERE org_id = ? AND is_active = 1""",
+            (org_id,)
+        ).fetchall()
+
+        for role in all_roles:
+            role_url = role["role_url"]
+            if role_url in found_urls:
+                # Found in this crawl, reset counter
+                conn.execute(
+                    """UPDATE org_roles SET missing_count = 0
+                       WHERE id = ?""",
+                    (role["id"],)
+                )
+            else:
+                # Not found in this crawl, increment counter
+                conn.execute(
+                    """UPDATE org_roles SET missing_count = missing_count + 1
+                       WHERE id = ?""",
+                    (role["id"],)
+                )
+
+        # Mark inactive any role with missing_count >= 2
+        conn.execute(
+            """UPDATE org_roles SET is_active = 0
+               WHERE org_id = ? AND missing_count >= 2""",
+            (org_id,)
+        )
 
 
 # ─────────────────────────────────────────────────────────────

@@ -116,6 +116,7 @@ import document_routes
 import evaluate
 import evaluator
 import llm_client
+import org_routes
 import poc_routes
 import profile_routes
 import prompt_generation
@@ -384,6 +385,7 @@ app.add_middleware(
 app.include_router(profile_routes.router, prefix="/api/v1")
 app.include_router(document_routes.router, prefix="/api/v1")
 app.include_router(scrape_routes.router, prefix="/api/v1")
+app.include_router(org_routes.router)
 app.include_router(poc_routes.router)
 
 _frontend_assets = Path("frontend/dist/assets")

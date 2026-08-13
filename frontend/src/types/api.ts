@@ -614,3 +614,78 @@ export interface JobResearch {
   imported_at: string
 }
 
+// ─── GET /api/v1/orgs / POST /api/v1/orgs ───────────────────────────────────
+
+export interface Org {
+  id: number
+  name: string
+  url: string
+  career_page_url: string
+  crawl_frequency: number
+  crawl_offset_minutes: number
+  last_crawl_at: string | null
+  next_crawl_at: string | null
+  created_at: string
+  modified_at: string
+}
+
+export interface CreateOrgPayload {
+  name: string
+  url: string
+  career_page_url: string
+  crawl_frequency?: number
+}
+
+export interface CreateOrgResult {
+  id: number
+  name: string
+  url: string
+  career_page_url: string
+  crawl_frequency: number
+  crawl_offset_minutes: number
+  last_crawl_at: string | null
+  next_crawl_at: string | null
+  created_at: string
+  modified_at: string
+}
+
+export interface OrgCrawl {
+  id: number
+  org_id: number
+  status: string
+  started_at: string
+  completed_at: string | null
+  domain_roles: number | null
+  heuristic_roles: number | null
+  dedupe_roles: number | null
+  current_org_roles: number | null
+  missing_roles: number | null
+  matched_roles: number | null
+  unvalidated_roles: number | null
+  roles_found: number | null
+  roles_added: number | null
+  roles_closed: number | null
+  error_msg: string | null
+  career_page_markdown: string | null
+  created_at: string
+}
+
+export interface OrgCrawlLog {
+  id: number
+  org_crawl_id: number
+  action_type: string
+  url: string | null
+  output_data: string | null
+  markdown: string | null
+  llm_model: string | null
+  prompt: string | null
+  response: string | null
+  status_code: number | null
+  tokens_prompt: number | null
+  tokens_response: number | null
+  latency_ms: number | null
+  method: string | null
+  error_msg: string | null
+  created_at: string
+}
+

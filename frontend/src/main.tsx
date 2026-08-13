@@ -8,12 +8,16 @@ import Dashboard from '@/pages/Dashboard'
 import Jobs from '@/pages/Jobs'
 import JobDetailPage from '@/pages/JobDetail'
 import CreateJob from '@/pages/CreateJob'
+import CreateOrg from '@/pages/CreateOrg'
+import Orgs from '@/pages/Orgs'
+import OrgDetails from '@/pages/OrgDetails'
 import Applications from '@/pages/Applications'
 import Settings from '@/pages/Settings'
 import LLMUsage from '@/pages/LLMUsage'
 import JobSearchProfile from '@/pages/JobSearchProfile'
 import Career from '@/pages/Career'
 import CompanyPOCPage from '@/pages/CompanyPOCPage'
+import CompanyPOCPage2 from '@/pages/CompanyPOCPage2'
 import '@/index.css'
 
 const router = createBrowserRouter([
@@ -23,12 +27,16 @@ const router = createBrowserRouter([
   // Standalone pages — AppHeader top-nav, no sidebar
   { path: '/career',     element: <Career /> },
   { path: '/createjob',  element: <CreateJob /> },
+  { path: '/createorg',  element: <CreateOrg /> },
   { path: '/settings',   element: <Settings /> },
   { path: '/llm-usage',  element: <LLMUsage /> },
   { path: '/profile',    element: <JobSearchProfile /> },
   { path: '/poc-company', element: <CompanyPOCPage /> },
+  { path: '/poc-company2', element: <CompanyPOCPage2 /> },
   { path: '/jobs',       element: <Jobs /> },
   { path: '/jobs/:jobId', element: <JobDetailPage /> },
+  { path: '/orgs',       element: <Orgs /> },
+  { path: '/orgs/:orgId', element: <OrgDetails /> },
   { path: '/applications',                      element: <Applications /> },
   { path: '/applications/:applicationId',       element: <Applications /> },
 

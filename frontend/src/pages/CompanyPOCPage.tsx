@@ -5,12 +5,35 @@ interface JobListing {
   url: string;
 }
 
+interface CrawlMetadata {
+  markdown_length: number;
+  js_rendering_used: boolean;
+  anti_bot_detected: boolean;
+  retry_count: number;
+}
+
+interface ExtractionDebug {
+  domain_count?: number;
+  heuristic_count?: number;
+  llm_count?: number;
+  llm_raw_response?: string;
+  llm_prompt?: string;
+  markdown_length?: number;
+}
+
 interface QueryCompanyResponse {
   success: boolean;
   jobs: JobListing[];
   error: string | null;
   extraction_method: string | null;
   strategy: string;
+  crawl_latency_ms: number;
+  process_latency_ms: number;
+  llm_model?: string | null;
+  data_source?: string;
+  crawl_metadata?: CrawlMetadata;
+  extraction_debug?: ExtractionDebug;
+  markdown?: string;
 }
 
 interface ExtractedJob {
@@ -27,18 +50,46 @@ interface ExtractJobResponse {
   extraction_method: string | null;
   confidence: "high" | "medium" | "low";
   strategy: string;
+  latency_ms: number;
 }
 
 interface CompanyEntry {
   company_name: string;
   company_url: string;
   careers_page_url: string;
+  manual_job_count?: number;
+  company_notes?: string;
 }
 
 interface POCState {
   companies: CompanyEntry[];
   job_url: string;
   research_prompt: string;
+}
+
+interface TestResult {
+  id: string;
+  timestamp: string;
+  companyName: string;
+  careersPageUrl: string;
+  manualJobCount?: number;
+  companyNotes?: string;
+  careerCrawlLatencyMs?: number;  // Time to crawl career page
+  processLatencyMs?: number;  // Time to extract/process
+  llmModel?: string;  // Model used (if LLM-based)
+  careerPageMethod?: string;
+  careerPageJobsFound?: number;
+  careerPageSuccess?: boolean;
+  careerPageError?: string;
+  jobs?: Array<{ title: string; url: string }>;  // Actual job listings extracted
+  extractionUrl?: string;
+  extractionLatencyMs?: number;
+  extractionMethod?: string;
+  extractionConfidence?: string;
+  extractionSuccess?: boolean;
+  extractionError?: string;
+  extraction_debug?: ExtractionDebug;  // Debug info from extraction
+  markdown?: string;  // Raw markdown from crawl
 }
 
 export default function CompanyPOCPage() {
@@ -70,9 +121,24 @@ export default function CompanyPOCPage() {
   const [selectedExtractTab, setSelectedExtractTab] = useState<"structured" | "llm" | "hybrid">("structured");
   const [error, setError] = useState<string | null>(null);
 
+  const [testResults, setTestResults] = useState<TestResult[]>([]);
+  const [manualJobCount, setManualJobCount] = useState("");
+  const [companyNotes, setCompanyNotes] = useState("");
+  const [cachedMarkdown, setCachedMarkdown] = useState<string | null>(null);
+  const [crawlLatencyMs, setCrawlLatencyMs] = useState<number | null>(null);
+  const [crawlInProgress, setCrawlInProgress] = useState(false);
+  const [batchTestInProgress, setBatchTestInProgress] = useState(false);
+  const [batchTestStatus, setBatchTestStatus] = useState<string>("");
+
   useEffect(() => {
     loadState();
+    loadPersistentData();
   }, []);
+
+  // Auto-save persistent data whenever companies or test results change
+  useEffect(() => {
+    savePersistentData();
+  }, [state.companies, testResults]);
 
   const loadState = async () => {
     try {
@@ -90,6 +156,8 @@ export default function CompanyPOCPage() {
                   company_name: data.company_name || "",
                   company_url: data.company_url || "",
                   careers_page_url: data.careers_page_url || "",
+                  manual_job_count: data.manual_job_count,
+                  company_notes: data.company_notes,
                 },
               ],
               job_url: data.job_url || "",
@@ -100,6 +168,8 @@ export default function CompanyPOCPage() {
               setFormCompanyName(data.company_name);
               setFormCompanyUrl(data.company_url);
               setFormCareersPageUrl(data.careers_page_url);
+              setManualJobCount(data.manual_job_count?.toString() || "");
+              setCompanyNotes(data.company_notes || "");
               setSelectedCompanyIndex(0);
             }
           } else {
@@ -125,6 +195,8 @@ export default function CompanyPOCPage() {
           company_name: formCompanyName,
           company_url: formCompanyUrl,
           careers_page_url: formCareersPageUrl,
+          manual_job_count: manualJobCount ? Number(manualJobCount) : undefined,
+          company_notes: companyNotes || undefined,
         };
       } else {
         // Add new
@@ -132,6 +204,8 @@ export default function CompanyPOCPage() {
           company_name: formCompanyName,
           company_url: formCompanyUrl,
           careers_page_url: formCareersPageUrl,
+          manual_job_count: manualJobCount ? Number(manualJobCount) : undefined,
+          company_notes: companyNotes || undefined,
         });
       }
     }
@@ -164,6 +238,181 @@ export default function CompanyPOCPage() {
     setTimeout(() => setError(null), 5000);
   };
 
+  const addTestResult = (result: Partial<TestResult>) => {
+    const newResult: TestResult = {
+      id: `test-${Date.now()}-${Math.random()}`,
+      timestamp: new Date().toLocaleTimeString(),
+      companyName: formCompanyName,
+      careersPageUrl: formCareersPageUrl,
+      ...result,
+    };
+    setTestResults((prev) => [newResult, ...prev]);
+    // Optionally auto-clear manual fields after adding result
+    // setManualJobCount("");
+    // setCompanyNotes("");
+  };
+
+  const clearTestResults = () => {
+    setTestResults([]);
+  };
+
+  const loadPersistentData = async () => {
+    try {
+      const response = await fetch("/api/v1/poc/persistent-data");
+      const data = await response.json();
+      if (data.companies && data.testResults) {
+        setState((prev) => ({ ...prev, companies: data.companies }));
+        setTestResults(data.testResults);
+      }
+    } catch (err) {
+      console.error("Failed to load persistent data:", err);
+    }
+  };
+
+  const savePersistentData = async () => {
+    try {
+      await fetch("/api/v1/poc/persistent-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companies: state.companies,
+          testResults: testResults,
+        }),
+      });
+    } catch (err) {
+      console.error("Failed to save persistent data:", err);
+    }
+  };
+
+  const testAllCompanies = async () => {
+    if (state.companies.length === 0) {
+      showToast("No companies to test");
+      return;
+    }
+
+    setBatchTestInProgress(true);
+    setBatchTestStatus("");
+    setError(null);
+
+    try {
+      for (let i = 0; i < state.companies.length; i++) {
+        const company = state.companies[i];
+        setBatchTestStatus(`Testing ${company.company_name} (${i + 1}/${state.companies.length})...`);
+
+        // Crawl the page
+        try {
+          const crawlResponse = await fetch("/api/v1/poc/crawl-page", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              company_name: company.company_name,
+              company_url: company.company_url,
+              careers_page_url: company.careers_page_url,
+            }),
+          });
+          const crawlData = await crawlResponse.json();
+
+          if (!crawlData.success) {
+            setBatchTestStatus(
+              `${company.company_name}: Crawl failed - ${crawlData.error}`
+            );
+            addTestResult({
+              companyName: company.company_name,
+              careersPageUrl: company.careers_page_url,
+              manualJobCount: company.manual_job_count,
+              companyNotes: company.company_notes,
+              careerCrawlLatencyMs: crawlData.crawl_latency_ms,
+              careerPageMethod: "crawl4ai",
+              careerPageSuccess: false,
+              careerPageError: crawlData.error,
+            });
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            continue;
+          }
+
+          const markdown = crawlData.markdown;
+
+          // Log the crawl
+          addTestResult({
+            companyName: company.company_name,
+            careersPageUrl: company.careers_page_url,
+            manualJobCount: company.manual_job_count,
+            companyNotes: company.company_notes,
+            careerCrawlLatencyMs: crawlData.crawl_latency_ms,
+            careerPageMethod: "crawl4ai",
+            careerPageSuccess: true,
+            markdown: markdown || undefined,
+          });
+
+          // Test all 4 strategies on cached markdown
+          for (const strategy of [
+            "domain",
+            "heuristic",
+            "llm",
+            "validate",
+          ] as const) {
+            setBatchTestStatus(
+              `${company.company_name}: Testing ${strategy}...`
+            );
+
+            const strategyResponse = await fetch(
+              "/api/v1/poc/query-company-cached",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  company_name: company.company_name,
+                  markdown: markdown || undefined,
+                  strategy: strategy,
+                }),
+              }
+            );
+            const strategyData = await strategyResponse.json();
+
+            addTestResult({
+              companyName: company.company_name,
+              careersPageUrl: company.careers_page_url,
+              manualJobCount: company.manual_job_count,
+              companyNotes: company.company_notes,
+              // Don't log crawl latency for cached extractions - it was already logged in crawl row
+              processLatencyMs: strategyData.process_latency_ms,
+              llmModel: strategyData.llm_model || undefined,
+              careerPageMethod: strategyData.extraction_method,
+              careerPageJobsFound: strategyData.jobs.length,
+              careerPageSuccess: strategyData.success,
+              careerPageError: strategyData.error || undefined,
+              jobs: strategyData.jobs || [],
+              extraction_debug: strategyData.extraction_debug,
+              markdown: strategyData.markdown,
+            });
+
+            await new Promise((resolve) => setTimeout(resolve, 300));
+          }
+        } catch (err) {
+          setBatchTestStatus(`${company.company_name}: Error - ${err}`);
+          addTestResult({
+            companyName: company.company_name,
+            careersPageUrl: company.careers_page_url,
+            manualJobCount: company.manual_job_count,
+            companyNotes: company.company_notes,
+            careerPageSuccess: false,
+            careerPageError: `Error: ${err}`,
+          });
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+
+      setBatchTestStatus("✓ All companies tested!");
+      showToast(`Tested ${state.companies.length} companies`);
+    } catch (err) {
+      setBatchTestStatus(`Batch test failed: ${err}`);
+      showToast(`Batch test error: ${err}`);
+    } finally {
+      setBatchTestInProgress(false);
+    }
+  };
+
   const loadCompany = (index: number) => {
     if (index >= 0 && index < state.companies.length) {
       const company = state.companies[index];
@@ -171,6 +420,66 @@ export default function CompanyPOCPage() {
       setFormCompanyUrl(company.company_url);
       setFormCareersPageUrl(company.careers_page_url);
       setSelectedCompanyIndex(index);
+      // Restore manual count/notes for this company
+      setManualJobCount(company.manual_job_count?.toString() || "");
+      setCompanyNotes(company.company_notes || "");
+      // Clear cached markdown when switching companies
+      setCachedMarkdown(null);
+      setCrawlLatencyMs(null);
+    }
+  };
+
+  const crawlPage = async () => {
+    if (!formCareersPageUrl) {
+      showToast("Enter careers page URL first");
+      return;
+    }
+
+    setCrawlInProgress(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/v1/poc/crawl-page", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          company_name: formCompanyName,
+          company_url: formCompanyUrl,
+          careers_page_url: formCareersPageUrl,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setCachedMarkdown(data.markdown);
+        setCrawlLatencyMs(data.crawl_latency_ms);
+        // Log the crawl as a test result
+        addTestResult({
+          manualJobCount: manualJobCount ? Number(manualJobCount) : undefined,
+          companyNotes: companyNotes || undefined,
+          careerCrawlLatencyMs: data.crawl_latency_ms,
+          careerPageMethod: "crawl4ai",
+          careerPageJobsFound: undefined,
+          careerPageSuccess: true,
+          markdown: data.markdown,
+        });
+        showToast(`Page crawled in ${(data.crawl_latency_ms / 1000).toFixed(1)}s`);
+      } else {
+        showToast(`Crawl failed: ${data.error}`);
+        addTestResult({
+          manualJobCount: manualJobCount ? Number(manualJobCount) : undefined,
+          companyNotes: companyNotes || undefined,
+          careerCrawlLatencyMs: data.crawl_latency_ms,
+          careerPageMethod: "crawl4ai",
+          careerPageSuccess: false,
+          careerPageError: data.error,
+          markdown: data.markdown,
+        });
+      }
+    } catch (err) {
+      showToast(`Crawl error: ${err}`);
+    } finally {
+      setCrawlInProgress(false);
     }
   };
 
@@ -207,6 +516,33 @@ export default function CompanyPOCPage() {
     }
   };
 
+  const queryCompanyCached = async (strategy: "domain" | "heuristic" | "llm" | "validate", markdown: string) => {
+    setError(null);
+    const payload = {
+      company_name: formCompanyName,
+      markdown: markdown,
+      strategy,
+    };
+
+    try {
+      const response = await fetch("/api/v1/poc/query-company-cached", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data: QueryCompanyResponse = await response.json();
+      if (data.success) {
+        return data;
+      } else {
+        showToast(data.error || "Failed to query company");
+        return null;
+      }
+    } catch (err) {
+      showToast(`Query failed: ${err}`);
+      return null;
+    }
+  };
+
   const queryCompany = async (strategy: "domain" | "heuristic" | "llm") => {
     setError(null);
     const payload = {
@@ -237,29 +573,221 @@ export default function CompanyPOCPage() {
 
   const queryStrategy1 = async () => {
     setLoadingQuery1(true);
-    const result = await queryCompany("domain");
+    let result;
+    if (cachedMarkdown) {
+      result = await queryCompanyCached("domain", cachedMarkdown);
+    } else {
+      result = await queryCompany("domain");
+    }
     if (result) {
       setJobsDomainFilter(result.jobs);
+      addTestResult({
+        manualJobCount: manualJobCount ? Number(manualJobCount) : undefined,
+        companyNotes: companyNotes || undefined,
+        careerCrawlLatencyMs: result.crawl_latency_ms,
+        processLatencyMs: result.process_latency_ms,
+        llmModel: result.llm_model || undefined,
+        careerPageMethod: result.extraction_method || undefined,
+        careerPageJobsFound: result.jobs.length,
+        careerPageSuccess: result.success,
+        careerPageError: result.error || undefined,
+        jobs: result.jobs || [],
+        extraction_debug: result.extraction_debug,
+        markdown: result.markdown,
+      });
     }
     setLoadingQuery1(false);
   };
 
   const queryStrategy2 = async () => {
     setLoadingQuery2(true);
-    const result = await queryCompany("heuristic");
+    let result;
+    if (cachedMarkdown) {
+      result = await queryCompanyCached("heuristic", cachedMarkdown);
+    } else {
+      result = await queryCompany("heuristic");
+    }
     if (result) {
       setJobsHeuristic(result.jobs);
+      addTestResult({
+        manualJobCount: manualJobCount ? Number(manualJobCount) : undefined,
+        companyNotes: companyNotes || undefined,
+        careerCrawlLatencyMs: result.crawl_latency_ms,
+        processLatencyMs: result.process_latency_ms,
+        llmModel: result.llm_model || undefined,
+        careerPageMethod: result.extraction_method || undefined,
+        careerPageJobsFound: result.jobs.length,
+        careerPageSuccess: result.success,
+        careerPageError: result.error || undefined,
+        jobs: result.jobs || [],
+        extraction_debug: result.extraction_debug,
+        markdown: result.markdown,
+      });
     }
     setLoadingQuery2(false);
   };
 
   const queryStrategy3 = async () => {
     setLoadingQuery3(true);
-    const result = await queryCompany("llm");
+    let result;
+    if (cachedMarkdown) {
+      result = await queryCompanyCached("llm", cachedMarkdown);
+    } else {
+      result = await queryCompany("llm");
+    }
     if (result) {
       setJobsLLM(result.jobs);
+      addTestResult({
+        manualJobCount: manualJobCount ? Number(manualJobCount) : undefined,
+        companyNotes: companyNotes || undefined,
+        careerCrawlLatencyMs: result.crawl_latency_ms,
+        processLatencyMs: result.process_latency_ms,
+        llmModel: result.llm_model || undefined,
+        careerPageMethod: result.extraction_method || undefined,
+        careerPageJobsFound: result.jobs.length,
+        careerPageSuccess: result.success,
+        careerPageError: result.error || undefined,
+        jobs: result.jobs || [],
+        extraction_debug: result.extraction_debug,
+        markdown: result.markdown,
+      });
     }
     setLoadingQuery3(false);
+  };
+
+  const queryHybrid = async () => {
+    setError(null);
+    setLoadingQuery3(true);
+    let result;
+
+    if (cachedMarkdown) {
+      result = await queryCompanyCached("validate", cachedMarkdown);
+    } else {
+      const payload = {
+        company_name: formCompanyName,
+        company_url: formCompanyUrl,
+        careers_page_url: formCareersPageUrl,
+        strategy: "validate",
+      };
+
+      try {
+        const response = await fetch("/api/v1/poc/query-company", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        result = await response.json();
+      } catch (err) {
+        showToast(`Query failed: ${err}`);
+        setLoadingQuery3(false);
+        return;
+      }
+    }
+
+    if (result?.success) {
+      setJobsLLM(result.jobs);
+      addTestResult({
+        manualJobCount: manualJobCount ? Number(manualJobCount) : undefined,
+        companyNotes: companyNotes || undefined,
+        careerCrawlLatencyMs: result.crawl_latency_ms,
+        processLatencyMs: result.process_latency_ms,
+        llmModel: result.llm_model || undefined,
+        careerPageMethod: result.extraction_method || undefined,
+        careerPageJobsFound: result.jobs.length,
+        careerPageSuccess: result.success,
+        careerPageError: result.error || undefined,
+        jobs: result.jobs || [],
+        extraction_debug: result.extraction_debug,
+        markdown: result.markdown,
+      });
+    } else {
+      showToast(result?.error || "Failed to query company");
+    }
+    setLoadingQuery3(false);
+  };
+
+  const queryAllStrategies = async () => {
+    setError(null);
+    setLoadingQuery1(true);
+    setLoadingQuery2(true);
+    setLoadingQuery3(true);
+
+    try {
+      // If no cached markdown, crawl first
+      let markdown = cachedMarkdown;
+      if (!markdown) {
+        const crawlResponse = await fetch("/api/v1/poc/crawl-page", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            company_name: formCompanyName,
+            company_url: formCompanyUrl,
+            careers_page_url: formCareersPageUrl,
+          }),
+        });
+        const crawlData = await crawlResponse.json();
+        if (!crawlData.success) {
+          showToast(`Crawl failed: ${crawlData.error}`);
+          addTestResult({
+            manualJobCount: manualJobCount ? Number(manualJobCount) : undefined,
+            companyNotes: companyNotes || undefined,
+            careerPageMethod: "crawl4ai",
+            careerPageSuccess: false,
+            careerPageError: crawlData.error,
+            markdown: crawlData.markdown,
+          });
+          setLoadingQuery1(false);
+          setLoadingQuery2(false);
+          setLoadingQuery3(false);
+          return;
+        }
+        markdown = crawlData.markdown;
+        setCachedMarkdown(markdown);
+        setCrawlLatencyMs(crawlData.crawl_latency_ms);
+        // Log the crawl
+        addTestResult({
+          manualJobCount: manualJobCount ? Number(manualJobCount) : undefined,
+          companyNotes: companyNotes || undefined,
+          careerCrawlLatencyMs: crawlData.crawl_latency_ms,
+          careerPageMethod: "crawl4ai",
+          careerPageSuccess: true,
+          markdown: markdown || undefined,
+        });
+      }
+
+      // Run all 4 strategies on cached markdown
+      for (const strategy of ["domain", "heuristic", "llm", "validate"]) {
+        const data = await queryCompanyCached(strategy as "domain" | "heuristic" | "llm" | "validate", markdown || "");
+        if (data?.success) {
+          addTestResult({
+            manualJobCount: manualJobCount ? Number(manualJobCount) : undefined,
+            companyNotes: companyNotes || undefined,
+            careerCrawlLatencyMs: data.crawl_latency_ms,
+            processLatencyMs: data.process_latency_ms,
+            llmModel: data.llm_model || undefined,
+            careerPageMethod: data.extraction_method || undefined,
+            careerPageJobsFound: data.jobs.length,
+            careerPageSuccess: data.success,
+            careerPageError: data.error || undefined,
+            jobs: data.jobs || [],
+            extraction_debug: data.extraction_debug,
+            markdown: data.markdown || undefined,
+          });
+          if (strategy === "domain") setJobsDomainFilter(data.jobs);
+          if (strategy === "heuristic") setJobsHeuristic(data.jobs);
+          if (strategy === "llm" || strategy === "validate") setJobsLLM(data.jobs);
+        }
+        // Small delay between requests
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      showToast("All strategies tested");
+    } catch (err) {
+      showToast(`Test all failed: ${err}`);
+    } finally {
+      setLoadingQuery1(false);
+      setLoadingQuery2(false);
+      setLoadingQuery3(false);
+    }
   };
 
   const extractJob = async (strategy: "structured" | "llm" | "hybrid") => {
@@ -287,8 +815,26 @@ export default function CompanyPOCPage() {
           setExtractedJobHybrid(data.job);
         }
         setSelectedExtractTab(strategy);
+        addTestResult({
+          manualJobCount: manualJobCount ? Number(manualJobCount) : undefined,
+          companyNotes: companyNotes || undefined,
+          extractionUrl: state.job_url,
+          extractionLatencyMs: data.latency_ms,
+          extractionMethod: data.extraction_method || undefined,
+          extractionConfidence: data.confidence,
+          extractionSuccess: data.success,
+        });
       } else {
         showToast(data.error || "Failed to extract job");
+        addTestResult({
+          manualJobCount: manualJobCount ? Number(manualJobCount) : undefined,
+          companyNotes: companyNotes || undefined,
+          extractionUrl: state.job_url,
+          extractionLatencyMs: data.latency_ms,
+          extractionMethod: data.extraction_method || undefined,
+          extractionSuccess: false,
+          extractionError: data.error || undefined,
+        });
       }
     } catch (err) {
       showToast(`Extract failed: ${err}`);
@@ -363,6 +909,78 @@ export default function CompanyPOCPage() {
           </div>
         )}
 
+        {/* Test Results Panel */}
+        {testResults.length > 0 && (
+          <div className="bg-gray-800 rounded-lg p-6 space-y-4">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold">Test Results ({testResults.length})</h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={clearTestResults}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-white font-medium text-sm"
+                >
+                  Clear Results
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-600">
+                    <th className="text-left py-2 px-2">Time</th>
+                    <th className="text-left py-2 px-2">Company</th>
+                    <th className="text-left py-2 px-2">Manual Count</th>
+                    <th className="text-left py-2 px-2">Career Crawl (ms)</th>
+                    <th className="text-left py-2 px-2">Process (ms)</th>
+                    <th className="text-left py-2 px-2">Model</th>
+                    <th className="text-left py-2 px-2">Method</th>
+                    <th className="text-left py-2 px-2">Found</th>
+                    <th className="text-left py-2 px-2">Confidence</th>
+                    <th className="text-left py-2 px-2">Company Notes</th>
+                    <th className="text-left py-2 px-2">Errors</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {testResults.map((result) => (
+                    <tr key={result.id} className="border-b border-gray-700 hover:bg-gray-700">
+                      <td className="py-2 px-2 text-gray-400">{result.timestamp}</td>
+                      <td className="py-2 px-2 font-medium truncate max-w-xs">{result.companyName || "—"}</td>
+                      <td className="py-2 px-2 text-yellow-400 font-medium">
+                        {result.manualJobCount !== undefined ? result.manualJobCount : "—"}
+                      </td>
+                      <td className="py-2 px-2">
+                        {result.careerCrawlLatencyMs !== undefined ? (
+                          <span className={result.careerPageSuccess ? "text-green-400" : "text-red-400"}>
+                            {result.careerCrawlLatencyMs.toFixed(0)}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="py-2 px-2">
+                        {result.processLatencyMs !== undefined ? (
+                          <span className="text-blue-400">{result.processLatencyMs.toFixed(0)}</span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="py-2 px-2 text-purple-300 text-xs">{result.llmModel || "—"}</td>
+                      <td className="py-2 px-2 text-gray-300">{result.careerPageMethod || "—"}</td>
+                      <td className="py-2 px-2 text-gray-300">{result.careerPageJobsFound || "—"}</td>
+                      <td className="py-2 px-2 text-gray-300">{result.extractionConfidence || "—"}</td>
+                      <td className="py-2 px-2 text-gray-400 text-xs max-w-xs truncate">{result.companyNotes || "—"}</td>
+                      <td className="py-2 px-2 text-red-400 text-xs max-w-xs truncate">
+                        {result.careerPageError || result.extractionError || "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* Section 1: Company Query */}
         <div className="bg-gray-800 rounded-lg p-6 space-y-4">
           <h2 className="text-2xl font-bold">Section 1: Query Open Roles</h2>
@@ -381,48 +999,138 @@ export default function CompanyPOCPage() {
 
             <div>
               <label className="block text-sm font-medium mb-1">Company URL</label>
-              <input
-                type="text"
-                value={formCompanyUrl}
-                onChange={(e) => setFormCompanyUrl(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-                placeholder="e.g., https://vetcove.com"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={formCompanyUrl}
+                  onChange={(e) => setFormCompanyUrl(e.target.value)}
+                  className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                  placeholder="e.g., https://vetcove.com"
+                />
+                <button
+                  onClick={() => formCompanyUrl && window.open(formCompanyUrl, "_blank")}
+                  disabled={!formCompanyUrl}
+                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded text-white font-medium text-sm"
+                  title="Open in new tab"
+                >
+                  →
+                </button>
+              </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium mb-1">Careers Page URL</label>
-              <input
-                type="text"
-                value={formCareersPageUrl}
-                onChange={(e) => setFormCareersPageUrl(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-                placeholder="e.g., https://vetcove.com/careers"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={formCareersPageUrl}
+                  onChange={(e) => setFormCareersPageUrl(e.target.value)}
+                  className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                  placeholder="e.g., https://vetcove.com/careers"
+                />
+                <button
+                  onClick={() => formCareersPageUrl && window.open(formCareersPageUrl, "_blank")}
+                  disabled={!formCareersPageUrl}
+                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded text-white font-medium text-sm"
+                  title="Open in new tab"
+                >
+                  →
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">Manual Job Count</label>
+                <input
+                  type="number"
+                  value={manualJobCount}
+                  onChange={(e) => setManualJobCount(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                  placeholder="e.g., 27"
+                  min="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Notes</label>
+                <input
+                  type="text"
+                  value={companyNotes}
+                  onChange={(e) => setCompanyNotes(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                  placeholder="e.g., pagination on page 2"
+                />
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          {cachedMarkdown && (
+            <div className="bg-green-900 border border-green-600 p-2 rounded text-green-100 text-xs">
+              ✓ Page crawled ({(crawlLatencyMs! / 1000).toFixed(1)}s) — testing extractions on cached data
+            </div>
+          )}
+
+          {batchTestInProgress && (
+            <div className="bg-blue-900 border border-blue-600 p-3 rounded text-blue-100 text-xs">
+              <div className="font-medium mb-1">Batch Testing in Progress</div>
+              <div>{batchTestStatus}</div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-6 gap-2">
+            <button
+              onClick={crawlPage}
+              disabled={crawlInProgress || !formCareersPageUrl}
+              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-600 rounded text-white font-medium text-xs"
+              title="Crawl page once, then test all strategies on cached data"
+            >
+              {crawlInProgress ? "Crawling..." : "Crawl Page"}
+            </button>
             <button
               onClick={queryStrategy1}
               disabled={loadingQuery1 || !formCareersPageUrl}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded text-white font-medium text-sm"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded text-white font-medium text-xs"
             >
-              {loadingQuery1 ? "Querying..." : "Query 1: Domain"}
+              {loadingQuery1 ? "..." : "Domain"}
             </button>
             <button
               onClick={queryStrategy2}
               disabled={loadingQuery2 || !formCareersPageUrl}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 rounded text-white font-medium text-sm"
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 rounded text-white font-medium text-xs"
             >
-              {loadingQuery2 ? "Querying..." : "Query 2: Heuristic"}
+              {loadingQuery2 ? "..." : "Heuristic"}
             </button>
             <button
               onClick={queryStrategy3}
               disabled={loadingQuery3 || !formCareersPageUrl}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 rounded text-white font-medium text-sm"
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 rounded text-white font-medium text-xs"
             >
-              {loadingQuery3 ? "Querying..." : "Query 3: LLM"}
+              {loadingQuery3 ? "..." : "LLM"}
+            </button>
+            <button
+              onClick={queryHybrid}
+              disabled={loadingQuery3 || !formCareersPageUrl}
+              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 rounded text-white font-medium text-xs"
+            >
+              {loadingQuery3 ? "..." : "Hybrid"}
+            </button>
+            <button
+              onClick={queryAllStrategies}
+              disabled={loadingQuery1 || loadingQuery2 || loadingQuery3 || !formCareersPageUrl}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 rounded text-white font-medium text-xs"
+            >
+              {loadingQuery1 || loadingQuery2 || loadingQuery3 ? "..." : "Test All 4"}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-2 mt-2">
+            <button
+              onClick={testAllCompanies}
+              disabled={batchTestInProgress || state.companies.length === 0}
+              className="px-4 py-3 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 rounded text-white font-medium text-sm"
+              title="Test all companies with all 4 strategies (crawl + domain + heuristic + llm + hybrid)"
+            >
+              {batchTestInProgress ? `Testing... (${batchTestStatus})` : `Test All ${state.companies.length} Companies`}
             </button>
           </div>
 

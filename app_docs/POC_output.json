@@ -1,0 +1,546 @@
+{
+  "companies": [
+    {
+      "company_name": "Vetcove",
+      "company_url": "https://vetcove.com",
+      "careers_page_url": "https://vetcove.com/careers"
+    },
+    {
+      "company_name": "Mozilla",
+      "company_url": "https://www.mozilla.org/",
+      "careers_page_url": "https://www.mozilla.org/en-US/careers/listings/"
+    },
+    {
+      "company_name": "Teamworks",
+      "company_url": "https://teamworks.com/",
+      "careers_page_url": "https://jobs.ashbyhq.com/teamworks"
+    },
+    {
+      "company_name": "Calendly",
+      "company_url": "https://calendly.com/",
+      "careers_page_url": "https://careers-assets.calendly.com/jobs"
+    },
+    {
+      "company_name": "Hudl",
+      "company_url": "https://www.hudl.com/",
+      "careers_page_url": "https://www.hudl.com/jobs/search"
+    },
+    {
+      "company_name": "Bitwarden",
+      "company_url": "https://bitwarden.com/",
+      "careers_page_url": "https://bitwarden.com/careers/#open-positions"
+    },
+    {
+      "company_name": "1Password",
+      "company_url": "https://1password.com/",
+      "careers_page_url": "https://jobs.ashbyhq.com/1password"
+    },
+    {
+      "company_name": "Proton",
+      "company_url": "https://proton.me/",
+      "careers_page_url": "https://proton.me/careers#jobslist"
+    },
+    {
+      "company_name": "Wikimedia Foundation",
+      "company_url": "https://wikimediafoundation.org",
+      "careers_page_url": "https://wikimediafoundation.org/jobs/"
+    }
+  ],
+  "testResults": [
+    {
+      "id": "test-1786471592391-0.7688193483903647",
+      "timestamp": "2:06:32 PM",
+      "companyName": "Wikimedia Foundation",
+      "careersPageUrl": "https://wikimediafoundation.org/jobs/",
+      "careerCrawlLatencyMs": 4463.602066040039,
+      "processLatencyMs": 46500.21409988403,
+      "llmModel": "qwen2.5:3b",
+      "careerPageMethod": "validate",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471545585-0.7520907537608199",
+      "timestamp": "2:05:45 PM",
+      "companyName": "Wikimedia Foundation",
+      "careersPageUrl": "https://wikimediafoundation.org/jobs/",
+      "careerCrawlLatencyMs": 4463.602066040039,
+      "processLatencyMs": 83034.85321998596,
+      "llmModel": "qwen2.5:3b",
+      "careerPageMethod": "llm",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471462244-0.3058197718401974",
+      "timestamp": "2:04:22 PM",
+      "companyName": "Wikimedia Foundation",
+      "careersPageUrl": "https://wikimediafoundation.org/jobs/",
+      "careerCrawlLatencyMs": 4463.602066040039,
+      "processLatencyMs": 0.05173683166503906,
+      "careerPageMethod": "heuristic",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471461929-0.016710570925574264",
+      "timestamp": "2:04:21 PM",
+      "companyName": "Wikimedia Foundation",
+      "careersPageUrl": "https://wikimediafoundation.org/jobs/",
+      "careerCrawlLatencyMs": 4463.602066040039,
+      "processLatencyMs": 0.05125999450683594,
+      "careerPageMethod": "domain_filter",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471461910-0.9757220386901563",
+      "timestamp": "2:04:21 PM",
+      "companyName": "Wikimedia Foundation",
+      "careersPageUrl": "https://wikimediafoundation.org/jobs/",
+      "careerCrawlLatencyMs": 4463.602066040039,
+      "careerPageMethod": "crawl4ai",
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471456639-0.9550749064071928",
+      "timestamp": "2:04:16 PM",
+      "companyName": "Proton",
+      "careersPageUrl": "https://proton.me/careers#jobslist",
+      "careerCrawlLatencyMs": 5756.175518035889,
+      "processLatencyMs": 32279.639959335327,
+      "llmModel": "qwen2.5:3b",
+      "careerPageMethod": "validate",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471424052-0.3169154617772576",
+      "timestamp": "2:03:44 PM",
+      "companyName": "Proton",
+      "careersPageUrl": "https://proton.me/careers#jobslist",
+      "careerCrawlLatencyMs": 5756.175518035889,
+      "processLatencyMs": 38170.81594467163,
+      "llmModel": "qwen2.5:3b",
+      "careerPageMethod": "llm",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471385574-0.765139322195938",
+      "timestamp": "2:03:05 PM",
+      "companyName": "Proton",
+      "careersPageUrl": "https://proton.me/careers#jobslist",
+      "careerCrawlLatencyMs": 5756.175518035889,
+      "processLatencyMs": 0.17786026000976562,
+      "careerPageMethod": "heuristic",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471385263-0.6334935796934241",
+      "timestamp": "2:03:05 PM",
+      "companyName": "Proton",
+      "careersPageUrl": "https://proton.me/careers#jobslist",
+      "careerCrawlLatencyMs": 5756.175518035889,
+      "processLatencyMs": 0.17762184143066406,
+      "careerPageMethod": "domain_filter",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471385247-0.8445725469241959",
+      "timestamp": "2:03:05 PM",
+      "companyName": "Proton",
+      "careersPageUrl": "https://proton.me/careers#jobslist",
+      "careerCrawlLatencyMs": 5756.175518035889,
+      "careerPageMethod": "crawl4ai",
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471378660-0.775735070040524",
+      "timestamp": "2:02:58 PM",
+      "companyName": "1Password",
+      "careersPageUrl": "https://jobs.ashbyhq.com/1password",
+      "careerCrawlLatencyMs": 3756.4125061035156,
+      "processLatencyMs": 8696.36845588684,
+      "llmModel": "qwen2.5:3b",
+      "careerPageMethod": "validate",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471369657-0.406088527118199",
+      "timestamp": "2:02:49 PM",
+      "companyName": "1Password",
+      "careersPageUrl": "https://jobs.ashbyhq.com/1password",
+      "careerCrawlLatencyMs": 3756.4125061035156,
+      "processLatencyMs": 15387.197971343994,
+      "llmModel": "qwen2.5:3b",
+      "careerPageMethod": "llm",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471353962-0.5131290415033409",
+      "timestamp": "2:02:33 PM",
+      "companyName": "1Password",
+      "careersPageUrl": "https://jobs.ashbyhq.com/1password",
+      "careerCrawlLatencyMs": 3756.4125061035156,
+      "processLatencyMs": 0.04553794860839844,
+      "careerPageMethod": "heuristic",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471353649-0.9278588510452042",
+      "timestamp": "2:02:33 PM",
+      "companyName": "1Password",
+      "careersPageUrl": "https://jobs.ashbyhq.com/1password",
+      "careerCrawlLatencyMs": 3756.4125061035156,
+      "processLatencyMs": 0.03838539123535156,
+      "careerPageMethod": "domain_filter",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471353633-0.3662789831915163",
+      "timestamp": "2:02:33 PM",
+      "companyName": "1Password",
+      "careersPageUrl": "https://jobs.ashbyhq.com/1password",
+      "careerCrawlLatencyMs": 3756.4125061035156,
+      "careerPageMethod": "crawl4ai",
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471349071-0.2393702021607078",
+      "timestamp": "2:02:29 PM",
+      "companyName": "Bitwarden",
+      "careersPageUrl": "https://bitwarden.com/careers/#open-positions",
+      "careerCrawlLatencyMs": 5555.619478225708,
+      "processLatencyMs": 80084.74063873291,
+      "llmModel": "qwen2.5:3b",
+      "careerPageMethod": "validate",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471268680-0.374866187680327",
+      "timestamp": "2:01:08 PM",
+      "companyName": "Bitwarden",
+      "careersPageUrl": "https://bitwarden.com/careers/#open-positions",
+      "careerCrawlLatencyMs": 5555.619478225708,
+      "processLatencyMs": 82851.63593292236,
+      "llmModel": "qwen2.5:3b",
+      "careerPageMethod": "llm",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471185521-0.34759241946982367",
+      "timestamp": "1:59:45 PM",
+      "companyName": "Bitwarden",
+      "careersPageUrl": "https://bitwarden.com/careers/#open-positions",
+      "careerCrawlLatencyMs": 5555.619478225708,
+      "processLatencyMs": 0.17762184143066406,
+      "careerPageMethod": "heuristic",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471185210-0.5709482997843329",
+      "timestamp": "1:59:45 PM",
+      "companyName": "Bitwarden",
+      "careersPageUrl": "https://bitwarden.com/careers/#open-positions",
+      "careerCrawlLatencyMs": 5555.619478225708,
+      "processLatencyMs": 0.17452239990234375,
+      "careerPageMethod": "domain_filter",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471185193-0.8712424328703725",
+      "timestamp": "1:59:45 PM",
+      "companyName": "Bitwarden",
+      "careersPageUrl": "https://bitwarden.com/careers/#open-positions",
+      "careerCrawlLatencyMs": 5555.619478225708,
+      "careerPageMethod": "crawl4ai",
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471178829-0.253109555064414",
+      "timestamp": "1:59:38 PM",
+      "companyName": "Hudl",
+      "careersPageUrl": "https://www.hudl.com/jobs/search",
+      "careerCrawlLatencyMs": 5473.970890045166,
+      "processLatencyMs": 61260.07676124573,
+      "llmModel": "qwen2.5:3b",
+      "careerPageMethod": "validate",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471117263-0.11692902771777691",
+      "timestamp": "1:58:37 PM",
+      "companyName": "Hudl",
+      "careersPageUrl": "https://www.hudl.com/jobs/search",
+      "careerCrawlLatencyMs": 5473.970890045166,
+      "processLatencyMs": 56100.849628448486,
+      "llmModel": "qwen2.5:3b",
+      "careerPageMethod": "llm",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471060855-0.27135474667809634",
+      "timestamp": "1:57:40 PM",
+      "companyName": "Hudl",
+      "careersPageUrl": "https://www.hudl.com/jobs/search",
+      "careerCrawlLatencyMs": 5473.970890045166,
+      "processLatencyMs": 0.07009506225585938,
+      "careerPageMethod": "heuristic",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471060544-0.42336389277797515",
+      "timestamp": "1:57:40 PM",
+      "companyName": "Hudl",
+      "careersPageUrl": "https://www.hudl.com/jobs/search",
+      "careerCrawlLatencyMs": 5473.970890045166,
+      "processLatencyMs": 0.06008148193359375,
+      "careerPageMethod": "domain_filter",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471060530-0.25653062658424186",
+      "timestamp": "1:57:40 PM",
+      "companyName": "Hudl",
+      "careersPageUrl": "https://www.hudl.com/jobs/search",
+      "careerCrawlLatencyMs": 5473.970890045166,
+      "careerPageMethod": "crawl4ai",
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471054250-0.10528656517738466",
+      "timestamp": "1:57:34 PM",
+      "companyName": "Calendly",
+      "careersPageUrl": "https://careers-assets.calendly.com/jobs",
+      "careerCrawlLatencyMs": 4091.1591053009033,
+      "processLatencyMs": 10074.870586395264,
+      "llmModel": "qwen2.5:3b",
+      "careerPageMethod": "validate",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471043869-0.10410812489802035",
+      "timestamp": "1:57:23 PM",
+      "companyName": "Calendly",
+      "careersPageUrl": "https://careers-assets.calendly.com/jobs",
+      "careerCrawlLatencyMs": 4091.1591053009033,
+      "processLatencyMs": 30716.93253517151,
+      "llmModel": "qwen2.5:3b",
+      "careerPageMethod": "llm",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471012846-0.0502513547721134",
+      "timestamp": "1:56:52 PM",
+      "companyName": "Calendly",
+      "careersPageUrl": "https://careers-assets.calendly.com/jobs",
+      "careerCrawlLatencyMs": 4091.1591053009033,
+      "processLatencyMs": 0.02193450927734375,
+      "careerPageMethod": "heuristic",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471012538-0.22363443277967376",
+      "timestamp": "1:56:52 PM",
+      "companyName": "Calendly",
+      "careersPageUrl": "https://careers-assets.calendly.com/jobs",
+      "careerCrawlLatencyMs": 4091.1591053009033,
+      "processLatencyMs": 0.02193450927734375,
+      "careerPageMethod": "domain_filter",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471012525-0.08202721576456151",
+      "timestamp": "1:56:52 PM",
+      "companyName": "Calendly",
+      "careersPageUrl": "https://careers-assets.calendly.com/jobs",
+      "careerCrawlLatencyMs": 4091.1591053009033,
+      "careerPageMethod": "crawl4ai",
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786471007628-0.5623073303640325",
+      "timestamp": "1:56:47 PM",
+      "companyName": "Teamworks",
+      "careersPageUrl": "https://jobs.ashbyhq.com/teamworks",
+      "careerCrawlLatencyMs": 3766.0531997680664,
+      "processLatencyMs": 13329.4358253479,
+      "llmModel": "qwen2.5:3b",
+      "careerPageMethod": "validate",
+      "careerPageJobsFound": 7,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786470993285-0.4378777647715846",
+      "timestamp": "1:56:33 PM",
+      "companyName": "Teamworks",
+      "careersPageUrl": "https://jobs.ashbyhq.com/teamworks",
+      "careerCrawlLatencyMs": 3766.0531997680664,
+      "processLatencyMs": 16372.627973556519,
+      "llmModel": "qwen2.5:3b",
+      "careerPageMethod": "llm",
+      "careerPageJobsFound": 7,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786470975873-0.7920471540401003",
+      "timestamp": "1:56:15 PM",
+      "companyName": "Teamworks",
+      "careersPageUrl": "https://jobs.ashbyhq.com/teamworks",
+      "careerCrawlLatencyMs": 3766.0531997680664,
+      "processLatencyMs": 0.02765655517578125,
+      "careerPageMethod": "heuristic",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786470974850-0.8463764796463171",
+      "timestamp": "1:56:14 PM",
+      "companyName": "Teamworks",
+      "careersPageUrl": "https://jobs.ashbyhq.com/teamworks",
+      "careerCrawlLatencyMs": 3766.0531997680664,
+      "processLatencyMs": 0.03790855407714844,
+      "careerPageMethod": "domain_filter",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786470974844-0.4476643932656045",
+      "timestamp": "1:56:14 PM",
+      "companyName": "Teamworks",
+      "careersPageUrl": "https://jobs.ashbyhq.com/teamworks",
+      "careerCrawlLatencyMs": 3766.0531997680664,
+      "careerPageMethod": "crawl4ai",
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786470969064-0.2401159557483339",
+      "timestamp": "1:56:09 PM",
+      "companyName": "Mozilla",
+      "careersPageUrl": "https://www.mozilla.org/en-US/careers/listings/",
+      "careerCrawlLatencyMs": 4982.9421043396,
+      "processLatencyMs": 71595.53217887878,
+      "llmModel": "qwen2.5:3b",
+      "careerPageMethod": "validate",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786470896455-0.9775451208746531",
+      "timestamp": "1:54:56 PM",
+      "companyName": "Mozilla",
+      "careersPageUrl": "https://www.mozilla.org/en-US/careers/listings/",
+      "careerCrawlLatencyMs": 4982.9421043396,
+      "processLatencyMs": 71268.20683479309,
+      "llmModel": "qwen2.5:3b",
+      "careerPageMethod": "llm",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786470824882-0.3112814924387334",
+      "timestamp": "1:53:44 PM",
+      "companyName": "Mozilla",
+      "careersPageUrl": "https://www.mozilla.org/en-US/careers/listings/",
+      "careerCrawlLatencyMs": 4982.9421043396,
+      "processLatencyMs": 0.04482269287109375,
+      "careerPageMethod": "heuristic",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786470824576-0.9960205217354372",
+      "timestamp": "1:53:44 PM",
+      "companyName": "Mozilla",
+      "careersPageUrl": "https://www.mozilla.org/en-US/careers/listings/",
+      "careerCrawlLatencyMs": 4982.9421043396,
+      "processLatencyMs": 0.0438690185546875,
+      "careerPageMethod": "domain_filter",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786470824567-0.6781582848768161",
+      "timestamp": "1:53:44 PM",
+      "companyName": "Mozilla",
+      "careersPageUrl": "https://www.mozilla.org/en-US/careers/listings/",
+      "careerCrawlLatencyMs": 4982.9421043396,
+      "careerPageMethod": "crawl4ai",
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786470818777-0.09764034845505865",
+      "timestamp": "1:53:38 PM",
+      "companyName": "Vetcove",
+      "careersPageUrl": "https://vetcove.com/careers",
+      "careerCrawlLatencyMs": 6360.430955886841,
+      "processLatencyMs": 51714.00046348572,
+      "llmModel": "qwen2.5:3b",
+      "careerPageMethod": "validate",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786470766757-0.18336949449381035",
+      "timestamp": "1:52:46 PM",
+      "companyName": "Vetcove",
+      "careersPageUrl": "https://vetcove.com/careers",
+      "careerCrawlLatencyMs": 6360.430955886841,
+      "processLatencyMs": 80764.91022109985,
+      "llmModel": "qwen2.5:3b",
+      "careerPageMethod": "llm",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786470685687-0.19151691005422533",
+      "timestamp": "1:51:25 PM",
+      "companyName": "Vetcove",
+      "careersPageUrl": "https://vetcove.com/careers",
+      "careerCrawlLatencyMs": 6360.430955886841,
+      "processLatencyMs": 0.06008148193359375,
+      "careerPageMethod": "heuristic",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786470685380-0.6352943028177137",
+      "timestamp": "1:51:25 PM",
+      "companyName": "Vetcove",
+      "careersPageUrl": "https://vetcove.com/careers",
+      "careerCrawlLatencyMs": 6360.430955886841,
+      "processLatencyMs": 0.19216537475585938,
+      "careerPageMethod": "domain_filter",
+      "careerPageJobsFound": 0,
+      "careerPageSuccess": true
+    },
+    {
+      "id": "test-1786470685369-0.95141991865715",
+      "timestamp": "1:51:25 PM",
+      "companyName": "Vetcove",
+      "careersPageUrl": "https://vetcove.com/careers",
+      "careerCrawlLatencyMs": 6360.430955886841,
+      "careerPageMethod": "crawl4ai",
+      "careerPageSuccess": true
+    }
+  ]
+}
