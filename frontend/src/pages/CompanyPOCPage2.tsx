@@ -38,11 +38,24 @@ interface OrgRole {
   description: string | null;
   salary_range: string | null;
   remote_type: string;
+  first_seen_date: string;
+  last_seen_date: string;
+  scrape_date: string;
+  keywords: string | null;
+  markdown: string | null;
   local_score_overall: number | null;
+  local_score_fit: number | null;
+  local_score_scope: number | null;
+  local_score_culture: number | null;
+  local_score_comp: number | null;
   is_interesting: boolean;
   is_active: boolean;
   missing_count: number;
+  crawl_count: number;
   created_at: string;
+  modified_at: string;
+  project_id: number | null;
+  job_id: number | null;
 }
 
 export default function CompanyPOCPage2() {

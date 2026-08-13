@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { Org, CreateOrgPayload, CreateOrgResult, JobResearch, OrgCrawl, OrgCrawlLog } from '@/types/api'
+import type { Org, CreateOrgPayload, CreateOrgResult, JobResearch, OrgCrawl, OrgCrawlLog, OrgRole } from '@/types/api'
 
 // ─── Fetchers ─────────────────────────────────────────────────────────────────
 
@@ -32,6 +32,12 @@ async function fetchCrawlLogs(orgId: number, crawlId: number): Promise<OrgCrawlL
   const res = await fetch(`/api/v1/orgs/${orgId}/crawls/${crawlId}/logs`)
   if (!res.ok) throw new Error(`crawl logs ${crawlId} ${res.status}`)
   return res.json() as Promise<OrgCrawlLog[]>
+}
+
+async function fetchOrgRoles(orgId: number): Promise<OrgRole[]> {
+  const res = await fetch(`/api/v1/orgs/${orgId}/roles`)
+  if (!res.ok) throw new Error(`org roles ${orgId} ${res.status}`)
+  return res.json() as Promise<OrgRole[]>
 }
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
@@ -67,6 +73,13 @@ export function useCrawlLogs(orgId: number, crawlId: number | null) {
     queryKey: ['crawl-logs', crawlId],
     queryFn: () => fetchCrawlLogs(orgId, crawlId!),
     enabled: crawlId !== null,
+  })
+}
+
+export function useOrgRoles(orgId: number) {
+  return useQuery({
+    queryKey: ['org-roles', orgId],
+    queryFn: () => fetchOrgRoles(orgId),
   })
 }
 
@@ -154,6 +167,21 @@ export function useExportCrawlLogs(orgId: number, crawlId: number) {
       if (!res.ok) {
         const err = (await res.json().catch(() => ({}))) as { detail?: string }
         throw new Error(err.detail ?? `export crawl logs ${res.status}`)
+      }
+      return res.json() as Promise<{ success: boolean; filename: string }>
+    },
+  })
+}
+
+export function useExportOrgRoles(orgId: number) {
+  return useMutation({
+    mutationFn: async (): Promise<{ success: boolean; filename: string }> => {
+      const res = await fetch(`/api/v1/orgs/${orgId}/roles/export`, {
+        method: 'POST',
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw new Error(err.detail ?? `export org roles ${res.status}`)
       }
       return res.json() as Promise<{ success: boolean; filename: string }>
     },

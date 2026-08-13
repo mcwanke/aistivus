@@ -3,6 +3,7 @@ Org management routes for Phase 2.7 company workflows.
 """
 
 import json
+from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
@@ -209,9 +210,6 @@ async def get_crawl_logs(org_id: int, crawl_id: int) -> list[dict]:
 @router.post("/{org_id}/crawls/export")
 async def export_org_crawls(org_id: int) -> dict:
     """Export all crawls for an org as JSON."""
-    from pathlib import Path
-    from datetime import datetime
-
     org = database.get_org(org_id)
     if not org:
         raise HTTPException(status_code=404, detail=f"Org {org_id} not found.")
@@ -219,12 +217,10 @@ async def export_org_crawls(org_id: int) -> dict:
     crawls = database.get_org_crawls(org_id)
     crawl_dicts = [dict(row) for row in crawls]
 
-    export_dir = Path("app_data/exports")
+    export_dir = Path("user_data/exports")
     export_dir.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    org_name_safe = "".join(c if c.isalnum() or c in "_-" else "_" for c in org["name"])[:64]
-    filename = f"crawls_{org_name_safe}_{org_id}_{timestamp}.json"
+    filename = database.generate_export_filename(org["name"], "crawls")
     filepath = export_dir / filename
 
     with open(filepath, "w") as f:
@@ -236,9 +232,6 @@ async def export_org_crawls(org_id: int) -> dict:
 @router.post("/{org_id}/crawls/{crawl_id}/logs/export")
 async def export_crawl_logs(org_id: int, crawl_id: int) -> dict:
     """Export logs for a specific crawl as JSON."""
-    from pathlib import Path
-    from datetime import datetime
-
     org = database.get_org(org_id)
     if not org:
         raise HTTPException(status_code=404, detail=f"Org {org_id} not found.")
@@ -254,15 +247,35 @@ async def export_crawl_logs(org_id: int, crawl_id: int) -> dict:
     logs = database.get_org_crawl_logs(crawl_id)
     log_dicts = [dict(row) for row in logs]
 
-    export_dir = Path("app_data/exports")
+    export_dir = Path("user_data/exports")
     export_dir.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    org_name_safe = "".join(c if c.isalnum() or c in "_-" else "_" for c in org["name"])[:64]
-    filename = f"crawl_logs_{org_name_safe}_{org_id}_crawl{crawl_id}_{timestamp}.json"
+    filename = database.generate_export_filename(org["name"], "crawllogs")
     filepath = export_dir / filename
 
     with open(filepath, "w") as f:
         json.dump(log_dicts, f, indent=2)
+
+    return JSONResponse({"success": True, "filename": filename})
+
+
+@router.post("/{org_id}/roles/export")
+async def export_org_roles(org_id: int) -> dict:
+    """Export all roles for an org as JSON."""
+    org = database.get_org(org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail=f"Org {org_id} not found.")
+
+    roles = database.get_org_roles(org_id, include_inactive=True)
+    role_dicts = [dict(row) for row in roles]
+
+    export_dir = Path("user_data/exports")
+    export_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = database.generate_export_filename(org["name"], "allroles")
+    filepath = export_dir / filename
+
+    with open(filepath, "w") as f:
+        json.dump(role_dicts, f, indent=2)
 
     return JSONResponse({"success": True, "filename": filename})

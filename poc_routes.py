@@ -1303,19 +1303,20 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
                     status_code=200,  # LLM succeeded
                 )
 
-                # Insert to DB
-                role_id = database.insert_org_role(
+                # Insert or update in DB
+                role_id = database.upsert_org_role(
                     org_id,
                     title=extracted.get("title", job_title),
                     role_url=job_url,
                     description=extracted.get("description"),
                     salary_range=extracted.get("salary_range"),
                     remote_type=extracted.get("remote_type", "unknown"),
+                    markdown=job_markdown,
                     is_interesting=None,
                     is_active=1,
                     missing_count=0,
                 )
-                debug_log.append(f"[9.{idx}.d] Inserted to DB: role_id={role_id}")
+                debug_log.append(f"[9.{idx}.d] Upserted to DB: role_id={role_id}")
 
                 new_validated_urls.append(job_url)
 
@@ -1360,9 +1361,10 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
             missing_roles=missing_roles_count,
             matched_roles=matched_roles_count,
             unvalidated_roles=unvalidated_roles_count,
+            career_page_markdown=career_markdown,
         )
-        # Update org's last_crawl_at timestamp
-        database.update_org_last_crawl(org_id)
+        # Update org's last_crawl_at timestamp and career page markdown
+        database.update_org_last_crawl(org_id, markdown=career_markdown)
         debug_log.append(f"[12] Updated org_crawls: found={len(scraped_urls)}, added={len(new_validated_urls)}, closed={inactive_count}")
 
         return {

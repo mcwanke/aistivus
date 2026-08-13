@@ -70,6 +70,18 @@ def _get_db_path() -> Path:
     return Path(config.get("database", {}).get("db_path", "./app_data/data/jobs.db"))
 
 
+def generate_export_filename(org_name: str, output_type: str) -> str:
+    """
+    Generate export filename in format: YYYYMMDD_HHmmss_orgnamestripped_outputtype.json
+    - org_name: stripped of spaces/special chars, lowercase
+    - output_type: "crawls", "crawllogs", "allroles"
+    """
+    now = datetime.now()
+    timestamp = now.strftime("%Y%m%d_%H%M%S")
+    org_safe = re.sub(r"[^a-z0-9]", "", org_name.lower())
+    return f"{timestamp}_{org_safe}_{output_type}.json"
+
+
 # ─────────────────────────────────────────────────────────────
 # Connection
 # ─────────────────────────────────────────────────────────────
@@ -461,6 +473,7 @@ CREATE TABLE IF NOT EXISTS orgs (
     crawl_offset_minutes  INTEGER NOT NULL,
     last_crawl_at         TEXT,
     next_crawl_at         TEXT,
+    markdown              TEXT,
     created_at            TEXT NOT NULL DEFAULT (datetime('now')),
     modified_at           TEXT NOT NULL DEFAULT (datetime('now')),
     project_id            INTEGER
@@ -517,6 +530,8 @@ CREATE TABLE IF NOT EXISTS org_roles (
     is_interesting       BOOLEAN DEFAULT 0,
     job_id               INTEGER REFERENCES jobs(id),
     missing_count        INTEGER DEFAULT 0,
+    crawl_count          INTEGER DEFAULT 1,
+    markdown             TEXT,
     is_active            BOOLEAN DEFAULT 1,
     created_at           TEXT NOT NULL DEFAULT (datetime('now')),
     modified_at          TEXT NOT NULL DEFAULT (datetime('now')),
@@ -772,6 +787,23 @@ def init_db() -> None:
 
         try:
             conn.execute("ALTER TABLE org_crawl_logs ADD COLUMN tokens_response INTEGER")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+        # Phase 2.7 — org_roles crawl_count tracking
+        try:
+            conn.execute("ALTER TABLE org_roles ADD COLUMN crawl_count INTEGER NOT NULL DEFAULT 1")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+        # Phase 2.7 — markdown storage for roles and career pages
+        try:
+            conn.execute("ALTER TABLE org_roles ADD COLUMN markdown TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+        try:
+            conn.execute("ALTER TABLE orgs ADD COLUMN markdown TEXT")
         except sqlite3.OperationalError:
             pass  # column already exists
 
@@ -3402,6 +3434,7 @@ def update_org_crawl_completion(
     roles_added: int = 0,
     roles_closed: int = 0,
     error_msg: str | None = None,
+    career_page_markdown: str | None = None,
     **kwargs
 ) -> None:
     """Mark an org_crawl as complete with results."""
@@ -3412,26 +3445,32 @@ def update_org_crawl_completion(
                SET status = ?, completed_at = ?, roles_found = ?, roles_added = ?, roles_closed = ?, error_msg = ?,
                    domain_roles = ?, heuristic_roles = ?, dedupe_roles = ?,
                    current_org_roles = ?, missing_roles = ?, matched_roles = ?,
-                   unvalidated_roles = ?
+                   unvalidated_roles = ?, career_page_markdown = ?
                WHERE id = ?""",
             (
                 status, completed_at, roles_found, roles_added, roles_closed, error_msg,
                 kwargs.get("domain_roles"), kwargs.get("heuristic_roles"), kwargs.get("dedupe_roles"),
                 kwargs.get("current_org_roles"), kwargs.get("missing_roles"), kwargs.get("matched_roles"),
-                kwargs.get("unvalidated_roles"),
+                kwargs.get("unvalidated_roles"), career_page_markdown,
                 crawl_id
             )
         )
 
 
-def update_org_last_crawl(org_id: int) -> None:
-    """Update org's last_crawl_at timestamp."""
+def update_org_last_crawl(org_id: int, markdown: str | None = None) -> None:
+    """Update org's last_crawl_at timestamp and optionally its career page markdown."""
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     with get_connection() as conn:
-        conn.execute(
-            """UPDATE orgs SET last_crawl_at = ? WHERE id = ?""",
-            (now, org_id)
-        )
+        if markdown:
+            conn.execute(
+                """UPDATE orgs SET last_crawl_at = ?, markdown = ? WHERE id = ?""",
+                (now, markdown, org_id)
+            )
+        else:
+            conn.execute(
+                """UPDATE orgs SET last_crawl_at = ? WHERE id = ?""",
+                (now, org_id)
+            )
 
 
 def insert_org_crawl_log(
@@ -3547,7 +3586,7 @@ def insert_org_role(
     allowed = [
         "description", "salary_range", "remote_type",
         "first_seen_date", "last_seen_date", "scrape_date",
-        "keywords", "local_score_overall", "local_score_fit",
+        "keywords", "markdown", "local_score_overall", "local_score_fit",
         "local_score_scope", "local_score_culture", "local_score_comp",
         "is_interesting", "job_id", "is_active", "missing_count"
     ]
@@ -3564,17 +3603,17 @@ def insert_org_role(
         conn.execute(
             """INSERT INTO org_roles
                (org_id, title, role_url, description, salary_range, remote_type,
-                first_seen_date, last_seen_date, scrape_date, keywords,
+                first_seen_date, last_seen_date, scrape_date, keywords, markdown,
                 local_score_overall, local_score_fit, local_score_scope,
                 local_score_culture, local_score_comp, is_interesting, job_id,
                 is_active, missing_count)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                        ?, ?)""",
             (
                 insert_params["org_id"], insert_params["title"], insert_params["role_url"],
                 insert_params["description"], insert_params["salary_range"], insert_params["remote_type"],
                 insert_params["first_seen_date"], insert_params["last_seen_date"], insert_params["scrape_date"],
-                insert_params["keywords"],
+                insert_params["keywords"], insert_params["markdown"],
                 insert_params["local_score_overall"], insert_params["local_score_fit"],
                 insert_params["local_score_scope"], insert_params["local_score_culture"],
                 insert_params["local_score_comp"], insert_params["is_interesting"], insert_params["job_id"],
@@ -3582,6 +3621,46 @@ def insert_org_role(
             )
         )
         return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def upsert_org_role(
+    org_id: int,
+    title: str,
+    role_url: str | None = None,
+    markdown: str | None = None,
+    **kwargs
+) -> int:
+    """
+    Insert or update an org_role record.
+    If a role with (org_id, role_url) exists, update it (increment crawl_count, update last_seen_date, update markdown).
+    Otherwise, insert a new role.
+    Returns the role id.
+    """
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+    with get_connection() as conn:
+        # Check if role already exists
+        existing = conn.execute(
+            "SELECT id FROM org_roles WHERE org_id = ? AND role_url = ?",
+            (org_id, role_url)
+        ).fetchone()
+
+        if existing:
+            # Update existing role: increment crawl_count, update last_seen_date, update markdown
+            role_id = existing["id"]
+            conn.execute(
+                """UPDATE org_roles
+                   SET crawl_count = crawl_count + 1,
+                       last_seen_date = ?,
+                       markdown = ?,
+                       modified_at = ?
+                   WHERE id = ?""",
+                (now, markdown, now, role_id)
+            )
+            return role_id
+        else:
+            # Insert new role (default crawl_count = 1)
+            return insert_org_role(org_id, title, role_url, markdown=markdown, **kwargs)
 
 
 def update_org_role_missing_count(org_id: int, found_urls: set[str]) -> None:

@@ -625,6 +625,7 @@ export interface Org {
   crawl_offset_minutes: number
   last_crawl_at: string | null
   next_crawl_at: string | null
+  markdown: string | null
   created_at: string
   modified_at: string
 }
@@ -687,5 +688,33 @@ export interface OrgCrawlLog {
   method: string | null
   error_msg: string | null
   created_at: string
+}
+
+export interface OrgRole {
+  id: number
+  org_id: number
+  title: string
+  role_url: string | null
+  description: string | null
+  salary_range: string | null
+  remote_type: string
+  first_seen_date: string
+  last_seen_date: string
+  scrape_date: string
+  keywords: string | null
+  markdown: string | null
+  local_score_overall: number | null
+  local_score_fit: number | null
+  local_score_scope: number | null
+  local_score_culture: number | null
+  local_score_comp: number | null
+  is_interesting: number
+  job_id: number | null
+  missing_count: number
+  crawl_count: number
+  is_active: number
+  created_at: string
+  modified_at: string
+  project_id: number | null
 }
 

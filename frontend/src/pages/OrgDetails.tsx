@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import AppHeader from '@/components/AppHeader'
-import { useOrgDetail, useOrgResearch, useGenerateOrgResearchPrompt, useImportOrgResearch, useOrgCrawls, useCrawlLogs, useExportOrgCrawls, useExportCrawlLogs } from '@/hooks/useOrgs'
-import type { JobResearch, OrgCrawl, OrgCrawlLog } from '@/types/api'
+import { useOrgDetail, useOrgResearch, useGenerateOrgResearchPrompt, useImportOrgResearch, useOrgCrawls, useCrawlLogs, useExportOrgCrawls, useExportCrawlLogs, useOrgRoles, useExportOrgRoles } from '@/hooks/useOrgs'
+import type { JobResearch, OrgCrawl, OrgCrawlLog, OrgRole } from '@/types/api'
 
 // ─── Tab type ─────────────────────────────────────────────────────────────────
 
@@ -69,10 +69,6 @@ function JsonList({ raw }: { raw: string | null }): React.JSX.Element {
 // ─── Research display ─────────────────────────────────────────────────────────
 
 function ResearchDisplay({ research }: { research: JobResearch }): React.JSX.Element {
-  const ts = new Date(research.imported_at).toLocaleDateString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric',
-  })
-
   return (
     <div className="space-y-5">
       {/* Summary */}
@@ -476,7 +472,7 @@ function CrawlsTab({ orgId, orgName }: { orgId: number; orgName: string }): Reac
   }
 
   return (
-    <div className="space-y-6">
+    <div className="px-[5%] py-6 space-y-6">
       {/* Title */}
       <div>
         <h2 className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Crawl Information</h2>
@@ -807,6 +803,307 @@ function formatLogsAsText(logs: OrgCrawlLog[]): string {
   return [headers, ...rows].map(r => r.join('\t')).join('\n')
 }
 
+// ─── Role utilities ───────────────────────────────────────────────────────────
+
+function calculateRoleAge(firstSeenDate: string, scrapeDate: string): number {
+  const older = new Date(firstSeenDate) < new Date(scrapeDate) ? firstSeenDate : scrapeDate
+  const now = new Date()
+  const diff = now.getTime() - new Date(older).getTime()
+  return Math.floor(diff / (1000 * 60 * 60 * 24))
+}
+
+interface TextPopupState {
+  isOpen: boolean
+  title: string
+  content: string
+}
+
+function AllRolesTab({ orgId }: { orgId: number }): React.JSX.Element {
+  const { data: roles, isLoading, isError } = useOrgRoles(orgId)
+  const exportMutation = useExportOrgRoles(orgId)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [showInactive, setShowInactive] = useState(false)
+  const [textPopup, setTextPopup] = useState<TextPopupState>({ isOpen: false, title: '', content: '' })
+  const [copyConfirm, setCopyConfirm] = useState(false)
+  const [page, setPage] = useState(1)
+  const itemsPerPage = 50
+
+  if (isLoading) {
+    return <p className="text-muted text-sm">Loading roles…</p>
+  }
+
+  if (isError || !roles) {
+    return <p className="text-muted text-sm">Error loading roles</p>
+  }
+
+  const filtered = roles.filter(r => {
+    const matchesSearch = r.title.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesStatus = showInactive || r.is_active === 1
+    return matchesSearch && matchesStatus
+  })
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage)
+  const paginatedRoles = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage)
+
+  const copyRolesData = async (): Promise<void> => {
+    const text = formatRolesAsText(filtered)
+    await navigator.clipboard.writeText(text)
+    setCopyConfirm(true)
+    setTimeout(() => setCopyConfirm(false), 2000)
+  }
+
+  const handleExport = async (): Promise<void> => {
+    try {
+      await exportMutation.mutateAsync()
+    } catch (err) {
+      console.error('Export failed:', err)
+    }
+  }
+
+  return (
+    <div className="px-[5%] py-6">
+      {/* Title Block */}
+      <div className="mb-6">
+        <p className="font-serif text-accent text-xl mb-2">ALL ROLES SCRAPED FOR ORG</p>
+        <p className="text-sm text-muted leading-relaxed">Complete list of all roles extracted during organization crawls, with metadata for manual review and validation.</p>
+      </div>
+
+      <hr className="border-surface2 mb-6" />
+
+      {/* Function Block */}
+      <div className="mb-6 flex gap-3">
+        <button
+          onClick={copyRolesData}
+          className="px-4 py-2 text-xs font-mono bg-surface border border-accent text-accent rounded hover:bg-surface2 transition-colors"
+        >
+          {copyConfirm ? '✓ Copied' : 'Copy Role Data'}
+        </button>
+        <button
+          onClick={handleExport}
+          disabled={exportMutation.isPending}
+          className="px-4 py-2 text-xs font-mono bg-surface border border-accent text-accent rounded hover:bg-surface2 transition-colors disabled:opacity-50"
+        >
+          {exportMutation.isPending ? '…' : 'Save Role JSON'}
+        </button>
+      </div>
+
+      <hr className="border-surface2 mb-6" />
+
+      {/* Filter/Search Block */}
+      <div className="mb-6">
+        <div className="mb-3">
+          <input
+            type="text"
+            placeholder="Search by title (local)…"
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value)
+              setPage(1)
+            }}
+            className="w-full px-3 py-2 text-xs bg-surface border border-surface2 text-text rounded placeholder-muted focus:outline-none focus:border-accent"
+          />
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setShowInactive(false)
+              setPage(1)
+            }}
+            className={`px-3 py-1.5 text-xs rounded transition-colors ${!showInactive ? 'bg-accent text-bg' : 'bg-surface border border-surface2 text-muted hover:text-text'}`}
+          >
+            Active
+          </button>
+          <button
+            onClick={() => {
+              setShowInactive(true)
+              setPage(1)
+            }}
+            className={`px-3 py-1.5 text-xs rounded transition-colors ${showInactive ? 'bg-accent text-bg' : 'bg-surface border border-surface2 text-muted hover:text-text'}`}
+          >
+            Inactive
+          </button>
+        </div>
+      </div>
+
+      <hr className="border-surface2 mb-6" />
+
+      {/* Grid Block */}
+      {filtered.length === 0 ? (
+        <p className="text-sm text-muted italic">No roles match your filter.</p>
+      ) : (
+        <>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-xs">
+              <thead className="bg-surface2 border-b border-surface2">
+                <tr>
+                  <th className="px-3 py-2 text-left text-muted">Title</th>
+                  <th className="px-3 py-2 text-left text-muted">URL</th>
+                  <th className="px-3 py-2 text-left text-muted">Description</th>
+                  <th className="px-3 py-2 text-left text-muted">Salary</th>
+                  <th className="px-3 py-2 text-left text-muted">Remote</th>
+                  <th className="px-3 py-2 text-left text-muted">Keywords</th>
+                  <th className="px-3 py-2 text-left text-muted">Markdown</th>
+                  <th className="px-3 py-2 text-left text-muted">Scraped</th>
+                  <th className="px-3 py-2 text-left text-muted">Last Seen</th>
+                  <th className="px-3 py-2 text-left text-muted">Missing</th>
+                  <th className="px-3 py-2 text-left text-muted">Crawls</th>
+                  <th className="px-3 py-2 text-left text-muted">Age (d)</th>
+                  <th className="px-3 py-2 text-left text-muted">Interesting</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedRoles.map((role) => {
+                  const roleAge = calculateRoleAge(role.first_seen_date, role.scrape_date)
+                  return (
+                    <tr key={role.id} className="border-b border-surface2 hover:bg-surface2/50">
+                      <td className="px-3 py-1 text-text">{role.title}</td>
+                      <td className="px-3 py-1">
+                        {role.role_url ? (
+                          <a href={role.role_url} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+                            Open
+                          </a>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-1">
+                        {role.description ? (
+                          <button
+                            onClick={() => setTextPopup({ isOpen: true, title: 'Description', content: role.description ?? '' })}
+                            className="text-accent hover:underline text-xs"
+                          >
+                            Show
+                          </button>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-1 text-text">{role.salary_range || '—'}</td>
+                      <td className="px-3 py-1 text-text">{role.remote_type}</td>
+                      <td className="px-3 py-1">
+                        {role.keywords ? (
+                          <button
+                            onClick={() => setTextPopup({ isOpen: true, title: 'Keywords', content: role.keywords ?? '' })}
+                            className="text-accent hover:underline text-xs"
+                          >
+                            Show
+                          </button>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-1">
+                        {role.markdown ? (
+                          <button
+                            onClick={() => setTextPopup({ isOpen: true, title: 'Role Markdown', content: role.markdown ?? '' })}
+                            className="text-accent hover:underline text-xs"
+                          >
+                            Show
+                          </button>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-1 text-muted">{new Date(role.scrape_date).toLocaleDateString()}</td>
+                      <td className="px-3 py-1 text-muted">{new Date(role.last_seen_date).toLocaleDateString()}</td>
+                      <td className="px-3 py-1 text-muted">{role.missing_count}</td>
+                      <td className="px-3 py-1 text-muted">{role.crawl_count}</td>
+                      <td className="px-3 py-1 text-muted">{roleAge}</td>
+                      <td className="px-3 py-1">
+                        {role.is_interesting ? (
+                          <span className="text-green">✓</span>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 p-3 bg-surface2/40 border-t border-surface2">
+              <button
+                onClick={() => setPage(Math.max(1, page - 1))}
+                disabled={page === 1}
+                className="px-2 py-1 text-xs text-muted hover:text-text disabled:opacity-50 transition-colors"
+              >
+                ← Prev
+              </button>
+              <span className="text-xs text-muted">Page {page} of {totalPages}</span>
+              <button
+                onClick={() => setPage(Math.min(totalPages, page + 1))}
+                disabled={page === totalPages}
+                className="px-2 py-1 text-xs text-muted hover:text-text disabled:opacity-50 transition-colors"
+              >
+                Next →
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Text Popup Modal */}
+      {textPopup.isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-surface border border-surface2 rounded-xl max-w-2xl max-h-96 w-full flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-surface2">
+              <p className="font-mono text-sm text-accent">{textPopup.title}</p>
+              <button
+                onClick={() => setTextPopup({ isOpen: false, title: '', content: '' })}
+                className="text-muted hover:text-text text-lg"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <code className="text-xs text-text whitespace-pre-wrap break-words">{textPopup.content}</code>
+            </div>
+            <div className="flex gap-2 p-4 border-t border-surface2">
+              <button
+                onClick={async () => {
+                  await navigator.clipboard.writeText(textPopup.content)
+                  setTextPopup({ isOpen: false, title: '', content: '' })
+                }}
+                className="px-3 py-1.5 text-xs font-mono text-accent border border-accent rounded hover:bg-surface2 transition-colors"
+              >
+                Copy
+              </button>
+              <button
+                onClick={() => setTextPopup({ isOpen: false, title: '', content: '' })}
+                className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function formatRolesAsText(roles: OrgRole[]): string {
+  const headers = ['Title', 'URL', 'Salary', 'Remote', 'Keywords', 'Missing', 'Crawls', 'Age (days)', 'Interesting']
+  const rows = roles.map(r => {
+    const age = calculateRoleAge(r.first_seen_date, r.scrape_date)
+    return [
+      r.title,
+      r.role_url ?? '—',
+      r.salary_range ?? '—',
+      r.remote_type,
+      r.keywords ?? '—',
+      String(r.missing_count),
+      String(r.crawl_count),
+      String(age),
+      r.is_interesting ? 'Yes' : 'No',
+    ]
+  })
+  return [headers, ...rows].map(row => row.join('\t')).join('\n')
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function OrgDetails(): React.JSX.Element {
@@ -957,10 +1254,7 @@ export default function OrgDetails(): React.JSX.Element {
           )}
 
           {activeTab === 'all-roles' && (
-            <div className="bg-surface border border-surface2 rounded-xl p-6 max-w-lg">
-              <p className="font-serif text-accent text-lg mb-2">All Roles</p>
-              <p className="text-sm text-muted leading-relaxed">All extracted roles coming soon.</p>
-            </div>
+            <AllRolesTab orgId={orgId} />
           )}
         </div>
       )}
