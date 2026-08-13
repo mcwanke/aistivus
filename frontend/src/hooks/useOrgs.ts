@@ -187,3 +187,41 @@ export function useExportOrgRoles(orgId: number) {
     },
   })
 }
+
+export function useMarkRoleInteresting(orgId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (roleId: number): Promise<{ success: boolean; role: OrgRole | null }> => {
+      const res = await fetch(`/api/v1/orgs/${orgId}/roles/${roleId}/mark-interesting`, {
+        method: 'PATCH',
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw new Error(err.detail ?? `mark role interesting ${res.status}`)
+      }
+      return res.json() as Promise<{ success: boolean; role: OrgRole | null }>
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['org-roles', orgId] })
+    },
+  })
+}
+
+export function useToggleRoleActive(orgId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (roleId: number): Promise<{ success: boolean; role: OrgRole | null }> => {
+      const res = await fetch(`/api/v1/orgs/${orgId}/roles/${roleId}/toggle-active`, {
+        method: 'PATCH',
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw new Error(err.detail ?? `toggle role active ${res.status}`)
+      }
+      return res.json() as Promise<{ success: boolean; role: OrgRole | null }>
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['org-roles', orgId] })
+    },
+  })
+}

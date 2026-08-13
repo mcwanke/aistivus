@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import AppHeader from '@/components/AppHeader'
-import { useOrgDetail, useOrgResearch, useGenerateOrgResearchPrompt, useImportOrgResearch, useOrgCrawls, useCrawlLogs, useExportOrgCrawls, useExportCrawlLogs, useOrgRoles, useExportOrgRoles } from '@/hooks/useOrgs'
+import { useOrgDetail, useOrgResearch, useGenerateOrgResearchPrompt, useImportOrgResearch, useOrgCrawls, useCrawlLogs, useExportOrgCrawls, useExportCrawlLogs, useOrgRoles, useExportOrgRoles, useMarkRoleInteresting, useToggleRoleActive } from '@/hooks/useOrgs'
 import type { JobResearch, OrgCrawl, OrgCrawlLog, OrgRole } from '@/types/api'
 
 // ─── Tab type ─────────────────────────────────────────────────────────────────
@@ -422,7 +422,7 @@ function CrawlsTab({ orgId, orgName }: { orgId: number; orgName: string }): Reac
   const [logPage, setLogPage] = useState(1)
 
   const crawlsPerPage = 10
-  const logsPerPage = 10
+  const logsPerPage = 50
 
   const startCrawl = (crawlPage - 1) * crawlsPerPage
   const endCrawl = startCrawl + crawlsPerPage
@@ -821,8 +821,11 @@ interface TextPopupState {
 function AllRolesTab({ orgId }: { orgId: number }): React.JSX.Element {
   const { data: roles, isLoading, isError } = useOrgRoles(orgId)
   const exportMutation = useExportOrgRoles(orgId)
+  const markInterestingMutation = useMarkRoleInteresting(orgId)
+  const toggleActiveMutation = useToggleRoleActive(orgId)
   const [searchTerm, setSearchTerm] = useState('')
-  const [showInactive, setShowInactive] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | null>(null)
+  const [interestFilter, setInterestFilter] = useState<'interested' | 'not-interested' | null>(null)
   const [textPopup, setTextPopup] = useState<TextPopupState>({ isOpen: false, title: '', content: '' })
   const [copyConfirm, setCopyConfirm] = useState(false)
   const [page, setPage] = useState(1)
@@ -838,8 +841,9 @@ function AllRolesTab({ orgId }: { orgId: number }): React.JSX.Element {
 
   const filtered = roles.filter(r => {
     const matchesSearch = r.title.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = showInactive || r.is_active === 1
-    return matchesSearch && matchesStatus
+    const matchesStatus = statusFilter === null || (statusFilter === 'active' && r.is_active === 1) || (statusFilter === 'inactive' && r.is_active === 0)
+    const matchesInterest = interestFilter === null || (interestFilter === 'interested' && r.is_interesting === 1) || (interestFilter === 'not-interested' && r.is_interesting === 0)
+    return matchesSearch && matchesStatus && matchesInterest
   })
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage)
@@ -891,7 +895,8 @@ function AllRolesTab({ orgId }: { orgId: number }): React.JSX.Element {
 
       {/* Filter/Search Block */}
       <div className="mb-6">
-        <div className="mb-3">
+        {/* Search + Clear */}
+        <div className="flex gap-2 mb-3">
           <input
             type="text"
             placeholder="Search by title (local)…"
@@ -900,27 +905,63 @@ function AllRolesTab({ orgId }: { orgId: number }): React.JSX.Element {
               setSearchTerm(e.target.value)
               setPage(1)
             }}
-            className="w-full px-3 py-2 text-xs bg-surface border border-surface2 text-text rounded placeholder-muted focus:outline-none focus:border-accent"
+            className="w-1/4 px-3 py-2 text-xs bg-surface border border-surface2 text-text rounded placeholder-muted focus:outline-none focus:border-accent"
           />
-        </div>
-        <div className="flex gap-2">
           <button
             onClick={() => {
-              setShowInactive(false)
+              setSearchTerm('')
               setPage(1)
             }}
-            className={`px-3 py-1.5 text-xs rounded transition-colors ${!showInactive ? 'bg-accent text-bg' : 'bg-surface border border-surface2 text-muted hover:text-text'}`}
+            disabled={!searchTerm}
+            className="px-3 py-2 text-xs font-mono bg-surface border border-surface2 text-muted rounded hover:text-text disabled:opacity-50 transition-colors"
+          >
+            Clear
+          </button>
+        </div>
+
+        {/* Status Filters */}
+        <div className="flex gap-2 mb-3">
+          <span className="text-xs text-muted font-mono uppercase tracking-widest self-center">Status:</span>
+          <button
+            onClick={() => {
+              setStatusFilter(statusFilter === 'active' ? null : 'active')
+              setPage(1)
+            }}
+            className={`px-3 py-1.5 text-xs rounded transition-colors ${statusFilter === 'active' ? 'bg-green text-bg' : 'bg-surface border border-surface2 text-muted hover:text-text'}`}
           >
             Active
           </button>
           <button
             onClick={() => {
-              setShowInactive(true)
+              setStatusFilter(statusFilter === 'inactive' ? null : 'inactive')
               setPage(1)
             }}
-            className={`px-3 py-1.5 text-xs rounded transition-colors ${showInactive ? 'bg-accent text-bg' : 'bg-surface border border-surface2 text-muted hover:text-text'}`}
+            className={`px-3 py-1.5 text-xs rounded transition-colors ${statusFilter === 'inactive' ? 'bg-red text-bg' : 'bg-surface border border-surface2 text-muted hover:text-text'}`}
           >
             Inactive
+          </button>
+        </div>
+
+        {/* Interest Filters */}
+        <div className="flex gap-2">
+          <span className="text-xs text-muted font-mono uppercase tracking-widest self-center">Interest:</span>
+          <button
+            onClick={() => {
+              setInterestFilter(interestFilter === 'interested' ? null : 'interested')
+              setPage(1)
+            }}
+            className={`px-3 py-1.5 text-xs rounded transition-colors ${interestFilter === 'interested' ? 'bg-accent text-bg' : 'bg-surface border border-surface2 text-muted hover:text-text'}`}
+          >
+            Interested
+          </button>
+          <button
+            onClick={() => {
+              setInterestFilter(interestFilter === 'not-interested' ? null : 'not-interested')
+              setPage(1)
+            }}
+            className={`px-3 py-1.5 text-xs rounded transition-colors ${interestFilter === 'not-interested' ? 'bg-accent text-bg' : 'bg-surface border border-surface2 text-muted hover:text-text'}`}
+          >
+            Not Interested
           </button>
         </div>
       </div>
@@ -936,19 +977,21 @@ function AllRolesTab({ orgId }: { orgId: number }): React.JSX.Element {
             <table className="w-full text-xs">
               <thead className="bg-surface2 border-b border-surface2">
                 <tr>
+                  <th className="px-2 py-2 text-center text-muted w-12">Interested</th>
+                  <th className="px-2 py-2 text-center text-muted w-12">Status</th>
                   <th className="px-3 py-2 text-left text-muted">Title</th>
-                  <th className="px-3 py-2 text-left text-muted">URL</th>
+                  <th className="px-3 py-2 text-center text-muted">URL</th>
                   <th className="px-3 py-2 text-left text-muted">Description</th>
                   <th className="px-3 py-2 text-left text-muted">Salary</th>
-                  <th className="px-3 py-2 text-left text-muted">Remote</th>
+                  <th className="px-3 py-2 text-center text-muted">Remote</th>
                   <th className="px-3 py-2 text-left text-muted">Keywords</th>
                   <th className="px-3 py-2 text-left text-muted">Markdown</th>
                   <th className="px-3 py-2 text-left text-muted">Scraped</th>
                   <th className="px-3 py-2 text-left text-muted">Last Seen</th>
-                  <th className="px-3 py-2 text-left text-muted">Missing</th>
-                  <th className="px-3 py-2 text-left text-muted">Crawls</th>
-                  <th className="px-3 py-2 text-left text-muted">Age (d)</th>
-                  <th className="px-3 py-2 text-left text-muted">Interesting</th>
+                  <th className="px-3 py-2 text-center text-muted">Missing</th>
+                  <th className="px-3 py-2 text-center text-muted">Crawls</th>
+                  <th className="px-3 py-2 text-center text-muted">Age (d)</th>
+                  <th className="px-3 py-2 text-center text-muted">Interesting</th>
                 </tr>
               </thead>
               <tbody>
@@ -956,8 +999,34 @@ function AllRolesTab({ orgId }: { orgId: number }): React.JSX.Element {
                   const roleAge = calculateRoleAge(role.first_seen_date, role.scrape_date)
                   return (
                     <tr key={role.id} className="border-b border-surface2 hover:bg-surface2/50">
+                      {/* Interested button */}
+                      <td className="px-2 py-2 text-center">
+                        {!role.is_interesting && (
+                          <button
+                            onClick={() => void markInterestingMutation.mutateAsync(role.id)}
+                            disabled={markInterestingMutation.isPending}
+                            className="px-2 py-1 text-xs font-mono bg-surface border border-accent text-accent rounded hover:bg-surface2 disabled:opacity-50 transition-colors"
+                          >
+                            {markInterestingMutation.isPending ? '…' : 'Interested'}
+                          </button>
+                        )}
+                      </td>
+                      {/* Toggle Active button */}
+                      <td className="px-2 py-2 text-center">
+                        <button
+                          onClick={() => void toggleActiveMutation.mutateAsync(role.id)}
+                          disabled={toggleActiveMutation.isPending}
+                          className={`px-2 py-1 text-xs font-mono rounded transition-colors ${
+                            role.is_active === 1
+                              ? 'bg-surface border border-red text-red hover:bg-red/10'
+                              : 'bg-surface border border-green text-green hover:bg-green/10'
+                          } disabled:opacity-50`}
+                        >
+                          {toggleActiveMutation.isPending ? '…' : role.is_active === 1 ? 'Deactivate' : 'Activate'}
+                        </button>
+                      </td>
                       <td className="px-3 py-1 text-text">{role.title}</td>
-                      <td className="px-3 py-1">
+                      <td className="px-3 py-1 text-center">
                         {role.role_url ? (
                           <a href={role.role_url} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
                             Open
@@ -979,7 +1048,7 @@ function AllRolesTab({ orgId }: { orgId: number }): React.JSX.Element {
                         )}
                       </td>
                       <td className="px-3 py-1 text-text">{role.salary_range || '—'}</td>
-                      <td className="px-3 py-1 text-text">{role.remote_type}</td>
+                      <td className="px-3 py-1 text-center text-text">{role.remote_type}</td>
                       <td className="px-3 py-1">
                         {role.keywords ? (
                           <button
@@ -1006,14 +1075,14 @@ function AllRolesTab({ orgId }: { orgId: number }): React.JSX.Element {
                       </td>
                       <td className="px-3 py-1 text-muted">{new Date(role.scrape_date).toLocaleDateString()}</td>
                       <td className="px-3 py-1 text-muted">{new Date(role.last_seen_date).toLocaleDateString()}</td>
-                      <td className="px-3 py-1 text-muted">{role.missing_count}</td>
-                      <td className="px-3 py-1 text-muted">{role.crawl_count}</td>
-                      <td className="px-3 py-1 text-muted">{roleAge}</td>
-                      <td className="px-3 py-1">
+                      <td className="px-3 py-1 text-center text-muted">{role.missing_count}</td>
+                      <td className="px-3 py-1 text-center text-muted">{role.crawl_count}</td>
+                      <td className="px-3 py-1 text-center text-muted">{roleAge}</td>
+                      <td className="px-3 py-1 text-center">
                         {role.is_interesting ? (
-                          <span className="text-green">✓</span>
+                          <span className="text-green font-mono">Yes</span>
                         ) : (
-                          <span className="text-muted">—</span>
+                          <span className="text-muted font-mono">No</span>
                         )}
                       </td>
                     </tr>

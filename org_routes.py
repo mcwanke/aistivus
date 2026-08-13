@@ -172,7 +172,7 @@ async def generate_org_research_prompt(org_id: int) -> dict:
         raise HTTPException(status_code=500, detail=f"Failed to generate prompt: {exc}") from exc
 
     return JSONResponse({
-        "prompt": prompt_result.get("prompt", ""),
+        "prompt": prompt_result.get("prompt_text", ""),
         "prompt_usage_id": prompt_result.get("prompt_usage_id"),
     })
 
@@ -257,6 +257,52 @@ async def export_crawl_logs(org_id: int, crawl_id: int) -> dict:
         json.dump(log_dicts, f, indent=2)
 
     return JSONResponse({"success": True, "filename": filename})
+
+
+@router.patch("/{org_id}/roles/{role_id}/mark-interesting")
+async def mark_role_interesting(org_id: int, role_id: int) -> dict:
+    """Mark a role as interesting (is_interesting = 1)."""
+    org = database.get_org(org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail=f"Org {org_id} not found.")
+
+    role = database.get_org_role(org_id, role_id)
+    if not role:
+        raise HTTPException(status_code=404, detail=f"Role {role_id} not found for org {org_id}.")
+
+    with database.get_connection() as conn:
+        conn.execute(
+            "UPDATE org_roles SET is_interesting = 1 WHERE id = ?",
+            (role_id,)
+        )
+
+    updated_role = database.get_org_role(org_id, role_id)
+    return JSONResponse({"success": True, "role": dict(updated_role) if updated_role else None})
+
+
+@router.patch("/{org_id}/roles/{role_id}/toggle-active")
+async def toggle_role_active(org_id: int, role_id: int) -> dict:
+    """Toggle a role's active status (is_active = 1 - is_active)."""
+    org = database.get_org(org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail=f"Org {org_id} not found.")
+
+    role = database.get_org_role(org_id, role_id)
+    if not role:
+        raise HTTPException(status_code=404, detail=f"Role {role_id} not found for org {org_id}.")
+
+    role_dict = dict(role)
+    current_active = role_dict.get("is_active", 1)
+    new_active = 1 - current_active
+
+    with database.get_connection() as conn:
+        conn.execute(
+            "UPDATE org_roles SET is_active = ? WHERE id = ?",
+            (new_active, role_id)
+        )
+
+    updated_role = database.get_org_role(org_id, role_id)
+    return JSONResponse({"success": True, "role": dict(updated_role) if updated_role else None})
 
 
 @router.post("/{org_id}/roles/export")

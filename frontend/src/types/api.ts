@@ -595,7 +595,8 @@ export interface EvalWeights {
 
 export interface JobResearch {
   id: number
-  job_id: number
+  job_id: number | null
+  org_id: number | null
   raw_json: string
   research_summary: string | null
   company_overview: string | null

@@ -807,6 +807,54 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass  # column already exists
 
+        # Phase 2.7 — make job_id nullable for polymorphic research (job or org)
+        try:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS job_research_new (
+                    id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id                   INTEGER REFERENCES jobs(id),
+                    org_id                   INTEGER REFERENCES orgs(id),
+                    raw_json                 TEXT,
+                    research_summary         TEXT,
+                    company_overview         TEXT,
+                    company_stage            TEXT,
+                    company_size_actual      TEXT,
+                    company_trajectory       TEXT,
+                    company_culture_overview TEXT,
+                    culture_signals          TEXT,
+                    comp_signals             TEXT,
+                    role_context             TEXT,
+                    interview_process        TEXT,
+                    red_flags                TEXT,
+                    green_flags              TEXT,
+                    research_confidence      TEXT,
+                    research_notes           TEXT,
+                    imported_at              TEXT NOT NULL DEFAULT (datetime('now'))
+                )
+            """)
+            # Check if job_research has data
+            existing_count = conn.execute("SELECT COUNT(*) FROM job_research").fetchone()[0]
+            if existing_count > 0:
+                # Migrate data from old table to new (use COALESCE for imported_at in case of NULLs)
+                conn.execute("""
+                    INSERT INTO job_research_new
+                    SELECT id, job_id, org_id, raw_json, research_summary, company_overview, company_stage,
+                           company_size_actual, company_trajectory, company_culture_overview,
+                           culture_signals, comp_signals, role_context, interview_process,
+                           red_flags, green_flags, research_confidence, research_notes,
+                           COALESCE(imported_at, datetime('now'))
+                    FROM job_research
+                """)
+            # Drop old table and rename
+            conn.execute("DROP TABLE job_research")
+            conn.execute("ALTER TABLE job_research_new RENAME TO job_research")
+            # Recreate indexes
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_job_research_job_id ON job_research(job_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_job_research_org_id ON job_research(org_id)")
+        except sqlite3.OperationalError as e:
+            if "job_id" not in str(e):  # Only ignore if not about job_id
+                pass
+
         for type_name, type_value in _SYSTEM_TYPES_SEED:
             existing = conn.execute(
                 "SELECT id FROM system_types WHERE type_name = ? AND type_value = ?",

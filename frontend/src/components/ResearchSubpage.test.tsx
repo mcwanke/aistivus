@@ -10,6 +10,7 @@ import type { JobResearch } from '@/types/api'
 const MOCK_RESEARCH: JobResearch = {
   id: 1,
   job_id: 1,
+  org_id: null,
   raw_json: '{}',
   research_summary: 'Strong Series B company in the payments space.',
   research_confidence: 'high',
