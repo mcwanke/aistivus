@@ -207,6 +207,25 @@ export function useMarkRoleInteresting(orgId: number) {
   })
 }
 
+export function useMarkRoleNotInteresting(orgId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (roleId: number): Promise<{ success: boolean; role: OrgRole | null }> => {
+      const res = await fetch(`/api/v1/orgs/${orgId}/roles/${roleId}/mark-not-interesting`, {
+        method: 'PATCH',
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw new Error(err.detail ?? `mark role not interesting ${res.status}`)
+      }
+      return res.json() as Promise<{ success: boolean; role: OrgRole | null }>
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['org-roles', orgId] })
+    },
+  })
+}
+
 export function useToggleRoleActive(orgId: number) {
   const qc = useQueryClient()
   return useMutation({
@@ -217,6 +236,73 @@ export function useToggleRoleActive(orgId: number) {
       if (!res.ok) {
         const err = (await res.json().catch(() => ({}))) as { detail?: string }
         throw new Error(err.detail ?? `toggle role active ${res.status}`)
+      }
+      return res.json() as Promise<{ success: boolean; role: OrgRole | null }>
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['org-roles', orgId] })
+    },
+  })
+}
+
+export function useMarkRoleActive(orgId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (roleId: number): Promise<{ success: boolean; role: OrgRole | null }> => {
+      const res = await fetch(`/api/v1/orgs/${orgId}/roles/${roleId}/mark-active`, {
+        method: 'PATCH',
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw new Error(err.detail ?? `mark role active ${res.status}`)
+      }
+      return res.json() as Promise<{ success: boolean; role: OrgRole | null }>
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['org-roles', orgId] })
+    },
+  })
+}
+
+export function useMarkRoleClosed(orgId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (roleId: number): Promise<{ success: boolean; role: OrgRole | null }> => {
+      const res = await fetch(`/api/v1/orgs/${orgId}/roles/${roleId}/mark-closed`, {
+        method: 'PATCH',
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw new Error(err.detail ?? `mark role closed ${res.status}`)
+      }
+      return res.json() as Promise<{ success: boolean; role: OrgRole | null }>
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['org-roles', orgId] })
+    },
+  })
+}
+
+export interface UpdateOrgRolePayload {
+  title?: string
+  description?: string
+  salary_range?: string
+  remote_type?: string
+  role_url?: string
+}
+
+export function useUpdateOrgRole(orgId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ roleId, updates }: { roleId: number; updates: UpdateOrgRolePayload }): Promise<{ success: boolean; role: OrgRole | null }> => {
+      const res = await fetch(`/api/v1/orgs/${orgId}/roles/${roleId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw new Error(err.detail ?? `update role ${res.status}`)
       }
       return res.json() as Promise<{ success: boolean; role: OrgRole | null }>
     },

@@ -1312,7 +1312,7 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
                     salary_range=extracted.get("salary_range"),
                     remote_type=extracted.get("remote_type", "unknown"),
                     markdown=job_markdown,
-                    is_interesting=None,
+                    is_interesting=0,
                     is_active=1,
                     missing_count=0,
                 )

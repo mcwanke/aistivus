@@ -25,6 +25,14 @@ class ImportResearchRequest(BaseModel):
     raw_json: str
 
 
+class UpdateOrgRoleRequest(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    salary_range: str | None = None
+    remote_type: str | None = None
+    role_url: str | None = None
+
+
 @router.get("")
 async def list_orgs() -> list[dict]:
     """List all organizations."""
@@ -50,10 +58,10 @@ async def get_org(org_id: int) -> dict:
 
 
 @router.get("/{org_id}/roles")
-async def get_org_roles(org_id: int) -> list[dict]:
-    """Get all roles for an organization (active only by default)."""
+async def get_org_roles(org_id: int, include_inactive: bool = True) -> list[dict]:
+    """Get all roles for an organization. Include both active and inactive by default."""
     # TODO: add pagination, sorting per WORKORDER Phase 9
-    roles = database.get_org_roles(org_id, include_inactive=False)
+    roles = database.get_org_roles(org_id, include_inactive=include_inactive)
     return [dict(row) for row in roles]
 
 
@@ -280,6 +288,27 @@ async def mark_role_interesting(org_id: int, role_id: int) -> dict:
     return JSONResponse({"success": True, "role": dict(updated_role) if updated_role else None})
 
 
+@router.patch("/{org_id}/roles/{role_id}/mark-not-interesting")
+async def mark_role_not_interesting(org_id: int, role_id: int) -> dict:
+    """Mark a role as not interesting (is_interesting = 0)."""
+    org = database.get_org(org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail=f"Org {org_id} not found.")
+
+    role = database.get_org_role(org_id, role_id)
+    if not role:
+        raise HTTPException(status_code=404, detail=f"Role {role_id} not found for org {org_id}.")
+
+    with database.get_connection() as conn:
+        conn.execute(
+            "UPDATE org_roles SET is_interesting = 0 WHERE id = ?",
+            (role_id,)
+        )
+
+    updated_role = database.get_org_role(org_id, role_id)
+    return JSONResponse({"success": True, "role": dict(updated_role) if updated_role else None})
+
+
 @router.patch("/{org_id}/roles/{role_id}/toggle-active")
 async def toggle_role_active(org_id: int, role_id: int) -> dict:
     """Toggle a role's active status (is_active = 1 - is_active)."""
@@ -300,6 +329,88 @@ async def toggle_role_active(org_id: int, role_id: int) -> dict:
             "UPDATE org_roles SET is_active = ? WHERE id = ?",
             (new_active, role_id)
         )
+
+    updated_role = database.get_org_role(org_id, role_id)
+    return JSONResponse({"success": True, "role": dict(updated_role) if updated_role else None})
+
+
+@router.patch("/{org_id}/roles/{role_id}/mark-active")
+async def mark_role_active(org_id: int, role_id: int) -> dict:
+    """Mark a role as active (is_active = 1)."""
+    org = database.get_org(org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail=f"Org {org_id} not found.")
+
+    role = database.get_org_role(org_id, role_id)
+    if not role:
+        raise HTTPException(status_code=404, detail=f"Role {role_id} not found for org {org_id}.")
+
+    with database.get_connection() as conn:
+        conn.execute(
+            "UPDATE org_roles SET is_active = 1 WHERE id = ?",
+            (role_id,)
+        )
+
+    updated_role = database.get_org_role(org_id, role_id)
+    return JSONResponse({"success": True, "role": dict(updated_role) if updated_role else None})
+
+
+@router.patch("/{org_id}/roles/{role_id}/mark-closed")
+async def mark_role_closed(org_id: int, role_id: int) -> dict:
+    """Mark a role as closed (is_active = 0)."""
+    org = database.get_org(org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail=f"Org {org_id} not found.")
+
+    role = database.get_org_role(org_id, role_id)
+    if not role:
+        raise HTTPException(status_code=404, detail=f"Role {role_id} not found for org {org_id}.")
+
+    with database.get_connection() as conn:
+        conn.execute(
+            "UPDATE org_roles SET is_active = 0 WHERE id = ?",
+            (role_id,)
+        )
+
+    updated_role = database.get_org_role(org_id, role_id)
+    return JSONResponse({"success": True, "role": dict(updated_role) if updated_role else None})
+
+
+@router.patch("/{org_id}/roles/{role_id}")
+async def update_org_role(org_id: int, role_id: int, payload: UpdateOrgRoleRequest) -> dict:
+    """Update a role's metadata (title, description, salary_range, remote_type, role_url)."""
+    org = database.get_org(org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail=f"Org {org_id} not found.")
+
+    role = database.get_org_role(org_id, role_id)
+    if not role:
+        raise HTTPException(status_code=404, detail=f"Role {role_id} not found for org {org_id}.")
+
+    with database.get_connection() as conn:
+        updates = []
+        params = []
+        if payload.title is not None:
+            updates.append("title = ?")
+            params.append(payload.title)
+        if payload.description is not None:
+            updates.append("description = ?")
+            params.append(payload.description)
+        if payload.salary_range is not None:
+            updates.append("salary_range = ?")
+            params.append(payload.salary_range)
+        if payload.remote_type is not None:
+            updates.append("remote_type = ?")
+            params.append(payload.remote_type)
+        if payload.role_url is not None:
+            updates.append("role_url = ?")
+            params.append(payload.role_url)
+
+        if updates:
+            updates.append("modified_at = datetime('now')")
+            params.append(role_id)
+            query = f"UPDATE org_roles SET {', '.join(updates)} WHERE id = ?"
+            conn.execute(query, params)
 
     updated_role = database.get_org_role(org_id, role_id)
     return JSONResponse({"success": True, "role": dict(updated_role) if updated_role else None})

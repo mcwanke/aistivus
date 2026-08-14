@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import AppHeader from '@/components/AppHeader'
-import { useOrgDetail, useOrgResearch, useGenerateOrgResearchPrompt, useImportOrgResearch, useOrgCrawls, useCrawlLogs, useExportOrgCrawls, useExportCrawlLogs, useOrgRoles, useExportOrgRoles, useMarkRoleInteresting, useToggleRoleActive } from '@/hooks/useOrgs'
+import { useOrgDetail, useOrgResearch, useGenerateOrgResearchPrompt, useImportOrgResearch, useOrgCrawls, useCrawlLogs, useExportOrgCrawls, useExportCrawlLogs, useOrgRoles, useExportOrgRoles, useMarkRoleInteresting, useMarkRoleNotInteresting, useMarkRoleActive, useMarkRoleClosed, useUpdateOrgRole } from '@/hooks/useOrgs'
 import type { JobResearch, OrgCrawl, OrgCrawlLog, OrgRole } from '@/types/api'
 
 // ─── Tab type ─────────────────────────────────────────────────────────────────
@@ -822,7 +822,8 @@ function AllRolesTab({ orgId }: { orgId: number }): React.JSX.Element {
   const { data: roles, isLoading, isError } = useOrgRoles(orgId)
   const exportMutation = useExportOrgRoles(orgId)
   const markInterestingMutation = useMarkRoleInteresting(orgId)
-  const toggleActiveMutation = useToggleRoleActive(orgId)
+  const markActiveMutation = useMarkRoleActive(orgId)
+  const markClosedMutation = useMarkRoleClosed(orgId)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | null>(null)
   const [interestFilter, setInterestFilter] = useState<'interested' | 'not-interested' | null>(null)
@@ -842,7 +843,7 @@ function AllRolesTab({ orgId }: { orgId: number }): React.JSX.Element {
   const filtered = roles.filter(r => {
     const matchesSearch = r.title.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesStatus = statusFilter === null || (statusFilter === 'active' && r.is_active === 1) || (statusFilter === 'inactive' && r.is_active === 0)
-    const matchesInterest = interestFilter === null || (interestFilter === 'interested' && r.is_interesting === 1) || (interestFilter === 'not-interested' && r.is_interesting === 0)
+    const matchesInterest = interestFilter === null || (interestFilter === 'interested' && r.is_interesting === 1) || (interestFilter === 'not-interested' && !r.is_interesting)
     return matchesSearch && matchesStatus && matchesInterest
   })
 
@@ -865,14 +866,14 @@ function AllRolesTab({ orgId }: { orgId: number }): React.JSX.Element {
   }
 
   return (
-    <div className="px-[5%] py-6">
+    <div className="px-[5%] py-6 space-y-6">
       {/* Title Block */}
-      <div className="mb-6">
-        <p className="font-serif text-accent text-xl mb-2">ALL ROLES SCRAPED FOR ORG</p>
-        <p className="text-sm text-muted leading-relaxed">Complete list of all roles extracted during organization crawls, with metadata for manual review and validation.</p>
+      <div>
+        <h2 className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">All Roles</h2>
+        <p className="text-sm text-muted">Complete list of all roles extracted during organization crawls, with metadata for manual review and validation.</p>
       </div>
 
-      <hr className="border-surface2 mb-6" />
+      <hr className="border-surface2" />
 
       {/* Function Block */}
       <div className="mb-6 flex gap-3">
@@ -1014,15 +1015,21 @@ function AllRolesTab({ orgId }: { orgId: number }): React.JSX.Element {
                       {/* Toggle Active button */}
                       <td className="px-2 py-2 text-center">
                         <button
-                          onClick={() => void toggleActiveMutation.mutateAsync(role.id)}
-                          disabled={toggleActiveMutation.isPending}
+                          onClick={() => {
+                            if (role.is_active) {
+                              void markClosedMutation.mutateAsync(role.id)
+                            } else {
+                              void markActiveMutation.mutateAsync(role.id)
+                            }
+                          }}
+                          disabled={markActiveMutation.isPending || markClosedMutation.isPending}
                           className={`px-2 py-1 text-xs font-mono rounded transition-colors ${
-                            role.is_active === 1
+                            role.is_active
                               ? 'bg-surface border border-red text-red hover:bg-red/10'
                               : 'bg-surface border border-green text-green hover:bg-green/10'
                           } disabled:opacity-50`}
                         >
-                          {toggleActiveMutation.isPending ? '…' : role.is_active === 1 ? 'Deactivate' : 'Activate'}
+                          {markActiveMutation.isPending || markClosedMutation.isPending ? '…' : role.is_active ? 'Deactivate' : 'Activate'}
                         </button>
                       </td>
                       <td className="px-3 py-1 text-text">{role.title}</td>
@@ -1173,6 +1180,494 @@ function formatRolesAsText(roles: OrgRole[]): string {
   return [headers, ...rows].map(row => row.join('\t')).join('\n')
 }
 
+// ─── Unsaved Changes Confirmation Modal ────────────────────────────────────
+
+interface UnsavedChangesModalProps {
+  isOpen: boolean
+  onSave: () => void
+  onDiscard: () => void
+}
+
+function UnsavedChangesModal({ isOpen, onSave, onDiscard }: UnsavedChangesModalProps): React.JSX.Element | null {
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-surface border border-surface2 rounded-xl max-w-sm w-full">
+        <div className="p-6 space-y-4">
+          <p className="font-serif text-accent text-base">Unsaved Changes</p>
+          <p className="text-sm text-muted">You have unsaved edits. Save them before performing this action.</p>
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={onDiscard}
+              className="px-4 py-2 text-sm font-mono text-muted border border-surface2 rounded hover:text-text transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onSave}
+              className="px-4 py-2 text-sm font-mono text-bg bg-accent rounded hover:bg-accent/90 transition-colors"
+            >
+              Save Edits
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Interesting Roles Tab ─────────────────────────────────────────────
+
+function InterestingRolesTab({ orgId }: { orgId: number }): React.JSX.Element {
+  const { data: roles = [], isLoading, isError } = useOrgRoles(orgId)
+  const updateRoleMutation = useUpdateOrgRole(orgId)
+  const markNotInterestingMutation = useMarkRoleNotInteresting(orgId)
+  const markClosedMutation = useMarkRoleClosed(orgId)
+
+  const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null)
+  const [textPopup, setTextPopup] = useState<TextPopupState>({ isOpen: false, title: '', content: '' })
+  const [page, setPage] = useState(1)
+  const itemsPerPage = 6
+
+  // Role detail form state
+  const [title, setTitle] = useState('')
+  const [remoteType, setRemoteType] = useState('')
+  const [roleUrl, setRoleUrl] = useState('')
+  const [salaryRange, setSalaryRange] = useState('')
+  const [description, setDescription] = useState('')
+  const [markdown, setMarkdown] = useState('')
+
+  // Initial state for dirty flag
+  const [initialTitle, setInitialTitle] = useState('')
+  const [initialRemoteType, setInitialRemoteType] = useState('')
+  const [initialRoleUrl, setInitialRoleUrl] = useState('')
+  const [initialSalaryRange, setInitialSalaryRange] = useState('')
+  const [initialDescription, setInitialDescription] = useState('')
+
+  const [unsavedModalOpen, setUnsavedModalOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null)
+
+  const interestingRoles = roles.filter(r => r.is_interesting === 1 && r.is_active === 1)
+  const selectedRole = roles.find(r => r.id === selectedRoleId)
+  const totalPages = Math.ceil(interestingRoles.length / itemsPerPage)
+  const paginatedRoles = interestingRoles.slice((page - 1) * itemsPerPage, page * itemsPerPage)
+
+  const isDirty =
+    title !== initialTitle ||
+    remoteType !== initialRemoteType ||
+    roleUrl !== initialRoleUrl ||
+    salaryRange !== initialSalaryRange ||
+    description !== initialDescription
+
+  function selectRole(role: OrgRole): void {
+    setSelectedRoleId(role.id)
+    setTitle(role.title)
+    setInitialTitle(role.title)
+    setRemoteType(role.remote_type ?? '')
+    setInitialRemoteType(role.remote_type ?? '')
+    setRoleUrl(role.role_url ?? '')
+    setInitialRoleUrl(role.role_url ?? '')
+    setSalaryRange(role.salary_range ?? '')
+    setInitialSalaryRange(role.salary_range ?? '')
+    setDescription(role.description ?? '')
+    setInitialDescription(role.description ?? '')
+    setMarkdown(role.markdown ?? '')
+  }
+
+  function clearSelection(): void {
+    setSelectedRoleId(null)
+    setTitle('')
+    setRemoteType('')
+    setRoleUrl('')
+    setSalaryRange('')
+    setDescription('')
+    setMarkdown('')
+    setInitialTitle('')
+    setInitialRemoteType('')
+    setInitialRoleUrl('')
+    setInitialSalaryRange('')
+    setInitialDescription('')
+  }
+
+  async function handleSaveEdits(): Promise<void> {
+    if (!selectedRoleId || !isDirty) return
+    try {
+      await updateRoleMutation.mutateAsync({
+        roleId: selectedRoleId,
+        updates: {
+          title,
+          remote_type: remoteType || undefined,
+          role_url: roleUrl || undefined,
+          salary_range: salaryRange || undefined,
+          description: description || undefined,
+        },
+      })
+      // Update initial state after successful save
+      setInitialTitle(title)
+      setInitialRemoteType(remoteType)
+      setInitialRoleUrl(roleUrl)
+      setInitialSalaryRange(salaryRange)
+      setInitialDescription(description)
+    } catch (err) {
+      console.error('Save failed:', err)
+    }
+  }
+
+  function withDirtyCheck(action: () => void): void {
+    if (isDirty) {
+      setPendingAction(() => action)
+      setUnsavedModalOpen(true)
+    } else {
+      action()
+    }
+  }
+
+  async function handleMarkNotInteresting(): Promise<void> {
+    if (!selectedRoleId) return
+    try {
+      await markNotInterestingMutation.mutateAsync(selectedRoleId)
+      clearSelection()
+    } catch (err) {
+      console.error('Mark not interesting failed:', err)
+    }
+  }
+
+  async function handleMarkClosed(): Promise<void> {
+    if (!selectedRoleId) return
+    try {
+      await markClosedMutation.mutateAsync(selectedRoleId)
+      clearSelection()
+    } catch (err) {
+      console.error('Mark closed failed:', err)
+    }
+  }
+
+  function handleUnsavedSave(): void {
+    setUnsavedModalOpen(false)
+    void handleSaveEdits().then(() => {
+      if (pendingAction) {
+        pendingAction()
+        setPendingAction(null)
+      }
+    })
+  }
+
+  function handleUnsavedDiscard(): void {
+    setUnsavedModalOpen(false)
+    if (pendingAction) {
+      pendingAction()
+      setPendingAction(null)
+    }
+  }
+
+  return (
+    <div className="px-[5%] py-6 space-y-6">
+      {/* Title */}
+      <div>
+        <h2 className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Interesting Roles</h2>
+        <p className="text-sm text-muted">Roles matching your job search criteria from all organization crawls</p>
+      </div>
+
+      <hr className="border-surface2" />
+
+      {/* Roles Table */}
+      {isLoading ? (
+        <p className="text-xs text-muted">Loading roles…</p>
+      ) : isError ? (
+        <p className="text-xs text-red">Error loading roles.</p>
+      ) : interestingRoles.length === 0 ? (
+        <div className="flex items-center justify-center py-12">
+          <p className="text-sm text-muted italic">No Interesting Roles have been identified yet for this Org</p>
+        </div>
+      ) : (
+        <>
+          <div className="bg-surface border border-surface2 rounded overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-surface2 border-b border-surface2">
+                <tr>
+                  <th className="px-3 py-2 text-left text-muted">Title</th>
+                  <th className="px-3 py-2 text-center text-muted">URL</th>
+                  <th className="px-3 py-2 text-left text-muted">Description</th>
+                  <th className="px-3 py-2 text-left text-muted">Salary</th>
+                  <th className="px-3 py-2 text-center text-muted">Remote</th>
+                  <th className="px-3 py-2 text-left text-muted">Keywords</th>
+                  <th className="px-3 py-2 text-left text-muted">Markdown</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedRoles.map((role) => (
+                  <tr
+                    key={role.id}
+                    onClick={() => selectRole(role)}
+                    className={`border-b border-surface2 cursor-pointer transition-colors ${
+                      selectedRoleId === role.id ? 'bg-accent/10' : 'hover:bg-surface2/50'
+                    }`}
+                  >
+                    <td className="px-3 py-2 text-text">{role.title}</td>
+                    <td className="px-3 py-2 text-center">
+                      {role.role_url ? (
+                        <a href={role.role_url} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline" onClick={(e) => e.stopPropagation()}>
+                          Open
+                        </a>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {role.description ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setTextPopup({ isOpen: true, title: 'Description', content: role.description ?? '' })
+                          }}
+                          className="text-accent hover:underline text-xs"
+                        >
+                          Show
+                        </button>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-text">{role.salary_range || '—'}</td>
+                    <td className="px-3 py-2 text-center text-text">{role.remote_type}</td>
+                    <td className="px-3 py-2">
+                      {role.keywords ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setTextPopup({ isOpen: true, title: 'Keywords', content: role.keywords ?? '' })
+                          }}
+                          className="text-accent hover:underline text-xs"
+                        >
+                          Show
+                        </button>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {role.markdown ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setTextPopup({ isOpen: true, title: 'Role Markdown', content: role.markdown ?? '' })
+                          }}
+                          className="text-accent hover:underline text-xs"
+                        >
+                          Show
+                        </button>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 p-3 bg-surface2/40 border border-surface2 rounded">
+              <button
+                onClick={() => setPage(Math.max(1, page - 1))}
+                disabled={page === 1}
+                className="px-2 py-1 text-xs text-muted hover:text-text disabled:opacity-50 transition-colors"
+              >
+                ← Prev
+              </button>
+              <span className="text-xs text-muted">Page {page} of {totalPages}</span>
+              <button
+                onClick={() => setPage(Math.min(totalPages, page + 1))}
+                disabled={page === totalPages}
+                className="px-2 py-1 text-xs text-muted hover:text-text disabled:opacity-50 transition-colors"
+              >
+                Next →
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      <hr className="border-surface2" />
+
+      {/* Role Actions Block */}
+      {selectedRole && (
+        <>
+          <div>
+            <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Title</p>
+            <p className="text-sm text-text mb-3">{title}</p>
+
+            <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Actions</p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => void handleSaveEdits()}
+                disabled={!isDirty || updateRoleMutation.isPending}
+                className="px-4 py-2 text-xs font-mono bg-accent text-bg rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
+              >
+                {updateRoleMutation.isPending ? 'Saving…' : 'Save Edits'}
+              </button>
+              <button
+                onClick={() => {}}
+                className="px-4 py-2 text-xs font-mono bg-surface border border-surface2 text-muted rounded hover:text-text transition-colors"
+              >
+                Start Application
+              </button>
+
+              <div className="flex-1" />
+
+              <button
+                onClick={() => withDirtyCheck(() => void handleMarkNotInteresting())}
+                disabled={markNotInterestingMutation.isPending}
+                className="px-4 py-2 text-xs font-mono bg-surface border border-surface2 text-muted rounded hover:text-text transition-colors disabled:opacity-50"
+              >
+                {markNotInterestingMutation.isPending ? '…' : 'Mark as Not Interesting'}
+              </button>
+              <button
+                onClick={() => withDirtyCheck(() => void handleMarkClosed())}
+                disabled={markClosedMutation.isPending}
+                className="px-4 py-2 text-xs font-mono bg-surface border border-surface2 text-muted rounded hover:text-text transition-colors disabled:opacity-50"
+              >
+                {markClosedMutation.isPending ? '…' : 'Mark as Closed'}
+              </button>
+            </div>
+          </div>
+
+          <hr className="border-surface2" />
+
+          {/* Role Details Block */}
+          <div className="flex gap-6">
+            {/* Left Column — Metadata (40%) */}
+            <div className="w-[40%] space-y-3">
+              {/* Title + Work Type row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-mono text-muted uppercase tracking-widest">Title</label>
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="bg-surface border border-surface2 rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-accent/50"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-mono text-muted uppercase tracking-widest">Work Type</label>
+                  <select
+                    value={remoteType}
+                    onChange={(e) => setRemoteType(e.target.value)}
+                    className="bg-surface border border-surface2 rounded px-3 py-2 text-sm font-mono text-text focus:outline-none focus:border-accent/50"
+                  >
+                    <option value="">— select —</option>
+                    <option value="Remote">Remote</option>
+                    <option value="Hybrid">Hybrid</option>
+                    <option value="On-site">On-site</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Apply URL + Salary Range row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-mono text-muted uppercase tracking-widest">Apply URL</label>
+                  <input
+                    type="url"
+                    value={roleUrl}
+                    onChange={(e) => setRoleUrl(e.target.value)}
+                    placeholder="https://apply-link.com"
+                    className="bg-surface border border-surface2 rounded px-3 py-2 text-sm font-mono text-text focus:outline-none focus:border-accent/50"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-mono text-muted uppercase tracking-widest">Salary Range</label>
+                  <input
+                    type="text"
+                    value={salaryRange}
+                    onChange={(e) => setSalaryRange(e.target.value)}
+                    placeholder="e.g. $120k–$150k"
+                    className="bg-surface border border-surface2 rounded px-3 py-2 text-sm text-text focus:outline-none focus:border-accent/50"
+                  />
+                </div>
+              </div>
+
+              {/* Description full width */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-mono text-muted uppercase tracking-widest">Description</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Role description…"
+                  rows={6}
+                  className="bg-surface border border-surface2 rounded px-3 py-2 text-sm font-mono text-text focus:outline-none focus:border-accent/50 resize-y"
+                />
+              </div>
+            </div>
+
+            {/* Right Column — Markdown (60%) */}
+            <div className="flex-1 space-y-1">
+              <label className="text-[10px] font-mono text-muted uppercase tracking-widest">Role Page Markdown</label>
+              <textarea
+                value={markdown}
+                readOnly
+                rows={20}
+                spellCheck={false}
+                className="w-full bg-surface2/40 border border-surface2 rounded px-3 py-2 text-xs font-mono text-muted focus:outline-none resize-y"
+              />
+            </div>
+          </div>
+
+          <hr className="border-surface2" />
+        </>
+      )}
+
+      {/* Text Popup Modal */}
+      {textPopup.isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-surface border border-surface2 rounded-xl max-w-2xl max-h-96 w-full flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-surface2">
+              <p className="font-mono text-sm text-accent">{textPopup.title}</p>
+              <button
+                onClick={() => setTextPopup({ isOpen: false, title: '', content: '' })}
+                className="text-muted hover:text-text text-lg"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <code className="text-xs text-text whitespace-pre-wrap break-words">{textPopup.content}</code>
+            </div>
+            <div className="flex gap-2 p-4 border-t border-surface2">
+              <button
+                onClick={async () => {
+                  await navigator.clipboard.writeText(textPopup.content)
+                  setTextPopup({ isOpen: false, title: '', content: '' })
+                }}
+                className="px-3 py-1.5 text-xs font-mono text-accent border border-accent rounded hover:bg-surface2 transition-colors"
+              >
+                Copy
+              </button>
+              <button
+                onClick={() => setTextPopup({ isOpen: false, title: '', content: '' })}
+                className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unsaved Changes Modal */}
+      <UnsavedChangesModal
+        isOpen={unsavedModalOpen}
+        onSave={handleUnsavedSave}
+        onDiscard={handleUnsavedDiscard}
+      />
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function OrgDetails(): React.JSX.Element {
@@ -1316,10 +1811,7 @@ export default function OrgDetails(): React.JSX.Element {
           )}
 
           {activeTab === 'interesting-roles' && (
-            <div className="bg-surface border border-surface2 rounded-xl p-6 max-w-lg">
-              <p className="font-serif text-accent text-lg mb-2">Interesting Roles</p>
-              <p className="text-sm text-muted leading-relaxed">Matched roles coming soon.</p>
-            </div>
+            <InterestingRolesTab orgId={orgId} />
           )}
 
           {activeTab === 'all-roles' && (
