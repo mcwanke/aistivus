@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
+import yaml
 from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict
 
@@ -14,7 +15,23 @@ import database
 
 router = APIRouter(prefix="/api/v1/poc", tags=["poc"])
 
-CRAWL4AI_BASE_URL = "http://192.168.100.14:11235"
+
+def _load_config() -> dict:
+    """Load config from user_data/config.yaml."""
+    config_path = Path("user_data/config.yaml")
+    if config_path.exists():
+        with open(config_path) as f:
+            return yaml.safe_load(f) or {}
+    return {}
+
+
+def _get_crawl4ai_url() -> str:
+    """Get Crawl4AI base URL from config, with fallback."""
+    config = _load_config()
+    return config.get("crawl4ai", {}).get("base_url", "http://localhost:11235")
+
+
+CRAWL4AI_BASE_URL = _get_crawl4ai_url()
 POC_STATE_PATH = Path("app_data/poc_state.json")
 POC_COMPANIES_PATH = Path("app_docs/POC_companies.json")
 POC_CAREER_OUTPUT_PATH = Path("app_docs/POC_career_output.json")
@@ -1096,7 +1113,7 @@ async def extract_job(req: ExtractJobRequest) -> ExtractJobResponse:
         )
 
 
-async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | None = None) -> dict:
+async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | None = None, crawl_id: int | None = None) -> dict:
     """
     Core algorithm following explicit flow:
     1. Crawl career page
@@ -1107,6 +1124,11 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
     6. Validate each in possible_new_urls (2-pass LLM: is_job → extract_metadata)
     7. Result: new_validated_urls → insert to DB
     8. Update missing_count using scraped_urls (not validated list)
+
+    Args:
+        org_id: Organization ID to crawl
+        limit_unvalidated: Limit number of unvalidated roles to process (for testing)
+        crawl_id: Optional pre-created crawl_id. If provided, skip creating new record.
 
     Returns:
         {
@@ -1120,22 +1142,27 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
     """
     debug_log = []
     start_time = time.time()
-    crawl_id = None
 
     try:
-        # Step 1: Fetch org and create crawl record
+        # Step 1: Fetch org and create or use existing crawl record
         org = database.get_org(org_id)
         if not org:
             return {"success": False, "error": "Org not found", "debug_log": []}
 
         debug_log.append(f"[1] Loaded org: {org['name']}")
 
-        crawl_id = database.insert_org_crawl(
-            org_id=org_id,
-            status="running",
-            started_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-        )
-        debug_log.append(f"[1.5] Created org_crawls record: crawl_id={crawl_id}")
+        # If crawl_id not provided, create a new crawl record
+        if crawl_id is None:
+            crawl_id = database.insert_org_crawl(
+                org_id=org_id,
+                status="running",
+                started_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            )
+            debug_log.append(f"[1.5] Created org_crawls record: crawl_id={crawl_id}")
+        else:
+            # Update existing crawl record to running status
+            database.update_org_crawl_status(crawl_id, "running")
+            debug_log.append(f"[1.5] Using provided crawl_id={crawl_id}, marked as running")
 
         # Step 2: Crawl career page (with timing)
         debug_log.append(f"[2] Crawling career page: {org['career_page_url']}")

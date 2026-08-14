@@ -7,12 +7,65 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
+import yaml
+import httpx
 
 import database
 import prompt_generation
 
 router = APIRouter(prefix="/api/v1/orgs", tags=["orgs"])
 
+
+# ─── Config & Health Check ─────────────────────────────────────────────────
+
+def _load_config() -> dict:
+    """Load config from user_data/config.yaml."""
+    config_path = Path("user_data/config.yaml")
+    if config_path.exists():
+        with open(config_path) as f:
+            return yaml.safe_load(f) or {}
+    return {}
+
+
+def _get_service_urls() -> tuple[str, str]:
+    """Get Ollama and Crawl4AI URLs from config."""
+    config = _load_config()
+    ollama_url = config.get("ollama", {}).get("base_url", "http://localhost:11434")
+    crawl4ai_url = config.get("crawl4ai", {}).get("base_url", "http://localhost:11235")
+    return ollama_url, crawl4ai_url
+
+
+async def _check_service_health() -> dict[str, bool]:
+    """Check if Ollama and Crawl4AI services are running.
+
+    Returns:
+        {"ollama_ok": bool, "crawl4ai_ok": bool}
+    """
+    ollama_url, crawl4ai_url = _get_service_urls()
+
+    ollama_ok = False
+    crawl4ai_ok = False
+
+    # Check Ollama health
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            res = await client.get(f"{ollama_url}/api/tags")
+            ollama_ok = res.status_code == 200
+    except Exception:  # noqa: BLE001
+        pass
+
+    # Check Crawl4AI health
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            res = await client.get(f"{crawl4ai_url}/health", follow_redirects=True)
+            crawl4ai_ok = res.status_code == 200
+    except Exception:  # noqa: BLE001
+        pass
+
+    return {"ollama_ok": ollama_ok, "crawl4ai_ok": crawl4ai_ok}
+
+
+# ─── Request Models ───────────────────────────────────────────────────────
 
 class CreateOrgRequest(BaseModel):
     name: str
@@ -95,6 +148,88 @@ async def create_org(req: CreateOrgRequest) -> dict:
 
     org = database.get_org(org_id)
     return dict(org) if org else {"error": "Failed to create org"}
+
+
+@router.post("/{org_id}/crawl")
+async def trigger_crawl(org_id: int) -> dict:
+    """Trigger a manual crawl for an organization.
+
+    Returns immediately with crawl_id and status='pending'.
+    Backend processes the crawl asynchronously.
+
+    Checks service health (Ollama, Crawl4AI) before queuing.
+    Returns 503 if either service is down.
+    """
+    import asyncio
+    from datetime import datetime, timezone
+    from poc_routes import validate_new_roles_algorithm
+
+    org = database.get_org(org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail=f"Org {org_id} not found.")
+
+    # Check service health before queuing crawl
+    health = await _check_service_health()
+    if not health["ollama_ok"]:
+        raise HTTPException(
+            status_code=503,
+            detail="Ollama service is not available. Ensure Ollama is running (run 'ollama serve')"
+        )
+    if not health["crawl4ai_ok"]:
+        raise HTTPException(
+            status_code=503,
+            detail="Crawl4AI service is not available. Ensure Crawl4AI is running"
+        )
+
+    # Create org_crawl record with status='pending'
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    crawl_id = database.insert_org_crawl(
+        org_id=org_id,
+        status="pending",
+        started_at=now
+    )
+
+    # Fire off async task to run the crawl algorithm
+    # This doesn't block the response
+    asyncio.create_task(_run_crawl_async(org_id, crawl_id))
+
+    return {
+        "success": True,
+        "crawl_id": crawl_id,
+        "status": "pending",
+        "message": f"Crawl queued for org {org['name']}"
+    }
+
+
+async def _run_crawl_async(org_id: int, crawl_id: int) -> None:
+    """Run the crawl algorithm asynchronously in the background."""
+    from poc_routes import validate_new_roles_algorithm
+    from datetime import datetime, timezone
+
+    try:
+        # Run the algorithm (pass crawl_id so it doesn't create a duplicate)
+        result = await validate_new_roles_algorithm(org_id, crawl_id=crawl_id)
+
+        # Update crawl status based on result
+        if result.get("success"):
+            database.update_org_crawl_status(crawl_id, "success")
+        else:
+            error_msg = result.get("error", "Unknown error")
+            database.update_org_crawl_completion(
+                crawl_id=crawl_id,
+                status="error",
+                error_msg=error_msg
+            )
+    except Exception as e:
+        # Mark crawl as failed
+        try:
+            database.update_org_crawl_completion(
+                crawl_id=crawl_id,
+                status="error",
+                error_msg=str(e)
+            )
+        except Exception:  # noqa: BLE001
+            pass  # If even error logging fails, give up
 
 
 @router.get("/{org_id}/research")
@@ -436,3 +571,5 @@ async def export_org_roles(org_id: int) -> dict:
         json.dump(role_dicts, f, indent=2)
 
     return JSONResponse({"success": True, "filename": filename})
+
+

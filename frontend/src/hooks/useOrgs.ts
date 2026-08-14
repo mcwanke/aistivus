@@ -188,6 +188,26 @@ export function useExportOrgRoles(orgId: number) {
   })
 }
 
+export function useTriggerCrawl(orgId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (): Promise<{ success: boolean; crawl_id: number; status: string; message: string }> => {
+      const res = await fetch(`/api/v1/orgs/${orgId}/crawl`, {
+        method: 'POST',
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw new Error(err.detail ?? `trigger crawl ${res.status}`)
+      }
+      return res.json() as Promise<{ success: boolean; crawl_id: number; status: string; message: string }>
+    },
+    onSuccess: () => {
+      // Invalidate crawls query to trigger refetch
+      qc.invalidateQueries({ queryKey: ['org-crawls', orgId] })
+    },
+  })
+}
+
 export function useMarkRoleInteresting(orgId: number) {
   const qc = useQueryClient()
   return useMutation({

@@ -3475,6 +3475,15 @@ def update_org_crawl_markdown(crawl_id: int, markdown: str) -> None:
         )
 
 
+def update_org_crawl_status(crawl_id: int, status: str) -> None:
+    """Update org_crawl status (pending, running, success, error)."""
+    with get_connection() as conn:
+        conn.execute(
+            """UPDATE org_crawls SET status = ? WHERE id = ?""",
+            (status, crawl_id)
+        )
+
+
 def update_org_crawl_completion(
     crawl_id: int,
     status: str,

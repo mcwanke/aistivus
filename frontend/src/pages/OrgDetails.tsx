@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import AppHeader from '@/components/AppHeader'
-import { useOrgDetail, useOrgResearch, useGenerateOrgResearchPrompt, useImportOrgResearch, useOrgCrawls, useCrawlLogs, useExportOrgCrawls, useExportCrawlLogs, useOrgRoles, useExportOrgRoles, useMarkRoleInteresting, useMarkRoleNotInteresting, useMarkRoleActive, useMarkRoleClosed, useUpdateOrgRole } from '@/hooks/useOrgs'
+import { useOrgDetail, useOrgResearch, useGenerateOrgResearchPrompt, useImportOrgResearch, useOrgCrawls, useCrawlLogs, useExportOrgCrawls, useExportCrawlLogs, useOrgRoles, useExportOrgRoles, useMarkRoleInteresting, useMarkRoleNotInteresting, useMarkRoleActive, useMarkRoleClosed, useUpdateOrgRole, useTriggerCrawl } from '@/hooks/useOrgs'
 import type { JobResearch, OrgCrawl, OrgCrawlLog, OrgRole } from '@/types/api'
 
 // ─── Tab type ─────────────────────────────────────────────────────────────────
@@ -409,11 +409,12 @@ interface TextPopupState {
 }
 
 function CrawlsTab({ orgId, orgName }: { orgId: number; orgName: string }): React.JSX.Element {
-  const { data: crawls = [], isLoading } = useOrgCrawls(orgId)
+  const { data: crawls = [], isLoading, refetch } = useOrgCrawls(orgId)
   const [selectedCrawlId, setSelectedCrawlId] = useState<number | null>(null)
   const { data: logs = [] } = useCrawlLogs(orgId, selectedCrawlId)
   const exportCrawls = useExportOrgCrawls(orgId)
   const exportLogs = useExportCrawlLogs(orgId, selectedCrawlId ?? 0)
+  const triggerCrawl = useTriggerCrawl(orgId)
   const [copiedCrawls, setCopiedCrawls] = useState(false)
   const [copiedLogs, setCopiedLogs] = useState(false)
   const [markdownPopup, setMarkdownPopup] = useState<TextPopupState>({ isOpen: false, title: '', content: '' })
@@ -434,6 +435,16 @@ function CrawlsTab({ orgId, orgName }: { orgId: number; orgName: string }): Reac
   const paginatedLogs = logs.slice(startLog, endLog)
   const totalLogPages = Math.ceil(logs.length / logsPerPage)
 
+  // Poll crawl history while any crawl is pending or running
+  const hasActiveCrawl = crawls.some(c => c.status === 'pending' || c.status === 'running')
+  useEffect(() => {
+    if (!hasActiveCrawl) return
+    const interval = setInterval(() => {
+      void refetch()
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [hasActiveCrawl, refetch])
+
   function handleCopyCrawlData(): void {
     const text = formatCrawlsAsText(crawls)
     void navigator.clipboard.writeText(text)
@@ -444,6 +455,12 @@ function CrawlsTab({ orgId, orgName }: { orgId: number; orgName: string }): Reac
   function handleSaveCrawlJSON(): void {
     void exportCrawls.mutateAsync().then((result) => {
       if (result.success) alert(`Saved: ${result.filename}`)
+    })
+  }
+
+  function handleInitiateCrawl(): void {
+    void triggerCrawl.mutateAsync().catch((error) => {
+      console.error('Crawl trigger error:', error)
     })
   }
 
@@ -480,20 +497,29 @@ function CrawlsTab({ orgId, orgName }: { orgId: number; orgName: string }): Reac
       </div>
 
       {/* Crawl Options */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 justify-between">
         <button
-          onClick={handleCopyCrawlData}
-          className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
+          onClick={handleInitiateCrawl}
+          disabled={triggerCrawl.isPending}
+          className="px-4 py-1.5 text-xs font-mono text-bg bg-accent rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
         >
-          {copiedCrawls ? 'Copied!' : 'Copy Crawl Data'}
+          {triggerCrawl.isPending ? 'Starting…' : 'Initiate Crawl'}
         </button>
-        <button
-          onClick={handleSaveCrawlJSON}
-          disabled={exportCrawls.isPending || crawls.length === 0}
-          className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50"
-        >
-          {exportCrawls.isPending ? 'Saving…' : 'Save Crawl JSON'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleCopyCrawlData}
+            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors"
+          >
+            {copiedCrawls ? 'Copied!' : 'Copy Crawl Data'}
+          </button>
+          <button
+            onClick={handleSaveCrawlJSON}
+            disabled={exportCrawls.isPending || crawls.length === 0}
+            className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50"
+          >
+            {exportCrawls.isPending ? 'Saving…' : 'Save Crawl JSON'}
+          </button>
+        </div>
       </div>
 
       {/* Crawls Table */}

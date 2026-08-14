@@ -723,7 +723,7 @@ async def _lesson_sse_generator(
 @app.get("/api/v1/health")
 @limiter.limit("60/minute")
 async def health_check(request: Request):
-    """Health check — DB schema version, model availability, Anthropic key presence."""
+    """Health check — DB schema version, model availability, Anthropic key presence, service health."""
     models = database.get_all_llm_models()
     models_out = [
         {
@@ -743,12 +743,19 @@ async def health_check(request: Request):
     except Exception as e:  # noqa: BLE001
         log.warning("startup_schema_version_check_failed", extra={"error": str(e)})
 
+    # Check Ollama and Crawl4AI service health
+    service_health = await org_routes._check_service_health()
+
     return JSONResponse({
         "status": "ok" if any_available else "degraded",
         "database": {"schema_version": db_version},
         "models": models_out,
         "anthropic_configured": bool(os.environ.get("ANTHROPIC_API_KEY")),
         "typst_available": getattr(request.app.state, "typst_available", False),
+        "services": {
+            "ollama_ok": service_health["ollama_ok"],
+            "crawl4ai_ok": service_health["crawl4ai_ok"],
+        },
         "version": "2.6.0",
     })
 

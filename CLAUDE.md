@@ -84,16 +84,44 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 **Implementation Plan:** See `app_docs/WORKORDER_p2.7.md` for full detail.
 
-### Phases:
+### Status (2026-08-14):
 1. ✅ **DESIGN COMPLETE (2026-08-11)** — Planning discussion + WORKORDER finalized
-2. 🔄 **Phase 1: DB Schema** (not started) — orgs, org_crawls, org_roles tables; polymorphic job_research
-3. 🔄 **Phase 2: POC Extraction Hardening** (parallel with Phase 1) — Test crawl4ai on real jobs; measure timing; lock extraction strategy (LLM-first)
-4. 🔄 **Phase 3–6: Backend Infrastructure** — Crawl routes + core logic, APScheduler setup, matching prompt, local scoring prompt
-5. 🔄 **Phase 7–13: Frontend** — Navigation, CreateOrg, OrgsList, OrgDetails, RoleDetails, CrawlRuns, TypeScript types/hooks
-6. 🔄 **Phase 14–15: Integration** — Company research UI (stub: copy-paste prompt flow), promote flow (org_role → job + evaluations)
-7. 🔄 **Phase 16: Testing** — Manual end-to-end testing
+2. ✅ **Phase 1: DB Schema** — orgs, org_crawls, org_roles tables added; polymorphic job_research complete
+3. ✅ **Phase 2: POC Extraction Hardening** — 9 companies tested, 318 roles extracted, validation algorithm validated
+4. ✅ **Phase 3: Crawl Routes & Core Logic** — POST `/api/v1/orgs/{org_id}/crawl` (async), health checks, service validation
+5. ⏳ **Phase 4: APScheduler Setup** — not started
+6. ⏳ **Phase 5–6: Matching/Scoring Logic** — prompts ready in poc_routes.py; needs integration into crawl pipeline
+7. ✅ **Phase 7: Navigation** — routes configured, all pages wired
+8. ✅ **Phase 8–12: Frontend Pages** — Orgs list, OrgDetails (4 tabs), CreateOrg pages built + tested
+9. ✅ **Phase 13: Types & Hooks** — useOrgs (+ useTriggerCrawl), useOrgDetail, useOrgRoles, types defined
+10. ✅ **Phase 14: Company Research UI** — research workflow modal in OrgDetails complete
+11. ⏳ **Phase 15: Promote Flow** — needs validation/testing
+12. 🔄 **Phase 16: Manual Testing** — in progress; manual crawl triggering working
 
-**Test baseline going in:** 712 backend / 319 frontend (from Phase 2.6)
+**What's Working (2026-08-14):**
+- Full org/role CRUD + UI
+- Research workflow (generate prompt → import JSON)
+- Crawl history display + export
+- Role state mutations (mark interesting/active/closed)
+- **[Initiate Crawl] button** — async background task, single crawl record, health-checked
+- **Auto-polling** — crawl history refreshes every 2s while crawl running
+- **Service health checks** — Ollama + Crawl4AI validated before crawl starts (503 if down)
+- All extraction/validation logic (in poc_routes.py, tested)
+
+**Recent Fixes (2026-08-14):**
+- Fixed duplicate org_crawls records (algorithm was creating its own crawl_id)
+- Made crawl4ai.base_url configurable from config.yaml (was hardcoded)
+- Added service health validation to prevent crawls queuing with services down
+- Updated /api/v1/health endpoint to include ollama_ok, crawl4ai_ok
+
+**What Needs to Happen:**
+1. Wire APScheduler for background crawls (Phase 4)
+2. Integrate matching + scoring logic into crawl flow (Phase 5-6)
+3. Test promote flow: org_role → job + evaluations (Phase 15)
+4. Full E2E testing: create org → trigger crawl → review roles → promote to jobs
+5. Remove/decommission POC routes (when Phase 4+ features move to production)
+
+**Test baseline:** 712 backend / 319 frontend (from Phase 2.6) — new tests for async crawl + health checks TBD
 
 **Deferred to Phase 2.8+:** 
 - Fully automated company research (Claude API integration)
