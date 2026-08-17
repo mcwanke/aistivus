@@ -7,6 +7,45 @@
 
 ---
 
+## Worker System Context (Phase 2.8 Foundation)
+
+**⚠️ IMPORTANT:** Phase 2.8 introduces the **Worker System** — the foundation for all future async/long-running workflows. This is NOT just about CLI evaluations; it's about building the platform's async backbone.
+
+### What Is the Worker System?
+
+A FIFO queue + in-process executor that runs async workflows in the background without blocking the UI. Workflows are "workers" — functions registered in a simple registry. Users trigger workers from any UI page, navigate away, and check a dashboard later to see results.
+
+**Key characteristics:**
+- **FIFO execution:** Serialized by default (`parallel_workers=1`), configurable for future parallelization
+- **Database persistence:** All workers tracked in `backend_workers` table (survives app restart)
+- **Fire-and-forget UX:** Trigger work on one page, do other things, return later to dashboard
+- **Result linking:** Each worker tracks `entity_type` + `entity_id` + `result_url` to link back to origin
+- **Lazy failure:** No pre-flight checks; workers execute and log errors naturally
+- **Independent from LLM System:** A worker may spawn 0, 1, or N LLM calls
+
+### What Phase 2.8 Builds
+
+1. **Schema:** `backend_workers` table
+2. **Executor:** In-process thread that polls and executes workers FIFO
+3. **First worker:** `eval_external_cli` — evaluates a job via Claude Code CLI
+4. **Dashboard (future):** UI page to view all workers, status, results
+
+For full architecture details, see **PROJECT_SPEC.md § 5.5 Worker System**.
+
+### Future Workers (Phase 2.9+)
+
+Once the foundation is solid, we'll add:
+- `org_scrape` — Career page scrapes (Phase 2.7 integration)
+- `eval_role` — Evaluate org roles
+- `company_research` — Generate company research
+- `resume_generate` — Generate/compile resumes
+- `cover_letter_generate` — Generate/compile cover letters
+- And more as needed
+
+The registry pattern means each new worker is 1–2 functions, no plumbing changes.
+
+---
+
 ## Overview
 
 Enable cost-free development and testing of the job evaluation workflow by using Claude Code CLI (`claude -p`) as a local LLM backend in development environments, while supporting direct Anthropic API calls in production.
@@ -16,6 +55,8 @@ Enable cost-free development and testing of the job evaluation workflow by using
 **New workflow:** User clicks "Auto-Generate Eval w/ CLI/API" button → subprocess runs prompt via CLI/API → evaluation auto-imports. Cost-free in dev (subscription-based), paid per-token in prod (API-based).
 
 **Key principle:** Same prompts, same import logic, different calling mechanism (CLI vs API). Environment-controlled via `AI_BACKEND` config setting.
+
+**Under the hood:** This worker is the first to use the new Worker System (async queue, database tracking, dashboard integration).
 
 ---
 

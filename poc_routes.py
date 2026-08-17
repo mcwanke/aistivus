@@ -335,7 +335,7 @@ Career page:
                 end_idx = content.rfind("]")
                 if start_idx >= 0 and end_idx > start_idx:
                     content = content[start_idx : end_idx + 1]
-                    print(f"[Cascade-Validate] Extracted JSON from response")
+                    print("[Cascade-Validate] Extracted JSON from response")
 
             jobs = json.loads(content)
 
@@ -355,7 +355,7 @@ Career page:
 
     except json.JSONDecodeError as e:
         print(f"[Cascade-Validate] JSON parse error: {e}")
-        print(f"[Cascade-Validate] Returning consolidated list as fallback")
+        print("[Cascade-Validate] Returning consolidated list as fallback")
         return candidates
     except Exception as e:  # noqa: BLE001
         print(f"[Cascade-Validate] Validation failed: {e}")
@@ -438,14 +438,14 @@ Career page:
                 end_idx = content.rfind("]")
                 if start_idx >= 0 and end_idx > start_idx:
                     content = content[start_idx : end_idx + 1]
-                    print(f"[LLM-Validate] Extracted JSON from response")
+                    print("[LLM-Validate] Extracted JSON from response")
 
             jobs = json.loads(content)
 
             # Handle model wrapping in {"data": [...]}
             if isinstance(jobs, dict) and "data" in jobs:
                 jobs = jobs["data"]
-                print(f"[LLM-Validate] Unwrapped data field")
+                print("[LLM-Validate] Unwrapped data field")
 
             if isinstance(jobs, list):
                 validated = []
@@ -1456,7 +1456,7 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
 
         # Step 16 (doc): Update missing_count for ALL roles using scraped_urls (not validated list)
         database.update_org_role_missing_count(org_id, scraped_urls)
-        debug_log.append(f"[14] Updated missing_count for all roles (roles marked inactive if missing 2+ crawls)")
+        debug_log.append("[14] Updated missing_count for all roles (roles marked inactive if missing 2+ crawls)")
 
         # Count results
         all_roles = database.get_org_roles(org_id, include_inactive=True)
@@ -1500,7 +1500,7 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
         }
 
     except Exception as e:  # noqa: BLE001
-        debug_log.append(f"[ERROR] Algorithm failed: {str(e)}")
+        debug_log.append(f"[ERROR] Algorithm failed: {e!s}")
         import traceback
         traceback.print_exc()
         # Mark crawl as failed
@@ -1591,7 +1591,7 @@ Examples:
                     "passed": passed,
                 }
             except json.JSONDecodeError:
-                print(f"[Validate-IsJob] JSON parse error, treating as not a job posting")
+                print("[Validate-IsJob] JSON parse error, treating as not a job posting")
                 print(f"[Validate-IsJob] Raw response: {content[:200]}")
                 return False, {
                     "prompt": prompt,
@@ -1645,7 +1645,7 @@ Return exactly this JSON structure:
             latency_ms = (time.time() - start_time) * 1000
 
             if response.status_code != 200:
-                print(f"[Extract-Metadata] Ollama error")
+                print("[Extract-Metadata] Ollama error")
                 return (
                     {"title": extracted_title, "remote_type": "unknown"},
                     {

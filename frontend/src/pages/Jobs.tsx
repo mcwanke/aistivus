@@ -145,6 +145,30 @@ function JobRow({ job, onSelect }: { job: JobListItem; onSelect: () => void }): 
           )}
         </div>
 
+        {/* Company Research — narrow with label */}
+        <div className="w-14 shrink-0 border-r border-surface2 px-2 py-2.5 flex flex-col items-center justify-center">
+          <span className="text-[0.5rem] font-mono text-muted uppercase">Rsch</span>
+          <span className="text-[0.7rem] font-mono text-green mt-0.5">
+            {job.has_company_research ? '✓' : '—'}
+          </span>
+        </div>
+
+        {/* Internal Eval — narrow with label */}
+        <div className="w-16 shrink-0 border-r border-surface2 px-2 py-2.5 flex flex-col items-center justify-center">
+          <span className="text-[0.5rem] font-mono text-muted uppercase">I-Eval</span>
+          <span className="text-[0.7rem] font-mono text-green mt-0.5">
+            {job.has_internal_eval ? '✓' : '—'}
+          </span>
+        </div>
+
+        {/* External Eval — narrow with label */}
+        <div className="w-16 shrink-0 border-r border-surface2 px-2 py-2.5 flex flex-col items-center justify-center">
+          <span className="text-[0.5rem] font-mono text-muted uppercase">E-Eval</span>
+          <span className="text-[0.7rem] font-mono text-green mt-0.5">
+            {job.has_external_eval ? '✓' : '—'}
+          </span>
+        </div>
+
         {/* Eval count — fixed width with label */}
         <div className="w-14 shrink-0 border-r border-surface2 px-2 py-2.5 flex flex-col items-center justify-center">
           <span className="text-[0.5rem] font-mono text-muted uppercase">Evals</span>

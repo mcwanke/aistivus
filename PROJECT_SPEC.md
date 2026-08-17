@@ -144,6 +144,85 @@ docker-compose
 | Logging | stdout | Python stdlib logging, structured JSON (Phase 1.0) |
 | Testing | Manual | pytest + Vitest (Phase 1.0) |
 | Deployment | Direct uvicorn | Docker + docker-compose (Phase 1.7) |
+| Async Work | None | In-process thread queue (Phase 2.8+) |
+
+---
+
+## 5.5 Worker System (Phase 2.8+)
+
+**Purpose:** Execute long-running or scheduled workflows asynchronously without blocking the UI. Enables fire-and-forget UX where users trigger work, navigate elsewhere, and return later to view results.
+
+### Architecture
+
+- **Queue model:** FIFO (first-in, first-out). No priorities.
+- **Execution:** In-process background thread polling `backend_workers` table.
+- **Concurrency:** Configurable via `parallel_workers` setting (default: 1, serial execution).
+- **Persistence:** All workers tracked in database; survive app restart.
+- **Failure handling:** Lazy failure — workers execute and log errors. Manual retry via UI dashboard.
+
+### Worker Types
+
+Workers are async functions registered in a lightweight registry. Examples:
+
+- `eval_external_cli` — Run evaluation via Claude Code CLI subprocess (Phase 2.8)
+- `org_scrape` — Crawl career page and extract roles (Phase 2.7+)
+- `eval_role` — Evaluate a single org role (Phase 2.7+)
+- Future: `resume_generate`, `cover_letter_generate`, `company_research`, etc.
+
+### Database Table: `backend_workers`
+
+```sql
+backend_workers (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    worker_type     TEXT NOT NULL,        -- e.g., "eval_external_cli", "org_scrape"
+    status          TEXT NOT NULL,        -- "pending" | "running" | "completed" | "failed"
+    entity_type     TEXT NOT NULL,        -- "job" | "org" | "role" (polymorphic reference)
+    entity_id       INTEGER NOT NULL,     -- ID of the entity being operated on
+    result_url      TEXT NOT NULL,        -- Link to return to after completion (e.g., "/jobs/123")
+    input_json      TEXT,                 -- Worker input as JSON (parameters, config)
+    output_json     TEXT,                 -- Worker result as JSON (populated on completion)
+    error           TEXT,                 -- Error message if status = "failed"
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    started_at      TEXT,                 -- Timestamp when worker began execution
+    completed_at    TEXT                  -- Timestamp when worker finished
+)
+```
+
+### Integration with APScheduler (Scheduling)
+
+APScheduler (existing, Phase 2.7) handles recurring tasks. When a scheduled task triggers:
+1. APScheduler inserts a `backend_workers` record
+2. Worker thread picks it up from FIFO queue
+3. Executes it the same way as manual triggers
+
+Example: "Scrape org career page every 3 days" → Create `backend_workers` record daily at 3am → Queue executes when thread is free.
+
+### Integration with LLM System (Independent)
+
+Worker and LLM Call Log are separate. A worker may:
+- Spawn 0 LLM calls (e.g., scrape-only)
+- Spawn 1 LLM call (e.g., simple eval)
+- Spawn N LLM calls (e.g., multi-step role evaluation)
+
+LLM calls are logged in `llm_call_log` independently. Worker tracks the final result; LLM calls are audit trail.
+
+### Configuration
+
+In `user_data/config.yaml`:
+
+```yaml
+worker_system:
+  parallel_workers: 1  # Number of concurrent workers; start at 1 (serial)
+                       # Can increase later (2–N) for parallelization testing
+```
+
+### UI: Worker Dashboard
+
+Planned future page: `/workers` or `/backend-status`
+- Table: all workers, status, timestamps, entity type/ID
+- Link to result (result_url) for navigation back to origin
+- Manual retry button for failed workers
+- Filter by status (pending, running, completed, failed)
 
 ---
 

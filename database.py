@@ -45,7 +45,7 @@ def count_tokens(text: str) -> int:
         return 0
 
     try:
-        from transformers import AutoTokenizer  # noqa: F401
+        from transformers import AutoTokenizer
         tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-3B", trust_remote_code=True)
         return len(tokenizer.encode(text))
     except (ImportError, Exception):
@@ -595,6 +595,25 @@ CREATE TABLE IF NOT EXISTS org_crawl_logs (
 CREATE INDEX IF NOT EXISTS idx_org_crawl_logs_crawl_id ON org_crawl_logs(org_crawl_id);
 CREATE INDEX IF NOT EXISTS idx_org_crawl_logs_action  ON org_crawl_logs(action_type);
 CREATE INDEX IF NOT EXISTS idx_org_crawl_logs_url     ON org_crawl_logs(url);
+
+CREATE TABLE IF NOT EXISTS backend_workers (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    worker_type     TEXT NOT NULL,        -- e.g., "eval_external_cli", "org_scrape"
+    status          TEXT NOT NULL,        -- "pending" | "running" | "completed" | "failed"
+    entity_type     TEXT NOT NULL,        -- "job" | "org" | "role" (polymorphic reference)
+    entity_id       INTEGER NOT NULL,     -- ID of the entity being operated on
+    result_url      TEXT NOT NULL,        -- Link to return to after completion
+    input_json      TEXT,                 -- Worker input as JSON
+    output_json     TEXT,                 -- Worker result as JSON (populated on completion)
+    error           TEXT,                 -- Error message if status = "failed"
+    is_viewed       INTEGER NOT NULL DEFAULT 0,  -- 0/1 flag; set to 1 when user views result
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    started_at      TEXT,                 -- Timestamp when worker began execution
+    completed_at    TEXT                  -- Timestamp when worker finished
+);
+
+CREATE INDEX IF NOT EXISTS idx_backend_workers_status ON backend_workers(status);
+CREATE INDEX IF NOT EXISTS idx_backend_workers_entity ON backend_workers(entity_type, entity_id);
 """
 
 CURRENT_SCHEMA_VERSION = "2.7"
@@ -897,6 +916,17 @@ def init_db() -> None:
             (CURRENT_SCHEMA_VERSION,)
         ).fetchone()
         if not existing_version:
+            # Phase 2.8 — worker viewing tracker
+            try:
+                conn.execute("ALTER TABLE backend_workers ADD COLUMN is_viewed INTEGER NOT NULL DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass  # column already exists
+
+            try:
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_backend_workers_is_viewed ON backend_workers(is_viewed)")
+            except sqlite3.OperationalError:
+                pass  # index already exists
+
             conn.execute(
                 "INSERT INTO schema_versions (version, description) VALUES (?, ?)",
                 (CURRENT_SCHEMA_VERSION, "Schema v2.7 — Phase 2.7: orgs, org_crawls, org_roles tables; polymorphic job_research (org_id); jobs.org_id FK")
@@ -1486,6 +1516,37 @@ def get_eval_counts() -> dict[int, int]:
             "SELECT job_id, COUNT(*) FROM evaluations GROUP BY job_id"
         ).fetchall()
     return {row[0]: row[1] for row in rows}
+
+
+def has_job_research() -> set[int]:
+    """Return set of job IDs that have at least one research record."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT job_id FROM job_research"
+        ).fetchall()
+    return {row[0] for row in rows}
+
+
+def has_internal_eval() -> set[int]:
+    """Return set of job IDs that have at least one internal (local/Ollama) evaluation."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT DISTINCT e.job_id FROM evaluations e
+               JOIN llm_models m ON m.id = e.llm_model_id
+               WHERE m.external_default = 0"""
+        ).fetchall()
+    return {row[0] for row in rows}
+
+
+def has_external_eval() -> set[int]:
+    """Return set of job IDs that have at least one external (Claude) evaluation."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT DISTINCT e.job_id FROM evaluations e
+               JOIN llm_models m ON m.id = e.llm_model_id
+               WHERE m.external_default = 1"""
+        ).fetchall()
+    return {row[0] for row in rows}
 
 
 def get_job_last_interaction_days(job_id: int) -> int | None:
@@ -3827,6 +3888,121 @@ def insert_org_nonjob_links(org_id: int, links: list[dict]) -> None:
                    VALUES (?, ?, ?)""",
                 (org_id, url, link.get("title"))
             )
+
+
+# ─────────────────────────────────────────────────────────────
+# Backend Workers — Async task queue management
+# ─────────────────────────────────────────────────────────────
+
+def create_worker(
+    worker_type: str,
+    entity_type: str,
+    entity_id: int,
+    result_url: str,
+    input_json: dict | None = None,
+) -> int:
+    """
+    Create a new worker task in the queue (status='pending').
+    Returns the worker ID.
+    """
+    with get_connection() as conn:
+        input_str = json.dumps(input_json) if input_json else None
+        created_at = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            """INSERT INTO backend_workers
+               (worker_type, status, entity_type, entity_id, result_url, input_json, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (worker_type, "pending", entity_type, entity_id, result_url, input_str, created_at)
+        )
+        return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def get_pending_workers(limit: int = 1) -> list[sqlite3.Row]:
+    """Fetch pending workers (status='pending'). Used by executor thread."""
+    with get_connection() as conn:
+        return conn.execute(
+            """SELECT * FROM backend_workers
+               WHERE status = 'pending'
+               ORDER BY created_at ASC
+               LIMIT ?""",
+            (limit,)
+        ).fetchall()
+
+
+def get_worker(worker_id: int) -> sqlite3.Row | None:
+    """Fetch a single worker by ID."""
+    with get_connection() as conn:
+        return conn.execute(
+            """SELECT * FROM backend_workers WHERE id = ?""",
+            (worker_id,)
+        ).fetchone()
+
+
+def update_worker_status(worker_id: int, status: str, started_at: str | None = None) -> None:
+    """Update worker status. If status='running', set started_at timestamp."""
+    with get_connection() as conn:
+        if status == "running":
+            ts = started_at or datetime.now(timezone.utc).isoformat()
+            conn.execute(
+                """UPDATE backend_workers
+                   SET status = ?, started_at = ?
+                   WHERE id = ?""",
+                (status, ts, worker_id)
+            )
+        else:
+            conn.execute(
+                """UPDATE backend_workers
+                   SET status = ?
+                   WHERE id = ?""",
+                (status, worker_id)
+            )
+
+
+def update_worker_output(worker_id: int, output_json: dict, status: str = "completed") -> None:
+    """Update worker output and status. Set completed_at timestamp."""
+    with get_connection() as conn:
+        output_str = json.dumps(output_json)
+        completed_at = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            """UPDATE backend_workers
+               SET output_json = ?, status = ?, completed_at = ?
+               WHERE id = ?""",
+            (output_str, status, completed_at, worker_id)
+        )
+
+
+def update_worker_error(worker_id: int, error_msg: str) -> None:
+    """Mark worker as failed with error message. Set completed_at timestamp."""
+    with get_connection() as conn:
+        completed_at = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            """UPDATE backend_workers
+               SET error = ?, status = 'failed', completed_at = ?
+               WHERE id = ?""",
+            (error_msg, completed_at, worker_id)
+        )
+
+
+def get_workers_for_entity(entity_type: str, entity_id: int) -> list[sqlite3.Row]:
+    """Fetch all workers for a specific entity (for UI dashboard)."""
+    with get_connection() as conn:
+        return conn.execute(
+            """SELECT * FROM backend_workers
+               WHERE entity_type = ? AND entity_id = ?
+               ORDER BY created_at DESC""",
+            (entity_type, entity_id)
+        ).fetchall()
+
+
+def mark_worker_viewed(worker_id: int) -> None:
+    """Mark a worker as viewed."""
+    with get_connection() as conn:
+        conn.execute(
+            """UPDATE backend_workers
+               SET is_viewed = 1
+               WHERE id = ?""",
+            (worker_id,)
+        )
 
 
 # ─────────────────────────────────────────────────────────────

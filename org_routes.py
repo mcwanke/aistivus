@@ -4,11 +4,12 @@ Org management routes for Phase 2.7 company workflows.
 
 import json
 from pathlib import Path
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from fastapi.responses import JSONResponse
-import yaml
+
 import httpx
+import yaml
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 import database
 import prompt_generation
@@ -162,7 +163,7 @@ async def trigger_crawl(org_id: int) -> dict:
     """
     import asyncio
     from datetime import datetime, timezone
-    from poc_routes import validate_new_roles_algorithm
+
 
     org = database.get_org(org_id)
     if not org:
@@ -203,8 +204,8 @@ async def trigger_crawl(org_id: int) -> dict:
 
 async def _run_crawl_async(org_id: int, crawl_id: int) -> None:
     """Run the crawl algorithm asynchronously in the background."""
+
     from poc_routes import validate_new_roles_algorithm
-    from datetime import datetime, timezone
 
     try:
         # Run the algorithm (pass crawl_id so it doesn't create a duplicate)
@@ -299,7 +300,6 @@ async def generate_org_research_prompt(org_id: int) -> dict:
 
     org_name = org_dict.get("name") or "N/A"
     org_url = org_dict.get("url") or "N/A"
-    career_page_url = org_dict.get("career_page_url") or "N/A"
 
     try:
         prompt_result = prompt_generation.get_prompt(

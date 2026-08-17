@@ -348,9 +348,16 @@ async def lifespan(app: FastAPI):
             extra={"hint": "copy JOBSEARCH_TEMPLATE.md to user_data/my_data/jobsearch.md"},
         )
 
+    # Start background worker executor
+    import worker_executor
+    worker_executor.start_executor()
+
     log.info("aistivus_ready", extra={"url": "http://127.0.0.1:8080"})
     yield
     log.info("aistivus_shutdown")
+
+    # Stop background worker executor
+    worker_executor.stop_executor()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1049,6 +1056,84 @@ async def get_evaluation(request: Request, evaluation_id: int):
 
 
 # ─────────────────────────────────────────────────────────────
+# Workers — Async task queue status
+# ─────────────────────────────────────────────────────────────
+
+@app.get("/api/v1/workers")
+@limiter.limit("60/minute")
+async def list_all_workers(request: Request):
+    """Get all workers, sorted by created_at descending."""
+    with database.get_connection() as conn:
+        workers = conn.execute(
+            """SELECT * FROM backend_workers
+               ORDER BY created_at DESC"""
+        ).fetchall()
+
+    result = []
+    for w in workers:
+        data = dict(w)
+        # Parse JSON fields if present
+        if data.get("input_json"):
+            import json
+            data["input_json"] = json.loads(data["input_json"])
+        if data.get("output_json"):
+            import json
+            data["output_json"] = json.loads(data["output_json"])
+        result.append(data)
+    return JSONResponse(result)
+
+
+@app.get("/api/v1/workers/{worker_id}")
+@limiter.limit("60/minute")
+async def get_worker_status(request: Request, worker_id: int):
+    """Get status of a single worker task."""
+    worker = database.get_worker(worker_id)
+    if not worker:
+        raise HTTPException(status_code=404, detail=f"Worker {worker_id} not found.")
+
+    data = dict(worker)
+    # Parse JSON fields if present
+    if data.get("input_json"):
+        import json
+        data["input_json"] = json.loads(data["input_json"])
+    if data.get("output_json"):
+        import json
+        data["output_json"] = json.loads(data["output_json"])
+    return JSONResponse(data)
+
+
+@app.get("/api/v1/workers/entity/{entity_type}/{entity_id}")
+@limiter.limit("60/minute")
+async def get_entity_workers(request: Request, entity_type: str, entity_id: int):
+    """Get all workers for a specific entity (job, org, role, etc.)."""
+    workers = database.get_workers_for_entity(entity_type, entity_id)
+    result = []
+    for w in workers:
+        data = dict(w)
+        # Parse JSON fields if present
+        if data.get("input_json"):
+            import json
+            data["input_json"] = json.loads(data["input_json"])
+        if data.get("output_json"):
+            import json
+            data["output_json"] = json.loads(data["output_json"])
+        result.append(data)
+    return JSONResponse(result)
+
+
+@app.post("/api/v1/workers/{worker_id}/mark-viewed")
+@limiter.limit("60/minute")
+async def mark_worker_viewed(request: Request, worker_id: int):
+    """Mark a worker's results as viewed."""
+    worker = database.get_worker(worker_id)
+    if not worker:
+        raise HTTPException(status_code=404, detail=f"Worker {worker_id} not found.")
+
+    database.mark_worker_viewed(worker_id)
+    return JSONResponse({"success": True})
+
+
+# ─────────────────────────────────────────────────────────────
 # Jobs
 # ─────────────────────────────────────────────────────────────
 
@@ -1058,12 +1143,18 @@ async def list_jobs(request: Request):
     """All jobs with current application status and aggregated scores."""
     jobs = database.get_all_jobs()
     eval_counts = database.get_eval_counts()
+    has_research = database.has_job_research()
+    has_internal = database.has_internal_eval()
+    has_external = database.has_external_eval()
     result = []
     for j in jobs:
         row = dict(j)
         row['eval_count'] = eval_counts.get(row['id'], 0)
         row['staleness_days_overall'] = database.get_job_last_interaction_days(row['id'])
         row['staleness_days_status'] = database.get_job_status_age_days(row['id'])
+        row['has_company_research'] = row['id'] in has_research
+        row['has_internal_eval'] = row['id'] in has_internal
+        row['has_external_eval'] = row['id'] in has_external
         result.append(row)
     return JSONResponse(result)
 
@@ -1274,6 +1365,31 @@ async def generate_research_prompt(request: Request, job_id: int):
         "prompt": prompt_result["prompt_text"],
         "prompt_usage_id": prompt_result.get("prompt_usage_id"),
     })
+
+
+@app.post("/api/v1/jobs/{job_id}/queue-research-worker")
+@limiter.limit("10/minute")
+async def queue_research_worker(request: Request, job_id: int):
+    """Queue a background worker to run company research via Claude CLI."""
+    job = database.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found.")
+
+    try:
+        worker_id = database.create_worker(
+            worker_type="company_research_cli",
+            entity_type="job",
+            entity_id=job_id,
+            result_url=f"/jobs/{job_id}?tab=apply&action=apply-workflow",
+            input_json={"job_id": job_id},
+        )
+        return JSONResponse({
+            "success": True,
+            "worker_id": worker_id,
+        })
+    except Exception as e:
+        log.error(f"Failed to queue research worker for job {job_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/v1/jobs/{job_id}/export")
@@ -1677,7 +1793,7 @@ async def generate_prompt(request: Request, application_id: int, run_via_cli: bo
             else:
                 # Fallback: just use what we have
                 jobsearch_sections_1_5 = jobsearch_full
-        except (FileNotFoundError, IOError):
+        except (OSError, FileNotFoundError):
             jobsearch_sections_1_5 = "[jobsearch.md not found]"
 
     # Choose prompt based on CLI flag
@@ -1700,180 +1816,42 @@ async def generate_prompt(request: Request, application_id: int, run_via_cli: bo
     prompt = prompt_result["prompt_text"]
     prompt_usage_id = prompt_result["prompt_usage_id"]
 
-    # If run_via_cli is requested, attempt subprocess execution
+    # If run_via_cli is requested, create an async worker task
     if run_via_cli and ai_backend_mode in ["cli", "api"]:
         try:
-            # Log prompt details before execution
-            log.info(
-                "cli_prompt_details",
-                extra={
-                    "prompt_length": len(prompt),
-                    "prompt_lines": len(prompt.split('\n')),
-                }
+            # Create worker task (async execution in background)
+            worker_id = database.create_worker(
+                worker_type="eval_external_cli",
+                entity_type="job",
+                entity_id=app_dict["job_id"],
+                result_url=f"/jobs/{app_dict['job_id']}?tab=apply&action=apply-workflow",
+                input_json={
+                    "job_id": app_dict["job_id"],
+                    "application_id": application_id,
+                    "ai_backend_mode": ai_backend_mode,
+                },
             )
-
-            # Run Claude CLI subprocess with 180s timeout
-            import time
-            start_time = time.time()
-            result = subprocess.run(
-                ["claude", "-p", prompt],
-                capture_output=True,
-                text=True,
-                timeout=180
-            )
-            elapsed_time = time.time() - start_time
-
-            # Log response details
-            log.info(
-                "cli_response_received",
-                extra={
-                    "elapsed_seconds": round(elapsed_time, 2),
-                    "response_length": len(result.stdout),
-                    "response_lines": len(result.stdout.split('\n')),
-                    "stderr_length": len(result.stderr),
-                    "return_code": result.returncode,
-                }
-            )
-
-            if result.returncode != 0:
-                log.error(
-                    "cli_execution_failed",
-                    extra={
-                        "application_id": application_id,
-                        "job_id": app_dict["job_id"],
-                        "stderr": result.stderr[:500],
-                    }
-                )
-                raise HTTPException(
-                    status_code=500,
-                    detail="Claude CLI execution failed. Ensure `claude` is installed and `claude login` has been run."
-                )
-
-            # Extract JSON from stdout (look for first { and last })
-            output = result.stdout
-
-            # Log response preview for debugging
-            log.info(
-                "cli_response_preview",
-                extra={
-                    "preview_first_500": output[:500],
-                    "preview_last_500": output[-500:] if len(output) > 500 else output,
-                }
-            )
-
-            json_start = output.find('{')
-            json_end = output.rfind('}')
-
-            if json_start == -1 or json_end == -1 or json_start > json_end:
-                log.error(
-                    "json_extraction_failed",
-                    extra={
-                        "application_id": application_id,
-                        "job_id": app_dict["job_id"],
-                        "output_length": len(output),
-                        "output_preview": output[:500],
-                    }
-                )
-                raise HTTPException(
-                    status_code=500,
-                    detail="CLI returned no JSON in response. Check Claude's response format."
-                )
-
-            json_str = output[json_start:json_end + 1]
-
-            try:
-                eval_json = json.loads(json_str)
-            except json.JSONDecodeError as e:
-                log.error(
-                    "json_parse_failed",
-                    extra={
-                        "application_id": application_id,
-                        "job_id": app_dict["job_id"],
-                        "error": str(e),
-                        "json_preview": json_str[:300],
-                    }
-                )
-                raise HTTPException(
-                    status_code=500,
-                    detail="CLI returned malformed JSON. Check Claude's response format."
-                )
-
-            # Import evaluation via existing logic
-            external_default = database.get_external_default_model()
-            if not external_default:
-                log.error(
-                    "no_external_model",
-                    extra={"application_id": application_id}
-                )
-                raise HTTPException(
-                    status_code=500,
-                    detail="No external default model configured. Set one in Settings."
-                )
-
-            # Convert dict fields to JSON strings for database insertion
-            if isinstance(eval_json.get("score_reasons"), dict):
-                eval_json["score_reasons"] = json.dumps(eval_json["score_reasons"])
-            if isinstance(eval_json.get("analysis_json"), dict):
-                eval_json["analysis_json"] = json.dumps(eval_json["analysis_json"])
-
-            evaluation_id = database.insert_evaluation(
-                job_id=app_dict["job_id"],
-                llm_model_id=external_default["id"],
-                **eval_json
-            )
-
-            # Compute and update composite scores
-            with database.get_connection() as conn:
-                weights = database.get_eval_weights(conn)
-                composites = database.compute_eval_composites(eval_json, weights)
-                conn.execute(
-                    """UPDATE evaluations
-                       SET composite_screenability = ?,
-                           composite_company_fit = ?,
-                           composite_candidate_fit = ?,
-                           score_overall = ?
-                       WHERE id = ?""",
-                    (
-                        composites["composite_screenability"],
-                        composites["composite_company_fit"],
-                        composites["composite_candidate_fit"],
-                        composites["score_overall"],
-                        evaluation_id,
-                    ),
-                )
 
             log.info(
-                "cli_auto_import_success",
+                "worker_created",
                 extra={
+                    "worker_id": worker_id,
+                    "worker_type": "eval_external_cli",
                     "application_id": application_id,
                     "job_id": app_dict["job_id"],
-                    "evaluation_id": evaluation_id,
                 }
             )
 
             return JSONResponse({
                 "success": True,
-                "mode": "cli",
-                "evaluation_id": evaluation_id,
+                "mode": "worker",
+                "worker_id": worker_id,
+                "message": "Evaluation queued. Check the worker dashboard to see results.",
             })
 
-        except subprocess.TimeoutExpired:
-            log.error(
-                "cli_timeout",
-                extra={
-                    "application_id": application_id,
-                    "job_id": app_dict["job_id"],
-                }
-            )
-            raise HTTPException(
-                status_code=500,
-                detail="Evaluation generation timed out (180s). Try manual import or check CLI is responsive."
-            )
-        except HTTPException:
-            raise
         except Exception as e:
             log.error(
-                "cli_auto_import_failed",
+                "worker_creation_failed",
                 extra={
                     "application_id": application_id,
                     "job_id": app_dict["job_id"],
@@ -1882,7 +1860,7 @@ async def generate_prompt(request: Request, application_id: int, run_via_cli: bo
             )
             raise HTTPException(
                 status_code=500,
-                detail=f"Auto-import failed: {str(e)[:100]}"
+                detail=f"Failed to queue evaluation: {str(e)[:100]}"
             )
 
     # Fallback: return prompt for manual import

@@ -210,6 +210,9 @@ export interface JobListItem extends Job {
   eval_count: number
   staleness_days_overall: number | null
   staleness_days_status: number | null
+  has_company_research: boolean
+  has_internal_eval: boolean
+  has_external_eval: boolean
 }
 
 // GET /api/v1/jobs returns JobListItem[]

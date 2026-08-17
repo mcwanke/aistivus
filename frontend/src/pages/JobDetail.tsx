@@ -2861,6 +2861,16 @@ export default function JobDetailPage(): React.JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = (searchParams.get('tab') ?? 'job-details') as TabId
 
+  // Subpage tracking for Apply tab (and other tabs with subpages)
+  const getSubpage = (tab: TabId, defaultSubpage: string) => {
+    return activeTab === tab ? (searchParams.get('subpage') ?? defaultSubpage) : defaultSubpage
+  }
+  const setSubpage = (subpage: string) => {
+    const params = new URLSearchParams(searchParams)
+    params.set('subpage', subpage)
+    setSearchParams(params)
+  }
+
   const { data: jobData, isLoading: jobLoading, isError: jobError } = useJobDetail(jobId)
   const applicationId = jobData?.job.application_id ?? undefined
   const { data: appData, isLoading: appLoading } = useApplicationDetail(applicationId)
@@ -2870,11 +2880,21 @@ export default function JobDetailPage(): React.JSX.Element {
     useLlmCallLog(activeTab === 'application-log' ? { job_id: jobId } : {})
   const llmCallMap = Object.fromEntries(llmCallLogData.map((e) => [e.id, e])) as Record<number, LlmCallLogEntry>
 
-  // JOB DETAILS tab action state
-  const [jobDetailsAction, setJobDetailsAction] = useState<JobDetailsAction>('job-details')
+  // JOB DETAILS tab action state (now tracked in URL via 'action' param, matching OrgDetails pattern)
+  const jobDetailsAction = (activeTab === 'job-details' ? searchParams.get('action') : null) as JobDetailsAction | null ?? 'job-details'
+  const setJobDetailsAction = (action: JobDetailsAction) => {
+    const params = new URLSearchParams(searchParams)
+    params.set('action', action)
+    setSearchParams(params)
+  }
 
-  // APPLY tab action state
-  const [activeAppAction, setActiveAppAction] = useState<AppAction>('application-details')
+  // APPLY tab action state (now tracked in URL via 'action' param)
+  const activeAppAction = (activeTab === 'apply' ? searchParams.get('action') : null) as AppAction | null ?? 'application-details'
+  const setActiveAppAction = (action: AppAction) => {
+    const params = new URLSearchParams(searchParams)
+    params.set('action', action)
+    setSearchParams(params)
+  }
 
   // Import modal state
   const [importOpen, setImportOpen] = useState(false)

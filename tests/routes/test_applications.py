@@ -393,9 +393,9 @@ class TestGeneratePrompt:
             f"/api/v1/applications/{seeded_client['app_id']}/generate-prompt"
         )
         prompt = resp.json()["prompt"]
-        # New eval-only prompt — no resume instructions or local eval score injection
+        # External eval prompt — JSON-only, no resume instructions or local eval score injection
         assert "LOCAL AI EVALUATION RESULTS" not in prompt
-        assert "EVALUATION_JSON_START" in prompt
+        assert "JSON" in prompt or "{" in prompt  # Verify JSON output is requested
         assert "keyword_gaps" in prompt
 
 

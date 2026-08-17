@@ -345,6 +345,131 @@ prompt = f"[JD_START]\n{jd_clean}\n[JD_END]"
 
 ---
 
+## Worker System Rules (Phase 2.8+)
+
+Workers are async functions that run in the background without blocking the UI. The Worker System is the foundation for all future async/long-running workflows (CLI evals, scheduled scrapes, document generation, etc.). See **PROJECT_SPEC.md § 5.5** for full architecture.
+
+### Worker Definition & Registry
+
+**Location:** Worker functions live in their own module (e.g., `workers.py` or `workers/` package).
+
+**Registry:** A simple dict mapping worker type to metadata + handler.
+
+```python
+# workers.py (or workers/__init__.py)
+
+async def eval_external_cli_handler(input_data: dict) -> dict:
+    """Run evaluation via Claude Code CLI. Input: {job_id, ...}. Output: {evaluation_id, ...}"""
+    job_id = input_data["job_id"]
+    # Do work...
+    return {"evaluation_id": eval_id, "status": "success"}
+
+WORKERS = {
+    "eval_external_cli": {
+        "handler": eval_external_cli_handler,
+        "entity_type": "job",  # What entity does this worker operate on?
+    },
+    # Future workers:
+    # "org_scrape": {"handler": org_scrape_handler, "entity_type": "org"},
+    # "eval_role": {"handler": eval_role_handler, "entity_type": "role"},
+}
+```
+
+### Worker Function Signature
+
+```python
+async def worker_name(input_data: dict) -> dict:
+    """
+    Args:
+        input_data: Worker parameters as dict (keys depend on worker type).
+                    Always includes context (job_id, org_id, etc.) from caller.
+    
+    Returns:
+        dict with result data. Shape is worker-specific. Examples:
+        - eval_external_cli: {"evaluation_id": 123, "scores": {...}}
+        - org_scrape: {"roles_extracted": 42, "errors": [...]}
+        
+    Raises:
+        Exception: Any unhandled exception is caught, logged, and stored in
+                   backend_workers.error. Worker status set to "failed".
+    """
+```
+
+### Creating a Worker (Calling the Queue)
+
+In FastAPI routes or anywhere in the backend:
+
+```python
+from database import create_worker
+
+# Fire-and-forget: create a worker record in the queue
+worker_id = database.create_worker(
+    worker_type="eval_external_cli",
+    entity_type="job",
+    entity_id=job_id,
+    result_url=f"/jobs/{job_id}",  # Where to return after completion
+    input_json={"job_id": job_id, "model": "claude"}  # Worker input
+)
+# Returns immediately. Worker executes in background thread.
+```
+
+### Error Handling
+
+- **No pre-flight checks.** Workers execute and fail naturally (lazy failure).
+- **All exceptions caught.** Any unhandled exception in worker → logged → `backend_workers.error` set → status = "failed".
+- **No auto-retry.** User sees error in dashboard, can retry manually via UI.
+- **Logging:** Use Python stdlib logging. Worker execution and errors logged to app logs for debugging.
+
+### Result Linking
+
+Every worker has:
+- `entity_type` — What it operated on (job, org, role, etc.)
+- `entity_id` — Which one (job ID 123, org ID 5, etc.)
+- `result_url` — Where to navigate back (e.g., `/jobs/123`)
+
+The worker dashboard uses these to create clickable links back to the origin.
+
+### Worker Input/Output
+
+**Input:** Caller provides `input_json` with worker-specific parameters. Example:
+```python
+input_json = {
+    "job_id": 123,
+    "model": "claude-opus",
+    "timeout_seconds": 60
+}
+```
+
+**Output:** Worker returns a dict that becomes `output_json` in the database. Example:
+```python
+output_json = {
+    "evaluation_id": 456,
+    "scores": {"overall": 8.5, "role_fit": 9},
+    "recommendation": "Apply"
+}
+```
+
+Both are serialized as JSON and stored in the database. No size limit enforced yet; keep reasonable (~1MB).
+
+### Configuration
+
+In `user_data/config.yaml`:
+
+```yaml
+worker_system:
+  parallel_workers: 1  # How many workers run concurrently
+                       # Start at 1 (serial). Increase later for testing parallelization.
+```
+
+### Testing Workers Locally
+
+Workers run in the background thread, making them hard to test directly. Two approaches:
+
+1. **Mock the worker queue** — In unit tests, call the worker handler directly instead of `create_worker()`.
+2. **Manual integration test** — Trigger the worker from the UI, wait for it to complete, verify result.
+
+---
+
 ## LLM Client Interface
 
 All LLM calls go through `llm_client.py`. No direct API calls anywhere else.

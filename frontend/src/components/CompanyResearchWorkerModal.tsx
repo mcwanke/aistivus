@@ -1,41 +1,25 @@
 import { useState, useEffect } from 'react'
-import { useJobResearch } from '@/hooks/useJobs'
 import { useQueryClient } from '@tanstack/react-query'
 
-interface AutoGenerateEvalModalProps {
+interface CompanyResearchWorkerModalProps {
   jobId: number
-  applicationId: number
-  aiBackendMode: string | null
   onClose: () => void
 }
 
 interface SubmitResponse {
   success: boolean
-  mode: string
   worker_id?: number
-  message?: string
   detail?: string
 }
 
-export function AutoGenerateEvalModal({
+export function CompanyResearchWorkerModal({
   jobId,
-  applicationId,
-  aiBackendMode,
   onClose,
-}: AutoGenerateEvalModalProps): React.JSX.Element {
+}: CompanyResearchWorkerModalProps): React.JSX.Element {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [showResearchWarning, setShowResearchWarning] = useState(false)
   const [submitted, setSubmitted] = useState(false)
-  const { data: research } = useJobResearch(jobId)
   const qc = useQueryClient()
-
-  // If no research, show warning first
-  useEffect(() => {
-    if (!loading && !research && !submitted) {
-      setShowResearchWarning(true)
-    }
-  }, [research, loading, submitted])
 
   // Auto-close after successful submission
   useEffect(() => {
@@ -45,33 +29,26 @@ export function AutoGenerateEvalModal({
     }
   }, [submitted, onClose])
 
-  async function handleContinue(): Promise<void> {
-    setShowResearchWarning(false)
+  async function handleGenerate(): Promise<void> {
     setLoading(true)
     setError('')
 
     try {
-      const response = await fetch(
-        `/api/v1/applications/${applicationId}/generate-prompt?run_via_cli=true`,
-        { method: 'POST' }
-      )
+      const response = await fetch(`/api/v1/jobs/${jobId}/queue-research-worker`, {
+        method: 'POST',
+      })
+
       if (!response.ok) {
-        const err = await response.json() as SubmitResponse
+        const err = (await response.json().catch(() => ({}))) as SubmitResponse
         throw new Error(err.detail || `HTTP ${response.status}`)
       }
 
-      const result = await response.json() as SubmitResponse
-      if (!result.success) {
-        throw new Error(result.message || 'Failed to queue evaluation')
-      }
-
-      // Worker queued successfully. Set a longer interval to periodically refresh evaluations.
-      // This allows the evaluation to complete in the background.
       setSubmitted(true)
 
-      // Invalidate queries to refresh evaluations list (polling will show new eval when ready)
+      // Invalidate job queries to refresh
       setTimeout(() => {
         void qc.invalidateQueries({ queryKey: ['job', jobId] })
+        void qc.invalidateQueries({ queryKey: ['job-research', jobId] })
       }, 500)
     } catch (err) {
       setError((err as Error).message)
@@ -81,48 +58,17 @@ export function AutoGenerateEvalModal({
 
   function handleClose(): void {
     if (!loading) {
-      setShowResearchWarning(false)
       setError('')
       onClose()
     }
   }
 
-  // Research warning modal
-  if (showResearchWarning) {
-    return (
-      <div className="fixed inset-0 bg-bg/80 flex items-center justify-center z-50 p-4">
-        <div className="bg-surface rounded p-6 w-full max-w-md flex flex-col gap-4">
-          <h2 className="font-serif text-accent text-lg">Research Missing</h2>
-          <p className="text-xs font-mono text-muted">
-            Research does not yet exist for this job. Without research context,
-            evaluation scores will be based on job description signals only.
-          </p>
-          <div className="flex gap-2 justify-end">
-            <button
-              onClick={handleClose}
-              className="px-3 py-1.5 text-xs font-mono text-muted border border-surface2 rounded hover:text-text transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => void handleContinue()}
-              className="px-3 py-1.5 text-xs font-mono text-bg bg-accent rounded hover:bg-accent/90"
-            >
-              Continue Without Research
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Main auto-gen modal
   return (
     <div className="fixed inset-0 bg-bg/80 flex items-center justify-center z-50 p-4">
       <div className="bg-surface rounded p-6 w-full max-w-md flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="font-serif text-accent text-lg">
-            {submitted ? 'Queued!' : 'Auto-Generate Evaluation'}
+            {submitted ? 'Queued!' : 'Company Research'}
           </h2>
           <button
             onClick={handleClose}
@@ -137,10 +83,10 @@ export function AutoGenerateEvalModal({
           <div className="py-8 text-center space-y-4">
             <div className="text-2xl text-green-400">✓</div>
             <p className="text-xs font-mono text-muted">
-              Evaluation queued. It will run in the background via {aiBackendMode}.
+              Company research queued to run in the background.
             </p>
             <p className="text-xs font-mono text-muted/60">
-              Check the evaluations list in a few moments for the results.
+              Check the Worker Dashboard in a few moments for results.
             </p>
           </div>
         ) : loading ? (
@@ -149,7 +95,7 @@ export function AutoGenerateEvalModal({
               <div className="w-8 h-8 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
             </div>
             <p className="text-xs font-mono text-muted">
-              Queuing evaluation…
+              Queuing research…
             </p>
           </div>
         ) : error ? (
@@ -158,12 +104,12 @@ export function AutoGenerateEvalModal({
               {error}
             </p>
             <div className="text-xs font-mono text-muted">
-              Try manual import or check that Claude CLI is installed and authenticated.
+              Try again or check the Worker Dashboard for details.
             </div>
           </div>
         ) : (
           <p className="text-xs font-mono text-muted">
-            Evaluation will run via {aiBackendMode} in the background. You can close this modal and continue working.
+            Research will run in the background via Claude CLI. You can close this modal and continue working.
           </p>
         )}
 
@@ -178,7 +124,7 @@ export function AutoGenerateEvalModal({
               {loading ? 'Queuing…' : 'Cancel'}
             </button>
             <button
-              onClick={() => void handleContinue()}
+              onClick={() => void handleGenerate()}
               disabled={loading}
               className="px-3 py-1.5 text-xs font-mono text-bg bg-accent rounded hover:bg-accent/90 disabled:opacity-50"
             >

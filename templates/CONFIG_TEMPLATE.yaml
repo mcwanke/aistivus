@@ -192,6 +192,15 @@ ai_backend:
              # Default: cli (recommended for development)
 
 # ─────────────────────────────────────
+# Background Worker System (Phase 2.8+)
+# Manages async workflows (evaluations, scrapes, etc.) via a FIFO queue.
+# ─────────────────────────────────────
+worker_system:
+  parallel_workers: 1  # Number of concurrent workers
+                       # Start at 1 (serial). Can increase to test parallelization.
+                       # Note: Currently only serial (1) is fully tested.
+
+# ─────────────────────────────────────
 # Application server
 # ─────────────────────────────────────
 app:

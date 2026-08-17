@@ -9,6 +9,7 @@ import { InternalEvalModal } from '@/components/InternalEvalModal'
 import { ResearchWorkflowModal } from '@/components/ResearchWorkflowModal'
 import { ExternalEvalWorkflowModal } from '@/components/ExternalEvalWorkflowModal'
 import { AutoGenerateEvalModal } from '@/components/AutoGenerateEvalModal'
+import { CompanyResearchWorkerModal } from '@/components/CompanyResearchWorkerModal'
 import { fmtScore } from '@/utils/formatting'
 import type { EvalWithMeta } from '@/types/api'
 
@@ -82,6 +83,7 @@ export function ApplyWorkflow({
   const [showResearchWorkflow, setShowResearchWorkflow] = useState(false)
   const [showExternalEvalWorkflow, setShowExternalEvalWorkflow] = useState(false)
   const [showAutoGenModal, setShowAutoGenModal] = useState(false)
+  const [showCompanyResearchWorker, setShowCompanyResearchWorker] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -308,6 +310,15 @@ export function ApplyWorkflow({
             </button>
             <span className="text-xs font-mono text-muted">Generate prompt & import results.</span>
           </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowCompanyResearchWorker(true)}
+              className="px-3 py-1.5 text-xs font-mono text-text/70 border-2 border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors shrink-0"
+            >
+              Add Background Worker for Company Research
+            </button>
+            <span className="text-xs font-mono text-muted">Generate & import via background worker.</span>
+          </div>
           <button
             onClick={onNavigateToResearch}
             className="text-xs font-mono text-accent hover:underline self-start"
@@ -411,7 +422,7 @@ export function ApplyWorkflow({
                 disabled={!['cli', 'api'].includes(settings?.ai_backend_mode || '')}
                 className="px-3 py-1.5 text-xs font-mono text-text/70 border-2 border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
               >
-                Auto-Generate Eval w/ CLI/API
+                Add Background Worker for External Eval
               </button>
               <span className="text-xs font-mono text-muted">Run evaluation via {settings?.ai_backend_mode || 'disabled'}.</span>
             </div>
@@ -705,6 +716,12 @@ export function ApplyWorkflow({
           applicationId={applicationId}
           aiBackendMode={settings?.ai_backend_mode || null}
           onClose={() => setShowAutoGenModal(false)}
+        />
+      )}
+      {showCompanyResearchWorker && (
+        <CompanyResearchWorkerModal
+          jobId={jobId}
+          onClose={() => setShowCompanyResearchWorker(false)}
         />
       )}
       {showInternalEvalModal && (
