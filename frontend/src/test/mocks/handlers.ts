@@ -108,6 +108,9 @@ export const MOCK_JOB: JobListItem = {
   eval_count: 2,
   staleness_days_overall: 8,
   staleness_days_status: 8,
+  has_company_research: true,
+  has_internal_eval: true,
+  has_external_eval: true,
 }
 
 export const MOCK_JOB_DETAIL: JobDetailResponse = {

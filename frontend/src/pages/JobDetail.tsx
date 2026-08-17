@@ -2861,15 +2861,6 @@ export default function JobDetailPage(): React.JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = (searchParams.get('tab') ?? 'job-details') as TabId
 
-  // Subpage tracking for Apply tab (and other tabs with subpages)
-  const getSubpage = (tab: TabId, defaultSubpage: string) => {
-    return activeTab === tab ? (searchParams.get('subpage') ?? defaultSubpage) : defaultSubpage
-  }
-  const setSubpage = (subpage: string) => {
-    const params = new URLSearchParams(searchParams)
-    params.set('subpage', subpage)
-    setSearchParams(params)
-  }
 
   const { data: jobData, isLoading: jobLoading, isError: jobError } = useJobDetail(jobId)
   const applicationId = jobData?.job.application_id ?? undefined
