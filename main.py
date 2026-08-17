@@ -283,6 +283,7 @@ async def lifespan(app: FastAPI):
 
     _PROMPT_FILES = [
         "eval_external.md",
+        "eval_external_cli.md",
         "eval_internal_1_analysis.md",
         "eval_internal_2_screenability.md",
         "eval_internal_3_fit.md",
@@ -1621,10 +1622,17 @@ async def update_audit_timestamp(
 
 @app.post("/api/v1/applications/{application_id}/generate-prompt")
 @limiter.limit("10/minute")
-async def generate_prompt(request: Request, application_id: int):
+async def generate_prompt(request: Request, application_id: int, run_via_cli: bool = False):
     """
     Build a job evaluation prompt for this application and log it.
-    Returns the prompt text for use with an external AI (eval only).
+
+    If run_via_cli=true and ai_backend.mode is enabled (cli/api):
+      - Run evaluation via Claude CLI subprocess
+      - Parse JSON response and auto-import evaluation
+      - Return evaluation_id on success
+
+    Otherwise:
+      - Return prompt text for manual import (existing workflow)
     """
     app_row = database.get_application(application_id)
     if not app_row:
@@ -1649,8 +1657,34 @@ async def generate_prompt(request: Request, application_id: int):
     research = database.get_job_research_latest(app_dict["job_id"])
     research_context = research["raw_json"] if research and research.get("raw_json") else "null"
 
+    # Load config for jobsearch path and AI backend mode
+    config = _load_config()
+    ai_backend_mode = config.get("ai_backend", {}).get("mode", "off")
+
+    # For CLI execution, extract sections 1-5 from jobsearch.md
+    jobsearch_sections_1_5 = ""
+    if run_via_cli and ai_backend_mode in ["cli", "api"]:
+        jobsearch_path = config.get("evaluation", {}).get("jobsearch_md_path") or "./user_data/my_data/jobsearch.md"
+        try:
+            with open(jobsearch_path) as f:
+                jobsearch_full = f.read()
+            # Extract sections 1-5: from start to "## 6. Resume Master Copy" or "---" before it
+            # Split by "## " to find section headers
+            sections_end_marker = "## 6."
+            end_idx = jobsearch_full.find(sections_end_marker)
+            if end_idx != -1:
+                jobsearch_sections_1_5 = jobsearch_full[:end_idx].rstrip()
+            else:
+                # Fallback: just use what we have
+                jobsearch_sections_1_5 = jobsearch_full
+        except (FileNotFoundError, IOError):
+            jobsearch_sections_1_5 = "[jobsearch.md not found]"
+
+    # Choose prompt based on CLI flag
+    prompt_key = "eval_external_cli" if (run_via_cli and ai_backend_mode in ["cli", "api"]) else "eval_external"
+
     prompt_result = prompt_generation.get_prompt(
-        "eval_external",
+        prompt_key,
         {
             "company_name": company_name,
             "title": title,
@@ -1658,6 +1692,7 @@ async def generate_prompt(request: Request, application_id: int):
             "pay_band": pay_band,
             "jd_text": jd_text,
             "research_context": research_context,
+            "jobsearch_sections_1_5": jobsearch_sections_1_5,
         },
         job_id=app_dict["job_id"],
         source="external_eval",
@@ -1665,6 +1700,192 @@ async def generate_prompt(request: Request, application_id: int):
     prompt = prompt_result["prompt_text"]
     prompt_usage_id = prompt_result["prompt_usage_id"]
 
+    # If run_via_cli is requested, attempt subprocess execution
+    if run_via_cli and ai_backend_mode in ["cli", "api"]:
+        try:
+            # Log prompt details before execution
+            log.info(
+                "cli_prompt_details",
+                extra={
+                    "prompt_length": len(prompt),
+                    "prompt_lines": len(prompt.split('\n')),
+                }
+            )
+
+            # Run Claude CLI subprocess with 180s timeout
+            import time
+            start_time = time.time()
+            result = subprocess.run(
+                ["claude", "-p", prompt],
+                capture_output=True,
+                text=True,
+                timeout=180
+            )
+            elapsed_time = time.time() - start_time
+
+            # Log response details
+            log.info(
+                "cli_response_received",
+                extra={
+                    "elapsed_seconds": round(elapsed_time, 2),
+                    "response_length": len(result.stdout),
+                    "response_lines": len(result.stdout.split('\n')),
+                    "stderr_length": len(result.stderr),
+                    "return_code": result.returncode,
+                }
+            )
+
+            if result.returncode != 0:
+                log.error(
+                    "cli_execution_failed",
+                    extra={
+                        "application_id": application_id,
+                        "job_id": app_dict["job_id"],
+                        "stderr": result.stderr[:500],
+                    }
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail="Claude CLI execution failed. Ensure `claude` is installed and `claude login` has been run."
+                )
+
+            # Extract JSON from stdout (look for first { and last })
+            output = result.stdout
+
+            # Log response preview for debugging
+            log.info(
+                "cli_response_preview",
+                extra={
+                    "preview_first_500": output[:500],
+                    "preview_last_500": output[-500:] if len(output) > 500 else output,
+                }
+            )
+
+            json_start = output.find('{')
+            json_end = output.rfind('}')
+
+            if json_start == -1 or json_end == -1 or json_start > json_end:
+                log.error(
+                    "json_extraction_failed",
+                    extra={
+                        "application_id": application_id,
+                        "job_id": app_dict["job_id"],
+                        "output_length": len(output),
+                        "output_preview": output[:500],
+                    }
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail="CLI returned no JSON in response. Check Claude's response format."
+                )
+
+            json_str = output[json_start:json_end + 1]
+
+            try:
+                eval_json = json.loads(json_str)
+            except json.JSONDecodeError as e:
+                log.error(
+                    "json_parse_failed",
+                    extra={
+                        "application_id": application_id,
+                        "job_id": app_dict["job_id"],
+                        "error": str(e),
+                        "json_preview": json_str[:300],
+                    }
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail="CLI returned malformed JSON. Check Claude's response format."
+                )
+
+            # Import evaluation via existing logic
+            external_default = database.get_external_default_model()
+            if not external_default:
+                log.error(
+                    "no_external_model",
+                    extra={"application_id": application_id}
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail="No external default model configured. Set one in Settings."
+                )
+
+            # Convert dict fields to JSON strings for database insertion
+            if isinstance(eval_json.get("score_reasons"), dict):
+                eval_json["score_reasons"] = json.dumps(eval_json["score_reasons"])
+            if isinstance(eval_json.get("analysis_json"), dict):
+                eval_json["analysis_json"] = json.dumps(eval_json["analysis_json"])
+
+            evaluation_id = database.insert_evaluation(
+                job_id=app_dict["job_id"],
+                llm_model_id=external_default["id"],
+                **eval_json
+            )
+
+            # Compute and update composite scores
+            with database.get_connection() as conn:
+                weights = database.get_eval_weights(conn)
+                composites = database.compute_eval_composites(eval_json, weights)
+                conn.execute(
+                    """UPDATE evaluations
+                       SET composite_screenability = ?,
+                           composite_company_fit = ?,
+                           composite_candidate_fit = ?,
+                           score_overall = ?
+                       WHERE id = ?""",
+                    (
+                        composites["composite_screenability"],
+                        composites["composite_company_fit"],
+                        composites["composite_candidate_fit"],
+                        composites["score_overall"],
+                        evaluation_id,
+                    ),
+                )
+
+            log.info(
+                "cli_auto_import_success",
+                extra={
+                    "application_id": application_id,
+                    "job_id": app_dict["job_id"],
+                    "evaluation_id": evaluation_id,
+                }
+            )
+
+            return JSONResponse({
+                "success": True,
+                "mode": "cli",
+                "evaluation_id": evaluation_id,
+            })
+
+        except subprocess.TimeoutExpired:
+            log.error(
+                "cli_timeout",
+                extra={
+                    "application_id": application_id,
+                    "job_id": app_dict["job_id"],
+                }
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Evaluation generation timed out (180s). Try manual import or check CLI is responsive."
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            log.error(
+                "cli_auto_import_failed",
+                extra={
+                    "application_id": application_id,
+                    "job_id": app_dict["job_id"],
+                    "error": str(e)[:300],
+                }
+            )
+            raise HTTPException(
+                status_code=500,
+                detail=f"Auto-import failed: {str(e)[:100]}"
+            )
+
+    # Fallback: return prompt for manual import
     prompt_type_id = database.get_system_type_id("application_log", "prompt_eval")
     if prompt_type_id is None:
         raise HTTPException(status_code=500, detail="system_types not seeded correctly.")
@@ -1676,6 +1897,7 @@ async def generate_prompt(request: Request, application_id: int):
     )
     return JSONResponse({
         "success": True,
+        "mode": "manual",
         "log_id": log_id,
         "prompt": prompt,
         "prompt_usage_id": prompt_usage_id,
@@ -2406,11 +2628,13 @@ async def get_settings(request: Request):
     """Return runtime settings. API key values are never echoed — boolean presence only."""
     config = _load_config()
     external_default = database.get_external_default_model()
+    ai_backend_mode = config.get("ai_backend", {}).get("mode", "off")
     return JSONResponse({
         "app_version": "2.6.0",
         "schema_version": database.get_schema_version(),
         "anthropic_api_key_configured": bool(os.environ.get("ANTHROPIC_API_KEY")),
         "external_default_model_id": external_default["id"] if external_default else None,
+        "ai_backend_mode": ai_backend_mode,
         "server": config.get("server", {}),
         "logging": {k: v for k, v in config.get("logging", {}).items()},
         "database": {
@@ -2914,6 +3138,7 @@ async def reload_prompt_from_file(request: Request, key: str):
     """
     filename_map = {
         "eval_external": "eval_external.md",
+        "eval_external_cli": "eval_external_cli.md",
         "eval_internal_1_analysis": "eval_internal_1_analysis.md",
         "eval_internal_2_screenability": "eval_internal_2_screenability.md",
         "eval_internal_3_fit": "eval_internal_3_fit.md",

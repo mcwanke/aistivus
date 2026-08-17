@@ -546,11 +546,21 @@ CREATE INDEX IF NOT EXISTS idx_app_logs_app_id         ON application_logs(appli
 CREATE INDEX IF NOT EXISTS idx_job_company_log_job_id  ON job_company_log(job_id);
 CREATE INDEX IF NOT EXISTS idx_llm_models_server_id    ON llm_models(server_id);
 CREATE INDEX IF NOT EXISTS idx_job_research_job_id     ON job_research(job_id);
+CREATE TABLE IF NOT EXISTS org_nonjob_links (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id                INTEGER NOT NULL REFERENCES orgs(id),
+    url                   TEXT NOT NULL,
+    title                 TEXT,
+    created_at            TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_org_crawls_org_id       ON org_crawls(org_id);
 CREATE INDEX IF NOT EXISTS idx_org_roles_org_id        ON org_roles(org_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_org_roles_url    ON org_roles(org_id, role_url);
 CREATE INDEX IF NOT EXISTS idx_org_roles_is_interesting ON org_roles(is_interesting);
 CREATE INDEX IF NOT EXISTS idx_org_roles_job_id        ON org_roles(job_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_org_nonjob_links_url ON org_nonjob_links(org_id, url);
+CREATE INDEX IF NOT EXISTS idx_org_nonjob_links_org_id ON org_nonjob_links(org_id);
 
 CREATE TABLE IF NOT EXISTS org_crawl_logs (
     id                          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -804,6 +814,12 @@ def init_db() -> None:
 
         try:
             conn.execute("ALTER TABLE orgs ADD COLUMN markdown TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+        # Phase 2.7 — org_crawls crawl_json (full per-link algorithm audit trail)
+        try:
+            conn.execute("ALTER TABLE org_crawls ADD COLUMN crawl_json TEXT")
         except sqlite3.OperationalError:
             pass  # column already exists
 
@@ -3475,6 +3491,16 @@ def update_org_crawl_markdown(crawl_id: int, markdown: str) -> None:
         )
 
 
+def update_org_crawl_json(crawl_id: int, crawl_json: str) -> None:
+    """Store the full crawl_list/org_list algorithm audit trail (JSON) for an org_crawl record."""
+    with get_connection() as conn:
+        conn.execute(
+            """UPDATE org_crawls SET crawl_json = ?
+               WHERE id = ?""",
+            (crawl_json, crawl_id)
+        )
+
+
 def update_org_crawl_status(crawl_id: int, status: str) -> None:
     """Update org_crawl status (pending, running, success, error)."""
     with get_connection() as conn:
@@ -3618,17 +3644,6 @@ def get_org_role(org_id: int, role_id: int) -> sqlite3.Row | None:
         ).fetchone()
 
 
-def get_existing_role_urls(org_id: int) -> dict[str, int]:
-    """Return mapping of role_url → role_id for all active roles in an org."""
-    with get_connection() as conn:
-        rows = conn.execute(
-            """SELECT id, role_url FROM org_roles
-               WHERE org_id = ? AND is_active = 1 AND role_url IS NOT NULL""",
-            (org_id,)
-        ).fetchall()
-        return {row["role_url"]: row["id"] for row in rows}
-
-
 def insert_org_role(
     org_id: int,
     title: str,
@@ -3720,6 +3735,23 @@ def upsert_org_role(
             return insert_org_role(org_id, title, role_url, markdown=markdown, **kwargs)
 
 
+def increment_org_role_crawl_count(org_id: int, found_urls: set[str]) -> None:
+    """Increment crawl_count for all active roles whose role_url was seen in this crawl."""
+    with get_connection() as conn:
+        all_roles = conn.execute(
+            """SELECT id, role_url FROM org_roles
+               WHERE org_id = ? AND is_active = 1""",
+            (org_id,)
+        ).fetchall()
+        for role in all_roles:
+            if role["role_url"] in found_urls:
+                conn.execute(
+                    """UPDATE org_roles SET crawl_count = crawl_count + 1
+                       WHERE id = ?""",
+                    (role["id"],)
+                )
+
+
 def update_org_role_missing_count(org_id: int, found_urls: set[str]) -> None:
     """
     Update missing_count for all active roles in org:
@@ -3758,6 +3790,43 @@ def update_org_role_missing_count(org_id: int, found_urls: set[str]) -> None:
                WHERE org_id = ? AND missing_count >= 2""",
             (org_id,)
         )
+
+
+# ─────────────────────────────────────────────────────────────
+# Org Nonjob Links (Phase 2.7)
+# ─────────────────────────────────────────────────────────────
+
+def get_org_nonjob_links(org_id: int) -> set[str]:
+    """Return the set of URLs already identified as non-job links for an org."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT url FROM org_nonjob_links WHERE org_id = ?""",
+            (org_id,)
+        ).fetchall()
+        return {row["url"] for row in rows}
+
+
+def insert_org_nonjob_links(org_id: int, links: list[dict]) -> None:
+    """
+    Insert newly identified non-job links for an org.
+    Each link is a dict with "url" and optional "title". Skips URLs already present.
+    """
+    with get_connection() as conn:
+        for link in links:
+            url = link.get("url")
+            if not url:
+                continue
+            existing = conn.execute(
+                """SELECT id FROM org_nonjob_links WHERE org_id = ? AND url = ?""",
+                (org_id, url)
+            ).fetchone()
+            if existing:
+                continue
+            conn.execute(
+                """INSERT INTO org_nonjob_links (org_id, url, title)
+                   VALUES (?, ?, ?)""",
+                (org_id, url, link.get("title"))
+            )
 
 
 # ─────────────────────────────────────────────────────────────

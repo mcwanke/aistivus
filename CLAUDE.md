@@ -76,7 +76,24 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 ---
 
-## Current Phase: PHASE 2.7 (In Progress) — Company Workflows & Crawl4ai Integration
+## Current Phase: PHASE 2.8 (Spec Complete, Implementation TBD) — CLI/API Hybrid Evaluation Testing
+
+**Overview:** Enable cost-free development testing of the job evaluation workflow using Claude Code CLI (`claude -p`) in dev environments, with API-ready structure for production. Same prompts, same import logic, different calling mechanism (CLI vs API).
+
+**Implementation Plan:** See `app_docs/WORKORDER_p2.8.md` for full detail.
+
+**Status (2026-08-17):**
+- ✅ **SPECIFICATION COMPLETE** — Full workorder drafted with detailed implementation plan, test cases, error handling
+- ⏳ **Implementation** — Scheduled for next session
+- ⏳ **Testing** — Deferred to implementation session
+
+**Scope:** External evaluation workflow only (POC). Research, resume, and cover letter automation deferred to Phase 2.9+.
+
+**Version Lock:** v2.7 (no DB migrations, schema changes, or version number updates during this phase)
+
+---
+
+## Phase 2.7 (Shelved — In Progress) — Company Workflows & Crawl4ai Integration
 
 **Overview:** Introduce company-forward job discovery. Users add target companies ("orgs"), system automatically crawls career pages on schedule, extracts roles, filters for matches, scores locally. Matched roles surface as "interesting" for evaluation and optional promotion to Jobs workflow.
 
@@ -98,22 +115,6 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 11. ⏳ **Phase 15: Promote Flow** — needs validation/testing
 12. 🔄 **Phase 16: Manual Testing** — in progress; manual crawl triggering working
 
-**What's Working (2026-08-14):**
-- Full org/role CRUD + UI
-- Research workflow (generate prompt → import JSON)
-- Crawl history display + export
-- Role state mutations (mark interesting/active/closed)
-- **[Initiate Crawl] button** — async background task, single crawl record, health-checked
-- **Auto-polling** — crawl history refreshes every 2s while crawl running
-- **Service health checks** — Ollama + Crawl4AI validated before crawl starts (503 if down)
-- All extraction/validation logic (in poc_routes.py, tested)
-
-**Recent Fixes (2026-08-14):**
-- Fixed duplicate org_crawls records (algorithm was creating its own crawl_id)
-- Made crawl4ai.base_url configurable from config.yaml (was hardcoded)
-- Added service health validation to prevent crawls queuing with services down
-- Updated /api/v1/health endpoint to include ollama_ok, crawl4ai_ok
-
 **What Needs to Happen:**
 1. Wire APScheduler for background crawls (Phase 4)
 2. Integrate matching + scoring logic into crawl flow (Phase 5-6)
@@ -123,11 +124,11 @@ A locally-hosted, open-source web application that gives job seekers an AI-assis
 
 **Test baseline:** 712 backend / 319 frontend (from Phase 2.6) — new tests for async crawl + health checks TBD
 
-**Deferred to Phase 2.8+:** 
-- Fully automated company research (Claude API integration)
-- Fully automated external evaluation 
+**Deferred to Phase 2.9+:** 
+- APScheduler background crawl scheduling
+- Matching + scoring logic integration
+- Promote flow validation + E2E testing
 - Postgres migration (discussion-only for now)
-- Advanced matching strategies (content-based, LLM-powered)
 
 ---
 

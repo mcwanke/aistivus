@@ -2,11 +2,13 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useUploadDocument, useApplicationDocuments } from '@/hooks/useDocuments'
 import { useGenerateResumePrompt, useGenerateCoverPrompt } from '@/hooks/useApplications'
 import { useJobResearch } from '@/hooks/useJobs'
+import { useSettings } from '@/hooks/useSettings'
 import { useModels, useRunInternalEval } from '@/hooks/useEvaluate'
 import type { InternalEvalEvent } from '@/hooks/useEvaluate'
 import { InternalEvalModal } from '@/components/InternalEvalModal'
 import { ResearchWorkflowModal } from '@/components/ResearchWorkflowModal'
 import { ExternalEvalWorkflowModal } from '@/components/ExternalEvalWorkflowModal'
+import { AutoGenerateEvalModal } from '@/components/AutoGenerateEvalModal'
 import { fmtScore } from '@/utils/formatting'
 import type { EvalWithMeta } from '@/types/api'
 
@@ -79,6 +81,7 @@ export function ApplyWorkflow({
   const [researchPromptText, setResearchPromptText] = useState<string | null>(null)
   const [showResearchWorkflow, setShowResearchWorkflow] = useState(false)
   const [showExternalEvalWorkflow, setShowExternalEvalWorkflow] = useState(false)
+  const [showAutoGenModal, setShowAutoGenModal] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -104,6 +107,7 @@ export function ApplyWorkflow({
   const coverFileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: research } = useJobResearch(jobId)
+  const { data: settings } = useSettings()
   const upload = useUploadDocument(applicationId)
   const step4Upload = useUploadDocument(applicationId)
   const { data: models } = useModels()
@@ -391,14 +395,26 @@ export function ApplyWorkflow({
             </button>
             <span className="text-xs font-mono text-muted">Run an in-app evaluation using your configured LLM.</span>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setShowExternalEvalWorkflow(true)}
-              className="px-3 py-1.5 text-xs font-mono text-text/70 border-2 border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors shrink-0"
-            >
-              Open External Eval Workflow
-            </button>
-            <span className="text-xs font-mono text-muted">Generate prompt & import results.</span>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowExternalEvalWorkflow(true)}
+                className="px-3 py-1.5 text-xs font-mono text-text/70 border-2 border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors shrink-0"
+              >
+                Open External Eval Workflow
+              </button>
+              <span className="text-xs font-mono text-muted">Generate prompt & import results.</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowAutoGenModal(true)}
+                disabled={!['cli', 'api'].includes(settings?.ai_backend_mode || '')}
+                className="px-3 py-1.5 text-xs font-mono text-text/70 border-2 border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+              >
+                Auto-Generate Eval w/ CLI/API
+              </button>
+              <span className="text-xs font-mono text-muted">Run evaluation via {settings?.ai_backend_mode || 'disabled'}.</span>
+            </div>
           </div>
         </div>
 
@@ -681,6 +697,14 @@ export function ApplyWorkflow({
         <ExternalEvalWorkflowModal
           jobId={jobId}
           onClose={() => setShowExternalEvalWorkflow(false)}
+        />
+      )}
+      {showAutoGenModal && (
+        <AutoGenerateEvalModal
+          jobId={jobId}
+          applicationId={applicationId}
+          aiBackendMode={settings?.ai_backend_mode || null}
+          onClose={() => setShowAutoGenModal(false)}
         />
       )}
       {showInternalEvalModal && (

@@ -181,6 +181,17 @@ tasks:
   max_task_age_hours: 2        # running tasks older than this are marked aborted on startup
 
 # ─────────────────────────────────────
+# AI Backend — CLI vs. API (Phase 2.8+)
+# Controls whether evaluation workflows use Claude Code CLI (dev) or Anthropic API (prod).
+# ─────────────────────────────────────
+ai_backend:
+  mode: cli  # Values: "cli" | "api" | "off"
+             # - cli: use Claude Code CLI subprocess (cost-free dev, subscription-based)
+             # - api: use Anthropic API directly (pay-per-token, production)
+             # - off: disable auto-generation, manual import only
+             # Default: cli (recommended for development)
+
+# ─────────────────────────────────────
 # Application server
 # ─────────────────────────────────────
 app:

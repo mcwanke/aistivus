@@ -175,6 +175,38 @@ def parse_job_listings_domain_filter(markdown: str) -> list[dict]:
     return jobs
 
 
+def extract_all_links(markdown: str) -> list[dict]:
+    """Extract all {title, url} link pairs from markdown, deduped by URL. Seeds crawl_list."""
+    pattern = r"\[([^\]]+)\]\((https?://[^)]+)\)"
+    matches = re.findall(pattern, markdown)
+    seen_urls = set()
+    links = []
+    for title, url in matches:
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
+        title = re.sub(r"\s+Learn More\s*$", "", title).strip()
+        links.append({"title": title, "url": url})
+    return links
+
+
+def _is_domain_match(url: str) -> bool:
+    """Check if a URL matches a known job board domain."""
+    job_domains = ["ashbyhq.com", "lever.co", "greenhouse.io", "boards.greenhouse.io"]
+    return any(domain in url.lower() for domain in job_domains)
+
+
+def _is_heuristic_match(title: str, url: str) -> bool:
+    """Check if a link's title or URL matches job keywords/paths."""
+    job_keywords = ["apply", "job", "career", "position", "engineer", "manager", "lead", "developer"]
+    job_paths = ["/jobs/", "/careers/", "/apply/", "/positions/", "/openings/"]
+    title_lower = title.lower()
+    url_lower = url.lower()
+    has_keyword = any(kw in title_lower for kw in job_keywords)
+    has_path = any(path in url_lower for path in job_paths)
+    return has_keyword or has_path
+
+
 def parse_job_listings_heuristic(markdown: str) -> list[dict]:
     """Strategy 2: Extract job listings using keyword heuristics."""
     jobs = []
@@ -1115,15 +1147,18 @@ async def extract_job(req: ExtractJobRequest) -> ExtractJobResponse:
 
 async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | None = None, crawl_id: int | None = None) -> dict:
     """
-    Core algorithm following explicit flow:
+    Core algorithm, per app_docs/crawler_algorithm.md:
     1. Crawl career page
-    2. Extract candidates (domain → heuristic → merge/dedupe) → scraped_urls
-    3. Load existing company_role_urls from DB
-    4. Detect missing: company_role_urls - scraped_urls → mark inactive
-    5. De-dupe: scraped_urls - company_role_urls → possible_new_urls
-    6. Validate each in possible_new_urls (2-pass LLM: is_job → extract_metadata)
-    7. Result: new_validated_urls → insert to DB
-    8. Update missing_count using scraped_urls (not validated list)
+    2. Extract all {title, url} links -> crawl_list
+    3. Load existing org_roles -> org_list
+    4. De-dupe crawl_list against org_list (found_in_org_list / found_in_crawl_list)
+    5. Detect missing roles (found_missing)
+    6. Strip previously identified non-job links (non_job_match, from org_nonjob_links)
+    7. Domain matching (ignoring non_job_match / found_in_org_list)
+    8. Heuristic matching (ignoring non_job_match / found_in_org_list)
+    9. Deduped candidate list: not non_job_match, not found_in_org_list, and (domain_match or heuristic_match)
+    10. Validate each candidate (2-pass LLM: is_job -> extract_metadata) -> found_new_job
+    11. Cleanup: write new non-job links, update crawl_count/missing_count, persist crawl_json
 
     Args:
         org_id: Organization ID to crawl
@@ -1183,73 +1218,114 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
             status_code=200,  # Assume success if we got markdown
         )
 
-        # Step 3: Extract candidates (domain → heuristic → merge/dedupe) → scraped_urls
-        # Extract using 3-step approach (with logging and timing)
-        debug_log.append(f"[4] Running 3-step extraction (domain → heuristic → merge/dedupe)")
+        # Step 2 (doc): Extract all links -> seed crawl_list
+        all_links = extract_all_links(career_markdown)
+        crawl_list = [
+            {
+                "title": link["title"],
+                "url": link["url"],
+                "found_in_org_list": False,
+                "non_job_match": False,
+                "domain_match": False,
+                "heuristic_match": False,
+                "found_new_job": False,
+                "org_role_id": None,
+            }
+            for link in all_links
+        ]
+        crawl_list_by_url = {item["url"]: item for item in crawl_list}
+        debug_log.append(f"[4] Extracted {len(crawl_list)} unique links from career page")
 
-        # Step 1: Domain extraction (with timing)
+        # Step 3 (doc): Load existing org_roles -> org_list
+        existing_roles = database.get_org_roles(org_id, include_inactive=False)
+        org_list = [
+            {
+                "title": role["title"],
+                "url": role["role_url"],
+                "found_in_crawl_list": False,
+                "found_missing": False,
+            }
+            for role in existing_roles if role["role_url"]
+        ]
+        debug_log.append(f"[5] Loaded {len(org_list)} existing roles from DB")
+
+        # Step 4 (doc): De-dupe crawl_list against org_list
+        for org_item in org_list:
+            crawl_item = crawl_list_by_url.get(org_item["url"])
+            if crawl_item:
+                crawl_item["found_in_org_list"] = True
+                org_item["found_in_crawl_list"] = True
+        debug_log.append("[6] De-duped crawl_list against org_list")
+
+        # Step 5 (doc): Detect missing roles
+        for org_item in org_list:
+            if not org_item["found_in_crawl_list"]:
+                org_item["found_missing"] = True
+        detected_missing_count = sum(1 for item in org_list if item["found_missing"])
+        debug_log.append(f"[7] Detected {detected_missing_count} roles no longer on career page")
+
+        # Step 6 (doc): Strip previously identified non-job links
+        nonjob_urls = database.get_org_nonjob_links(org_id)
+        for item in crawl_list:
+            if item["url"] in nonjob_urls:
+                item["non_job_match"] = True
+        debug_log.append(f"[8] Marked {sum(1 for i in crawl_list if i['non_job_match'])} links as known non-job")
+
+        # Step 7 (doc): Domain matching, ignoring non_job_match / found_in_org_list
         domain_start = time.time()
-        domain_jobs = parse_job_listings_domain_filter(career_markdown)
+        domain_match_count = 0
+        for item in crawl_list:
+            if item["non_job_match"] or item["found_in_org_list"]:
+                continue
+            if _is_domain_match(item["url"]):
+                item["domain_match"] = True
+                domain_match_count += 1
         domain_latency_ms = int((time.time() - domain_start) * 1000)
         database.insert_org_crawl_log(
             org_crawl_id=crawl_id,
             action_type="domain_extract",
-            output_data=json.dumps({"count": len(domain_jobs)}),
+            output_data=json.dumps({"count": domain_match_count}),
             latency_ms=domain_latency_ms,
         )
-        debug_log.append(f"[4.a] Domain extraction: {len(domain_jobs)} jobs in {domain_latency_ms}ms")
+        debug_log.append(f"[9] Domain matching: {domain_match_count} matches in {domain_latency_ms}ms")
 
-        # Step 2: Heuristic extraction (with timing)
+        # Step 8 (doc): Heuristic matching, ignoring non_job_match / found_in_org_list
         heuristic_start = time.time()
-        heuristic_jobs = parse_job_listings_heuristic(career_markdown)
+        heuristic_match_count = 0
+        for item in crawl_list:
+            if item["non_job_match"] or item["found_in_org_list"]:
+                continue
+            if _is_heuristic_match(item["title"], item["url"]):
+                item["heuristic_match"] = True
+                heuristic_match_count += 1
         heuristic_latency_ms = int((time.time() - heuristic_start) * 1000)
         database.insert_org_crawl_log(
             org_crawl_id=crawl_id,
             action_type="heuristic_extract",
-            output_data=json.dumps({"count": len(heuristic_jobs)}),
+            output_data=json.dumps({"count": heuristic_match_count}),
             latency_ms=heuristic_latency_ms,
         )
-        debug_log.append(f"[4.b] Heuristic extraction: {len(heuristic_jobs)} jobs in {heuristic_latency_ms}ms")
+        debug_log.append(f"[10] Heuristic matching: {heuristic_match_count} matches in {heuristic_latency_ms}ms")
 
-        # Step 3: Merge and dedupe all three sources (domain + heuristic + LLM validation)
-        candidates = (await extract_job_listings_three_step(career_markdown))[0]
-        # Dedup by URL (in case three_step_extraction returned duplicates)
-        seen_urls = set()
-        deduped_candidates = []
-        for job in candidates:
-            url = job.get("url")
-            if url and url not in seen_urls:
-                seen_urls.add(url)
-                deduped_candidates.append(job)
-        candidates = deduped_candidates
-        scraped_urls = seen_urls
-        debug_log.append(f"[5] Extracted {len(scraped_urls)} unique URLs from career page")
-
-        # Step 4: Load existing company_role_urls from DB
-        company_role_urls_map = database.get_existing_role_urls(org_id)
-        company_role_urls = set(company_role_urls_map.keys())
-        debug_log.append(f"[6] Loaded {len(company_role_urls)} existing roles from DB")
-
-        # Step 5: Detect missing roles (company_role_urls - scraped_urls)
-        # These will be marked inactive in update_org_role_missing_count
-        missing_urls = company_role_urls - scraped_urls
-        debug_log.append(f"[7] Detected {len(missing_urls)} roles no longer on career page (will mark inactive)")
-
-        # Step 6: De-dupe (scraped_urls - company_role_urls) → possible_new_urls
-        possible_new_urls = scraped_urls - company_role_urls
-        new_candidates = [job for job in candidates if job["url"] in possible_new_urls]
-        debug_log.append(f"[8] De-duped: {len(new_candidates)} possible new roles to validate")
+        # Step 9 (doc): Deduped candidate list
+        new_candidates = [
+            item for item in crawl_list
+            if not item["non_job_match"] and not item["found_in_org_list"]
+            and (item["domain_match"] or item["heuristic_match"])
+        ]
+        debug_log.append(f"[11] De-duped: {len(new_candidates)} possible new roles to validate")
 
         # Collect metrics for org_crawls
-        domain_roles_count = len(domain_jobs)
-        heuristic_roles_count = len(heuristic_jobs)
+        scraped_urls = {item["url"] for item in crawl_list}
+        domain_roles_count = domain_match_count
+        heuristic_roles_count = heuristic_match_count
         dedupe_roles_count = len(scraped_urls)
-        current_org_roles_count = len(company_role_urls)
-        missing_roles_count = len(missing_urls)
-        matched_roles_count = len(scraped_urls & company_role_urls)
+        current_org_roles_count = len(org_list)
+        missing_roles_count = detected_missing_count
+        matched_roles_count = sum(1 for item in org_list if item["found_in_crawl_list"])
         unvalidated_roles_count = len(new_candidates)
 
-        # Step 7: Validate each in possible_new_urls (2-pass LLM approach)
+        # Step 10 (doc): Validate each candidate (2-pass LLM approach)
         new_validated_urls = []
         validation_errors = []
 
@@ -1257,13 +1333,13 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
         candidates_to_validate = new_candidates[:limit_unvalidated] if limit_unvalidated else new_candidates
         skipped_count = len(new_candidates) - len(candidates_to_validate)
         if skipped_count > 0:
-            debug_log.append(f"[8.a] Processing first {limit_unvalidated} of {len(new_candidates)} (skipping {skipped_count})")
+            debug_log.append(f"[11.a] Processing first {limit_unvalidated} of {len(new_candidates)} (skipping {skipped_count})")
 
         for idx, candidate in enumerate(candidates_to_validate, 1):
             job_title = candidate.get("title", "")
             job_url = candidate.get("url", "")
 
-            debug_log.append(f"[9.{idx}] Validating: {job_title[:50]}...")
+            debug_log.append(f"[11.{idx}] Validating: {job_title[:50]}...")
 
             crawl4ai_latency_ms = None
             validation_info = {}
@@ -1274,7 +1350,7 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
                 crawl_start = time.time()
                 job_markdown = await crawl_page(job_url)
                 crawl4ai_latency_ms = int((time.time() - crawl_start) * 1000)
-                debug_log.append(f"[9.{idx}.a] Crawled job page ({len(job_markdown)} chars in {crawl4ai_latency_ms}ms)")
+                debug_log.append(f"[11.{idx}.a] Crawled job page ({len(job_markdown)} chars in {crawl4ai_latency_ms}ms)")
 
                 # Log crawl4ai job page fetch
                 database.insert_org_crawl_log(
@@ -1304,14 +1380,14 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
                 )
 
                 if not is_job:
-                    debug_log.append(f"[9.{idx}.b] LLM Pass 1: NOT a job posting → rejected ({validation_info.get('latency_ms')}ms)")
+                    debug_log.append(f"[11.{idx}.b] LLM Pass 1: NOT a job posting → rejected ({validation_info.get('latency_ms')}ms)")
                     continue
 
-                debug_log.append(f"[9.{idx}.b] LLM Pass 1: Confirmed as job posting ({validation_info.get('latency_ms')}ms)")
+                debug_log.append(f"[11.{idx}.b] LLM Pass 1: Confirmed as job posting ({validation_info.get('latency_ms')}ms)")
 
                 # LLM Pass 2: Extract metadata
                 extracted, extraction_info = await extract_job_metadata(job_markdown, job_title)
-                debug_log.append(f"[9.{idx}.c] LLM Pass 2: Extracted title={extracted.get('title', 'N/A')}, salary={extracted.get('salary_range', 'N/A')} ({extraction_info.get('latency_ms')}ms)")
+                debug_log.append(f"[11.{idx}.c] LLM Pass 2: Extracted title={extracted.get('title', 'N/A')}, salary={extracted.get('salary_range', 'N/A')} ({extraction_info.get('latency_ms')}ms)")
 
                 # Log LLM extraction
                 database.insert_org_crawl_log(
@@ -1343,14 +1419,16 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
                     is_active=1,
                     missing_count=0,
                 )
-                debug_log.append(f"[9.{idx}.d] Upserted to DB: role_id={role_id}")
+                debug_log.append(f"[11.{idx}.d] Upserted to DB: role_id={role_id}")
 
+                candidate["found_new_job"] = True
+                candidate["org_role_id"] = role_id
                 new_validated_urls.append(job_url)
 
             except Exception as e:  # noqa: BLE001
                 error_msg = str(e)
                 validation_errors.append(f"{job_title}: {error_msg}")
-                debug_log.append(f"[9.{idx}] ERROR: {error_msg}")
+                debug_log.append(f"[11.{idx}] ERROR: {error_msg}")
                 # Log the error
                 try:
                     database.insert_org_crawl_log(
@@ -1362,17 +1440,34 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
                 except Exception:  # noqa: BLE001
                     pass  # If logging fails, don't block the algorithm
 
-        # Step 8: Update missing_count for ALL roles using scraped_urls (not validated list)
-        debug_log.append(f"[10] Updating missing_count for all roles (using scraped_urls: {len(scraped_urls)})")
+        # Step 14 (doc): Write newly identified non-job links to org_nonjob_links
+        nonjob_to_write = [
+            {"url": item["url"], "title": item["title"]}
+            for item in crawl_list
+            if not item["non_job_match"] and not item["found_new_job"] and not item["found_in_org_list"]
+        ]
+        if nonjob_to_write:
+            database.insert_org_nonjob_links(org_id, nonjob_to_write)
+        debug_log.append(f"[12] Wrote {len(nonjob_to_write)} new non-job links to org_nonjob_links")
+
+        # Step 15 (doc): Update crawl_count for matched existing roles
+        database.increment_org_role_crawl_count(org_id, scraped_urls)
+        debug_log.append(f"[13] Incremented crawl_count for {matched_roles_count} matched existing roles")
+
+        # Step 16 (doc): Update missing_count for ALL roles using scraped_urls (not validated list)
         database.update_org_role_missing_count(org_id, scraped_urls)
-        debug_log.append(f"[10.a] Roles marked inactive if missing 2+ crawls")
+        debug_log.append(f"[14] Updated missing_count for all roles (roles marked inactive if missing 2+ crawls)")
 
         # Count results
         all_roles = database.get_org_roles(org_id, include_inactive=True)
         inactive_count = sum(1 for r in all_roles if not r["is_active"])
 
         elapsed_ms = (time.time() - start_time) * 1000
-        debug_log.append(f"[11] Algorithm complete in {elapsed_ms:.0f}ms")
+        debug_log.append(f"[15] Algorithm complete in {elapsed_ms:.0f}ms")
+
+        # Persist the full crawl_list/org_list audit trail
+        crawl_json = json.dumps({"crawl_list": crawl_list, "org_list": org_list})
+        database.update_org_crawl_json(crawl_id, crawl_json)
 
         # Mark crawl as complete with all metrics
         database.update_org_crawl_completion(
@@ -1392,12 +1487,12 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
         )
         # Update org's last_crawl_at timestamp and career page markdown
         database.update_org_last_crawl(org_id, markdown=career_markdown)
-        debug_log.append(f"[12] Updated org_crawls: found={len(scraped_urls)}, added={len(new_validated_urls)}, closed={inactive_count}")
+        debug_log.append(f"[16] Updated org_crawls: found={len(scraped_urls)}, added={len(new_validated_urls)}, closed={inactive_count}")
 
         return {
             "success": True,
             "new_roles_validated": len(new_validated_urls),
-            "existing_roles_matched": len(scraped_urls & company_role_urls),
+            "existing_roles_matched": matched_roles_count,
             "roles_marked_inactive": inactive_count,
             "validated_roles": [{"url": url} for url in new_validated_urls],
             "validation_errors": validation_errors,
