@@ -1142,19 +1142,17 @@ async def mark_worker_viewed(request: Request, worker_id: int):
 async def list_jobs(request: Request):
     """All jobs with current application status and aggregated scores."""
     jobs = database.get_all_jobs()
-    eval_counts = database.get_eval_counts()
-    has_research = database.has_job_research()
-    has_internal = database.has_internal_eval()
-    has_external = database.has_external_eval()
+    metadata = database.get_job_list_metadata()
     result = []
     for j in jobs:
         row = dict(j)
-        row['eval_count'] = eval_counts.get(row['id'], 0)
+        job_meta = metadata.get(row['id'], {})
+        row['eval_count'] = job_meta.get('eval_count', 0)
         row['staleness_days_overall'] = database.get_job_last_interaction_days(row['id'])
         row['staleness_days_status'] = database.get_job_status_age_days(row['id'])
-        row['has_company_research'] = row['id'] in has_research
-        row['has_internal_eval'] = row['id'] in has_internal
-        row['has_external_eval'] = row['id'] in has_external
+        row['has_company_research'] = job_meta.get('has_research', False)
+        row['has_internal_eval'] = job_meta.get('has_internal_eval', False)
+        row['has_external_eval'] = job_meta.get('has_external_eval', False)
         result.append(row)
     return JSONResponse(result)
 

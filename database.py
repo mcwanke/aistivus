@@ -932,6 +932,22 @@ def init_db() -> None:
                 (CURRENT_SCHEMA_VERSION, "Schema v2.7 — Phase 2.7: orgs, org_crawls, org_roles tables; polymorphic job_research (org_id); jobs.org_id FK")
             )
 
+        # Performance indexes for /jobs list endpoint
+        try:
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_evaluations_job_id ON evaluations(job_id)")
+        except sqlite3.OperationalError:
+            pass  # index already exists
+
+        try:
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_job_research_job_id ON job_research(job_id)")
+        except sqlite3.OperationalError:
+            pass  # index already exists
+
+        try:
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_evaluations_job_llm ON evaluations(job_id, llm_model_id)")
+        except sqlite3.OperationalError:
+            pass  # index already exists
+
     seed_llm_models_from_config()
     _check_jobsearch_staleness()
 
@@ -1509,44 +1525,60 @@ def get_all_jobs(include_inactive: bool = False) -> list[sqlite3.Row]:
         ).fetchall()
 
 
-def get_eval_counts() -> dict[int, int]:
-    """Return a mapping of job_id → evaluation count for all jobs."""
+def get_job_list_metadata() -> dict[int, dict]:
+    """
+    Return enriched metadata for all jobs in a single query.
+    Keys: job_id → {eval_count, has_research, has_internal_eval, has_external_eval}
+    """
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT job_id, COUNT(*) FROM evaluations GROUP BY job_id"
+            """
+            SELECT
+              j.id,
+              COALESCE(COUNT(DISTINCT e.id), 0) as eval_count,
+              MAX(CASE WHEN jr.job_id IS NOT NULL THEN 1 ELSE 0 END) as has_research,
+              MAX(CASE WHEN e.id IS NOT NULL AND m.external_default = 0 THEN 1 ELSE 0 END) as has_internal_eval,
+              MAX(CASE WHEN e.id IS NOT NULL AND m.external_default = 1 THEN 1 ELSE 0 END) as has_external_eval
+            FROM jobs j
+            LEFT JOIN job_research jr ON j.id = jr.job_id
+            LEFT JOIN evaluations e ON j.id = e.job_id
+            LEFT JOIN llm_models m ON e.llm_model_id = m.id
+            GROUP BY j.id
+            """
         ).fetchall()
-    return {row[0]: row[1] for row in rows}
+    return {
+        row[0]: {
+            "eval_count": row[1],
+            "has_research": bool(row[2]),
+            "has_internal_eval": bool(row[3]),
+            "has_external_eval": bool(row[4]),
+        }
+        for row in rows
+    }
+
+
+def get_eval_counts() -> dict[int, int]:
+    """Deprecated: use get_job_list_metadata() instead."""
+    metadata = get_job_list_metadata()
+    return {job_id: data["eval_count"] for job_id, data in metadata.items()}
 
 
 def has_job_research() -> set[int]:
-    """Return set of job IDs that have at least one research record."""
-    with get_connection() as conn:
-        rows = conn.execute(
-            "SELECT DISTINCT job_id FROM job_research"
-        ).fetchall()
-    return {row[0] for row in rows}
+    """Deprecated: use get_job_list_metadata() instead."""
+    metadata = get_job_list_metadata()
+    return {job_id for job_id, data in metadata.items() if data["has_research"]}
 
 
 def has_internal_eval() -> set[int]:
-    """Return set of job IDs that have at least one internal (local/Ollama) evaluation."""
-    with get_connection() as conn:
-        rows = conn.execute(
-            """SELECT DISTINCT e.job_id FROM evaluations e
-               JOIN llm_models m ON m.id = e.llm_model_id
-               WHERE m.external_default = 0"""
-        ).fetchall()
-    return {row[0] for row in rows}
+    """Deprecated: use get_job_list_metadata() instead."""
+    metadata = get_job_list_metadata()
+    return {job_id for job_id, data in metadata.items() if data["has_internal_eval"]}
 
 
 def has_external_eval() -> set[int]:
-    """Return set of job IDs that have at least one external (Claude) evaluation."""
-    with get_connection() as conn:
-        rows = conn.execute(
-            """SELECT DISTINCT e.job_id FROM evaluations e
-               JOIN llm_models m ON m.id = e.llm_model_id
-               WHERE m.external_default = 1"""
-        ).fetchall()
-    return {row[0] for row in rows}
+    """Deprecated: use get_job_list_metadata() instead."""
+    metadata = get_job_list_metadata()
+    return {job_id for job_id, data in metadata.items() if data["has_external_eval"]}
 
 
 def get_job_last_interaction_days(job_id: int) -> int | None:

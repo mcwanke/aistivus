@@ -104,7 +104,7 @@ function JobRow({ job, onSelect }: { job: JobListItem; onSelect: () => void }): 
   return (
     <button
       onClick={onSelect}
-      className="w-full text-left border-b border-surface2 hover:bg-surface2 transition-colors"
+      className="w-full text-left border-b border-surface2 hover:bg-surface2 transition-colors px-[5%]"
     >
       <div className="flex items-stretch">
 
@@ -226,7 +226,7 @@ function Toolbar({
   searchTerm: string; onSearchChange: (v: string) => void
 }): React.JSX.Element {
   return (
-    <div className="flex items-center gap-2 px-4 py-2 border-b border-surface2 shrink-0">
+    <div className="flex items-center gap-2 px-[5%] py-2 border-b border-surface2 shrink-0">
       <input
         type="text"
         value={searchTerm}
@@ -353,7 +353,7 @@ export default function Jobs(): React.JSX.Element {
   return (
     <div className="flex flex-col h-screen">
       <AppHeader pageName="Jobs" />
-      <div className="px-4 py-3 border-b border-surface2 shrink-0 flex items-baseline gap-3">
+      <div className="px-[5%] py-3 border-b border-surface2 shrink-0 flex items-baseline gap-3">
         <h1 className="font-serif text-accent text-xl">Jobs</h1>
         {jobs && (
           <span className="text-muted text-[0.65rem] font-mono">{visible.length} of {jobs.length} jobs</span>
@@ -362,16 +362,16 @@ export default function Jobs(): React.JSX.Element {
       </div>
       <Toolbar sort={sort} sortDir={sortDir} onSort={handleSort} activeFilters={activeFilters} onToggleFilter={toggleFilter} searchTerm={searchTerm} onSearchChange={handleSearchChange} />
       <div className="flex-1 overflow-y-auto">
-        {isLoading && <p className="text-muted text-sm p-4">Loading jobs…</p>}
-        {isError && <p className="text-red text-sm p-4">Failed to load jobs.</p>}
+        {isLoading && <p className="text-muted text-sm px-[5%] py-4">Loading jobs…</p>}
+        {isError && <p className="text-red text-sm px-[5%] py-4">Failed to load jobs.</p>}
         {!isLoading && !isError && activeFilters.size === 0 && (
-          <p className="text-muted text-sm p-4 text-center mt-8">No filters selected.</p>
+          <p className="text-muted text-sm px-[5%] py-4 text-center mt-8">No filters selected.</p>
         )}
         {!isLoading && !isError && activeFilters.size > 0 && jobs?.length === 0 && (
-          <p className="text-muted text-sm p-4">No jobs yet.</p>
+          <p className="text-muted text-sm px-[5%] py-4">No jobs yet.</p>
         )}
         {!isLoading && !isError && activeFilters.size > 0 && jobs && jobs.length > 0 && visible.length === 0 && (
-          <p className="text-muted text-sm p-4">No jobs match the selected filters.</p>
+          <p className="text-muted text-sm px-[5%] py-4">No jobs match the selected filters.</p>
         )}
         {visible.map((job) => (
           <JobRow key={job.id} job={job} onSelect={() => navigate(`/jobs/${job.id}`)} />

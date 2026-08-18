@@ -42,6 +42,13 @@ def client(tmp_path, monkeypatch):
     import limiter as limiter_module
     monkeypatch.setattr(limiter_module.limiter, "enabled", False)
 
+    # Reduce WorkerExecutor poll interval for faster test cleanup (0.1s instead of 5s)
+    import worker_executor as executor_module
+    original_init = executor_module.WorkerExecutor.__init__
+    def patched_init(self, poll_interval=5.0, parallel_workers=1):
+        original_init(self, poll_interval=0.1, parallel_workers=parallel_workers)
+    monkeypatch.setattr(executor_module.WorkerExecutor, "__init__", patched_init)
+
     from main import app
     with TestClient(app, raise_server_exceptions=True) as c:
         yield c
