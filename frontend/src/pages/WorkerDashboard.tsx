@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import AppHeader from '@/components/AppHeader'
 import { useWorkersByFilter, type Worker } from '@/hooks/useWorkers'
 import { useJobDetail } from '@/hooks/useJobs'
+import { useOrgDetail } from '@/hooks/useOrgs'
 
 function formatRelativeTime(isoString: string): string {
   const date = new Date(isoString)
@@ -209,11 +210,15 @@ function WorkerTableRow({
   onShowError: (workerId: number, error: string) => void
 }): React.JSX.Element {
   const { data: jobData } = useJobDetail(worker.entity_type === 'job' ? worker.entity_id : undefined)
+  const { data: orgData } = useOrgDetail(worker.entity_type === 'org' ? worker.entity_id : undefined)
   const job = jobData?.job
+  const org = orgData
 
   let entityDisplay = `${worker.entity_type} ${worker.entity_id}`
   if (worker.entity_type === 'job' && job) {
     entityDisplay = `${job.company_name} — ${job.title}`
+  } else if (worker.entity_type === 'org' && org) {
+    entityDisplay = org.name
   }
 
   return (

@@ -594,7 +594,7 @@ function EvalRow({ evaluation }: { evaluation: EvalWithMeta }): React.JSX.Elemen
                     ['Fast', evaluation.score_recruiter_fast, 'score_recruiter_fast'],
                     ['Deep', evaluation.score_recruiter_deep, 'score_recruiter_deep'],
                   ] as [string, number | null, string][],
-                  max: 4,
+                  max: 5,
                 },
                 {
                   name: 'Company Fit',

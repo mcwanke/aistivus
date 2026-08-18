@@ -22,7 +22,7 @@ import database
 # ─────────────────────────────────────────────────────────────
 
 _GOOD_EVAL = {
-    # Screenability dims (1-4) → composite_screenability = 3/4*10 = 7.5
+    # Screenability dims (1-5) → composite_screenability = 3/5*10 = 6.0
     "score_ats": 3,
     "score_recruiter_fast": 3,
     "score_recruiter_deep": 3,
@@ -34,7 +34,7 @@ _GOOD_EVAL = {
     "score_candidate_role": 4,
     "score_candidate_scope": 4,
     "score_candidate_culture": 4,
-    # score_overall = 0.40*7.5 + 0.30*8.0 + 0.30*8.0 = 7.8
+    # score_overall = 0.40*6.0 + 0.30*8.0 + 0.30*8.0 = 7.2
     "fit_type": "Core Fit",
     "archetype": "People Leader",
     "strengths": "Strong background",

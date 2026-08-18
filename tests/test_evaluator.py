@@ -26,7 +26,7 @@ def run(coro):
 
 
 GOOD_RESPONSE_DICT = {
-    # Screenability dims (1-4)
+    # Screenability dims (1-5)
     "score_ats": 3,
     "score_recruiter_fast": 3,
     "score_recruiter_deep": 3,
@@ -50,11 +50,11 @@ GOOD_RESPONSE_DICT = {
     "interview_prep_notes": "Prepare examples of leading large teams",
 }
 # Computed from GOOD_RESPONSE_DICT with default weights (0.40 / 0.30 / 0.30):
-# composite_screenability = 3/4*10 = 7.5
+# composite_screenability = 3/5*10 = 6.0
 # composite_company_fit   = 4/5*10 = 8.0
 # composite_candidate_fit = 4/5*10 = 8.0
-# score_overall           = 0.40*7.5 + 0.30*8.0 + 0.30*8.0 = 7.8
-GOOD_SCORE_OVERALL = 7.8
+# score_overall           = 0.40*6.0 + 0.30*8.0 + 0.30*8.0 = 7.2
+GOOD_SCORE_OVERALL = 7.2
 
 LLM_SUCCESS = {
     "success": True,
@@ -307,19 +307,19 @@ class TestValidateParsedResponse:
         del d["score_ats"]
         assert evaluator._validate_parsed_response(d) is False
 
-    def test_screenability_score_clamped_to_max_4(self):
+    def test_screenability_score_clamped_to_max_5(self):
         d = self._base()
         d["score_ats"] = 6.0
         result = evaluator._validate_parsed_response(d)
         assert result is True
-        assert d["score_ats"] == 4.0  # clamped to 1-4 range
+        assert d["score_ats"] == 5.0  # clamped to 1-5 range
 
     def test_screenability_score_clamped_to_min_1(self):
         d = self._base()
         d["score_ats"] = 0.0
         result = evaluator._validate_parsed_response(d)
         assert result is True
-        assert d["score_ats"] == 1.0  # clamped to 1-4 range
+        assert d["score_ats"] == 1.0  # clamped to 1-5 range
 
     def test_placeholder_fit_type_fails(self):
         d = self._base()

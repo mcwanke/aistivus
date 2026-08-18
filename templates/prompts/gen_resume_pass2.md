@@ -7,7 +7,7 @@ temperature: 0.0
 Prompt generated for use in an external LLM session to evaluate a tailored
 resume draft through 10 structured lenses (ATS Keywords, Recruiter Fast/Deep,
 HM Fast/Deep, Candidate Fit, Seniority Signal, Voice & Agency, Tailoring,
-Gap/Risk Flags), produce a holistic success assessment (1-10), per-lens scores
+Gap/Risk Flags), produce a holistic success assessment (1-5), per-lens scores
 (1-5), and a structured JSON correction list for Pass 3.
 
 Requires context files: jobsearch.md and resume_template.typ already in session.
@@ -118,7 +118,7 @@ Iteration: {loop_number}
 
 [[/READONLY]]
 [[EDITABLE]]
-## STEP 1 — HOLISTIC "CHANCE OF SUCCESS" (1-10)
+## STEP 1 — HOLISTIC "CHANCE OF SUCCESS" (1-5)
 
 Before running detailed lens evaluation, assess the resume holistically. Ignore
 lens-by-lens scoring for now — this is a high-level gut check.
@@ -126,13 +126,22 @@ lens-by-lens scoring for now — this is a high-level gut check.
 Question: "If I were a hiring manager at this company, what's my realistic
 chance this person makes it to a phone screen after I read this resume?"
 
+Use this scale:
+- **1 — Guaranteed rejection:** Fundamental blockers; major gaps or credibility concerns.
+- **2 — Probably rejection:** Too many key misalignments; missing critical signals.
+- **3 — Possibly reviewed:** Some issues present, but fundamentally on target for this role.
+- **4 — Reviewed and competitive:** Solid foundation with small gaps; real shot at moving forward.
+- **5 — Strong fit:** Well-aligned across most areas; strong proof points; likely to catch eye.
+
+*Calibration note: Most well-tailored resumes should score 3-4. A score of 5 is achievable and represents your target state.*
+
 Consider:
 - Overall tailoring fit (not just technical fit)
 - Does the narrative feel cohesive?
 - Are there any obvious red flags or concerns?
 - Does this person seem like they've done this job before?
 
-Assign a 1-10 score and provide 1-3 line reasoning. This is your intuition
+Assign a 1-5 score and provide 1-3 line reasoning. This is your intuition
 check before lens details.
 
 ---
@@ -158,12 +167,14 @@ For each signal, check if the resume has a counterpart: yes / partial / absent.
 
 Role: You are an ATS system evaluating this resume.
 
-Evaluate:
-- Are the identified keywords present in the resume? Where are the gaps?
-- Are keywords in the right locations (summary, key impacts, experience) or
-  concentrated in only one section?
-- Are any keyword gaps still unaddressed?
-- Density: do keywords appear natural or over-stuffed?
+Core question: Will this resume pass the automated ATS scan, and if so, where will it rank?
+
+Use this scale:
+- **1 — Will be rejected by ATS scan:** Critical keywords missing; resume fails to match JD requirements
+- **2 — Possibly rejected by ATS scan:** Several key keywords missing or keyword density too low
+- **3 — Accepted by ATS scan but buried in the list:** Keywords present, but sparse or poorly distributed; passes basic match but not competitive
+- **4 — Accepted by ATS scan and possibly flagged for review:** Keywords well-represented; good distribution and natural density
+- **5 — Accepted by ATS scan and pushed to the top of the heap:** All/nearly all keywords present, well-distributed, optimal density; strong ATS signal
 
 Score 1-5 and provide 1-line reasoning.
 
@@ -173,11 +184,14 @@ Score 1-5 and provide 1-line reasoning.
 
 Role: You are an overworked recruiter scanning for ~6-8 seconds.
 
-Evaluate:
-- Is the most recent title and company immediately visible?
-- Does the summary land immediately?
-- Are the Key Impacts bullets front-loaded with the strongest signal?
-- Is visual hierarchy clean?
+Core question: Can you find the key info quickly, and is it compelling enough to keep reading?
+
+Use this scale:
+- **1 — Recruiter abandons:** Key info (title, company, summary, impact) not visible or not compelling; recruiter stops reading
+- **2 — Might continue:** Key info requires effort to find; weak hierarchy; recruiter is lukewarm
+- **3 — Passes initial impression:** Key info is findable; resume scans clearly; recruiter keeps reading
+- **4 — Strong visual hierarchy:** Title/company/summary land immediately; Key Impacts are compelling; recruiter engaged
+- **5 — Excellent flow:** Strongest signals front-loaded; every section pulls forward; recruiter is drawn in from first glance
 
 Score 1-5 and provide 1-line reasoning.
 
@@ -187,10 +201,14 @@ Score 1-5 and provide 1-line reasoning.
 
 Role: You are a recruiter reading carefully after the fast-pass.
 
-Evaluate:
-- Does the experience section tell a coherent story aligned with the JD?
-- Are there claims that would raise questions or require clarification?
-- Is the narrative credible without gaps or contradictions?
+Core question: Does the full narrative hold up under scrutiny and align to the JD?
+
+Use this scale:
+- **1 — Narrative breaks down:** Gaps, contradictions, or unexplained jumps; story doesn't track; credibility damaged
+- **2 — Weak narrative flow:** Claims feel disconnected or require mental bridging; some credibility concerns; would raise questions
+- **3 — Coherent story:** Experience section tells a generally coherent story aligned to JD; narrative makes sense; minor questions but credible
+- **4 — Strong narrative:** Clear progression aligned to JD; all claims are credible and well-grounded; no red flags; recruiter confident moving forward
+- **5 — Strong alignment:** Narrative holds up under scrutiny; all claims well-grounded and credible; recruiter would confidently advance this candidate
 
 Score 1-5 and provide 1-line reasoning.
 
@@ -200,10 +218,14 @@ Score 1-5 and provide 1-line reasoning.
 
 Role: You are a hiring manager doing a quick technical fit check.
 
-Evaluate:
-- Can this person do this job? Is the technical depth visible?
-- Are the most relevant skills/experiences prominently placed?
-- Are there critical technical gaps between JD requirements and resume signals?
+Core question: Can this person do the job? Is the technical depth visible?
+
+Use this scale:
+- **1 — Not qualified:** Critical technical gaps; doesn't meet core JD requirements; HM would definitely reject
+- **2 — Probably not qualified:** Technical gaps present; unclear if candidate has depth needed; HM might reject
+- **3 — Possibly capable:** Demonstrates relevant skills/experience; can likely do the job; HM wouldn't reject but would keep looking for better candidates
+- **4 — Capable:** Relevant skills/experience visible and solid; can do the job
+- **5 — Really solid fit:** Checks most boxes; solid relevant experience; HM impressed by technical signal
 
 Score 1-5 and provide 1-line reasoning.
 
@@ -214,10 +236,14 @@ Score 1-5 and provide 1-line reasoning.
 Role: You are a hiring manager reading carefully to assess culture fit and
 whether you'd want to work with this person.
 
-Evaluate:
-- Does this person's framing and voice align with company values (per research)?
-- Are there any credibility concerns or red flags?
-- Would you be confident calling this person?
+Core question: Would you want to work with this person? Are they credible and values-aligned?
+
+Use this scale:
+- **1 — Red flags:** Credibility concerns or values misalignment; HM would reject outright
+- **2 — Concerns present:** Credibility questions or culture fit doubts present; HM might not reject but goes to bottom of stack
+- **3 — Acceptable:** Nothing exciting, but deep pass shows enough experience and fit to keep in the stack
+- **4 — Solid fit:** Good alignment; credible; HM would interview
+- **5 — Great fit:** HM has a good feeling about this person; capable with technical and cultural alignment
 
 Score 1-5 and provide 1-line reasoning.
 
@@ -242,12 +268,16 @@ Score 1-5 (overall across the three dimensions) and provide 1-line reasoning.
 
 ## STEP 9 — SENIORITY SIGNAL (1-5)
 
-Evaluate: Does the resume appropriately signal the seniority level this *specific
-role* requires?
+Core question: Does this person signal the right seniority level for this specific role?
 
-- Does the scope of impact (team size, org influence, business outcomes) come
-  through clearly at the right level for this role?
-- Is leadership scope visible and prominent, or buried?
+Evaluate title match and scope of impact (team size, org influence, business outcomes) alignment.
+
+Use this scale:
+- **1 — Significant level mismatch:** Either too high or too low; doesn't align with role level
+- **2 — Title mismatch:** Title doesn't match; raises concerns that experience might not either
+- **3 — Title match:** Title aligns, but scope evaluation might have some gaps
+- **4 — Title close match:** Title closely matches; scope evaluation spot on
+- **5 — Title and scope match:** Title matches; scope of impact and influence clearly align with role requirements
 
 Score 1-5 and provide 1-line reasoning.
 
@@ -269,12 +299,14 @@ Score 1-5 and provide 1-line reasoning.
 
 ## STEP 11 — TAILORING (1-5)
 
-Evaluate: Does this resume specifically address this job's unique ask, or does
-it feel generic?
+Core question: Does this resume demonstrate specific knowledge of this role/company, or could it work for any similar position?
 
-- Does it mirror JD language and priorities specific to this company/role?
-- Are the tailored choices visible, or could this resume work for any similar role?
-- Does it reference company-specific context (culture, product, values)?
+Use this scale:
+- **1 — Generic:** Could apply to any similar role; no company/role-specific signals; demonstrates no research or customization
+- **2 — Surface tailoring:** Minimal company/role specificity; some JD language borrowed but feels surface-level
+- **3 — Good tailoring:** Clear alignment to JD language and priorities; tailored choices are visible; demonstrates understanding of this role
+- **4 — Strong tailoring:** JD language woven throughout; tailored choices clear and pervasive; company-specific context evident; demonstrates deep familiarity
+- **5 — Excellent tailoring:** Strong alignment to JD language and company values; demonstrates clear knowledge of this specific role; tailoring would be difficult to repurpose for other positions
 
 Score 1-5 and provide 1-line reasoning.
 
@@ -371,7 +403,7 @@ Output in this exact order:
 
 ---
 
-## CHANCE OF SUCCESS: X/10
+## CHANCE OF SUCCESS: X/5
 <1-3 line explanation of the gut-check assessment>
 
 ## LENS SCORES:
@@ -402,7 +434,7 @@ Target (if Rework): <1-2 sentences on what needs to improve to unlock the next s
 ```json
 {
   "evaluations": {
-    "holistic_assessment": <integer 1-10>,
+    "holistic_assessment": <integer 1-5>,
     "score_ats": <integer 1-5>,
     "score_recruiter_fast": <integer 1-5>,
     "score_recruiter_deep": <integer 1-5>,

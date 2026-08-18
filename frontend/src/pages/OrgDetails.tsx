@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import AppHeader from '@/components/AppHeader'
+import { OrgCompanyResearchWorkerModal } from '@/components/OrgCompanyResearchWorkerModal'
 import { useOrgDetail, useOrgResearch, useGenerateOrgResearchPrompt, useImportOrgResearch, useOrgCrawls, useCrawlLogs, useExportOrgCrawls, useExportCrawlLogs, useOrgRoles, useExportOrgRoles, useMarkRoleInteresting, useMarkRoleNotInteresting, useMarkRoleActive, useMarkRoleClosed, useUpdateOrgRole, useTriggerCrawl } from '@/hooks/useOrgs'
 import type { JobResearch, OrgCrawl, OrgCrawlLog, OrgRole } from '@/types/api'
 
@@ -242,6 +243,7 @@ function OrgResearchSection({ orgId }: OrgResearchSectionProps): React.JSX.Eleme
   const [copiedGen, setCopiedGen] = useState(false)
   const [importText, setImportText] = useState('')
   const [copiedRes, setCopiedRes] = useState(false)
+  const [showCompanyResearchWorker, setShowCompanyResearchWorker] = useState(false)
 
   async function handleGeneratePrompt(): Promise<void> {
     try {
@@ -287,13 +289,27 @@ function OrgResearchSection({ orgId }: OrgResearchSectionProps): React.JSX.Eleme
         <p className="text-sm text-muted leading-relaxed">
           This is an external prompt — it requires internet access. Do this first to gather information about the company before running evaluations. This data is inserted into following prompts, so don't skip it.
         </p>
-        <button
-          onClick={() => void handleGeneratePrompt()}
-          disabled={generateMutation.isPending}
-          className="px-4 py-2 text-sm font-mono text-bg bg-accent rounded hover:bg-accent/90 disabled:opacity-50 transition-colors"
-        >
-          {generateMutation.isPending ? 'Generating…' : 'Open Research Generation Workflow'}
-        </button>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => void handleGeneratePrompt()}
+              disabled={generateMutation.isPending}
+              className="px-3 py-1.5 text-xs font-mono text-text/70 border-2 border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors disabled:opacity-50 shrink-0"
+            >
+              {generateMutation.isPending ? 'Generating…' : 'Open Research Generation Workflow'}
+            </button>
+            <span className="text-xs font-mono text-muted">Generate prompt & import results.</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowCompanyResearchWorker(true)}
+              className="px-3 py-1.5 text-xs font-mono text-text/70 border-2 border-surface2 rounded hover:text-text hover:border-accent/40 transition-colors shrink-0"
+            >
+              Add Background Worker for Company Research
+            </button>
+            <span className="text-xs font-mono text-muted">Generate & import via background worker.</span>
+          </div>
+        </div>
         {generateMutation.isError && (
           <p className="text-xs font-mono text-red">{generateMutation.error.message}</p>
         )}
@@ -395,6 +411,14 @@ function OrgResearchSection({ orgId }: OrgResearchSectionProps): React.JSX.Eleme
             </button>
           </div>
         </div>
+      )}
+
+      {/* Modal */}
+      {showCompanyResearchWorker && (
+        <OrgCompanyResearchWorkerModal
+          orgId={orgId}
+          onClose={() => setShowCompanyResearchWorker(false)}
+        />
       )}
     </div>
   )

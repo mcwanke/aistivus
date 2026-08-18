@@ -320,6 +320,29 @@ async def generate_org_research_prompt(org_id: int) -> dict:
     })
 
 
+@router.post("/{org_id}/queue-research-worker")
+async def queue_org_research_worker(org_id: int) -> dict:
+    """Queue a background worker to run company research via Claude CLI for an org."""
+    org = database.get_org(org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail=f"Org {org_id} not found.")
+
+    try:
+        worker_id = database.create_worker(
+            worker_type="company_research_cli",
+            entity_type="org",
+            entity_id=org_id,
+            result_url=f"/orgs/{org_id}?tab=org-details&action=org-research",
+            input_json={"org_id": org_id},
+        )
+        return JSONResponse({
+            "success": True,
+            "worker_id": worker_id,
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @router.get("/{org_id}/crawls")
 async def get_org_crawls(org_id: int) -> list[dict]:
     """Get all crawls for an organization."""

@@ -27,6 +27,7 @@ import httpx
 PROVIDER_OLLAMA = "ollama"
 PROVIDER_ANTHROPIC = "anthropic"
 PROVIDER_OPENAI_COMPAT = "openai-compat"
+PROVIDER_CLAUDE_CLI = "claude_cli"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -98,6 +99,14 @@ async def complete(
             max_tokens=max_tokens,
             timeout=timeout,
             temperature=temperature,
+        )
+
+    elif provider == PROVIDER_CLAUDE_CLI:
+        return await _call_claude_cli(
+            prompt=prompt,
+            system=system,
+            model=model,
+            timeout=timeout,
         )
 
     return _error_response(
@@ -574,6 +583,88 @@ async def _call_anthropic(
             provider=PROVIDER_ANTHROPIC,
             model=model,
             error=f"Unexpected error calling Anthropic: {type(e).__name__}: {e}",
+            latency_ms=latency_ms,
+        )
+
+
+# ─────────────────────────────────────────────────────────────
+# Claude CLI
+# ─────────────────────────────────────────────────────────────
+
+async def _call_claude_cli(
+    prompt: str,
+    system: str,
+    model: str,
+    timeout: float = 300.0,
+    web_search: bool = False,
+) -> dict[str, Any]:
+    """
+    Call Claude via the claude CLI tool (claude -p).
+    Uses subprocess to invoke the CLI with a combined prompt (system + user).
+    Returns raw stdout in the "content" field for caller to parse.
+
+    Args:
+        web_search: If True, enables web search capability via --web flag.
+    """
+    import subprocess
+
+    combined_prompt = f"{system}\n\n{prompt}"
+
+    start = time.monotonic()
+    try:
+        cmd = ["claude", "-p", "--model", model, "--permission-mode", "dontAsk", combined_prompt]
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+
+        latency_ms = int((time.monotonic() - start) * 1000)
+
+        if result.returncode != 0:
+            return _error_response(
+                provider=PROVIDER_CLAUDE_CLI,
+                model=model,
+                error=f"Claude CLI exited with code {result.returncode}: {result.stderr}",
+                latency_ms=latency_ms,
+            )
+
+        return {
+            "success": True,
+            "content": result.stdout,
+            "error": None,
+            "model": model,
+            "provider": PROVIDER_CLAUDE_CLI,
+            "latency_ms": latency_ms,
+            "prompt_tokens_actual": None,
+            "completion_tokens_actual": None,
+            "total_tokens_actual": None,
+        }
+
+    except subprocess.TimeoutExpired:
+        latency_ms = int((time.monotonic() - start) * 1000)
+        return _error_response(
+            provider=PROVIDER_CLAUDE_CLI,
+            model=model,
+            error=f"Claude CLI subprocess timed out after {timeout}s.",
+            latency_ms=latency_ms,
+        )
+    except FileNotFoundError:
+        latency_ms = int((time.monotonic() - start) * 1000)
+        return _error_response(
+            provider=PROVIDER_CLAUDE_CLI,
+            model=model,
+            error="Claude CLI not found. Ensure 'claude' is installed and in PATH.",
+            latency_ms=latency_ms,
+        )
+    except Exception as e:  # noqa: BLE001
+        latency_ms = int((time.monotonic() - start) * 1000)
+        return _error_response(
+            provider=PROVIDER_CLAUDE_CLI,
+            model=model,
+            error=f"Unexpected error calling Claude CLI: {type(e).__name__}: {e}",
             latency_ms=latency_ms,
         )
 

@@ -14,7 +14,8 @@ function NavLinks(): React.JSX.Element {
 
   return (
     <nav className="ml-auto flex items-baseline gap-5">
-      <Link to="/career" className={linkClass('/career')}>Career</Link>
+      <Link to="/career" className={linkClass('/career')}>My Career</Link>
+      <Link to="/orgs" className={linkClass('/orgs')}>Org Search</Link>
       <Link to="/jobs" className={linkClass('/jobs')}>Job Search</Link>
       <Link to="/workers" className={linkClass('/workers')}>Worker Dashboard</Link>
       <Link to="/settings" className={linkClass('/settings')}>Settings</Link>

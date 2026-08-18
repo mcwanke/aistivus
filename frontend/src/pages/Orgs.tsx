@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useOrgs } from '@/hooks/useOrgs'
 import type { Org } from '@/types/api'
 import AppHeader from '@/components/AppHeader'
@@ -30,6 +30,7 @@ export default function Orgs(): React.JSX.Element {
         {orgs && (
           <span className="text-muted text-[0.65rem] font-mono">{orgs.length} organizations</span>
         )}
+        <Link to="/createorg" className="ml-auto text-xs font-mono text-accent hover:text-text transition-colors">Create A New Org</Link>
       </div>
       <div className="flex-1 overflow-y-auto">
         {isLoading && <p className="text-muted text-sm p-4">Loading organizations…</p>}

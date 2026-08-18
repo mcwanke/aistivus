@@ -73,13 +73,32 @@ Work through all four steps before producing any output. Then output results in 
 
 Simulate how automated systems and recruiters process a resume before any human decision is made. Score each dimension independently.
 
-**Scale:** 1 = clear fail | 2 = uncertain, lean negative | 3 = uncertain, lean positive | 4 = clear pass
+**ATS score (1–5):** How well would this candidate's experience and background fit against the job description from an ATS standpoint?
 
-**ATS score (1–4):** Does the candidate's profile contain the keyword and terminology signals an ATS would match against this JD? Consider job title alignment, required skills verbatim or near-verbatim, technology names, and domain-specific language. A 4 requires the majority of high-priority JD keywords to appear in the candidate's background. A 1 means an ATS would almost certainly filter this application.
+Use this scale:
+- **1 — Hard fail:** Direct keyword matching would fail AND adjacent keyword/scope matching would also fail
+- **2 — Probably fail:** Direct keyword matching would mostly fail, but adjacent keyword/scope matching might pass
+- **3 — Probably pass:** Enough direct keyword matching + adjacent keyword/scope matching to get through, but wouldn't rank high even with a pass
+- **4 — Definitely pass:** Possibly some direct keyword matching issues, but overall direct + adjacent keyword/scope is strong; ranking would be middle of the pack
+- **5 — Definitely pass:** Both direct keyword and/or adjacent scope is a match; ranking would be high
 
-**Recruiter fast-pass score (1–4):** Simulate an 8-second resume scan. Do the most visible signals — title, current/recent experience, scope indicators — immediately suggest a qualified candidate for this role? A 4 means the right signals are immediately legible. A 1 means nothing registers correctly in a quick scan.
+**Recruiter fast-pass score (1–5):** If this career history were distilled to a resume, would enough signals grab a recruiter's attention to stop and re-read in detail?
 
-**Recruiter deep-pass score (1–4):** Simulate a full recruiter review of 2–3 minutes. After reading carefully, would a recruiter advance this candidate to a hiring manager? A 4 means clear advancement. A 1 means the recruiter would pass even after careful reading.
+Use this scale:
+- **1 — Hard fail:** Nothing would stop them; they'd move on immediately
+- **2 — Probably fail:** Unlikely to grab attention; they'd probably skip it
+- **3 — Possible:** Unclear signal; they might pause and re-read, or might move on
+- **4 — Good signal:** Would likely stop and re-read in detail
+- **5 — Excellent signal:** Would definitely stop and re-read; would probably pass along directly to hiring manager for review
+
+**Recruiter deep-pass score (1–5):** After reading your jobsearch context in detail, would the recruiter advance this to a hiring manager, and where would they prioritize it in the stack?
+
+Use this scale:
+- **1 — Hard fail:** After detailed review, wondered why they did a deep scan here
+- **2 — Probably fail:** After detailed review, unlikely to advance to HM
+- **3 — Possible:** Might advance to HM, but no prioritization in the stack
+- **4 — Good:** Would advance to HM, top of stack
+- **5 — Excellent:** Would advance to HM immediately; skipping the stack
 
 ---
 
@@ -87,15 +106,34 @@ Simulate how automated systems and recruiters process a resume before any human 
 
 **Source material: JD + company research JSON. This is the company's lens — how would the hiring team view this candidate?**
 
-**Scale:** 1 = no meaningful match | 2 = weak match | 3 = moderate match | 4 = good match | 5 = excellent match
-
 If research context is absent, score from JD signals only and note the limitation.
 
-**Role fit (1–5):** Does the role type, title, and day-to-day responsibilities match what the candidate's background suggests they can credibly fill? Reference the Target Role Profile in the candidate profile above and cross-check against JD requirements. Assess from the hiring team's perspective.
+**Role fit (1–5):** Can the candidate do the work needed for this role?
 
-**Scope fit (1–5):** Does the team size, org scope, and leadership depth match what the candidate has actually done? Reference stated scope in the candidate profile — IC count managed, org level, cross-functional surface area. Draw on role_context.team_signals from research if available.
+Use this scale:
+- **1 — Hard fail:** Candidate lacks capability for this role's core work
+- **2 — Probably fail:** Candidate has significant gaps for this role's requirements
+- **3 — Possible:** Candidate could do this work but has some gaps
+- **4 — Good:** Candidate can clearly do this role's core work
+- **5 — Excellent:** Candidate has strong capability in this role's domain
 
-**Culture fit — company lens (1–5):** Based on JD language and research culture_signals, would this company view this candidate as a cultural fit? Draw on Glassdoor management style signals, stated values in the JD, and culture-specific requirements. This is the company's perspective, not the candidate's.
+**Scope fit (1–5):** Can the candidate operate in this environment?
+
+Use this scale:
+- **1 — Hard fail:** Candidate couldn't operate effectively at this level/complexity
+- **2 — Probably fail:** Candidate would struggle in this environment
+- **3 — Possible:** Candidate could operate in this environment but would need adjustment
+- **4 — Good:** Candidate can operate well in this environment
+- **5 — Excellent:** Candidate is well-suited to operate in this environment
+
+**Culture fit — company lens (1–5):** From the company's perspective, would this candidate fit their culture?
+
+Use this scale:
+- **1 — Hard fail:** Company would see this as a culture mismatch
+- **2 — Probably fail:** Company would likely see culture concerns or hesitation
+- **3 — Acceptable:** Company would see no culture red flags; candidate fits adequately
+- **4 — Good:** Company would see clear alignment between candidate and their culture
+- **5 — Strong:** Company would see the candidate as someone who would strengthen their culture
 
 ---
 
@@ -103,38 +141,34 @@ If research context is absent, score from JD signals only and note the limitatio
 
 **Source material: candidate stated preferences + research comp_signals, culture_signals, red_flags, green_flags. This is the candidate's lens — would they want this role?**
 
-**Scale:** 1 = no meaningful appeal | 2 = weak appeal | 3 = moderate appeal | 4 = good appeal | 5 = excellent appeal
-
 If research context is absent, score from JD signals and candidate stated preferences only.
 
-**Role appeal (1–5):** Does this role genuinely match what the candidate wants to do? Reference stated role preferences, deal-breakers, and target role profile in the candidate profile above. If the role requires significant time in areas the candidate is actively moving away from, score lower.
+**Role appeal (1–5):** Does the org structure, team size, technology, and role ownership scope match what you have experience with?
 
-**Scope appeal (1–5):** Does the org structure, team size, and ownership scope match what the candidate is targeting? Reference scope preferences in the candidate profile. Consider org maturity, autonomy level, and growth trajectory from research company_trajectory if available.
+Use this scale:
+- **1 — Hard fail:** No alignment with your experience; significantly different from what you've done
+- **2 — Probably fail:** Limited alignment; mismatched on key dimensions
+- **3 — Possible:** Some alignment with experience, but gaps on several fronts
+- **4 — Good:** Good alignment with your experience across these dimensions
+- **5 — Excellent:** Strong alignment; matches your experience in org structure, team size, tech, and scope
 
-**Culture compatibility — candidate lens (1–5):** Based on the candidate's stated values in the profile above and research findings, would the candidate likely thrive here? Incorporate comp_signals from research — compensation misalignment is a relevant compatibility signal. Draw on red_flags and green_flags to calibrate. This is the candidate's perspective, not the company's.
+**Scope appeal (1–5):** Does the org makeup and operating methodology match what you have experience with?
 
----
+Use this scale:
+- **1 — Hard fail:** Operating style completely foreign to your experience
+- **2 — Probably fail:** Methodology misaligned with what you've worked in
+- **3 — Possible:** Some familiar elements, but different from your experience
+- **4 — Good:** Org makeup and methodology align with your experience
+- **5 — Excellent:** Operating methodology matches your experience; you'd work naturally here
 
-### Step 4 — Qualitative Assessment
+**Culture compatibility — candidate lens (1–5):** Based on your stated values and company research, would you enjoy working here?
 
-Produce these only if explicitly requested in this session. Otherwise skip to the JSON block.
-
-**Fit type:** Core Fit / Stretch / Mismatch — one sentence of reasoning.
-
-**Role archetype:** Concise label for the nature of this role (e.g. "Hybrid: People Leadership + Platform Technical Direction" or "Pure People Leadership: EM-scale").
-
-**Strengths of this match:** Bullet list. Be specific — cite actual experience from the candidate profile that maps to a specific JD requirement. No generalities.
-
-**Gaps or concerns:** Bullet list. Be honest — if a gap is real, name it. Flag anything likely to surface in a recruiter screen or hiring manager interview.
-
-**ATS keyword analysis:**
-- Extract 25–35 ATS-relevant keywords from the JD.
-- Cross-reference against the candidate's skills and experience in the profile.
-- List any JD keywords not present in the candidate's background as tailoring targets.
-
-**Interview prep notes:** Based on research.interview_process and known gaps from the evaluation above, surface what the candidate should prepare for. If interview process data is absent, flag that and identify likely question areas based on JD requirements and gaps above.
-
-**Recommended action:** Apply / Apply with modifications / Skip — one sentence of reasoning.
+Use this scale:
+- **1 — Hard fail:** No; culture conflicts with your values
+- **2 — Probably fail:** Unlikely; significant value misalignment
+- **3 — Possible:** You could work here, but culture isn't ideal for you
+- **4 — Good:** Yes; culture aligns with your values
+- **5 — Excellent:** Yes; culture resonates strongly with your values
 
 ---
 
@@ -144,9 +178,9 @@ After completing the evaluation, output the following block exactly as formatted
 
 ```json
 {
-  "score_ats": <1-4 integer>,
-  "score_recruiter_fast": <1-4 integer>,
-  "score_recruiter_deep": <1-4 integer>,
+  "score_ats": <1-5 integer>,
+  "score_recruiter_fast": <1-5 integer>,
+  "score_recruiter_deep": <1-5 integer>,
   "score_role_fit": <1-5 integer>,
   "score_scope_fit": <1-5 integer>,
   "score_culture": <1-5 integer>,

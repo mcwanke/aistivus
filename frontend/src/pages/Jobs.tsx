@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useJobs } from '@/hooks/useJobs'
 import type { JobListItem, ApplicationStatus } from '@/types/api'
 import AppHeader from '@/components/AppHeader'
@@ -358,6 +358,7 @@ export default function Jobs(): React.JSX.Element {
         {jobs && (
           <span className="text-muted text-[0.65rem] font-mono">{visible.length} of {jobs.length} jobs</span>
         )}
+        <Link to="/createjob" className="ml-auto text-xs font-mono text-accent hover:text-text transition-colors">Create A New Job</Link>
       </div>
       <Toolbar sort={sort} sortDir={sortDir} onSort={handleSort} activeFilters={activeFilters} onToggleFilter={toggleFilter} searchTerm={searchTerm} onSearchChange={handleSearchChange} />
       <div className="flex-1 overflow-y-auto">

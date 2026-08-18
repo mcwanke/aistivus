@@ -3305,8 +3305,7 @@ def compute_eval_composites(scores: dict, weights: dict) -> dict:
     """
     Compute the three composite scores and score_overall from raw 9-dim integer scores.
 
-    Screenability dims are 1–4; fit dims are 1–5.
-    All three composites are normalized to 0.0–10.0.
+    All dims are 1–5. All three composites are normalized to 0.0–10.0.
     Returns None for score_overall if any composite is None.
     """
     def _avg_normalized(vals: list, scale: int) -> float | None:
@@ -3316,7 +3315,7 @@ def compute_eval_composites(scores: dict, weights: dict) -> dict:
 
     comp_screen = _avg_normalized(
         [scores.get("score_ats"), scores.get("score_recruiter_fast"), scores.get("score_recruiter_deep")],
-        4,
+        5,
     )
     comp_company = _avg_normalized(
         [scores.get("score_role_fit"), scores.get("score_scope_fit"), scores.get("score_culture")],
