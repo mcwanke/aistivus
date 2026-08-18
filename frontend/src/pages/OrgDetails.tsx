@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import AppHeader from '@/components/AppHeader'
 import { OrgCompanyResearchWorkerModal } from '@/components/OrgCompanyResearchWorkerModal'
 import { useOrgDetail, useOrgResearch, useGenerateOrgResearchPrompt, useImportOrgResearch, useOrgCrawls, useCrawlLogs, useExportOrgCrawls, useExportCrawlLogs, useOrgRoles, useExportOrgRoles, useMarkRoleInteresting, useMarkRoleNotInteresting, useMarkRoleActive, useMarkRoleClosed, useUpdateOrgRole, useTriggerCrawl } from '@/hooks/useOrgs'
-import type { JobResearch, OrgCrawl, OrgCrawlLog, OrgRole } from '@/types/api'
+import type { JobResearch, OrgResearch, OrgCrawl, OrgCrawlLog, OrgRole } from '@/types/api'
 
 // ─── Tab type ─────────────────────────────────────────────────────────────────
 
@@ -148,6 +148,119 @@ function ResearchDisplay({ research }: { research: JobResearch }): React.JSX.Ele
           <JsonList raw={research.red_flags} />
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── Org Research Display ─────────────────────────────────────────────────────
+
+function OrgResearchDisplay({ research }: { research: OrgResearch }): React.JSX.Element {
+  const ts = new Date(research.imported_at).toLocaleDateString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric',
+  })
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[10px] font-mono text-muted uppercase tracking-widest">Research Confidence</span>
+          <ConfidenceBadge level={research.research_confidence} />
+        </div>
+        <div className="flex flex-col gap-0.5 ml-6">
+          <span className="text-[10px] font-mono text-muted uppercase tracking-widest">Last Researched</span>
+          <span className="text-xs font-mono text-text">{ts}</span>
+        </div>
+      </div>
+
+      <hr className="border-surface2" />
+
+      {/* Summary */}
+      {research.research_summary && (
+        <div>
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Summary</p>
+          <p className="text-sm text-text leading-relaxed">{research.research_summary}</p>
+        </div>
+      )}
+
+      {/* Company */}
+      <div>
+        <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Company</p>
+        <div className="space-y-1.5">
+          {(
+            [
+              ['Overview', research.company_overview],
+              ['Stage', research.company_stage],
+              ['Trajectory', research.company_trajectory],
+              ['Headcount', research.headcount_size],
+              ['Growth', research.headcount_growth],
+              ['Layoffs', research.layoff_context],
+            ] as [string, string | null][]
+          ).map(([label, val]) => (
+            <div key={label} className="flex items-baseline gap-2">
+              <span className="text-[10px] font-mono text-muted uppercase w-20 shrink-0">{label}</span>
+              <span className="text-xs text-text">{val ?? '—'}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Culture */}
+      {research.company_culture_overview && (
+        <div>
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Culture</p>
+          <p className="text-sm text-text leading-relaxed">{research.company_culture_overview}</p>
+          {research.culture_signals && (
+            <div className="mt-2">
+              <JsonList raw={research.culture_signals} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Market & Financials (2-column) */}
+      <div className="grid grid-cols-2 gap-4">
+        {research.market && (
+          <div>
+            <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Market</p>
+            <JsonList raw={research.market} />
+          </div>
+        )}
+        {research.financials && (
+          <div>
+            <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Financials</p>
+            <JsonList raw={research.financials} />
+          </div>
+        )}
+      </div>
+
+      {/* Products */}
+      {research.products && (
+        <div>
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Products</p>
+          <JsonList raw={research.products} />
+        </div>
+      )}
+
+      {/* Flags (2-column) */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Green Flags</p>
+          <JsonList raw={research.green_flags} />
+        </div>
+        <div>
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Red Flags</p>
+          <JsonList raw={research.red_flags} />
+        </div>
+      </div>
+
+      {/* Notes */}
+      {research.research_notes && (
+        <div>
+          <p className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Notes</p>
+          <p className="text-sm text-text leading-relaxed">{research.research_notes}</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -331,27 +444,7 @@ function OrgResearchSection({ orgId }: OrgResearchSectionProps): React.JSX.Eleme
 
       <hr className="border-surface2" />
 
-      {/* BLOCK 3: Confidence & Date */}
-      {research && (
-        <div className="flex items-center gap-3">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-mono text-muted uppercase tracking-widest">Research Confidence</span>
-            <ConfidenceBadge level={research.research_confidence} />
-          </div>
-          <div className="flex flex-col gap-0.5 ml-6">
-            <span className="text-[10px] font-mono text-muted uppercase tracking-widest">Last Researched</span>
-            <span className="text-xs font-mono text-text">
-              {new Date(research.imported_at).toLocaleDateString(undefined, {
-                year: 'numeric', month: 'short', day: 'numeric',
-              })}
-            </span>
-          </div>
-        </div>
-      )}
-
-      <hr className="border-surface2" />
-
-      {/* BLOCK 4: Research Display */}
+      {/* BLOCK 3: Research Display */}
       {isLoading && (
         <p className="text-xs font-mono text-muted">Loading research…</p>
       )}
@@ -359,7 +452,7 @@ function OrgResearchSection({ orgId }: OrgResearchSectionProps): React.JSX.Eleme
         <p className="text-xs font-mono text-red">Failed to load research data.</p>
       )}
       {research ? (
-        <ResearchDisplay research={research} />
+        <OrgResearchDisplay research={research as OrgResearch} />
       ) : (
         !isLoading && (
           <p className="text-xs font-mono text-muted italic">

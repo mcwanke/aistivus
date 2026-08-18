@@ -485,7 +485,7 @@ class TestEvaluateJdDbWrites:
         assert e["score_candidate_role"] == 4
         assert e["score_candidate_scope"] == 4
         assert e["score_candidate_culture"] == 4
-        assert e["composite_screenability"] == pytest.approx(7.5)
+        assert e["composite_screenability"] == pytest.approx(6.0)
         assert e["composite_company_fit"] == pytest.approx(8.0)
         assert e["composite_candidate_fit"] == pytest.approx(8.0)
         assert e["score_overall"] == pytest.approx(GOOD_SCORE_OVERALL)
@@ -499,8 +499,9 @@ class TestEvaluateJdDbWrites:
         assert job["agg_role_fit"] == 4.0
 
     def test_agg_scores_average_across_evaluations(self, eval_setup):
-        # Second eval: all dims at minimum → score_overall = 0.40*(1/4*10) + 0.30*(1/5*10)*2 = 2.2
-        # avg = (7.8 + 2.2) / 2 = 5.0
+        # First eval: all dims at mid-range (3-4) → score_overall = 7.2 (see GOOD_SCORE_OVERALL)
+        # Second eval: all dims at minimum (1) → score_overall = 0.40*2.0 + 0.30*2.0 + 0.30*2.0 = 2.0
+        # avg = (7.2 + 2.0) / 2 = 4.6
         second_response = {
             **GOOD_RESPONSE_DICT,
             "score_ats": 1, "score_recruiter_fast": 1, "score_recruiter_deep": 1,
@@ -517,7 +518,7 @@ class TestEvaluateJdDbWrites:
             run(evaluator.evaluate_jd("jd text", "Acme", "EM"))
 
         job = database.get_job(result["job_id"])
-        assert job["agg_score_overall"] == pytest.approx(5.0)
+        assert job["agg_score_overall"] == pytest.approx(4.6)
 
     def test_writes_llm_call_log_on_success(self, eval_setup):
         # Two calls = two log entries: evaluation_analysis + evaluation_scoring.
@@ -691,11 +692,12 @@ class TestEvaluateJdJobUpsert:
         assert r1["job_id"] == r2["job_id"]
 
     def test_second_evaluation_adds_to_agg(self, eval_setup):
-        # Second eval: all dims at max → score_overall = 0.40*10 + 0.30*10 + 0.30*10 = 10.0
-        # avg = (7.8 + 10.0) / 2 = 8.9
+        # First eval: GOOD_RESPONSE_DICT → score_overall = 7.2
+        # Second eval: all dims at max (5) → score_overall = 0.40*10 + 0.30*10 + 0.30*10 = 10.0
+        # avg = (7.2 + 10.0) / 2 = 8.6
         second = {
             **GOOD_RESPONSE_DICT,
-            "score_ats": 4, "score_recruiter_fast": 4, "score_recruiter_deep": 4,
+            "score_ats": 5, "score_recruiter_fast": 5, "score_recruiter_deep": 5,
             "score_role_fit": 5, "score_scope_fit": 5, "score_culture": 5,
             "score_candidate_role": 5, "score_candidate_scope": 5, "score_candidate_culture": 5,
         }
@@ -709,7 +711,7 @@ class TestEvaluateJdJobUpsert:
         evals = database.get_evaluations_for_job(r1["job_id"])
         assert len(evals) == 2
         job = database.get_job(r1["job_id"])
-        assert job["agg_score_overall"] == pytest.approx(8.9)
+        assert job["agg_score_overall"] == pytest.approx(8.6)
 
 
 # ─────────────────────────────────────────────────────────────

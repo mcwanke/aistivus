@@ -13,6 +13,9 @@ from pydantic import BaseModel
 
 import database
 import prompt_generation
+from logger import get_logger
+
+log = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/orgs", tags=["orgs"])
 
@@ -52,16 +55,16 @@ async def _check_service_health() -> dict[str, bool]:
         async with httpx.AsyncClient(timeout=5) as client:
             res = await client.get(f"{ollama_url}/api/tags")
             ollama_ok = res.status_code == 200
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        log.warning(f"Ollama health check failed: {e}")
 
     # Check Crawl4AI health
     try:
         async with httpx.AsyncClient(timeout=5) as client:
             res = await client.get(f"{crawl4ai_url}/health", follow_redirects=True)
             crawl4ai_ok = res.status_code == 200
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        log.warning(f"Crawl4AI health check failed: {e}")
 
     return {"ollama_ok": ollama_ok, "crawl4ai_ok": crawl4ai_ok}
 
@@ -221,7 +224,7 @@ async def _run_crawl_async(org_id: int, crawl_id: int) -> None:
                 status="error",
                 error_msg=error_msg
             )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # Mark crawl as failed
         try:
             database.update_org_crawl_completion(
@@ -229,23 +232,25 @@ async def _run_crawl_async(org_id: int, crawl_id: int) -> None:
                 status="error",
                 error_msg=str(e)
             )
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass  # If even error logging fails, give up
 
 
 @router.get("/{org_id}/research")
 async def get_org_research(org_id: int) -> dict:
-    """Return most recent research record for an org, or null."""
+    """Return most recent research record for an org, including links and people."""
     org = database.get_org(org_id)
     if not org:
         raise HTTPException(status_code=404, detail=f"Org {org_id} not found.")
-    record = database.get_job_research_latest(org_id=org_id)
-    return JSONResponse({"research": record})
+    record = database.get_org_research_latest(org_id)
+    links = database.get_org_info_links(org_id) if record else []
+    people = database.get_org_info_people(org_id) if record else []
+    return JSONResponse({"research": record, "links": links, "people": people})
 
 
 @router.post("/{org_id}/research")
 async def import_org_research(org_id: int, body: ImportResearchRequest) -> dict:
-    """Parse and store a research JSON blob for an org."""
+    """Parse and store a research JSON blob for an org. Populates org_research, org_info_links, and org_info_people."""
     org = database.get_org(org_id)
     if not org:
         raise HTTPException(status_code=404, detail=f"Org {org_id} not found.")
@@ -268,26 +273,73 @@ async def import_org_research(org_id: int, body: ImportResearchRequest) -> dict:
             return None
         return json.dumps(val) if isinstance(val, (dict, list)) else str(val)
 
-    record_id = database.insert_job_research(
+    # Extract headcount fields
+    headcount_obj = parsed.get("headcount", {})
+    if isinstance(headcount_obj, dict):
+        headcount_size = headcount_obj.get("company_size_actual")
+        headcount_growth = headcount_obj.get("headcount_growth")
+        layoff_context = headcount_obj.get("layoff_context")
+    else:
+        headcount_size = headcount_growth = layoff_context = None
+
+    # Insert org research record
+    record_id = database.insert_org_research(
+        org_id=org_id,
         raw_json=body.raw_json,
         research_summary=research_summary,
         company_overview=parsed.get("company_overview"),
         company_stage=parsed.get("company_stage"),
-        company_size_actual=parsed.get("company_size_actual"),
         company_trajectory=parsed.get("company_trajectory"),
         company_culture_overview=parsed.get("company_culture_overview"),
         culture_signals=_as_json(parsed.get("culture_signals")),
-        comp_signals=_as_json(parsed.get("comp_signals")),
-        role_context=_as_json(parsed.get("role_context")),
-        interview_process=parsed.get("interview_process"),
+        market=_as_json(parsed.get("market")),
+        financials=_as_json(parsed.get("financials")),
+        products=_as_json(parsed.get("products")),
+        headcount_size=headcount_size,
+        headcount_growth=headcount_growth,
+        layoff_context=layoff_context,
         red_flags=_as_json(parsed.get("red_flags")),
         green_flags=_as_json(parsed.get("green_flags")),
         research_confidence=research_confidence,
         research_notes=parsed.get("research_notes"),
-        org_id=org_id,
     )
-    record = database.get_job_research_latest(org_id=org_id)
-    return JSONResponse({"success": True, "id": record_id, "research": record})
+
+    # Insert org info links (append-only with URL dedup)
+    links = parsed.get("notable_links", [])
+    if isinstance(links, list):
+        for link in links:
+            if isinstance(link, dict):
+                database.insert_org_info_link(
+                    org_id=org_id,
+                    url=link.get("url", ""),
+                    title=link.get("title"),
+                    summary=link.get("summary"),
+                )
+
+    # Insert org info people (append-only with name dedup)
+    people = parsed.get("notable_people", [])
+    if isinstance(people, list):
+        for person in people:
+            if isinstance(person, dict):
+                database.insert_org_info_person(
+                    org_id=org_id,
+                    name=person.get("name", ""),
+                    title=person.get("title"),
+                    url=person.get("url"),
+                    summary=person.get("summary"),
+                )
+
+    record = database.get_org_research_latest(org_id)
+    links = database.get_org_info_links(org_id)
+    people = database.get_org_info_people(org_id)
+
+    return JSONResponse({
+        "success": True,
+        "id": record_id,
+        "research": record,
+        "links": links,
+        "people": people,
+    })
 
 
 @router.post("/{org_id}/generate-research-prompt")
@@ -303,12 +355,10 @@ async def generate_org_research_prompt(org_id: int) -> dict:
 
     try:
         prompt_result = prompt_generation.get_prompt(
-            "gen_research",
+            "gen_org_research",
             {
                 "company_name": org_name,
-                "title": "",
                 "website_url": org_url,
-                "jd_text": "",
             },
         )
     except Exception as exc:
@@ -322,18 +372,18 @@ async def generate_org_research_prompt(org_id: int) -> dict:
 
 @router.post("/{org_id}/queue-research-worker")
 async def queue_org_research_worker(org_id: int) -> dict:
-    """Queue a background worker to run company research via Claude CLI for an org."""
+    """Queue a background worker to run org research via Claude CLI or API."""
     org = database.get_org(org_id)
     if not org:
         raise HTTPException(status_code=404, detail=f"Org {org_id} not found.")
 
     try:
         worker_id = database.create_worker(
-            worker_type="company_research_cli",
+            worker_type="org_research",
             entity_type="org",
             entity_id=org_id,
             result_url=f"/orgs/{org_id}?tab=org-details&action=org-research",
-            input_json={"org_id": org_id},
+            input_json={"org_id": org_id, "provider": "cli"},  # Default to CLI; can be overridden
         )
         return JSONResponse({
             "success": True,
@@ -389,7 +439,7 @@ async def export_org_crawls(org_id: int) -> dict:
     filename = database.generate_export_filename(org["name"], "crawls")
     filepath = export_dir / filename
 
-    with open(filepath, "w") as f:
+    with open(filepath, "w") as f:  # noqa: ASYNC230
         json.dump(crawl_dicts, f, indent=2)
 
     return JSONResponse({"success": True, "filename": filename})
@@ -419,7 +469,7 @@ async def export_crawl_logs(org_id: int, crawl_id: int) -> dict:
     filename = database.generate_export_filename(org["name"], "crawllogs")
     filepath = export_dir / filename
 
-    with open(filepath, "w") as f:
+    with open(filepath, "w") as f:  # noqa: ASYNC230
         json.dump(log_dicts, f, indent=2)
 
     return JSONResponse({"success": True, "filename": filename})
@@ -590,7 +640,7 @@ async def export_org_roles(org_id: int) -> dict:
     filename = database.generate_export_filename(org["name"], "allroles")
     filepath = export_dir / filename
 
-    with open(filepath, "w") as f:
+    with open(filepath, "w") as f:  # noqa: ASYNC230
         json.dump(role_dicts, f, indent=2)
 
     return JSONResponse({"success": True, "filename": filename})

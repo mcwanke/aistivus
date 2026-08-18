@@ -27,14 +27,14 @@ describe('AppHeader', () => {
 
     it('renders all three nav links', () => {
       renderHeader()
-      expect(screen.getByRole('link', { name: 'Career' })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'My Career' })).toBeInTheDocument()
       expect(screen.getByRole('link', { name: 'Job Search' })).toBeInTheDocument()
       expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument()
     })
 
     it('Career link points to /career', () => {
       renderHeader()
-      expect(screen.getByRole('link', { name: 'Career' })).toHaveAttribute('href', '/career')
+      expect(screen.getByRole('link', { name: 'My Career' })).toHaveAttribute('href', '/career')
     })
 
     it('Job Search link points to /jobs', () => {
@@ -77,7 +77,7 @@ describe('AppHeader', () => {
 
     it('renders all three nav links', () => {
       renderHeader('Settings')
-      expect(screen.getByRole('link', { name: 'Career' })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'My Career' })).toBeInTheDocument()
       expect(screen.getByRole('link', { name: 'Job Search' })).toBeInTheDocument()
       expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument()
     })

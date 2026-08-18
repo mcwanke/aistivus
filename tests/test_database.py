@@ -1151,7 +1151,7 @@ class TestComputeEvalComposites:
 
     def test_all_scores_max_produces_10(self):
         scores = {
-            "score_ats": 4, "score_recruiter_fast": 4, "score_recruiter_deep": 4,
+            "score_ats": 5, "score_recruiter_fast": 5, "score_recruiter_deep": 5,
             "score_role_fit": 5, "score_scope_fit": 5, "score_culture": 5,
             "score_candidate_role": 5, "score_candidate_scope": 5, "score_candidate_culture": 5,
         }
@@ -1168,7 +1168,7 @@ class TestComputeEvalComposites:
             "score_candidate_role": 5, "score_candidate_scope": 5, "score_candidate_culture": 5,
         }
         result = database.compute_eval_composites(scores, self._weights())
-        assert result["composite_screenability"] == pytest.approx(5.0)
+        assert result["composite_screenability"] == pytest.approx(4.0)
 
     def test_fit_scale_is_5(self):
         scores = {
@@ -1193,7 +1193,7 @@ class TestComputeEvalComposites:
         # Screen=10, Company=0, Candidate=0 → overall = 0.40 * 10 = 4.0
         weights = {"screenability": 0.40, "company_fit": 0.30, "candidate_fit": 0.30}
         scores = {
-            "score_ats": 4, "score_recruiter_fast": 4, "score_recruiter_deep": 4,
+            "score_ats": 5, "score_recruiter_fast": 5, "score_recruiter_deep": 5,
             "score_role_fit": 0, "score_scope_fit": 0, "score_culture": 0,
             "score_candidate_role": 0, "score_candidate_scope": 0, "score_candidate_culture": 0,
         }
@@ -1271,7 +1271,7 @@ class TestRecalcEvalScores:
                    (job_id, llm_model_id, score_ats, score_recruiter_fast, score_recruiter_deep,
                     score_role_fit, score_scope_fit, score_culture,
                     score_candidate_role, score_candidate_scope, score_candidate_culture)
-                   VALUES (?, ?, 4, 4, 4, 5, 5, 5, 5, 5, 5)""",
+                   VALUES (?, ?, 5, 5, 5, 5, 5, 5, 5, 5, 5)""",
                 (job_id, model_id),
             )
             count = database.recalc_eval_scores(conn)

@@ -149,7 +149,7 @@ async def crawl_page(url: str) -> str:
         results = data.get("results", [])
         if not results or not results[0].get("success"):
             error = results[0].get("error_message") if results else "no results"
-            raise Exception(f"Crawl failed: {error}")
+            raise RuntimeError(f"Crawl failed: {error}")
 
         result = results[0]
         markdown = result.get("markdown", {})
@@ -1437,7 +1437,7 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
                         url=job_url,
                         error_msg=error_msg[:200],
                     )
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: BLE001, S110
                     pass  # If logging fails, don't block the algorithm
 
         # Step 14 (doc): Write newly identified non-job links to org_nonjob_links
@@ -1511,7 +1511,7 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
                     status="error",
                     error_msg=str(e),
                 )
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass
         return {
             "success": False,
@@ -1780,7 +1780,8 @@ async def export_org_crawl(crawl_id: int) -> dict:
 
     # Extract MM:SS from timestamp (format: YYYY-MM-DD HH:MM:SS)
     timestamp = crawl["created_at"]
-    dt = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
+    from datetime import timezone
+    dt = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
     mmss = f"{dt.month:02d}{dt.second:02d}"
 
     # Build output structure
@@ -1793,7 +1794,7 @@ async def export_org_crawl(crawl_id: int) -> dict:
     output_path = Path("app_docs") / f"{crawl_id}_{mmss}_output.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(output_path, "w") as f:
+    with open(output_path, "w") as f:  # noqa: ASYNC230
         json.dump(output, f, indent=2)
 
     return {"success": True, "filename": str(output_path)}

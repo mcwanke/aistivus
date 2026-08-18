@@ -293,6 +293,7 @@ async def lifespan(app: FastAPI):
         "gen_resume_pass3.md",
         "gen_cover.md",
         "gen_research.md",
+        "gen_org_research.md",
     ]
     for _filename in _PROMPT_FILES:
         _meta = load_prompt_template(_filename)
@@ -1385,7 +1386,7 @@ async def queue_research_worker(request: Request, job_id: int):
             "success": True,
             "worker_id": worker_id,
         })
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         log.error(f"Failed to queue research worker for job {job_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1780,7 +1781,7 @@ async def generate_prompt(request: Request, application_id: int, run_via_cli: bo
     if run_via_cli and ai_backend_mode in ["cli", "api"]:
         jobsearch_path = config.get("evaluation", {}).get("jobsearch_md_path") or "./user_data/my_data/jobsearch.md"
         try:
-            with open(jobsearch_path) as f:
+            with open(jobsearch_path) as f:  # noqa: ASYNC230
                 jobsearch_full = f.read()
             # Extract sections 1-5: from start to "## 6. Resume Master Copy" or "---" before it
             # Split by "## " to find section headers
@@ -1847,7 +1848,7 @@ async def generate_prompt(request: Request, application_id: int, run_via_cli: bo
                 "message": "Evaluation queued. Check the worker dashboard to see results.",
             })
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log.error(
                 "worker_creation_failed",
                 extra={
@@ -3124,6 +3125,7 @@ async def reload_prompt_from_file(request: Request, key: str):
         "gen_resume_pass3": "gen_resume_pass3.md",
         "gen_cover": "gen_cover.md",
         "gen_research": "gen_research.md",
+        "gen_org_research": "gen_org_research.md",
     }
     filename = filename_map.get(key)
     if filename is None:

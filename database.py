@@ -48,7 +48,7 @@ def count_tokens(text: str) -> int:
         from transformers import AutoTokenizer
         tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-3B", trust_remote_code=True)
         return len(tokenizer.encode(text))
-    except (ImportError, Exception):
+    except Exception:  # noqa: BLE001
         import math
         return math.ceil(len(text) / 3.5)
 
@@ -76,7 +76,7 @@ def generate_export_filename(org_name: str, output_type: str) -> str:
     - org_name: stripped of spaces/special chars, lowercase
     - output_type: "crawls", "crawllogs", "allroles"
     """
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     timestamp = now.strftime("%Y%m%d_%H%M%S")
     org_safe = re.sub(r"[^a-z0-9]", "", org_name.lower())
     return f"{timestamp}_{org_safe}_{output_type}.json"
@@ -614,6 +614,56 @@ CREATE TABLE IF NOT EXISTS backend_workers (
 
 CREATE INDEX IF NOT EXISTS idx_backend_workers_status ON backend_workers(status);
 CREATE INDEX IF NOT EXISTS idx_backend_workers_entity ON backend_workers(entity_type, entity_id);
+
+-- ─────────────────────────────────────────
+-- Org Research — PHASE 2.7
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS org_research (
+    id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id                   INTEGER NOT NULL REFERENCES orgs(id),
+    raw_json                 TEXT,
+    research_summary         TEXT,
+    company_overview         TEXT,
+    company_stage            TEXT,
+    company_trajectory       TEXT,
+    company_culture_overview TEXT,
+    culture_signals          TEXT,
+    market                   TEXT,
+    financials               TEXT,
+    products                 TEXT,
+    headcount_size           TEXT,
+    headcount_growth         TEXT,
+    layoff_context           TEXT,
+    red_flags                TEXT,
+    green_flags              TEXT,
+    research_confidence      TEXT,
+    research_notes           TEXT,
+    imported_at              TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS org_info_links (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id                INTEGER NOT NULL REFERENCES orgs(id),
+    url                   TEXT NOT NULL,
+    title                 TEXT,
+    summary               TEXT,
+    created_at            TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(org_id, url)
+);
+
+CREATE TABLE IF NOT EXISTS org_info_people (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id                INTEGER NOT NULL REFERENCES orgs(id),
+    name                  TEXT NOT NULL,
+    title                 TEXT,
+    url                   TEXT,
+    summary               TEXT,
+    created_at            TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_org_research_org_id ON org_research(org_id);
+CREATE INDEX IF NOT EXISTS idx_org_info_links_org_id ON org_info_links(org_id);
+CREATE INDEX IF NOT EXISTS idx_org_info_people_org_id ON org_info_people(org_id);
 """
 
 CURRENT_SCHEMA_VERSION = "2.7"
@@ -3535,6 +3585,137 @@ def get_job_research_latest(job_id: int | None = None, org_id: int | None = None
                 (org_id,),
             ).fetchone()
         return dict(row) if row else None
+
+
+# ─────────────────────────────────────────────────────────────
+# Org Research — Phase 2.7
+# ─────────────────────────────────────────────────────────────
+
+def insert_org_research(
+    org_id: int,
+    raw_json: str,
+    research_summary: str | None = None,
+    company_overview: str | None = None,
+    company_stage: str | None = None,
+    company_trajectory: str | None = None,
+    company_culture_overview: str | None = None,
+    culture_signals: str | None = None,
+    market: str | None = None,
+    financials: str | None = None,
+    products: str | None = None,
+    headcount_size: str | None = None,
+    headcount_growth: str | None = None,
+    layoff_context: str | None = None,
+    red_flags: str | None = None,
+    green_flags: str | None = None,
+    research_confidence: str | None = None,
+    research_notes: str | None = None,
+) -> int:
+    """Insert an org research record (append-only). Returns the new id."""
+    with get_connection() as conn:
+        conn.execute(
+            """INSERT INTO org_research
+               (org_id, raw_json, research_summary, company_overview, company_stage,
+                company_trajectory, company_culture_overview, culture_signals, market,
+                financials, products, headcount_size, headcount_growth, layoff_context,
+                red_flags, green_flags, research_confidence, research_notes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (org_id, raw_json, research_summary, company_overview, company_stage,
+             company_trajectory, company_culture_overview, culture_signals, market,
+             financials, products, headcount_size, headcount_growth, layoff_context,
+             red_flags, green_flags, research_confidence, research_notes),
+        )
+        return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def get_org_research_latest(org_id: int) -> dict | None:
+    """Return the most recent org research record."""
+    with get_connection() as conn:
+        row = conn.execute(
+            """SELECT * FROM org_research
+               WHERE org_id = ?
+               ORDER BY imported_at DESC, id DESC
+               LIMIT 1""",
+            (org_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def get_org_research_history(org_id: int) -> list[dict]:
+    """Return all org research records for an org, newest first."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT * FROM org_research
+               WHERE org_id = ?
+               ORDER BY imported_at DESC, id DESC""",
+            (org_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def insert_org_info_link(org_id: int, url: str, title: str | None = None, summary: str | None = None) -> int:
+    """Insert or skip org info link (unique per org). Returns the id."""
+    with get_connection() as conn:
+        # Check if link already exists
+        existing = conn.execute(
+            "SELECT id FROM org_info_links WHERE org_id = ? AND url = ?",
+            (org_id, url),
+        ).fetchone()
+        if existing:
+            return existing["id"]
+
+        conn.execute(
+            """INSERT INTO org_info_links (org_id, url, title, summary)
+               VALUES (?, ?, ?, ?)""",
+            (org_id, url, title, summary),
+        )
+        return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def insert_org_info_person(org_id: int, name: str, title: str | None = None, url: str | None = None, summary: str | None = None) -> int:
+    """Insert org info person (append-only, dedup by normalized name). Returns the id."""
+    with get_connection() as conn:
+        # Normalize name for dedup: lowercase, trim, collapse spaces
+        normalized_name = " ".join(name.lower().split())
+
+        # Check if person already exists
+        existing = conn.execute(
+            "SELECT id FROM org_info_people WHERE org_id = ? AND LOWER(TRIM(name)) = ?",
+            (org_id, normalized_name),
+        ).fetchone()
+        if existing:
+            return existing["id"]
+
+        conn.execute(
+            """INSERT INTO org_info_people (org_id, name, title, url, summary)
+               VALUES (?, ?, ?, ?, ?)""",
+            (org_id, name, title, url, summary),
+        )
+        return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def get_org_info_links(org_id: int) -> list[dict]:
+    """Return all info links for an org."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT * FROM org_info_links
+               WHERE org_id = ?
+               ORDER BY created_at DESC""",
+            (org_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_org_info_people(org_id: int) -> list[dict]:
+    """Return all info people for an org."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT * FROM org_info_people
+               WHERE org_id = ?
+               ORDER BY created_at DESC""",
+            (org_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
 
 
 # ─────────────────────────────────────────────────────────────

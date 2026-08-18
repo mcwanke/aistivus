@@ -71,8 +71,8 @@ class WorkerExecutor:
                     # No work; sleep before polling again
                     time.sleep(self.poll_interval)
 
-            except Exception as e:
-                self.logger.error(f"[WorkerExecutor] Error in main loop: {e}", exc_info=True)
+            except Exception:
+                self.logger.exception("[WorkerExecutor] Error in main loop")
                 time.sleep(self.poll_interval)
 
     def _execute_worker(self, worker_row: dict) -> None:
@@ -119,9 +119,8 @@ class WorkerExecutor:
         except Exception as e:
             error_msg = f"{type(e).__name__}: {e!s}"
             database.update_worker_error(worker_id, error_msg)
-            self.logger.error(
-                f"[WorkerExecutor] Failed worker {worker_id} ({worker_type}): {error_msg}",
-                exc_info=True,
+            self.logger.exception(
+                f"[WorkerExecutor] Failed worker {worker_id} ({worker_type})"
             )
 
 

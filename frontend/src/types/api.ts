@@ -619,6 +619,29 @@ export interface JobResearch {
   imported_at: string
 }
 
+export interface OrgResearch {
+  id: number
+  org_id: number
+  raw_json: string
+  research_summary: string | null
+  company_overview: string | null
+  company_stage: string | null
+  company_trajectory: string | null
+  company_culture_overview: string | null
+  culture_signals: string | null
+  market: string | null
+  financials: string | null
+  products: string | null
+  headcount_size: string | null
+  headcount_growth: string | null
+  layoff_context: string | null
+  red_flags: string | null
+  green_flags: string | null
+  research_confidence: 'high' | 'medium' | 'low' | string
+  research_notes: string | null
+  imported_at: string
+}
+
 // ─── GET /api/v1/orgs / POST /api/v1/orgs ───────────────────────────────────
 
 export interface Org {

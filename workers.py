@@ -10,7 +10,7 @@ Workers are executed by the background executor thread in main.py.
 
 import hashlib
 import json
-import subprocess
+import re
 from pathlib import Path
 
 import database
@@ -61,13 +61,13 @@ async def eval_external_cli_handler(input_data: dict) -> dict:
         config_path = Path("user_data/config.yaml")
         config = {}
         if config_path.exists():
-            with open(config_path) as f:
+            with open(config_path) as f:  # noqa: ASYNC230
                 config = yaml.safe_load(f) or {}
 
         jobsearch_sections_1_5 = ""
         jobsearch_path = config.get("evaluation", {}).get("jobsearch_md_path") or "./user_data/my_data/jobsearch.md"
         try:
-            with open(jobsearch_path) as f:
+            with open(jobsearch_path) as f:  # noqa: ASYNC230
                 jobsearch_full = f.read()
             sections_end_marker = "## 6."
             end_idx = jobsearch_full.find(sections_end_marker)
@@ -119,7 +119,6 @@ async def eval_external_cli_handler(input_data: dict) -> dict:
 
         # Log to llm_call_log
         llm_model_id = external_model["id"]
-        prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()
 
         call_log_id = database.insert_llm_call_log(
             llm_model_id=llm_model_id,
@@ -299,7 +298,6 @@ async def company_research_cli_handler(input_data: dict) -> dict:
 
         # Log to llm_call_log
         llm_model_id = external_model["id"]
-        prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()
 
         call_log_id = database.insert_llm_call_log(
             llm_model_id=llm_model_id,
@@ -404,6 +402,195 @@ async def company_research_cli_handler(input_data: dict) -> dict:
 
 
 # ─────────────────────────────────────────────────────────────
+# org_research — Run org research via Claude CLI or API
+# ─────────────────────────────────────────────────────────────
+
+
+async def org_research_handler(input_data: dict) -> dict:
+    """
+    Run org research via Claude CLI or API (provider-agnostic).
+    Input: {org_id, provider: "cli" | "api" | None (uses default)}
+    Output: {success, research_summary, research_confidence}
+    """
+    logger = log_module.get_logger("worker.org_research")
+
+    org_id = input_data.get("org_id")
+    if not org_id:
+        raise ValueError("Input must contain org_id")
+
+    provider = input_data.get("provider")  # Optional: "cli", "api", or None for default
+
+    try:
+        # Fetch org
+        org = database.get_org(org_id)
+        if not org:
+            raise ValueError(f"Org {org_id} not found")
+        org_dict = dict(org)
+        company_name = org_dict.get("name") or "N/A"
+        website_url = org_dict.get("url") or "N/A"
+
+        # Generate org research prompt
+        prompt_result = prompt_generation.get_prompt(
+            "gen_org_research",
+            {
+                "company_name": company_name,
+                "website_url": website_url,
+            },
+            source="org_research",
+        )
+        prompt = prompt_result["prompt_text"]
+        logger.info(f"[Worker org_research] Generated prompt for org {org_id} ({len(prompt)} chars)")
+
+        # Determine provider: explicit, or default to CLI
+        if not provider:
+            provider = "claude_cli"  # Default to CLI
+        elif provider not in ("cli", "api"):
+            raise ValueError(f"Invalid provider: {provider}. Must be 'cli', 'api', or None.")
+
+        # Map provider name to llm_client provider format
+        provider_map = {"cli": "claude_cli", "api": "anthropic"}
+        llm_provider = provider_map.get(provider, "claude_cli")
+
+        # Get the appropriate model based on provider
+        if llm_provider == "claude_cli":
+            # CLI: use external default model (Claude via CLI)
+            model_config = database.get_external_default_model()
+            if not model_config:
+                raise ValueError("No external default model configured")
+            model_name = model_config["model"]
+        else:
+            # API: use default model from llm_models
+            model_config = database.get_default_model()
+            if not model_config:
+                raise ValueError("No default model configured")
+            model_name = model_config["model"]
+
+        # Call LLM via specified provider
+        call_result = await llm_client.complete(
+            prompt=prompt,
+            system="",
+            model=model_name,
+            provider=llm_provider,
+            timeout=300.0,
+        )
+
+        logger.info(f"[Worker org_research] LLM call completed for org {org_id} (latency: {call_result.get('latency_ms')}ms)")
+
+        if not call_result["success"]:
+            raise RuntimeError(f"LLM call failed: {call_result.get('error')}")
+
+        raw_response = call_result.get("content", "")
+
+        # Log to llm_call_log
+        llm_model_id = model_config["id"]
+        call_log_id = database.insert_llm_call_log(
+            llm_model_id=llm_model_id,
+            call_type="org_research",
+            raw_response=raw_response,
+            prompt_tokens_actual=call_result.get("prompt_tokens_actual"),
+            completion_tokens_actual=call_result.get("completion_tokens_actual"),
+            total_tokens_actual=call_result.get("total_tokens_actual"),
+            latency_ms=call_result.get("latency_ms"),
+            call_time=(call_result.get("latency_ms") or 0) // 1000,
+            success=1 if call_result["success"] else 0,
+            error_message=call_result.get("error"),
+            prompt_usage_id=prompt_result["prompt_usage_id"],
+        )
+        logger.info(f"[Worker org_research] Logged LLM call {call_log_id} for org {org_id}")
+
+        # Parse JSON from response
+        import re
+        json_match = re.search(r"```json\s*(.*?)\s*```", raw_response, re.DOTALL)
+        if not json_match:
+            raise ValueError("No JSON code block found in LLM response")
+
+        research_json = json.loads(json_match.group(1))
+
+        # Validate required fields
+        research_summary = research_json.get("research_summary")
+        research_confidence = research_json.get("research_confidence")
+        if not research_summary or not research_confidence:
+            raise ValueError("Missing required fields: research_summary and research_confidence")
+
+        # Helper to convert dicts/lists to JSON strings
+        def _as_json(val) -> str | None:
+            if val is None:
+                return None
+            return json.dumps(val) if isinstance(val, (dict, list)) else str(val)
+
+        # Extract headcount fields
+        headcount_obj = research_json.get("headcount", {})
+        if isinstance(headcount_obj, dict):
+            headcount_size = headcount_obj.get("company_size_actual")
+            headcount_growth = headcount_obj.get("headcount_growth")
+            layoff_context = headcount_obj.get("layoff_context")
+        else:
+            headcount_size = headcount_growth = layoff_context = None
+
+        # Insert org research record
+        record_id = database.insert_org_research(
+            org_id=org_id,
+            raw_json=raw_response,
+            research_summary=research_summary,
+            company_overview=research_json.get("company_overview"),
+            company_stage=research_json.get("company_stage"),
+            company_trajectory=research_json.get("company_trajectory"),
+            company_culture_overview=research_json.get("company_culture_overview"),
+            culture_signals=_as_json(research_json.get("culture_signals")),
+            market=_as_json(research_json.get("market")),
+            financials=_as_json(research_json.get("financials")),
+            products=_as_json(research_json.get("products")),
+            headcount_size=headcount_size,
+            headcount_growth=headcount_growth,
+            layoff_context=layoff_context,
+            red_flags=_as_json(research_json.get("red_flags")),
+            green_flags=_as_json(research_json.get("green_flags")),
+            research_confidence=research_confidence,
+            research_notes=research_json.get("research_notes"),
+        )
+
+        # Insert org info links
+        links = research_json.get("notable_links", [])
+        if isinstance(links, list):
+            for link in links:
+                if isinstance(link, dict):
+                    database.insert_org_info_link(
+                        org_id=org_id,
+                        url=link.get("url", ""),
+                        title=link.get("title"),
+                        summary=link.get("summary"),
+                    )
+
+        # Insert org info people
+        people = research_json.get("notable_people", [])
+        if isinstance(people, list):
+            for person in people:
+                if isinstance(person, dict):
+                    database.insert_org_info_person(
+                        org_id=org_id,
+                        name=person.get("name", ""),
+                        title=person.get("title"),
+                        url=person.get("url"),
+                        summary=person.get("summary"),
+                    )
+
+        logger.info(f"[Worker org_research] Imported research {record_id} for org {org_id}")
+
+        return {
+            "success": True,
+            "research_summary": research_summary,
+            "research_confidence": research_confidence,
+        }
+
+    except json.JSONDecodeError as e:
+        logger.error(f"[Worker org_research] JSON parse error: {e}")
+        raise ValueError(f"LLM returned malformed JSON: {e}") from e
+    except Exception as e:
+        logger.error(f"[Worker org_research] Failed for org {org_id}: {e}")
+        raise
+
+
+# ─────────────────────────────────────────────────────────────
 # Worker Registry
 # ─────────────────────────────────────────────────────────────
 
@@ -414,7 +601,11 @@ WORKERS = {
     },
     "company_research_cli": {
         "handler": company_research_cli_handler,
-        "entity_types": ["job", "org"],  # Polymorphic: supports both job and org
+        "entity_type": "job",
+    },
+    "org_research": {
+        "handler": org_research_handler,
+        "entity_type": "org",
     },
     # Future workers will be registered here:
     # "org_scrape": {...},

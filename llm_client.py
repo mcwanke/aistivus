@@ -13,6 +13,7 @@ Rules (from CLAUDE.md):
   are handled internally — callers get a clean string back.
 """
 
+import asyncio
 import json
 import time
 from collections.abc import AsyncGenerator
@@ -614,11 +615,13 @@ async def _call_claude_cli(
     try:
         cmd = ["claude", "-p", "--model", model, "--permission-mode", "dontAsk", combined_prompt]
 
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             cmd,
             capture_output=True,
             text=True,
             timeout=timeout,
+            check=False,
         )
 
         latency_ms = int((time.monotonic() - start) * 1000)
