@@ -4,6 +4,7 @@ Org management routes for Phase 2.7 company workflows.
 
 import json
 from pathlib import Path
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 import yaml
@@ -18,6 +19,19 @@ from logger import get_logger
 log = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/orgs", tags=["orgs"])
+
+
+# ─── Utility functions ────────────────────────────────────────────────────────
+
+def strip_utm_params(url: str | None) -> str | None:
+    """Remove all utm_* query parameters from a URL before storing."""
+    if not url:
+        return url
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query, keep_blank_values=True)
+    cleaned = {k: v for k, v in params.items() if not k.lower().startswith("utm_")}
+    new_query = urlencode(cleaned, doseq=True)
+    return urlunparse(parsed._replace(query=new_query))
 
 
 # ─── Config & Health Check ─────────────────────────────────────────────────
@@ -159,14 +173,12 @@ async def trigger_crawl(org_id: int) -> dict:
     """Trigger a manual crawl for an organization.
 
     Returns immediately with crawl_id and status='pending'.
-    Backend processes the crawl asynchronously.
+    Backend processes the crawl asynchronously via worker queue.
 
     Checks service health (Ollama, Crawl4AI) before queuing.
     Returns 503 if either service is down.
     """
-    import asyncio
     from datetime import datetime, timezone
-
 
     org = database.get_org(org_id)
     if not org:
@@ -193,9 +205,24 @@ async def trigger_crawl(org_id: int) -> dict:
         started_at=now
     )
 
-    # Fire off async task to run the crawl algorithm
-    # This doesn't block the response
-    asyncio.create_task(_run_crawl_async(org_id, crawl_id))
+    # Queue worker to run the crawl algorithm in the background
+    try:
+        worker_id = database.create_worker(
+            worker_type="org_crawl",
+            entity_type="org",
+            entity_id=org_id,
+            result_url=f"/orgs/{org_id}?tab=crawls",
+            input_json={"org_id": org_id, "crawl_id": crawl_id},
+        )
+        log.info(f"Queued org_crawl worker {worker_id} for org {org_id}, crawl {crawl_id}")
+    except Exception as e:
+        # If worker creation fails, mark the crawl as failed
+        database.update_org_crawl_completion(
+            crawl_id=crawl_id,
+            status="error",
+            error_msg=f"Failed to queue worker: {e}"
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to queue crawl: {e}") from e
 
     return {
         "success": True,
@@ -203,37 +230,6 @@ async def trigger_crawl(org_id: int) -> dict:
         "status": "pending",
         "message": f"Crawl queued for org {org['name']}"
     }
-
-
-async def _run_crawl_async(org_id: int, crawl_id: int) -> None:
-    """Run the crawl algorithm asynchronously in the background."""
-
-    from poc_routes import validate_new_roles_algorithm
-
-    try:
-        # Run the algorithm (pass crawl_id so it doesn't create a duplicate)
-        result = await validate_new_roles_algorithm(org_id, crawl_id=crawl_id)
-
-        # Update crawl status based on result
-        if result.get("success"):
-            database.update_org_crawl_status(crawl_id, "success")
-        else:
-            error_msg = result.get("error", "Unknown error")
-            database.update_org_crawl_completion(
-                crawl_id=crawl_id,
-                status="error",
-                error_msg=error_msg
-            )
-    except Exception as e:  # noqa: BLE001
-        # Mark crawl as failed
-        try:
-            database.update_org_crawl_completion(
-                crawl_id=crawl_id,
-                status="error",
-                error_msg=str(e)
-            )
-        except Exception:  # noqa: BLE001, S110
-            pass  # If even error logging fails, give up
 
 
 @router.get("/{org_id}/research")
@@ -644,5 +640,61 @@ async def export_org_roles(org_id: int) -> dict:
         json.dump(role_dicts, f, indent=2)
 
     return JSONResponse({"success": True, "filename": filename})
+
+
+@router.post("/{org_id}/roles/{role_id}/promote")
+async def promote_role_to_job(org_id: int, role_id: int) -> dict:
+    """Promote an org_role to a job + application in the jobs workflow."""
+    org = database.get_org(org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail=f"Org {org_id} not found.")
+
+    role = database.get_org_role(org_id, role_id)
+    if not role:
+        raise HTTPException(status_code=404, detail=f"Role {role_id} not found in org {org_id}.")
+
+    if role["job_id"] is not None:
+        raise HTTPException(status_code=400, detail=f"Role {role_id} is already promoted to a job.")
+
+    # Map org_role fields to job fields
+    company_name = org["name"]
+    title = role["title"]
+    location = None  # org_roles doesn't have location
+    remote_type = role["remote_type"]
+    description = role["description"]
+    pay_band = role["salary_range"]
+    apply_url = role["role_url"]
+
+    # Create the job
+    job_id, _created = database.upsert_job(
+        company_name,
+        title,
+        None,
+        location=location,
+        remote_type=remote_type,
+        description_merged=description,
+        pay_band=pay_band,
+    )
+    database.activate_job(job_id)
+
+    # Create job_posting if we have url or description
+    if apply_url or description:
+        database.insert_job_posting(
+            job_id=job_id,
+            source_board="manual",
+            source_url=strip_utm_params(apply_url) if apply_url else None,
+            description_raw=description,
+        )
+
+    # Link org_role to the job
+    with database.get_connection() as conn:
+        conn.execute(
+            "UPDATE org_roles SET job_id = ?, modified_at = datetime('now') WHERE id = ? AND org_id = ?",
+            (job_id, role_id, org_id)
+        )
+
+    log.info(f"Promoted org_role {role_id} (org {org_id}) to job {job_id}")
+
+    return JSONResponse({"success": True, "job_id": job_id})
 
 

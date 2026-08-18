@@ -38,6 +38,118 @@ POC_CAREER_OUTPUT_PATH = Path("app_docs/POC_career_output.json")
 POC_JOBS_OUTPUT_PATH = Path("app_docs/POC_jobs_output.json")
 
 
+def _extract_target_titles_from_jobsearch() -> tuple[list[str], list[str]]:
+    """Extract target and open-to titles from Section 5 of jobsearch.md.
+
+    Parses the "Titles I'm targeting:" and "Titles I'm open to:" sections
+    and returns comma-separated title lists.
+
+    Returns:
+        (target_titles, open_to_titles): Two lists of title strings, lowercase
+    """
+    try:
+        config = _load_config()
+        jobsearch_path = config.get("evaluation", {}).get("jobsearch_md_path") or "user_data/my_data/jobsearch.md"
+
+        if not Path(jobsearch_path).exists():
+            print(f"[_extract_target_titles_from_jobsearch] File not found: {jobsearch_path}")
+            return [], []
+
+        with open(jobsearch_path) as f:
+            content = f.read()
+
+        # Extract section 5 only
+        section_5_start = content.find("## 5. Target Role Profile")
+        section_6_start = content.find("## 6.")
+        if section_5_start == -1:
+            return [], []
+
+        section_5 = content[section_5_start:section_6_start] if section_6_start != -1 else content[section_5_start:]
+
+        # Extract "Titles I'm targeting:" section
+        target_start = section_5.find("**Titles I'm targeting:**")
+        open_to_start = section_5.find("**Titles I'm open to:**")
+        target_titles = []
+        open_to_titles = []
+
+        if target_start != -1:
+            # Extract text between "Titles I'm targeting:" and next field
+            search_start = target_start + len("**Titles I'm targeting:**")
+            next_field = section_5.find("**", search_start)
+            if next_field == -1:
+                next_field = len(section_5)
+            target_text = section_5[search_start:next_field].strip()
+            # Remove markdown link syntax [text] if present, keep the text
+            target_text = re.sub(r'\[([^\]]+)\]', r'\1', target_text)
+            # Split on commas and clean up
+            target_titles = [t.strip().lower() for t in target_text.split(",") if t.strip() and not t.strip().startswith("[")]
+
+        if open_to_start != -1:
+            # Extract text between "Titles I'm open to:" and next field
+            search_start = open_to_start + len("**Titles I'm open to:**")
+            next_field = section_5.find("**", search_start)
+            if next_field == -1:
+                next_field = len(section_5)
+            open_to_text = section_5[search_start:next_field].strip()
+            # Remove markdown link syntax if present
+            open_to_text = re.sub(r'\[([^\]]+)\]', r'\1', open_to_text)
+            # Split on commas and clean up (remove parenthetical conditions)
+            open_to_titles = [t.strip().lower() for t in open_to_text.split(",") if t.strip() and not t.strip().startswith("[")]
+            # Remove conditions in parentheses but keep the title
+            open_to_titles = [re.sub(r'\s*\([^)]*\)', '', t).strip() for t in open_to_titles]
+            open_to_titles = [t for t in open_to_titles if t]
+
+        return target_titles, open_to_titles
+
+    except Exception:  # noqa: BLE001
+        return [], []
+
+
+def _is_role_interesting(role_title: str, role_description: str | None = None) -> bool:
+    """Check if a role matches target or open-to titles from jobsearch.md Section 5.
+
+    Matching logic (word-based fuzzy):
+    1. Extract target and open-to titles from Section 5
+    2. For each title, extract all words (lowercase, ignore common stop words like "of", "and")
+    3. Check if ALL words from any target/open-to title appear in the role title
+    4. Role is "interesting" if it matches any target or open-to title
+
+    Example:
+    - Target title: "Director of Engineering"
+    - Words to match: ["director", "engineering"]
+    - Role: "Director, Engineering Manager" → contains both → INTERESTING ✓
+    - Role: "Senior Director, Product" → missing "engineering" → NOT interesting
+
+    Args:
+        role_title: The role title (required)
+        role_description: The role description/markdown (optional, currently unused)
+
+    Returns:
+        True if role title matches any target/open-to title, False otherwise
+    """
+    target_titles, open_to_titles = _extract_target_titles_from_jobsearch()
+    all_titles = target_titles + open_to_titles
+
+    if not all_titles:
+        return False
+
+    role_title_lower = role_title.lower()
+
+    # Stop words to ignore when extracting title words
+    stop_words = {'of', 'and', 'or', 'the', 'a', 'an', 'in', 'at', 'for', 'if'}
+
+    # Check each target/open-to title
+    for target_title in all_titles:
+        # Extract words from target title
+        title_words = [w for w in target_title.split() if w.lower() not in stop_words]
+
+        # Check if ALL words from target title appear in role title
+        if all(word in role_title_lower for word in title_words):
+            return True
+
+    return False
+
+
 class QueryCompanyRequest(BaseModel):
     company_name: str
     company_url: str
@@ -1199,6 +1311,11 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
             database.update_org_crawl_status(crawl_id, "running")
             debug_log.append(f"[1.5] Using provided crawl_id={crawl_id}, marked as running")
 
+        # Fetch crawl record to get its created_at timestamp for scrape_date
+        with database.get_connection() as conn:
+            crawl_row = conn.execute("SELECT created_at FROM org_crawls WHERE id = ?", (crawl_id,)).fetchone()
+            crawl_created_at = crawl_row['created_at'] if crawl_row else datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
         # Step 2: Crawl career page (with timing)
         debug_log.append(f"[2] Crawling career page: {org['career_page_url']}")
         career_crawl_start = time.time()
@@ -1307,19 +1424,24 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
         )
         debug_log.append(f"[10] Heuristic matching: {heuristic_match_count} matches in {heuristic_latency_ms}ms")
 
-        # Step 9 (doc): Deduped candidate list
-        new_candidates = [
+        # Step 9 (doc): Filter crawl_list to only domain/heuristic matches
+        # Filter crawl_list to ONLY items that matched domain OR heuristic (and not already in org/non-job)
+        crawl_list = [
             item for item in crawl_list
-            if not item["non_job_match"] and not item["found_in_org_list"]
-            and (item["domain_match"] or item["heuristic_match"])
+            if (item["domain_match"] or item["heuristic_match"]) and not item["non_job_match"] and not item["found_in_org_list"]
         ]
-        debug_log.append(f"[11] De-duped: {len(new_candidates)} possible new roles to validate")
+        # dedupe_roles_count = final count of items after deduplication/filtering
+        dedupe_roles_count = len(crawl_list)
+        debug_log.append(f"[11] Filtered crawl_list to {dedupe_roles_count} domain/heuristic matches")
+
+        # Create final candidate list from filtered crawl_list
+        new_candidates = crawl_list
+        debug_log.append(f"[12] De-duped: {len(new_candidates)} possible new roles to validate")
 
         # Collect metrics for org_crawls
-        scraped_urls = {item["url"] for item in crawl_list}
+        scraped_urls = {item["url"] for item in new_candidates}  # Now only domain/heuristic matches
         domain_roles_count = domain_match_count
         heuristic_roles_count = heuristic_match_count
-        dedupe_roles_count = len(scraped_urls)
         current_org_roles_count = len(org_list)
         missing_roles_count = detected_missing_count
         matched_roles_count = sum(1 for item in org_list if item["found_in_crawl_list"])
@@ -1333,13 +1455,13 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
         candidates_to_validate = new_candidates[:limit_unvalidated] if limit_unvalidated else new_candidates
         skipped_count = len(new_candidates) - len(candidates_to_validate)
         if skipped_count > 0:
-            debug_log.append(f"[11.a] Processing first {limit_unvalidated} of {len(new_candidates)} (skipping {skipped_count})")
+            debug_log.append(f"[13.a] Processing first {limit_unvalidated} of {len(new_candidates)} (skipping {skipped_count})")
 
         for idx, candidate in enumerate(candidates_to_validate, 1):
             job_title = candidate.get("title", "")
             job_url = candidate.get("url", "")
 
-            debug_log.append(f"[11.{idx}] Validating: {job_title[:50]}...")
+            debug_log.append(f"[13.{idx}] Validating: {job_title[:50]}...")
 
             crawl4ai_latency_ms = None
             validation_info = {}
@@ -1350,7 +1472,7 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
                 crawl_start = time.time()
                 job_markdown = await crawl_page(job_url)
                 crawl4ai_latency_ms = int((time.time() - crawl_start) * 1000)
-                debug_log.append(f"[11.{idx}.a] Crawled job page ({len(job_markdown)} chars in {crawl4ai_latency_ms}ms)")
+                debug_log.append(f"[13.{idx}.a] Crawled job page ({len(job_markdown)} chars in {crawl4ai_latency_ms}ms)")
 
                 # Log crawl4ai job page fetch
                 database.insert_org_crawl_log(
@@ -1380,14 +1502,14 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
                 )
 
                 if not is_job:
-                    debug_log.append(f"[11.{idx}.b] LLM Pass 1: NOT a job posting → rejected ({validation_info.get('latency_ms')}ms)")
+                    debug_log.append(f"[13.{idx}.b] LLM Pass 1: NOT a job posting → rejected ({validation_info.get('latency_ms')}ms)")
                     continue
 
-                debug_log.append(f"[11.{idx}.b] LLM Pass 1: Confirmed as job posting ({validation_info.get('latency_ms')}ms)")
+                debug_log.append(f"[13.{idx}.b] LLM Pass 1: Confirmed as job posting ({validation_info.get('latency_ms')}ms)")
 
                 # LLM Pass 2: Extract metadata
                 extracted, extraction_info = await extract_job_metadata(job_markdown, job_title)
-                debug_log.append(f"[11.{idx}.c] LLM Pass 2: Extracted title={extracted.get('title', 'N/A')}, salary={extracted.get('salary_range', 'N/A')} ({extraction_info.get('latency_ms')}ms)")
+                debug_log.append(f"[13.{idx}.c] LLM Pass 2: Extracted title={extracted.get('title', 'N/A')}, salary={extracted.get('salary_range', 'N/A')} ({extraction_info.get('latency_ms')}ms)")
 
                 # Log LLM extraction
                 database.insert_org_crawl_log(
@@ -1406,20 +1528,26 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
                     status_code=200,  # LLM succeeded
                 )
 
+                # Check if role is interesting (matches keywords from jobsearch.md)
+                role_title = extracted.get("title", job_title)
+                role_description = extracted.get("description")
+                is_interesting = 1 if _is_role_interesting(role_title, role_description) else 0
+
                 # Insert or update in DB
                 role_id = database.upsert_org_role(
                     org_id,
-                    title=extracted.get("title", job_title),
+                    title=role_title,
                     role_url=job_url,
-                    description=extracted.get("description"),
+                    description=role_description,
                     salary_range=extracted.get("salary_range"),
                     remote_type=extracted.get("remote_type", "unknown"),
                     markdown=job_markdown,
-                    is_interesting=0,
+                    is_interesting=is_interesting,
                     is_active=1,
                     missing_count=0,
+                    scrape_date=crawl_created_at,
                 )
-                debug_log.append(f"[11.{idx}.d] Upserted to DB: role_id={role_id}")
+                debug_log.append(f"[13.{idx}.d] Upserted to DB: role_id={role_id}, interesting={is_interesting}")
 
                 candidate["found_new_job"] = True
                 candidate["org_role_id"] = role_id
@@ -1428,7 +1556,7 @@ async def validate_new_roles_algorithm(org_id: int, limit_unvalidated: int | Non
             except Exception as e:  # noqa: BLE001
                 error_msg = str(e)
                 validation_errors.append(f"{job_title}: {error_msg}")
-                debug_log.append(f"[11.{idx}] ERROR: {error_msg}")
+                debug_log.append(f"[13.{idx}] ERROR: {error_msg}")
                 # Log the error
                 try:
                     database.insert_org_crawl_log(

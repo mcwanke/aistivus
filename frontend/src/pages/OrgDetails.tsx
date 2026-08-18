@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import AppHeader from '@/components/AppHeader'
 import { OrgCompanyResearchWorkerModal } from '@/components/OrgCompanyResearchWorkerModal'
-import { useOrgDetail, useOrgResearch, useGenerateOrgResearchPrompt, useImportOrgResearch, useOrgCrawls, useCrawlLogs, useExportOrgCrawls, useExportCrawlLogs, useOrgRoles, useExportOrgRoles, useMarkRoleInteresting, useMarkRoleNotInteresting, useMarkRoleActive, useMarkRoleClosed, useUpdateOrgRole, useTriggerCrawl } from '@/hooks/useOrgs'
+import { useOrgDetail, useOrgResearch, useGenerateOrgResearchPrompt, useImportOrgResearch, useOrgCrawls, useCrawlLogs, useExportOrgCrawls, useExportCrawlLogs, useOrgRoles, useExportOrgRoles, useMarkRoleInteresting, useMarkRoleNotInteresting, useMarkRoleActive, useMarkRoleClosed, useUpdateOrgRole, useTriggerCrawl, usePromoteRoleMutation } from '@/hooks/useOrgs'
 import type { JobResearch, OrgResearch, OrgCrawl, OrgCrawlLog, OrgRole } from '@/types/api'
 
 // ─── Tab type ─────────────────────────────────────────────────────────────────
@@ -1363,10 +1363,12 @@ function UnsavedChangesModal({ isOpen, onSave, onDiscard }: UnsavedChangesModalP
 // ─── Interesting Roles Tab ─────────────────────────────────────────────
 
 function InterestingRolesTab({ orgId }: { orgId: number }): React.JSX.Element {
+  const navigate = useNavigate()
   const { data: roles = [], isLoading, isError } = useOrgRoles(orgId)
   const updateRoleMutation = useUpdateOrgRole(orgId)
   const markNotInterestingMutation = useMarkRoleNotInteresting(orgId)
   const markClosedMutation = useMarkRoleClosed(orgId)
+  const promoteRoleMutation = usePromoteRoleMutation(orgId)
 
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null)
   const [textPopup, setTextPopup] = useState<TextPopupState>({ isOpen: false, title: '', content: '' })
@@ -1483,6 +1485,17 @@ function InterestingRolesTab({ orgId }: { orgId: number }): React.JSX.Element {
       clearSelection()
     } catch (err) {
       console.error('Mark closed failed:', err)
+    }
+  }
+
+  async function handlePromoteRole(): Promise<void> {
+    if (!selectedRoleId) return
+    try {
+      const result = await promoteRoleMutation.mutateAsync(selectedRoleId)
+      clearSelection()
+      navigate(`/jobs/${result.job_id}`)
+    } catch (err) {
+      console.error('Promote role failed:', err)
     }
   }
 
@@ -1651,10 +1664,11 @@ function InterestingRolesTab({ orgId }: { orgId: number }): React.JSX.Element {
                 {updateRoleMutation.isPending ? 'Saving…' : 'Save Edits'}
               </button>
               <button
-                onClick={() => {}}
-                className="px-4 py-2 text-xs font-mono bg-surface border border-surface2 text-muted rounded hover:text-text transition-colors"
+                onClick={() => withDirtyCheck(() => void handlePromoteRole())}
+                disabled={promoteRoleMutation.isPending}
+                className="px-4 py-2 text-xs font-mono bg-surface border border-surface2 text-muted rounded hover:text-text transition-colors disabled:opacity-50"
               >
-                Start Application
+                {promoteRoleMutation.isPending ? 'Starting…' : 'Start Application'}
               </button>
 
               <div className="flex-1" />

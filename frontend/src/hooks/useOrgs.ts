@@ -331,3 +331,24 @@ export function useUpdateOrgRole(orgId: number) {
     },
   })
 }
+
+export function usePromoteRoleMutation(orgId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (roleId: number): Promise<{ success: boolean; job_id: number }> => {
+      const res = await fetch(`/api/v1/orgs/${orgId}/roles/${roleId}/promote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { detail?: string }
+        throw new Error(err.detail ?? `promote role ${res.status}`)
+      }
+      return res.json() as Promise<{ success: boolean; job_id: number }>
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['org-roles', orgId] })
+      void qc.invalidateQueries({ queryKey: ['jobs'] })
+    },
+  })
+}

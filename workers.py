@@ -591,6 +591,50 @@ async def org_research_handler(input_data: dict) -> dict:
 
 
 # ─────────────────────────────────────────────────────────────
+# org_crawl — Run organization career page crawl via Crawl4AI
+# ─────────────────────────────────────────────────────────────
+
+
+async def org_crawl_handler(input_data: dict) -> dict:
+    """
+    Run a career page crawl for an organization via Crawl4AI.
+    Input: {org_id, crawl_id}
+    Output: {success, roles_extracted, errors}
+    """
+    logger = log_module.get_logger("worker.org_crawl")
+
+    org_id = input_data.get("org_id")
+    crawl_id = input_data.get("crawl_id")
+
+    if not org_id:
+        raise ValueError("Input must contain org_id")
+    if not crawl_id:
+        raise ValueError("Input must contain crawl_id")
+
+    try:
+        from poc_routes import validate_new_roles_algorithm
+
+        # Run the crawl algorithm (already handles org_crawl status updates)
+        result = await validate_new_roles_algorithm(org_id, crawl_id=crawl_id)
+
+        if result.get("success"):
+            logger.info(f"[Worker org_crawl] Crawl {crawl_id} completed successfully for org {org_id}")
+            return {
+                "success": True,
+                "roles_extracted": result.get("roles_extracted", 0),
+                "new_roles": result.get("new_roles", 0),
+            }
+        else:
+            error_msg = result.get("error", "Unknown error")
+            logger.error(f"[Worker org_crawl] Crawl {crawl_id} failed for org {org_id}: {error_msg}")
+            raise RuntimeError(error_msg)
+
+    except Exception as e:
+        logger.error(f"[Worker org_crawl] Failed for org {org_id}, crawl {crawl_id}: {e}")
+        raise
+
+
+# ─────────────────────────────────────────────────────────────
 # Worker Registry
 # ─────────────────────────────────────────────────────────────
 
@@ -607,8 +651,11 @@ WORKERS = {
         "handler": org_research_handler,
         "entity_type": "org",
     },
+    "org_crawl": {
+        "handler": org_crawl_handler,
+        "entity_type": "org",
+    },
     # Future workers will be registered here:
-    # "org_scrape": {...},
     # "eval_role": {...},
     # etc.
 }
